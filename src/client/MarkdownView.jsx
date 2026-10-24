@@ -142,29 +142,19 @@ function FallbackMarkdown({ text }) {
 /**
  * Render one markdown document in the read-only viewer.
  * @param {{ text: string, outlineOpen: boolean, onToggleOutline: () => void,
- *   labels?: Record<string, string> }} props
+ *   labels?: Record<string, string>, t?: (key: string) => string,
+ *   findOpen?: boolean, onCloseFind?: () => void, onFindRequest?: () => void }} props
  */
-export function MarkdownView({ text, outlineOpen, onToggleOutline, labels = {}, t = (key) => key }) {
+export function MarkdownView({
+  text, outlineOpen, onToggleOutline, labels = {}, t = (key) => key,
+  findOpen = false, onCloseFind, onFindRequest,
+}) {
   const MarkdownText = useMarkdownComponent()
   const containerRef = useRef(null)
   const [activeSlug, setActiveSlug] = useState('')
-  const [findOpen, setFindOpen] = useState(false)
   const headings = useMemo(() => extractHeadings(text), [text])
   const headingKey = useMemo(() => headings.map(heading => heading.slug).join('|'), [headings])
-
-  useEffect(() => {
-    const onKey = (event) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
-      if (event.key.toLowerCase() !== 'f') return
-      const target = event.target
-      if (!(target instanceof Element) || target.closest('.iwb-root') === null) return
-      event.preventDefault()
-      event.stopPropagation()
-      setFindOpen(true)
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [])
+  const openFind = () => { onFindRequest?.() }
 
   // Assign the parsed slugs to the rendered heading elements in document order.
   useEffect(() => {
@@ -217,9 +207,25 @@ export function MarkdownView({ text, outlineOpen, onToggleOutline, labels = {}, 
     }
   }
 
-  return React.createElement('div', { className: 'iwb-markdown-wrap' },
+  return React.createElement('div', {
+    className: 'iwb-markdown-wrap',
+    // Fallback for focus that stays inside the preview (links, copy buttons).
+    // The editor area owns the shortcut when focus fell back to document.body.
+    onKeyDown: (event) => {
+      const mod = event.ctrlKey || event.metaKey
+      if (mod && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        event.stopPropagation()
+        openFind()
+      } else if (event.key === 'F3' && !mod) {
+        event.preventDefault()
+        event.stopPropagation()
+        openFind()
+      }
+    },
+  },
     findOpen === true
-      ? React.createElement(DomFindBar, { containerRef, t, onClose: () => setFindOpen(false) })
+      ? React.createElement(DomFindBar, { containerRef, t, onClose: () => onCloseFind?.() })
       : null,
     React.createElement('div', { className: 'iwb-markdown', ref: containerRef },
       MarkdownText !== null

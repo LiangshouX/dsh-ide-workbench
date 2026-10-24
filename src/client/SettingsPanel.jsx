@@ -43,16 +43,20 @@ function Row({ label, hint, children }) {
   )
 }
 
-export function SettingsForm({ store, state, compact }) {
+export function SettingsForm({ store, state, compact, onStatusChange }) {
   const t = store.t
   const settings = state.settings ?? {}
   const [draft, setDraft] = useState(settings)
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [capturing, setCapturing] = useState(false)
   const timer = useRef(null)
   const savedTimer = useRef(null)
   const rootRef = useRef(null)
   const scrollRef = useRef({ parent: null, top: 0 })
+  /** Settings changed but not yet sent; merged so rapid edits never drop one. */
+  const pendingPatch = useRef({})
+  const alive = useRef(true)
 
   // The native settings page owns the scroll container around this section.
   // Remember where the user was before a debounced save and put it back after
@@ -82,30 +86,75 @@ export function SettingsForm({ store, state, compact }) {
   }
 
   useEffect(() => {
+    // Do not let a completed save overwrite an edit the user made while it was
+    // in flight; that edit has its own flush coming.
+    if (Object.keys(pendingPatch.current).length > 0) return
     setDraft(settings)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings])
 
-  useEffect(() => () => {
-    if (timer.current !== null) clearTimeout(timer.current)
-    if (savedTimer.current !== null) clearTimeout(savedTimer.current)
+  // The in-workbench modal renders the feedback in its sticky header; the
+  // native settings page reads it from the sticky footer below.
+  useEffect(() => {
+    onStatusChange?.({ saving, saved })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saving, saved])
+
+  /** Deep-merge one settings patch into another (arrays replace). */
+  const mergePatch = (base, patch) => {
+    const output = { ...base }
+    for (const [key, value] of Object.entries(patch)) {
+      const current = base[key]
+      output[key] = value !== null && typeof value === 'object' && !Array.isArray(value)
+        && current !== null && typeof current === 'object' && !Array.isArray(current)
+        ? mergePatch(current, value)
+        : value
+    }
+    return output
+  }
+
+  // Send everything still pending, including a change made less than the
+  // debounce interval before the panel was closed. A close must not silently
+  // drop the last toggle.
+  const flush = () => {
+    if (timer.current !== null) { clearTimeout(timer.current); timer.current = null }
+    const patch = pendingPatch.current
+    if (Object.keys(patch).length === 0) return Promise.resolve()
+    pendingPatch.current = {}
+    if (alive.current) setSaving(true)
+    return store.updateSettings(patch).finally(() => {
+      if (!alive.current) return
+      setSaving(false)
+      setSaved(true)
+      if (savedTimer.current !== null) clearTimeout(savedTimer.current)
+      savedTimer.current = setTimeout(() => { if (alive.current) setSaved(false) }, 1800)
+    })
+  }
+
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      // Unmounting (closing the modal, leaving the settings page) commits the
+      // pending edit instead of cancelling it.
+      if (Object.keys(pendingPatch.current).length > 0) void flush()
+      if (timer.current !== null) clearTimeout(timer.current)
+      if (savedTimer.current !== null) clearTimeout(savedTimer.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const commit = (patch) => {
+    captureScroll()
+    pendingPatch.current = mergePatch(pendingPatch.current, patch)
     if (timer.current !== null) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       timer.current = null
-      void store.updateSettings(patch).then(() => {
-        restoreScroll()
-        setSaved(true)
-        if (savedTimer.current !== null) clearTimeout(savedTimer.current)
-        savedTimer.current = setTimeout(() => setSaved(false), 1600)
-      })
-    }, 350)
+      void flush().then(() => { if (alive.current) restoreScroll() })
+    }, 300)
   }
 
   const update = (patch) => {
-    captureScroll()
     const next = {
       ...draft,
       ...patch,
@@ -333,8 +382,8 @@ export function SettingsForm({ store, state, compact }) {
         React.createElement('span', { className: 'iwb-settings-value' }, t('settings.followDsh')),
       ),
     ),
-    React.createElement('div', { className: 'iwb-settings-footer' },
-      compact === true ? null : React.createElement('button', {
+    compact === true ? null : React.createElement('div', { className: 'iwb-settings-footer' },
+      React.createElement('button', {
         type: 'button', className: 'iwb-textbtn iwb-small iwb-settings-reset',
         onClick: () => {
           const reset = {
@@ -357,9 +406,11 @@ export function SettingsForm({ store, state, compact }) {
           commit(reset)
         },
       }, t('settings.reset')),
-      saved === true
-        ? React.createElement('div', { className: 'iwb-settings-saved', role: 'status' }, t('settings.saved'))
-        : null,
+      saving === true
+        ? React.createElement('div', { className: 'iwb-settings-saved', role: 'status', 'aria-live': 'polite' }, t('settings.saving'))
+        : (saved === true
+            ? React.createElement('div', { className: 'iwb-settings-saved', role: 'status', 'aria-live': 'polite' }, t('settings.saved'))
+            : null),
     ),
   )
 }

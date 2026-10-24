@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 28" width="448" height="28" role="img" aria-label="npm, MIT license, DSH 0.1.7+, Windows macOS Linux">
+  <defs>
+    <clipPath id="b-license"><rect x="54" y="0" width="82" height="28" rx="4"/></clipPath>
+    <clipPath id="b-dsh"><rect x="144" y="0" width="88" height="28" rx="4"/></clipPath>
+    <clipPath id="b-platform"><rect x="240" y="0" width="208" height="28" rx="4"/></clipPath>
+  </defs>
+  <g font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#ffffff">
+    <!-- npm -->
+    <rect x="0" y="0" width="46" height="28" rx="4" fill="#cb3837"/>
+    <text x="23" y="18" text-anchor="middle">npm</text>
+    <!-- license MIT -->
+    <g clip-path="url(#b-license)">
+      <rect x="54" y="0" width="48" height="28" fill="#555555"/>
+      <rect x="102" y="0" width="34" height="28" fill="#3b82f6"/>
+    </g>
+    <text x="78" y="18" text-anchor="middle">license</text>
+    <text x="119" y="18" text-anchor="middle">MIT</text>
+    <!-- DSH >= 0.1.7 -->
+    <g clip-path="url(#b-dsh)">
+      <rect x="144" y="0" width="38" height="28" fill="#555555"/>
+      <rect x="182" y="0" width="50" height="28" fill="#8b5cf6"/>
+    </g>
+    <text x="163" y="18" text-anchor="middle">DSH</text>
+    <text x="207" y="18" text-anchor="middle">&#8805; 0.1.7</text>
+    <!-- platform -->
+    <g clip-path="url(#b-platform)">
+      <rect x="240" y="0" width="56" height="28" fill="#555555"/>
+      <rect x="296" y="0" width="152" height="28" fill="#4b5563"/>
+    </g>
+    <text x="268" y="18" text-anchor="middle">platform</text>
+    <text x="372" y="18" text-anchor="middle">Windows &#183; macOS &#183; Linux</text>
+  </g>
+</svg>

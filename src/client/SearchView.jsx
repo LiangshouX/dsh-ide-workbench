@@ -102,9 +102,24 @@ export function SearchView({ store, state }) {
           }
         },
       }),
-      Flag(caseSensitive, 'Aa', t('search.caseSensitive'), () => setCaseSensitive(value => !value)),
-      Flag(wholeWord, 'W', t('search.wholeWord'), () => setWholeWord(value => !value)),
-      Flag(regexp, '.*', t('search.regexp'), () => setRegexp(value => !value)),
+      React.createElement(Flag, {
+        on: caseSensitive,
+        label: 'Aa',
+        title: t('search.caseSensitive'),
+        onClick: () => setCaseSensitive(value => !value),
+      }),
+      React.createElement(Flag, {
+        on: wholeWord,
+        label: 'W',
+        title: t('search.wholeWord'),
+        onClick: () => setWholeWord(value => !value),
+      }),
+      React.createElement(Flag, {
+        on: regexp,
+        label: '.*',
+        title: t('search.regexp'),
+        onClick: () => setRegexp(value => !value),
+      }),
     ),
     React.createElement('div', { className: 'iwb-search-meta' },
       search.loading === true

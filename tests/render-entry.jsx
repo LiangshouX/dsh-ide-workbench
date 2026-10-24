@@ -10,6 +10,7 @@ import { Workbench } from '../src/client/Workbench.jsx'
 import { EditorArea } from '../src/client/EditorArea.jsx'
 import { DiffView } from '../src/client/DiffView.jsx'
 import { SettingsForm } from '../src/client/SettingsPanel.jsx'
+import { MarkdownView } from '../src/client/MarkdownView.jsx'
 export { apply as applyClient, inject as clientInject } from '../src/client/index.jsx'
 
 const t = (key) => key
@@ -225,6 +226,19 @@ export function renderMarkdownEdit() {
   store.state.tabs = [tab]
   store.state.activeId = tab.id
   return renderToStaticMarkup(React.createElement(Workbench, { store }))
+}
+
+export function renderMarkdownFind() {
+  return renderToStaticMarkup(React.createElement(MarkdownView, {
+    text: '# Sample Doc\n\nIntro paragraph.\n',
+    outlineOpen: false,
+    onToggleOutline: () => {},
+    findOpen: true,
+    onCloseFind: () => {},
+    onFindRequest: () => {},
+    t: key => key,
+    labels: {},
+  }))
 }
 
 export function renderDiffComponent() {

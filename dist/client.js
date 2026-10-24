@@ -337,6 +337,10 @@ var en = {
   "settings.nav": "IDE Workbench",
   "settings.title": "IDE Workbench Settings",
   "settings.saved": "Saved",
+  "settings.saving": "Saving\u2026",
+  "chat.sendToChat": "Send to chat",
+  "chat.sent": "Sent to chat",
+  "chat.unavailable": "The chat input is not available right now",
   "settings.reset": "Reset to defaults",
   "settings.shortcuts": "Shortcuts",
   "settings.shortcutsGroupHint": "Click a shortcut, then press the new key combination. Esc cancels.",
@@ -760,6 +764,10 @@ var zh = {
   "settings.nav": "IDE \u5DE5\u4F5C\u53F0",
   "settings.title": "IDE \u5DE5\u4F5C\u53F0\u8BBE\u7F6E",
   "settings.saved": "\u5DF2\u4FDD\u5B58",
+  "settings.saving": "\u4FDD\u5B58\u4E2D\u2026",
+  "chat.sendToChat": "\u53D1\u9001\u5230\u804A\u5929\u6846",
+  "chat.sent": "\u5DF2\u53D1\u9001\u5230\u804A\u5929\u6846",
+  "chat.unavailable": "\u6682\u65F6\u65E0\u6CD5\u5199\u5165\u804A\u5929\u8F93\u5165\u6846",
   "settings.reset": "\u6062\u590D\u9ED8\u8BA4\u8BBE\u7F6E",
   "settings.shortcuts": "\u5FEB\u6377\u952E",
   "settings.shortcutsGroupHint": "\u70B9\u51FB\u5FEB\u6377\u952E\u540E\u6309\u4E0B\u65B0\u7684\u7EC4\u5408\u952E\uFF1B\u6309 Esc \u53D6\u6D88\u3002",
@@ -1686,6 +1694,123 @@ function openInDefaultSidebar(ctx, address, options = {}) {
   }
 }
 
+// src/client/chat-bridge.js
+var inputs = /* @__PURE__ */ new Map();
+function registerChatInput(sessionId, actions) {
+  if (typeof sessionId !== "string" || sessionId === "") return () => {
+  };
+  if (actions === null || typeof actions !== "object") return () => {
+  };
+  if (typeof actions.captureInsertion !== "function" || typeof actions.insertText !== "function") return () => {
+  };
+  const entry = { actions };
+  inputs.set(sessionId, entry);
+  return () => {
+    if (inputs.get(sessionId) === entry) inputs.delete(sessionId);
+  };
+}
+function insertChatText(sessionId, text) {
+  if (typeof text !== "string" || text === "") return false;
+  const entry = inputs.get(sessionId);
+  if (entry === void 0) return false;
+  const { actions } = entry;
+  try {
+    const span = actions.captureInsertion();
+    if (span === null || typeof span !== "object" || typeof span.draftRev !== "number") return false;
+    const target = span.start === span.end ? span : { ...span, start: span.end };
+    const insert2 = target.start > 0 ? ` ${text}` : text;
+    if (actions.insertText(insert2, target) !== true) return false;
+    try {
+      actions.persistDraft?.();
+    } catch {
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+function formatFileMention(path2, isDirectory = false) {
+  if (typeof path2 !== "string" || path2 === "") return void 0;
+  let value = path2.replace(/\\/g, "/").replace(/^(?:\.\/)+/, "").replace(/\/+$/, "");
+  if (value === "") return void 0;
+  if (isDirectory === true) value = `${value}/`;
+  if (/[\u0000-\u001f\u007f"]/u.test(value)) return void 0;
+  return /\s/u.test(value) ? `@"${value}"` : `@${value}`;
+}
+var FENCE_LABELS = {
+  ".js": "js",
+  ".mjs": "js",
+  ".cjs": "js",
+  ".jsx": "jsx",
+  ".ts": "ts",
+  ".mts": "ts",
+  ".cts": "ts",
+  ".tsx": "tsx",
+  ".json": "json",
+  ".jsonc": "json",
+  ".json5": "json",
+  ".md": "markdown",
+  ".markdown": "markdown",
+  ".py": "python",
+  ".java": "java",
+  ".css": "css",
+  ".scss": "scss",
+  ".less": "less",
+  ".html": "html",
+  ".htm": "html",
+  ".vue": "vue",
+  ".svelte": "svelte",
+  ".sql": "sql",
+  ".yml": "yaml",
+  ".yaml": "yaml",
+  ".xml": "xml",
+  ".svg": "xml",
+  ".c": "c",
+  ".h": "c",
+  ".cpp": "cpp",
+  ".cc": "cpp",
+  ".cxx": "cpp",
+  ".hpp": "cpp",
+  ".go": "go",
+  ".rs": "rust",
+  ".sh": "bash",
+  ".bash": "bash",
+  ".ps1": "powershell"
+};
+function fenceLabelForPath(path2) {
+  const value = String(path2 ?? "").toLowerCase();
+  const dot3 = value.lastIndexOf(".");
+  if (dot3 < 0) return "";
+  return FENCE_LABELS[value.slice(dot3)] ?? "";
+}
+var MAX_CODE_CHARS = 16e3;
+var MAX_CODE_LINES = 240;
+function capCode(text) {
+  const value = String(text ?? "").replace(/\r\n/g, "\n");
+  const lines = value.split("\n");
+  let body = lines.length > MAX_CODE_LINES ? lines.slice(0, MAX_CODE_LINES).join("\n") : value;
+  let truncated = lines.length > MAX_CODE_LINES;
+  if (body.length > MAX_CODE_CHARS) {
+    body = body.slice(0, MAX_CODE_CHARS);
+    truncated = true;
+  }
+  if (truncated) body += "\n\u2026 (truncated)";
+  return body;
+}
+function composeCodeReference({ mention, text, fromLine, toLine, path: path2 = "" }) {
+  const from = Number.isFinite(fromLine) ? Math.max(1, Math.trunc(fromLine)) : 1;
+  const to = Number.isFinite(toLine) ? Math.max(from, Math.trunc(toLine)) : from;
+  const range = from === to ? `L${from}` : `L${from}-L${to}`;
+  const language2 = fenceLabelForPath(path2);
+  const body = capCode(text);
+  return `${mention} (${range})
+
+\`\`\`${language2}
+${body}
+\`\`\`
+`;
+}
+
 // src/client/workspace-scope.js
 function normalizeScopePath(path2) {
   if (typeof path2 !== "string" || path2 === "") return "";
@@ -1747,6 +1872,9 @@ function joinPath(root, rel) {
 }
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
+}
+function normalizeNewlines(text) {
+  return typeof text === "string" ? text.replace(/\r\n/g, "\n") : text;
 }
 function initialState() {
   return {
@@ -1871,7 +1999,7 @@ var WorkbenchStore = class {
       void this.#persist();
     }, 700);
     this.toastTimer = null;
-    this.treeReloadToken = 0;
+    this.treeTokens = /* @__PURE__ */ new Map();
     this.gitRequestToken = 0;
     this.gitDetailToken = 0;
     this.searchToken = 0;
@@ -1977,7 +2105,7 @@ var WorkbenchStore = class {
         const projectRoot = this.#projectRootFor(preferred);
         this.set({ root: projectRoot });
         this.#restoreWorkspace(projectRoot);
-        void this.loadDir(projectRoot);
+        void this.loadRestoredTree();
         this.patch("commit", { mode: settings?.editor?.sideBySide === false ? "unified" : "side" });
         void this.refreshStatus({ initial: true });
         void this.refreshShells();
@@ -2098,6 +2226,73 @@ var WorkbenchStore = class {
       return false;
     }
   }
+  // ── send to chat ─────────────────────────────────────────────────────
+  /** The Session whose chat composer is on screen. */
+  #chatSessionId() {
+    try {
+      const id2 = this.ctx?.sidebarRight?.mounted?.getSnapshot?.();
+      return typeof id2 === "string" ? id2 : "";
+    } catch {
+      return "";
+    }
+  }
+  /** Workspace-relative path for an @ reference (forward slashes). */
+  #chatRelPath(path2) {
+    const workspace = this.state.workspaceRoot;
+    if (workspace !== "" && isPathWithin(workspace, path2)) {
+      return String(path2).slice(workspace.length).replace(/^[\\/]+/, "").split("\\").join("/");
+    }
+    return String(path2).split("\\").join("/");
+  }
+  /** Insert one composed message into the composer, with feedback on failure. */
+  #sendChatText(text, detail) {
+    const sessionId = this.#chatSessionId();
+    const sent = sessionId !== "" && insertChatText(sessionId, text);
+    if (!sent) {
+      this.toast("error", this.t("chat.unavailable"));
+      return false;
+    }
+    this.toast("success", this.t("chat.sent"), detail);
+    return true;
+  }
+  /**
+   * Send one or more files / folders from the Project tree to the chat composer
+   * as `@path` references.
+   * @param {Array<{ path: string, isDir?: boolean }>} entries
+   * @returns {boolean} whether the composer accepted the references
+   */
+  sendToChat(entries) {
+    const list = Array.isArray(entries) ? entries : [];
+    const mentions = [];
+    for (const entry of list) {
+      if (entry === null || typeof entry !== "object" || typeof entry.path !== "string") continue;
+      const mention = formatFileMention(this.#chatRelPath(entry.path), entry.isDir === true);
+      if (mention !== void 0) mentions.push(mention);
+    }
+    if (mentions.length === 0) return false;
+    return this.#sendChatText(`${mentions.join(" ")} `, mentions.join(" "));
+  }
+  /**
+   * Send a code selection to the chat composer: the file reference, the line
+   * range and the selected code in a fenced block.
+   * @param {{ path: string, rel?: string, text: string, fromLine: number, toLine: number }} selection
+   * @returns {boolean}
+   */
+  sendSelectionToChat(selection) {
+    const path2 = selection?.path;
+    if (typeof path2 !== "string" || path2 === "") return false;
+    const mention = formatFileMention(this.#chatRelPath(path2), false);
+    if (mention === void 0) return false;
+    const text = composeCodeReference({
+      mention,
+      text: selection.text,
+      fromLine: selection.fromLine,
+      toLine: selection.toLine,
+      path: path2
+    });
+    const name2 = selection.rel !== void 0 && selection.rel !== "" ? selection.rel : baseName(path2);
+    return this.#sendChatText(text, `${name2}:${selection.fromLine}-${selection.toLine}`);
+  }
   /** Whether one absolute path is inside the selected IDE project root. */
   #insideRoot(path2) {
     return isPathWithin(this.state.root, path2);
@@ -2191,7 +2386,7 @@ var WorkbenchStore = class {
     });
     this.#rememberProjectRoot(projectRoot);
     this.#restoreWorkspace(projectRoot);
-    void this.loadDir(projectRoot);
+    void this.loadRestoredTree();
     await this.refreshStatus({ initial: true });
     void this.refreshShells();
     void this.loadLog(true);
@@ -2239,7 +2434,7 @@ var WorkbenchStore = class {
     });
     this.#rememberProjectRoot(projectRoot);
     this.#restoreWorkspace(projectRoot);
-    void this.loadDir(projectRoot);
+    void this.loadRestoredTree();
     await this.refreshStatus({ initial: true });
     void this.refreshShells();
     void this.loadLog(true);
@@ -2275,7 +2470,7 @@ var WorkbenchStore = class {
       content: null,
       error: null,
       scrollTop: typeof tab3.scrollTop === "number" ? tab3.scrollTop : 0,
-      editing: this.defaultEditing(void 0),
+      editing: this.defaultEditing(void 0, tab3.path),
       editingUserSet: false,
       view: isMarkdownPath(tab3.path) && this.state.settings?.editor?.markdownPreview !== false ? "preview" : "code",
       draft: null,
@@ -2336,7 +2531,7 @@ var WorkbenchStore = class {
       }, 2e3);
     }
     if (this.state.root !== "" && this.state.statusAt === 0) void this.refreshStatus({ initial: true });
-    if (this.state.root !== "" && !this.state.dirs.has(this.state.root)) void this.loadDir(this.state.root);
+    if (this.state.root !== "" && !this.state.dirs.has(this.state.root)) void this.loadRestoredTree();
   }
   deactivate() {
     this.set({ active: false });
@@ -2350,9 +2545,17 @@ var WorkbenchStore = class {
     if (!this.state.active || this.state.root === "" || this.polling) return;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     await this.refreshStatus({ silent: true });
-    void this.#checkActiveFileOnDisk();
+    await this.#checkActiveFileOnDisk();
   }
-  /** Cheap mtime probe for the active file; never reads the whole buffer. */
+  /**
+   * Cheap mtime probe for the active file; never reads the whole buffer.
+   *
+   * A timestamp difference alone is not an external edit: an atomic save can
+   * publish a new mtime a moment after the poll took its sample, and other
+   * tools touch files without changing them. Only a content difference may
+   * surface the conflict chip; a same-content touch just refreshes the
+   * baseline so the next poll stays quiet.
+   */
   async #checkActiveFileOnDisk() {
     const active = this.state.tabs.find((tab3) => tab3.id === this.state.activeId);
     if (active === void 0 || active.kind !== "file" || active.loading === true) return;
@@ -2361,6 +2564,15 @@ var WorkbenchStore = class {
       const info = await call("fs.stat", { root: this.state.root, path: active.path });
       if (!Number.isFinite(info.mtimeMs) || Math.abs(info.mtimeMs - active.payload.mtimeMs) <= 0.5) return;
       if (active.dirty === true || active.editing === true) {
+        const result = await call("fs.read", { root: this.state.root, path: active.path });
+        const latest = this.state.tabs.find((tab3) => tab3.id === active.id);
+        if (latest === void 0) return;
+        if (result.kind === "text" && normalizeNewlines(result.content) === normalizeNewlines(latest.payload?.content)) {
+          this.#updateTab(active.id, {
+            payload: { ...latest.payload ?? {}, ...result, content: normalizeNewlines(result.content) }
+          });
+          return;
+        }
         this.#updateTab(active.id, { conflict: { at: Date.now(), message: this.t("editor.conflictBody") } });
       } else {
         await this.ensureTabContent(active.id, { force: true });
@@ -2430,7 +2642,7 @@ var WorkbenchStore = class {
       void call("fs.read", { root: this.state.root, path: active.path }).then((result) => {
         const latest = this.state.tabs.find((tab3) => tab3.id === active.id);
         if (latest === void 0 || result.kind !== "text") return;
-        if (result.content !== latest.payload?.content) {
+        if (normalizeNewlines(result.content) !== normalizeNewlines(latest.payload?.content)) {
           this.#updateTab(active.id, { conflict: { at: Date.now(), message: this.t("editor.conflictBody") } });
         }
       }).catch(() => {
@@ -2442,24 +2654,42 @@ var WorkbenchStore = class {
   // ── file tree ─────────────────────────────────────────────────────────
   async loadDir(path2, options = {}) {
     if (this.state.root === "") return;
+    const root = this.state.root;
     const existing = this.state.dirs.get(path2);
-    if (existing !== void 0 && existing.loading) return;
+    if (existing !== void 0 && existing.loading === true && options.force !== true) return;
     if (existing !== void 0 && existing.entries !== void 0 && options.force !== true) return;
+    const token2 = (this.treeTokens.get(path2) ?? 0) + 1;
+    this.treeTokens.set(path2, token2);
     const dirs = new Map(this.state.dirs);
     dirs.set(path2, { ...existing ?? {}, loading: true, error: null });
     this.set({ dirs });
-    const token2 = ++this.treeReloadToken;
     try {
-      const listing = await call("fs.tree", { root: this.state.root, path: path2 });
-      if (token2 < this.treeReloadToken - 1) return;
+      const listing = await call("fs.tree", { root, path: path2 });
+      if (this.state.root !== root || this.treeTokens.get(path2) !== token2) return;
       const next = new Map(this.state.dirs);
       next.set(path2, { loading: false, entries: listing.entries, truncated: listing.truncated, error: null });
       this.set({ dirs: next });
     } catch (error) {
+      if (this.state.root !== root || this.treeTokens.get(path2) !== token2) return;
       const next = new Map(this.state.dirs);
-      next.set(path2, { loading: false, entries: existing?.entries, error: error instanceof Error ? error.message : String(error) });
+      next.set(path2, { loading: false, entries: existing?.entries, error: errorMessage(error) });
       this.set({ dirs: next });
     }
+  }
+  /**
+   * Load the persisted tree: the root plus every folder the user had expanded.
+   *
+   * The workspace state restores `expanded` synchronously, so without this the
+   * first render of a restored project shows a permanent "loading" row under
+   * each expanded folder (nothing ever asks for its listing).
+   */
+  async loadRestoredTree() {
+    if (this.state.root === "") return;
+    const root = this.state.root;
+    await this.loadDir(root);
+    if (this.state.root !== root) return;
+    const pending = [...this.state.expanded].filter((dir) => dir !== root && dir.startsWith(`${root}${root.includes("\\") ? "\\" : "/"}`) && this.state.dirs.get(dir)?.entries === void 0).slice(0, 200);
+    await Promise.all(pending.map((dir) => this.loadDir(dir)));
   }
   async reloadTree() {
     const expanded = [...this.state.expanded];
@@ -2961,10 +3191,21 @@ ${target}`,
     const value = Number(this.state.settings?.editor?.editableMaxBytes);
     return Number.isFinite(value) && value > 0 ? value : 1 << 20;
   }
-  /** Whether a file of `size` bytes opens editable under the current mode. */
-  defaultEditing(size) {
+  /**
+   * Whether a file opens editable under the current mode.
+   *
+   * Markdown with the rendered preview enabled opens in the preview, not in
+   * the source editor (README: "Markdown … Preview / Source"). Checking the
+   * box "editable" is the explicit way to open the text buffer directly.
+   * @param {number} [size] file size in bytes, when already known
+   * @param {string} [path] absolute path, when the caller knows it
+   */
+  defaultEditing(size, path2 = "") {
     const mode = this.editorOpenMode();
     if (mode === "readonly") return false;
+    if (path2 !== "" && isMarkdownPath(path2) && this.state.settings?.editor?.markdownPreview !== false) {
+      return mode === "editable";
+    }
     if (mode === "editable") return true;
     return !Number.isFinite(size) || size <= this.editableMaxBytes();
   }
@@ -3003,7 +3244,7 @@ ${target}`,
       content: null,
       error: null,
       scrollTop: 0,
-      editing: this.defaultEditing(void 0),
+      editing: this.defaultEditing(void 0, path2),
       editingUserSet: false,
       view: isMarkdownPath(path2) && this.state.settings?.editor?.markdownPreview !== false ? "preview" : "code",
       draft: null,
@@ -3048,17 +3289,19 @@ ${target}`,
       if (tab3.kind === "file") {
         const result = await call("fs.read", { root: this.state.root, path: tab3.path });
         const latest = this.state.tabs.find((item) => item.id === id2);
-        const text = result.kind === "text" ? result.content : null;
-        const eol2 = typeof text === "string" && text.includes("\r\n") ? "\r\n" : "\n";
-        const keepDraft = latest?.dirty === true && options.force === true;
-        const editable2 = result.kind === "text" && result.truncated !== true ? latest?.editingUserSet === true ? latest.editing === true : this.defaultEditing(result.size) : false;
+        const text = result.kind === "text" ? normalizeNewlines(result.content) : null;
+        const eol2 = typeof result.content === "string" && result.content.includes("\r\n") ? "\r\n" : "\n";
+        const keepDraft = latest?.dirty === true && options.force === true && options.discardDraft !== true;
+        const editable2 = result.kind === "text" && result.truncated !== true ? latest?.editingUserSet === true ? latest.editing === true : this.defaultEditing(result.size, tab3.path) : false;
+        const rebuilt = options.force === true && !keepDraft && options.discardDraft !== true;
         this.#updateTab(id2, {
           loading: false,
           conflict: null,
-          payload: { ...result, eol: eol2 },
+          payload: text === null ? { ...result, eol: eol2 } : { ...result, content: text, eol: eol2 },
           content: text,
           // A forced refresh (external change) must not clobber unsaved edits.
           ...keepDraft ? {} : { draft: text, dirty: false },
+          ...rebuilt ? { resetToken: (latest?.resetToken ?? 0) + 1 } : {},
           // Decision C: a file above the editable threshold opens read-only
           // even though the tab was created optimistically editable.
           ...result.kind === "text" && result.truncated !== true && !editable2 ? { editing: false } : {}
@@ -3186,14 +3429,15 @@ ${target}`,
   updateDraft(id2, text) {
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3 === void 0 || tab3.kind !== "file") return;
-    const saved = tab3.payload?.kind === "text" ? tab3.payload.content : tab3.content ?? "";
-    this.#updateTab(id2, { draft: text, dirty: text !== saved });
+    const saved = normalizeNewlines(tab3.payload?.kind === "text" ? tab3.payload.content : tab3.content ?? "");
+    const draft = normalizeNewlines(text);
+    this.#updateTab(id2, { draft, dirty: draft !== saved });
   }
   /** Throw the buffer away and return to the saved content. */
   discardDraft(id2) {
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3 === void 0 || tab3.kind !== "file") return;
-    const saved = tab3.payload?.kind === "text" ? tab3.payload.content : "";
+    const saved = normalizeNewlines(tab3.payload?.kind === "text" ? tab3.payload.content : "");
     this.#updateTab(id2, {
       draft: saved,
       dirty: false,
@@ -3205,11 +3449,10 @@ ${target}`,
   async saveTab(id2, options = {}) {
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3 === void 0 || tab3.kind !== "file" || tab3.dirty !== true || tab3.saving === true) return;
-    const text = tab3.draft ?? "";
+    const text = normalizeNewlines(tab3.draft ?? "");
     const payload = tab3.payload ?? {};
     const eol2 = payload.eol === "\r\n" ? "\r\n" : "\n";
-    const normalized = text.replace(/\r\n/g, "\n");
-    const out = eol2 === "\r\n" ? normalized.replace(/\n/g, "\r\n") : normalized;
+    const out = eol2 === "\r\n" ? text.replace(/\n/g, "\r\n") : text;
     this.#updateTab(id2, { saving: true });
     try {
       const result = await call("fs.write", {
@@ -3220,7 +3463,7 @@ ${target}`,
         expectedMtimeMs: options.force === true ? void 0 : Number.isFinite(payload.mtimeMs) ? payload.mtimeMs : void 0
       });
       const latest = this.state.tabs.find((item) => item.id === id2);
-      const latestDraft = latest?.draft ?? text;
+      const latestDraft = normalizeNewlines(latest?.draft ?? text);
       this.#updateTab(id2, {
         saving: false,
         conflict: null,
@@ -3270,9 +3513,14 @@ ${target}`,
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3 === void 0 || tab3.kind !== "file") return;
     this.#updateTab(id2, { conflict: null });
-    await this.ensureTabContent(id2, { force: true });
+    await this.ensureTabContent(id2, { force: true, discardDraft: true });
     const latest = this.state.tabs.find((item) => item.id === id2);
-    if (latest !== void 0) this.#updateTab(id2, { draft: latest.payload?.content ?? "", dirty: false });
+    if (latest === void 0) return;
+    this.#updateTab(id2, {
+      draft: latest.payload?.content ?? "",
+      dirty: false,
+      resetToken: (latest.resetToken ?? 0) + 1
+    });
   }
   /** Open the diff of one changed file (Commit / Git windows). */
   openDiff({ path: path2, staged = false, untracked = false, against = null }) {
@@ -4142,6 +4390,20 @@ function IconTerminal(props = {}) {
     path("M8.7 10h2.9", { key: "c" })
   ], props);
 }
+function IconChat(props = {}) {
+  return svg([
+    import_react2.default.createElement("path", {
+      key: "a",
+      d: "M2.6 2.8h10.8a1.2 1.2 0 0 1 1.2 1.2v6a1.2 1.2 0 0 1-1.2 1.2H6.8l-3 2.4v-2.4H2.6a1.2 1.2 0 0 1-1.2-1.2v-6a1.2 1.2 0 0 1 1.2-1.2z",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: 1.35,
+      strokeLinejoin: "round"
+    }),
+    path("M4.8 5.9h6.4", { key: "b" }),
+    path("M4.8 8.2h4.2", { key: "c" })
+  ], props);
+}
 function IconRefresh(props = {}) {
   return svg([
     path("M13 8a5 5 0 1 1-1.6-3.7", { key: "a" }),
@@ -4892,7 +5154,7 @@ function flatten(state, filter, showIgnored, ignored, mode = "tree") {
       return;
     }
     if (dir.error !== void 0 && dir.error !== null) {
-      rows.push({ kind: "error", key: `error:${path2}`, depth, message: dir.error });
+      rows.push({ kind: "error", key: `error:${path2}`, depth, message: dir.error, path: path2 });
       return;
     }
     for (const entry of dir.entries) {
@@ -4911,6 +5173,15 @@ function flatten(state, filter, showIgnored, ignored, mode = "tree") {
       rows.push({ kind: "note", key: `busy:${path2}`, depth, message: "\u2026" });
     }
   };
+  const rootDir = dirs.get(root);
+  if (rootDir === void 0 || rootDir.entries === void 0) {
+    if (rootDir !== void 0 && rootDir.error !== void 0 && rootDir.error !== null) {
+      rows.push({ kind: "error", key: `error:${root}`, depth: 0, message: rootDir.error, path: root });
+    } else {
+      rows.push({ kind: "loading", key: `loading:${root}`, depth: 0 });
+    }
+    return rows;
+  }
   for (const entry of dirs.get(root)?.entries ?? []) {
     if (!visible(entry)) continue;
     if (entry.isDir) {
@@ -5034,6 +5305,10 @@ function ProjectPanel({ store, state }) {
     if ((state.treeFocusTick ?? 0) > 0) scrollRef.current?.focus();
   }, [state.treeFocusTick]);
   (0, import_react4.useEffect)(() => {
+    if (scrollRef.current !== null) scrollRef.current.scrollTop = 0;
+    setScrollTop(0);
+  }, [state.root]);
+  (0, import_react4.useEffect)(() => {
     if (state.selectedPath === "" || scrollRef.current === null) return;
     const index = rows.findIndex((row) => row.entry?.path === state.selectedPath);
     if (index < 0) return;
@@ -5094,6 +5369,16 @@ function ProjectPanel({ store, state }) {
     const items = [
       { key: "find-in-files", text: t2("search.title"), shortcut: shortcut("findInFiles"), action: () => store.openSearchTab() },
       { key: "quick-open", text: t2("quickOpen.title"), shortcut: shortcut("quickOpen"), action: () => store.openQuickOpen() },
+      null,
+      {
+        key: "send-to-chat",
+        text: t2("chat.sendToChat"),
+        icon: import_react4.default.createElement(IconChat, { width: 13, height: 13 }),
+        disabled: currentPaths.length === 0,
+        action: () => {
+          void store.sendToChat(currentEntries.map((item) => ({ path: item.path, isDir: item.isDir })));
+        }
+      },
       null,
       { key: "new-file", text: t2("project.newFile"), shortcut: "Alt+Insert", action: () => beginNew(parentDir, false) },
       { key: "new-dir", text: t2("project.newDir"), shortcut: "Alt+Insert", action: () => beginNew(parentDir, true) },
@@ -5383,7 +5668,15 @@ function ProjectPanel({ store, state }) {
         return import_react4.default.createElement("div", { key: row.key, className: "iwb-tree-msg", style: { ...style, position: "absolute", left: 0, right: 0 } }, t2("common.loading"));
       }
       if (row.kind === "error") {
-        return import_react4.default.createElement("div", { key: row.key, className: "iwb-error-box", style: { ...style, position: "absolute", left: 8, right: 8 }, title: row.message }, row.message);
+        return import_react4.default.createElement("div", {
+          key: row.key,
+          className: "iwb-error-box",
+          style: { ...style, position: "absolute", left: 8, right: 8, cursor: "pointer" },
+          title: t2("common.retry"),
+          onClick: () => {
+            void store.loadDir(row.path, { force: true });
+          }
+        }, row.message);
       }
       if (row.kind === "note") {
         return import_react4.default.createElement("div", { key: row.key, className: "iwb-tree-msg", style: { ...style, position: "absolute", left: 0, right: 0 } }, row.message);
@@ -16099,12 +16392,14 @@ function token(root, name2, fallback2) {
   const value = getComputedStyle(element).getPropertyValue(name2).trim();
   return value === "" ? fallback2 : value;
 }
+var MIN_FIT_WIDTH = 120;
 function TerminalView({ store, state, session, active, visible }) {
   const t2 = store.t;
   const hostRef = (0, import_react7.useRef)(null);
   const termRef = (0, import_react7.useRef)(null);
   const fitRef = (0, import_react7.useRef)(null);
   const socketRef = (0, import_react7.useRef)(null);
+  const scheduleRef = (0, import_react7.useRef)(null);
   const [error, setError] = (0, import_react7.useState)(null);
   const rootRef = (0, import_react7.useRef)(null);
   (0, import_react7.useEffect)(() => {
@@ -16143,14 +16438,46 @@ function TerminalView({ store, state, session, active, visible }) {
     terminal.open(hostRef.current);
     termRef.current = terminal;
     fitRef.current = fit;
-    try {
-      fit.fit();
-    } catch {
-    }
     const send = (frame) => {
       const socket = socketRef.current;
       if (socket !== null && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame));
     };
+    let fitTimer = null;
+    let disposed = false;
+    let sentCols = 0;
+    let sentRows = 0;
+    const applyFit = () => {
+      fitTimer = null;
+      if (disposed) return false;
+      const host = hostRef.current;
+      if (host === null || host.clientWidth < MIN_FIT_WIDTH || host.clientHeight === 0) return false;
+      try {
+        fit.fit();
+      } catch {
+        return false;
+      }
+      if (!(terminal.cols > 0) || !(terminal.rows > 0)) return false;
+      if (terminal.cols === sentCols && terminal.rows === sentRows) return true;
+      sentCols = terminal.cols;
+      sentRows = terminal.rows;
+      send({ type: "resize", cols: terminal.cols, rows: terminal.rows });
+      return true;
+    };
+    const scheduleFit = (delay = 60) => {
+      if (disposed) return;
+      if (fitTimer !== null) clearTimeout(fitTimer);
+      fitTimer = setTimeout(applyFit, delay);
+    };
+    scheduleRef.current = scheduleFit;
+    const firstFit = () => {
+      scheduleFit(0);
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(firstFit);
+    else firstFit();
+    if (typeof document !== "undefined" && document.fonts?.ready !== void 0) {
+      document.fonts.ready.then(() => scheduleFit(0)).catch(() => {
+      });
+    }
     const connect = () => {
       const url = wsUrl("ide-workbench/ws/terminal");
       url.searchParams.set("root", state.root);
@@ -16162,7 +16489,9 @@ function TerminalView({ store, state, session, active, visible }) {
       socketRef.current = socket;
       socket.addEventListener("open", () => {
         store.patchTerminal(session.key, { status: "running" });
-        send({ type: "resize", cols: terminal.cols, rows: terminal.rows });
+        sentCols = 0;
+        sentRows = 0;
+        applyFit();
         terminal.focus();
       });
       socket.addEventListener("message", (event) => {
@@ -16214,14 +16543,19 @@ function TerminalView({ store, state, session, active, visible }) {
       }
     });
     const resizeObserver = new ResizeObserver(() => {
-      if (hostRef.current === null || hostRef.current.clientWidth === 0) return;
-      try {
-        fit.fit();
-        send({ type: "resize", cols: terminal.cols, rows: terminal.rows });
-      } catch {
-      }
+      if (hostRef.current === null || hostRef.current.clientWidth < MIN_FIT_WIDTH) return;
+      scheduleFit(60);
     });
     resizeObserver.observe(hostRef.current);
+    const onWindowResize = () => scheduleFit(80);
+    window.addEventListener("resize", onWindowResize);
+    const watchdog = setInterval(() => {
+      if (disposed) return;
+      const host = hostRef.current;
+      const element = terminal.element;
+      if (host === null || element === null || host.clientWidth < MIN_FIT_WIDTH) return;
+      if (Math.abs(element.offsetWidth - host.clientWidth) > 32) scheduleFit(0);
+    }, 1200);
     const onKeyDown = (event) => {
       if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "v") {
         event.preventDefault();
@@ -16242,13 +16576,21 @@ function TerminalView({ store, state, session, active, visible }) {
     };
     hostRef.current.addEventListener("keydown", onKeyDown, true);
     return () => {
+      disposed = true;
       hostRef.current?.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("resize", onWindowResize);
+      clearInterval(watchdog);
+      if (fitTimer !== null) {
+        clearTimeout(fitTimer);
+        fitTimer = null;
+      }
       resizeObserver.disconnect();
       dataDisposable.dispose();
       selectionDisposable.dispose();
       const socket = socketRef.current;
       socketRef.current = null;
       if (socket !== null) socket.close();
+      scheduleRef.current = null;
       terminal.dispose();
       termRef.current = null;
       fitRef.current = null;
@@ -16259,11 +16601,11 @@ function TerminalView({ store, state, session, active, visible }) {
       const terminal = termRef.current;
       if (terminal !== null) {
         window.setTimeout(() => {
+          scheduleRef.current?.();
           try {
-            fitRef.current?.fit();
+            terminal.focus();
           } catch {
           }
-          terminal.focus();
         }, 30);
       }
     }
@@ -28342,9 +28684,9 @@ EditorView.outerDecorations = outerDecorations;
 EditorView.atomicRanges = atomicRanges;
 EditorView.bidiIsolatedRanges = bidiIsolatedRanges;
 EditorView.cursorScrollMargin = /* @__PURE__ */ Facet.define({
-  combine: (inputs) => {
+  combine: (inputs2) => {
     let x = 5, y = 5;
-    for (let i2 of inputs) {
+    for (let i2 of inputs2) {
       if (typeof i2 == "number")
         x = y = i2;
       else
@@ -46845,10 +47187,15 @@ function CodeEditor({
   onReady,
   onChange,
   onSave,
-  onCursor
+  onCursor,
+  onSendToChat,
+  chatLabels = {}
 }) {
   const hostRef = (0, import_react8.useRef)(null);
   const viewRef = (0, import_react8.useRef)(null);
+  const [menu, setMenu] = (0, import_react8.useState)(null);
+  const onSendToChatRef = (0, import_react8.useRef)(onSendToChat);
+  onSendToChatRef.current = onSendToChat;
   const onChangeRef = (0, import_react8.useRef)(onChange);
   const onSaveRef = (0, import_react8.useRef)(onSave);
   const onCursorRef = (0, import_react8.useRef)(onCursor);
@@ -46861,6 +47208,22 @@ function CodeEditor({
   onFindRef.current = onFindRequest;
   onFindInFilesRef.current = onFindInFiles;
   onReadyRef.current = onReady;
+  const onContextMenu = (event) => {
+    const view = viewRef.current;
+    if (view === null || typeof onSendToChatRef.current !== "function") return;
+    const range = view.state.selection.main;
+    if (range.empty) return;
+    event.preventDefault();
+    const fromLine = view.state.doc.lineAt(range.from).number;
+    const toLine = view.state.doc.lineAt(range.to).number;
+    setMenu({
+      x: event.clientX,
+      y: event.clientY,
+      text: view.state.sliceDoc(range.from, range.to),
+      fromLine,
+      toLine
+    });
+  };
   (0, import_react8.useEffect)(() => {
     const host = hostRef.current;
     if (host === null) return void 0;
@@ -47020,7 +47383,32 @@ function CodeEditor({
     const line = view.state.doc.line(Math.min(revealLine, view.state.doc.lines));
     view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true });
   }, [revealLine]);
-  return import_react8.default.createElement("div", { className: "iwb-codemirror", ref: hostRef });
+  const sendSelection = () => {
+    const current = menu;
+    if (current === null) return;
+    onSendToChatRef.current?.({ text: current.text, fromLine: current.fromLine, toLine: current.toLine });
+  };
+  return import_react8.default.createElement(
+    import_react8.default.Fragment,
+    null,
+    import_react8.default.createElement("div", { className: "iwb-codemirror", ref: hostRef, onContextMenu }),
+    menu !== null ? import_react8.default.createElement(ContextMenu, {
+      x: menu.x,
+      y: menu.y,
+      onClose: () => setMenu(null),
+      items: [
+        { key: "send", text: chatLabels.send ?? "Send to chat", action: sendSelection },
+        {
+          key: "copy",
+          text: chatLabels.copy ?? "Copy",
+          action: () => {
+            void navigator.clipboard.writeText(menu.text).catch(() => {
+            });
+          }
+        }
+      ]
+    }) : null
+  );
 }
 
 // src/client/MarkdownView.jsx
@@ -47360,26 +47748,24 @@ function FallbackMarkdown({ text }) {
   }
   return import_react10.default.createElement("div", { className: "iwb-markdown-fallback" }, blocks);
 }
-function MarkdownView({ text, outlineOpen, onToggleOutline, labels = {}, t: t2 = (key) => key }) {
+function MarkdownView({
+  text,
+  outlineOpen,
+  onToggleOutline,
+  labels = {},
+  t: t2 = (key) => key,
+  findOpen = false,
+  onCloseFind,
+  onFindRequest
+}) {
   const MarkdownText = useMarkdownComponent();
   const containerRef = (0, import_react10.useRef)(null);
   const [activeSlug, setActiveSlug] = (0, import_react10.useState)("");
-  const [findOpen, setFindOpen] = (0, import_react10.useState)(false);
   const headings = (0, import_react10.useMemo)(() => extractHeadings(text), [text]);
   const headingKey = (0, import_react10.useMemo)(() => headings.map((heading2) => heading2.slug).join("|"), [headings]);
-  (0, import_react10.useEffect)(() => {
-    const onKey = (event) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
-      if (event.key.toLowerCase() !== "f") return;
-      const target = event.target;
-      if (!(target instanceof Element) || target.closest(".iwb-root") === null) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setFindOpen(true);
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
+  const openFind = () => {
+    onFindRequest?.();
+  };
   (0, import_react10.useEffect)(() => {
     const container = containerRef.current;
     if (container === null) return;
@@ -47428,8 +47814,24 @@ function MarkdownView({ text, outlineOpen, onToggleOutline, labels = {}, t: t2 =
   };
   return import_react10.default.createElement(
     "div",
-    { className: "iwb-markdown-wrap" },
-    findOpen === true ? import_react10.default.createElement(DomFindBar, { containerRef, t: t2, onClose: () => setFindOpen(false) }) : null,
+    {
+      className: "iwb-markdown-wrap",
+      // Fallback for focus that stays inside the preview (links, copy buttons).
+      // The editor area owns the shortcut when focus fell back to document.body.
+      onKeyDown: (event) => {
+        const mod = event.ctrlKey || event.metaKey;
+        if (mod && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "f") {
+          event.preventDefault();
+          event.stopPropagation();
+          openFind();
+        } else if (event.key === "F3" && !mod) {
+          event.preventDefault();
+          event.stopPropagation();
+          openFind();
+        }
+      }
+    },
+    findOpen === true ? import_react10.default.createElement(DomFindBar, { containerRef, t: t2, onClose: () => onCloseFind?.() }) : null,
     import_react10.default.createElement(
       "div",
       { className: "iwb-markdown", ref: containerRef },
@@ -48458,9 +48860,24 @@ function SearchView({ store, state }) {
           }
         }
       }),
-      Flag(caseSensitive, "Aa", t2("search.caseSensitive"), () => setCaseSensitive((value) => !value)),
-      Flag(wholeWord, "W", t2("search.wholeWord"), () => setWholeWord((value) => !value)),
-      Flag(regexp, ".*", t2("search.regexp"), () => setRegexp((value) => !value))
+      import_react13.default.createElement(Flag, {
+        on: caseSensitive,
+        label: "Aa",
+        title: t2("search.caseSensitive"),
+        onClick: () => setCaseSensitive((value) => !value)
+      }),
+      import_react13.default.createElement(Flag, {
+        on: wholeWord,
+        label: "W",
+        title: t2("search.wholeWord"),
+        onClick: () => setWholeWord((value) => !value)
+      }),
+      import_react13.default.createElement(Flag, {
+        on: regexp,
+        label: ".*",
+        title: t2("search.regexp"),
+        onClick: () => setRegexp((value) => !value)
+      })
     ),
     import_react13.default.createElement(
       "div",
@@ -48553,7 +48970,7 @@ function Welcome({ store, state }) {
     )
   );
 }
-function FilePreview({ store, state, tab: tab3, onEditorReady, onFindRequest, onFindInFiles }) {
+function FilePreview({ store, state, tab: tab3, onEditorReady, onFindRequest, onFindInFiles, previewFind, onPreviewFindRequest, onClosePreviewFind }) {
   const t2 = store.t;
   const scrollTimer = (0, import_react14.useRef)(null);
   (0, import_react14.useEffect)(() => () => {
@@ -48609,7 +49026,9 @@ function FilePreview({ store, state, tab: tab3, onEditorReady, onFindRequest, on
       onSave: () => {
         void store.saveTab(tab3.id);
       },
-      onCursor: (position) => store.setCursor(position)
+      onCursor: (position) => store.setCursor(position),
+      onSendToChat: (selection) => store.sendSelectionToChat({ path: tab3.path, rel: tab3.rel, ...selection }),
+      chatLabels: { send: t2("chat.sendToChat"), copy: t2("common.copy") }
     });
   }
   if (isMarkdownPath(tab3.path) && (tab3.view ?? "preview") === "preview") {
@@ -48617,6 +49036,9 @@ function FilePreview({ store, state, tab: tab3, onEditorReady, onFindRequest, on
       key: tab3.id,
       text,
       t: t2,
+      findOpen: previewFind,
+      onFindRequest: onPreviewFindRequest,
+      onCloseFind: onClosePreviewFind,
       outlineOpen: tab3.outlineOpen === true,
       onToggleOutline: () => store.updateActiveTab({ outlineOpen: tab3.outlineOpen !== true }),
       labels: {
@@ -48642,7 +49064,9 @@ function FilePreview({ store, state, tab: tab3, onEditorReady, onFindRequest, on
     onFindRequest,
     onFindInFiles,
     onReady: onEditorReady,
-    onCursor: (position) => store.setCursor(position)
+    onCursor: (position) => store.setCursor(position),
+    onSendToChat: (selection) => store.sendSelectionToChat({ path: tab3.path, rel: tab3.rel, ...selection }),
+    chatLabels: { send: t2("chat.sendToChat"), copy: t2("common.copy") }
   });
 }
 function TabBar({ store, state }) {
@@ -48957,12 +49381,17 @@ function HtmlPreviewActions({ store, tab: tab3 }) {
 function EditorArea({ store, state }) {
   const active = state.tabs.find((tab3) => tab3.id === state.activeId);
   const [findOpen, setFindOpen] = (0, import_react14.useState)(false);
+  const [previewFind, setPreviewFind] = (0, import_react14.useState)(false);
   const [editorApi, setEditorApi] = (0, import_react14.useState)(null);
   const findOpenRef = (0, import_react14.useRef)(false);
   findOpenRef.current = findOpen;
+  const previewFindRef = (0, import_react14.useRef)(false);
+  previewFindRef.current = previewFind;
   const textTab = active?.kind === "file" && active.payload?.kind === "text" && active.payload?.truncated !== true && !(isMarkdownPath(active.path) && (active.view ?? "preview") === "preview" && active.editing !== true);
+  const previewTab = active?.kind === "file" && active.payload?.kind === "text" && active.payload?.truncated !== true && isMarkdownPath(active.path) && (active.view ?? "preview") === "preview" && active.editing !== true;
   (0, import_react14.useEffect)(() => {
     setFindOpen(false);
+    setPreviewFind(false);
     setEditorApi(null);
   }, [active?.id]);
   (0, import_react14.useEffect)(() => {
@@ -48984,10 +49413,22 @@ function EditorArea({ store, state }) {
         setFindOpen(true);
         return;
       }
+      if (mod && !event.altKey && !event.shiftKey && key === "f" && previewTab) {
+        event.preventDefault();
+        event.stopPropagation();
+        setPreviewFind(true);
+        return;
+      }
       if ((event.key === "F3" || mod && key === "g") && textTab) {
         event.preventDefault();
         event.stopPropagation();
         setFindOpen(true);
+        return;
+      }
+      if (event.key === "F3" && !mod && previewTab) {
+        event.preventDefault();
+        event.stopPropagation();
+        setPreviewFind(true);
         return;
       }
       if (event.key === "Escape" && findOpenRef.current) {
@@ -48996,10 +49437,15 @@ function EditorArea({ store, state }) {
         editorApi?.clear();
         setFindOpen(false);
       }
+      if (event.key === "Escape" && previewFindRef.current) {
+        event.preventDefault();
+        previewFindRef.current = false;
+        setPreviewFind(false);
+      }
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [store, textTab, editorApi]);
+  }, [store, textTab, previewTab, editorApi]);
   (0, import_react14.useEffect)(() => {
     const onKeyDown = (event) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
@@ -49043,6 +49489,9 @@ function EditorArea({ store, state }) {
     store,
     state,
     tab: active,
+    previewFind,
+    onPreviewFindRequest: () => setPreviewFind(true),
+    onClosePreviewFind: () => setPreviewFind(false),
     onEditorReady: setEditorApi,
     onFindRequest: () => setFindOpen(true),
     onFindInFiles: () => store.openSearchTab()
@@ -49098,16 +49547,19 @@ function Row({ label, hint, children }) {
     import_react15.default.createElement("div", { className: "iwb-settings-control" }, children)
   );
 }
-function SettingsForm({ store, state, compact }) {
+function SettingsForm({ store, state, compact, onStatusChange }) {
   const t2 = store.t;
   const settings = state.settings ?? {};
   const [draft, setDraft] = (0, import_react15.useState)(settings);
   const [saved, setSaved] = (0, import_react15.useState)(false);
+  const [saving, setSaving] = (0, import_react15.useState)(false);
   const [capturing, setCapturing] = (0, import_react15.useState)(false);
   const timer = (0, import_react15.useRef)(null);
   const savedTimer = (0, import_react15.useRef)(null);
   const rootRef = (0, import_react15.useRef)(null);
   const scrollRef = (0, import_react15.useRef)({ parent: null, top: 0 });
+  const pendingPatch = (0, import_react15.useRef)({});
+  const alive = (0, import_react15.useRef)(true);
   const captureScroll = () => {
     let node = rootRef.current?.parentElement ?? null;
     while (node !== null) {
@@ -49130,26 +49582,60 @@ function SettingsForm({ store, state, compact }) {
     else apply2();
   };
   (0, import_react15.useEffect)(() => {
+    if (Object.keys(pendingPatch.current).length > 0) return;
     setDraft(settings);
   }, [settings]);
-  (0, import_react15.useEffect)(() => () => {
-    if (timer.current !== null) clearTimeout(timer.current);
-    if (savedTimer.current !== null) clearTimeout(savedTimer.current);
+  (0, import_react15.useEffect)(() => {
+    onStatusChange?.({ saving, saved });
+  }, [saving, saved]);
+  const mergePatch = (base2, patch) => {
+    const output = { ...base2 };
+    for (const [key, value] of Object.entries(patch)) {
+      const current = base2[key];
+      output[key] = value !== null && typeof value === "object" && !Array.isArray(value) && current !== null && typeof current === "object" && !Array.isArray(current) ? mergePatch(current, value) : value;
+    }
+    return output;
+  };
+  const flush = () => {
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const patch = pendingPatch.current;
+    if (Object.keys(patch).length === 0) return Promise.resolve();
+    pendingPatch.current = {};
+    if (alive.current) setSaving(true);
+    return store.updateSettings(patch).finally(() => {
+      if (!alive.current) return;
+      setSaving(false);
+      setSaved(true);
+      if (savedTimer.current !== null) clearTimeout(savedTimer.current);
+      savedTimer.current = setTimeout(() => {
+        if (alive.current) setSaved(false);
+      }, 1800);
+    });
+  };
+  (0, import_react15.useEffect)(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      if (Object.keys(pendingPatch.current).length > 0) void flush();
+      if (timer.current !== null) clearTimeout(timer.current);
+      if (savedTimer.current !== null) clearTimeout(savedTimer.current);
+    };
   }, []);
   const commit = (patch) => {
+    captureScroll();
+    pendingPatch.current = mergePatch(pendingPatch.current, patch);
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       timer.current = null;
-      void store.updateSettings(patch).then(() => {
-        restoreScroll();
-        setSaved(true);
-        if (savedTimer.current !== null) clearTimeout(savedTimer.current);
-        savedTimer.current = setTimeout(() => setSaved(false), 1600);
+      void flush().then(() => {
+        if (alive.current) restoreScroll();
       });
-    }, 350);
+    }, 300);
   };
   const update = (patch) => {
-    captureScroll();
     const next = {
       ...draft,
       ...patch,
@@ -49453,10 +49939,10 @@ function SettingsForm({ store, state, compact }) {
         import_react15.default.createElement("span", { className: "iwb-settings-value" }, t2("settings.followDsh"))
       )
     ),
-    import_react15.default.createElement(
+    compact === true ? null : import_react15.default.createElement(
       "div",
       { className: "iwb-settings-footer" },
-      compact === true ? null : import_react15.default.createElement("button", {
+      import_react15.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small iwb-settings-reset",
         onClick: () => {
@@ -49488,7 +49974,7 @@ function SettingsForm({ store, state, compact }) {
           commit(reset);
         }
       }, t2("settings.reset")),
-      saved === true ? import_react15.default.createElement("div", { className: "iwb-settings-saved", role: "status" }, t2("settings.saved")) : null
+      saving === true ? import_react15.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : saved === true ? import_react15.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null
     )
   );
 }
@@ -49973,6 +50459,8 @@ function ProjectPicker({ store, state }) {
   );
 }
 function SettingsModal({ store, state, onClose }) {
+  const t2 = store.t;
+  const [status, setStatus] = (0, import_react17.useState)({ saving: false, saved: false });
   return import_react17.default.createElement(
     "div",
     { className: "iwb-modal-backdrop", onMouseDown: (event) => {
@@ -49980,13 +50468,31 @@ function SettingsModal({ store, state, onClose }) {
     } },
     import_react17.default.createElement(
       "div",
-      { className: "iwb-modal", style: { width: "min(620px, calc(100% - 40px))", maxHeight: "80%", overflow: "auto" }, role: "dialog", "aria-modal": "true" },
-      import_react17.default.createElement("h2", null, store.t("settings.title")),
-      import_react17.default.createElement(SettingsForm, { store, state, compact: true }),
+      { className: "iwb-modal iwb-settings-modal", role: "dialog", "aria-modal": "true" },
+      // The header and the close control stay put while the long form scrolls;
+      // the save feedback rides along so a toggle never disappears silently.
       import_react17.default.createElement(
         "div",
-        { className: "iwb-modal-actions" },
-        import_react17.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: onClose }, store.t("common.close"))
+        { className: "iwb-modal-head" },
+        import_react17.default.createElement("h2", null, t2("settings.title")),
+        status.saving === true ? import_react17.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : status.saved === true ? import_react17.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null,
+        import_react17.default.createElement("button", {
+          type: "button",
+          className: "iwb-iconbtn",
+          title: t2("common.close"),
+          "aria-label": t2("common.close"),
+          onClick: onClose
+        }, import_react17.default.createElement("span", { style: { fontSize: 17, lineHeight: 1 } }, "\xD7"))
+      ),
+      import_react17.default.createElement(
+        "div",
+        { className: "iwb-modal-body" },
+        import_react17.default.createElement(SettingsForm, { store, state, compact: true, onStatusChange: setStatus })
+      ),
+      import_react17.default.createElement(
+        "div",
+        { className: "iwb-modal-actions iwb-modal-foot" },
+        import_react17.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: onClose }, t2("common.close"))
       )
     )
   );
@@ -50798,8 +51304,10 @@ var CSS2 = `
 }
 .iwb-settings .iwb-textbtn:hover { border-color: var(--iwb-muted); background: var(--iwb-panel-2); }
 .iwb-settings-footer {
-  display: flex; align-items: center; gap: 12px; margin-top: 22px; padding-top: 16px;
+  display: flex; align-items: center; gap: 12px; margin-top: 22px; padding: 10px 0 6px;
   border-top: 1px solid var(--iwb-divider);
+  /* Keep the save feedback visible while a long settings page scrolls. */
+  position: sticky; bottom: 0; z-index: 2; background: var(--iwb-bg);
 }
 .iwb-settings-saved { margin-left: auto; color: var(--iwb-success); font-size: 12px; }
 @container iwb-settings (max-width: 520px) {
@@ -50819,6 +51327,20 @@ var CSS2 = `
 }
 .iwb-modal h2 { font-size: 15px; margin: 0 0 8px; }
 .iwb-modal p { margin: 0 0 16px; color: var(--iwb-muted); font-size: 12.5px; white-space: pre-wrap; user-select: text; }
+/* Long forms (settings) keep their title, close control and save feedback in
+   place while the body scrolls; the body owns the scroll, not the modal. */
+.iwb-modal.iwb-settings-modal {
+  width: min(620px, calc(100% - 40px)); max-height: 82%; padding: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.iwb-modal-head {
+  display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  padding: 13px 16px 9px 18px; border-bottom: 1px solid var(--iwb-border);
+  background: var(--iwb-overlay); position: relative; z-index: 3;
+}
+.iwb-modal-head h2 { margin: 0; flex: 1; }
+.iwb-modal-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 18px; }
+.iwb-modal-foot { flex: 0 0 auto; padding: 10px 18px 13px; border-top: 1px solid var(--iwb-border); background: var(--iwb-overlay); }
 .iwb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .iwb-toast {
   position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: 8px;
@@ -51227,6 +51749,13 @@ function OpenButton({ open, t: t2 }) {
     onClick: open
   }, import_react18.default.createElement(PanelIcon, { size: 18 }));
 }
+function ChatInputBridge({ sessionId, inputActions }) {
+  (0, import_react18.useLayoutEffect)(() => {
+    if (typeof sessionId !== "string" || sessionId === "") return void 0;
+    return registerChatInput(sessionId, inputActions);
+  }, [sessionId, inputActions]);
+  return null;
+}
 function apply(ctx) {
   const t2 = ctx.locale.bind(NS);
   ctx.effect(() => {
@@ -51408,6 +51937,12 @@ ${CSS2}`);
     import_react18.default.createElement(Styles),
     import_react18.default.createElement(OpenButton, { open, t: t2 })
   ))), "dsh-ide-workbench: new-session entry");
+  ctx.effect(() => ctx.slots.inject("conversation.input.dock", () => ctx.slots.register({
+    name: "conversation.input.dock",
+    id: "ide-workbench-chat-input",
+    order: 80,
+    label: () => t2("chat.sendToChat")
+  }, (props) => import_react18.default.createElement(ChatInputBridge, props))), "dsh-ide-workbench: composer chat bridge");
   ctx.effect(() => ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
     name: "sidebar.footer.action",
     id: PANEL_ID,

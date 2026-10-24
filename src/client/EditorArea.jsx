@@ -65,7 +65,7 @@ function Welcome({ store, state }) {
   )
 }
 
-function FilePreview({ store, state, tab, onEditorReady, onFindRequest, onFindInFiles }) {
+function FilePreview({ store, state, tab, onEditorReady, onFindRequest, onFindInFiles, previewFind, onPreviewFindRequest, onClosePreviewFind }) {
   const t = store.t
   const scrollTimer = useRef(null)
   useEffect(() => () => { if (scrollTimer.current !== null) clearTimeout(scrollTimer.current) }, [])
@@ -116,6 +116,8 @@ function FilePreview({ store, state, tab, onEditorReady, onFindRequest, onFindIn
       onChange: value => store.updateDraft(tab.id, value),
       onSave: () => { void store.saveTab(tab.id) },
       onCursor: position => store.setCursor(position),
+      onSendToChat: selection => store.sendSelectionToChat({ path: tab.path, rel: tab.rel, ...selection }),
+      chatLabels: { send: t('chat.sendToChat'), copy: t('common.copy') },
     })
   }
   if (isMarkdownPath(tab.path) && (tab.view ?? 'preview') === 'preview') {
@@ -123,6 +125,9 @@ function FilePreview({ store, state, tab, onEditorReady, onFindRequest, onFindIn
       key: tab.id,
       text,
       t,
+      findOpen: previewFind,
+      onFindRequest: onPreviewFindRequest,
+      onCloseFind: onClosePreviewFind,
       outlineOpen: tab.outlineOpen === true,
       onToggleOutline: () => store.updateActiveTab({ outlineOpen: tab.outlineOpen !== true }),
       labels: {
@@ -151,6 +156,8 @@ function FilePreview({ store, state, tab, onEditorReady, onFindRequest, onFindIn
     onFindInFiles,
     onReady: onEditorReady,
     onCursor: position => store.setCursor(position),
+    onSendToChat: selection => store.sendSelectionToChat({ path: tab.path, rel: tab.rel, ...selection }),
+    chatLabels: { send: t('chat.sendToChat'), copy: t('common.copy') },
   })
 }
 
@@ -411,14 +418,22 @@ function HtmlPreviewActions({ store, tab }) {
 export function EditorArea({ store, state }) {
   const active = state.tabs.find(tab => tab.id === state.activeId)
   const [findOpen, setFindOpen] = useState(false)
+  const [previewFind, setPreviewFind] = useState(false)
   const [editorApi, setEditorApi] = useState(null)
   const findOpenRef = useRef(false)
   findOpenRef.current = findOpen
+  const previewFindRef = useRef(false)
+  previewFindRef.current = previewFind
   const textTab = active?.kind === 'file' && active.payload?.kind === 'text' && active.payload?.truncated !== true
     && !(isMarkdownPath(active.path) && (active.view ?? 'preview') === 'preview' && active.editing !== true)
+  // A rendered Markdown document is not a CodeMirror buffer, so it needs the
+  // DOM find bar rather than the CodeMirror FindBar.
+  const previewTab = active?.kind === 'file' && active.payload?.kind === 'text' && active.payload?.truncated !== true
+    && isMarkdownPath(active.path) && (active.view ?? 'preview') === 'preview' && active.editing !== true
 
   useEffect(() => {
     setFindOpen(false)
+    setPreviewFind(false)
     setEditorApi(null)
   }, [active?.id])
 
@@ -441,10 +456,25 @@ export function EditorArea({ store, state }) {
         setFindOpen(true)
         return
       }
+      // The rendered preview keeps focus on `document.body` when the user
+      // clicks plain text, so the shortcut must be owned here and not only by
+      // the preview element.
+      if (mod && !event.altKey && !event.shiftKey && key === 'f' && previewTab) {
+        event.preventDefault()
+        event.stopPropagation()
+        setPreviewFind(true)
+        return
+      }
       if ((event.key === 'F3' || (mod && key === 'g')) && textTab) {
         event.preventDefault()
         event.stopPropagation()
         setFindOpen(true)
+        return
+      }
+      if (event.key === 'F3' && !mod && previewTab) {
+        event.preventDefault()
+        event.stopPropagation()
+        setPreviewFind(true)
         return
       }
       if (event.key === 'Escape' && findOpenRef.current) {
@@ -453,10 +483,15 @@ export function EditorArea({ store, state }) {
         editorApi?.clear()
         setFindOpen(false)
       }
+      if (event.key === 'Escape' && previewFindRef.current) {
+        event.preventDefault()
+        previewFindRef.current = false
+        setPreviewFind(false)
+      }
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [store, textTab, editorApi])
+  }, [store, textTab, previewTab, editorApi])
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -497,6 +532,9 @@ export function EditorArea({ store, state }) {
   const content = active.kind === 'file'
     ? React.createElement(FilePreview, {
         store, state, tab: active,
+        previewFind,
+        onPreviewFindRequest: () => setPreviewFind(true),
+        onClosePreviewFind: () => setPreviewFind(false),
         onEditorReady: setEditorApi,
         onFindRequest: () => setFindOpen(true),
         onFindInFiles: () => store.openSearchTab(),

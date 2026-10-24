@@ -8,7 +8,7 @@
  * The FindBar gets a small imperative controller instead of CodeMirror's
  * English default panel.
  */
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { EditorState } from '@codemirror/state'
 import {
   EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter,
@@ -32,6 +32,7 @@ import { cpp } from '@codemirror/lang-cpp'
 import { go } from '@codemirror/lang-go'
 import { rust } from '@codemirror/lang-rust'
 import { findMatches, replaceAllMatches } from './find.js'
+import { ContextMenu } from './ui.jsx'
 
 /** Language extension for one file path (empty = plain text). */
 export function languageForPath(path) {
@@ -110,14 +111,20 @@ function selectionOf(view, match) {
  * @param {{ value: string, path: string, fontSize?: number, resetToken?: number, readOnly?: boolean,
  *   onFindRequest?: () => void, onReady?: (api: any) => void,
  *   onChange: (text: string) => void, onSave: () => void,
- *   onCursor?: (position: { line: number, col: number }) => void }} props
+ *   onCursor?: (position: { line: number, col: number }) => void,
+ *   onSendToChat?: (selection: { text: string, fromLine: number, toLine: number }) => void,
+ *   chatLabels?: { send?: string, copy?: string } }} props
  */
 export function CodeEditor({
   value, path, fontSize = 13, resetToken = 0, readOnly = false, revealLine = null,
   onFindRequest, onFindInFiles, onReady, onChange, onSave, onCursor,
+  onSendToChat, chatLabels = {},
 }) {
   const hostRef = useRef(null)
   const viewRef = useRef(null)
+  const [menu, setMenu] = useState(null)
+  const onSendToChatRef = useRef(onSendToChat)
+  onSendToChatRef.current = onSendToChat
   const onChangeRef = useRef(onChange)
   const onSaveRef = useRef(onSave)
   const onCursorRef = useRef(onCursor)
@@ -130,6 +137,25 @@ export function CodeEditor({
   onFindRef.current = onFindRequest
   onFindInFilesRef.current = onFindInFiles
   onReadyRef.current = onReady
+
+  // A non-empty selection gets the workbench context menu (send to chat,
+  // copy); an empty one keeps the browser's native menu.
+  const onContextMenu = (event) => {
+    const view = viewRef.current
+    if (view === null || typeof onSendToChatRef.current !== 'function') return
+    const range = view.state.selection.main
+    if (range.empty) return
+    event.preventDefault()
+    const fromLine = view.state.doc.lineAt(range.from).number
+    const toLine = view.state.doc.lineAt(range.to).number
+    setMenu({
+      x: event.clientX,
+      y: event.clientY,
+      text: view.state.sliceDoc(range.from, range.to),
+      fromLine,
+      toLine,
+    })
+  }
 
   useEffect(() => {
     const host = hostRef.current
@@ -282,5 +308,28 @@ export function CodeEditor({
     view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true })
   }, [revealLine])
 
-  return React.createElement('div', { className: 'iwb-codemirror', ref: hostRef })
+  const sendSelection = () => {
+    const current = menu
+    if (current === null) return
+    onSendToChatRef.current?.({ text: current.text, fromLine: current.fromLine, toLine: current.toLine })
+  }
+
+  return React.createElement(React.Fragment, null,
+    React.createElement('div', { className: 'iwb-codemirror', ref: hostRef, onContextMenu }),
+    menu !== null
+      ? React.createElement(ContextMenu, {
+          x: menu.x,
+          y: menu.y,
+          onClose: () => setMenu(null),
+          items: [
+            { key: 'send', text: chatLabels.send ?? 'Send to chat', action: sendSelection },
+            {
+              key: 'copy',
+              text: chatLabels.copy ?? 'Copy',
+              action: () => { void navigator.clipboard.writeText(menu.text).catch(() => {}) },
+            },
+          ],
+        })
+      : null,
+  )
 }

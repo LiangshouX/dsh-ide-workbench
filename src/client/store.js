@@ -14,6 +14,9 @@ import {
 import { baseName, debounce, dirName, formatGitDate } from './util.js'
 import { fileAddressFor, fileUrlForPath, parseFileAddress, resolveFileAddress } from './file-address.js'
 import { openInDefaultSidebar } from './file-link.js'
+import {
+  composeCodeReference, formatFileMention, insertChatText,
+} from './chat-bridge.js'
 import { isPathWithin, sameScopePath, sessionCwdOf } from './workspace-scope.js'
 
 let sequence = 0
@@ -49,6 +52,16 @@ function joinPath(root, rel) {
 /** Human-readable message of any thrown value. */
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Editor buffers are CRLF-agnostic: CodeMirror always hands back `\n`, while a
+ * CRLF file on disk reads back as `\r\n`. Comparing the two spellings marks a
+ * just-saved file as "changed on disk", so both sides of every dirty/conflict
+ * comparison go through this normalizer.
+ */
+export function normalizeNewlines(text) {
+  return typeof text === 'string' ? text.replace(/\r\n/g, '\n') : text
 }
 
 /** The initial state, also the shape persisted UI is merged into. */
@@ -174,7 +187,8 @@ export class WorkbenchStore {
     this.polling = false
     this.persist = debounce(() => { void this.#persist() }, 700)
     this.toastTimer = null
-    this.treeReloadToken = 0
+    /** Per-folder request generation, so a stale listing cannot win. */
+    this.treeTokens = new Map()
     this.gitRequestToken = 0
     this.gitDetailToken = 0
     this.searchToken = 0
@@ -293,7 +307,7 @@ export class WorkbenchStore {
         const projectRoot = this.#projectRootFor(preferred)
         this.set({ root: projectRoot })
         this.#restoreWorkspace(projectRoot)
-        void this.loadDir(projectRoot)
+        void this.loadRestoredTree()
         this.patch('commit', { mode: settings?.editor?.sideBySide === false ? 'unified' : 'side' })
         void this.refreshStatus({ initial: true })
         void this.refreshShells()
@@ -433,6 +447,78 @@ export class WorkbenchStore {
     }
   }
 
+  // ── send to chat ─────────────────────────────────────────────────────
+  /** The Session whose chat composer is on screen. */
+  #chatSessionId() {
+    try {
+      const id = this.ctx?.sidebarRight?.mounted?.getSnapshot?.()
+      return typeof id === 'string' ? id : ''
+    } catch {
+      return ''
+    }
+  }
+
+  /** Workspace-relative path for an @ reference (forward slashes). */
+  #chatRelPath(path) {
+    const workspace = this.state.workspaceRoot
+    if (workspace !== '' && isPathWithin(workspace, path)) {
+      return String(path).slice(workspace.length).replace(/^[\\/]+/, '').split('\\').join('/')
+    }
+    return String(path).split('\\').join('/')
+  }
+
+  /** Insert one composed message into the composer, with feedback on failure. */
+  #sendChatText(text, detail) {
+    const sessionId = this.#chatSessionId()
+    const sent = sessionId !== '' && insertChatText(sessionId, text)
+    if (!sent) {
+      this.toast('error', this.t('chat.unavailable'))
+      return false
+    }
+    this.toast('success', this.t('chat.sent'), detail)
+    return true
+  }
+
+  /**
+   * Send one or more files / folders from the Project tree to the chat composer
+   * as `@path` references.
+   * @param {Array<{ path: string, isDir?: boolean }>} entries
+   * @returns {boolean} whether the composer accepted the references
+   */
+  sendToChat(entries) {
+    const list = Array.isArray(entries) ? entries : []
+    const mentions = []
+    for (const entry of list) {
+      if (entry === null || typeof entry !== 'object' || typeof entry.path !== 'string') continue
+      const mention = formatFileMention(this.#chatRelPath(entry.path), entry.isDir === true)
+      if (mention !== undefined) mentions.push(mention)
+    }
+    if (mentions.length === 0) return false
+    return this.#sendChatText(`${mentions.join(' ')} `, mentions.join(' '))
+  }
+
+  /**
+   * Send a code selection to the chat composer: the file reference, the line
+   * range and the selected code in a fenced block.
+   * @param {{ path: string, rel?: string, text: string, fromLine: number, toLine: number }} selection
+   * @returns {boolean}
+   */
+  sendSelectionToChat(selection) {
+    const path = selection?.path
+    if (typeof path !== 'string' || path === '') return false
+    const mention = formatFileMention(this.#chatRelPath(path), false)
+    if (mention === undefined) return false
+    const text = composeCodeReference({
+      mention,
+      text: selection.text,
+      fromLine: selection.fromLine,
+      toLine: selection.toLine,
+      path,
+    })
+    const name = selection.rel !== undefined && selection.rel !== '' ? selection.rel : baseName(path)
+    return this.#sendChatText(text, `${name}:${selection.fromLine}-${selection.toLine}`)
+  }
+
   /** Whether one absolute path is inside the selected IDE project root. */
   #insideRoot(path) {
     return isPathWithin(this.state.root, path)
@@ -533,7 +619,7 @@ export class WorkbenchStore {
     })
     this.#rememberProjectRoot(projectRoot)
     this.#restoreWorkspace(projectRoot)
-    void this.loadDir(projectRoot)
+    void this.loadRestoredTree()
     await this.refreshStatus({ initial: true })
     void this.refreshShells()
     void this.loadLog(true)
@@ -583,7 +669,7 @@ export class WorkbenchStore {
     })
     this.#rememberProjectRoot(projectRoot)
     this.#restoreWorkspace(projectRoot)
-    void this.loadDir(projectRoot)
+    void this.loadRestoredTree()
     await this.refreshStatus({ initial: true })
     void this.refreshShells()
     void this.loadLog(true)
@@ -626,7 +712,7 @@ export class WorkbenchStore {
             content: null,
             error: null,
             scrollTop: typeof tab.scrollTop === 'number' ? tab.scrollTop : 0,
-            editing: this.defaultEditing(undefined),
+            editing: this.defaultEditing(undefined, tab.path),
             editingUserSet: false,
             view: isMarkdownPath(tab.path) && this.state.settings?.editor?.markdownPreview !== false ? 'preview' : 'code',
             draft: null,
@@ -699,7 +785,7 @@ export class WorkbenchStore {
       this.pollTimer = setInterval(() => { void this.pollStatus() }, 2000)
     }
     if (this.state.root !== '' && this.state.statusAt === 0) void this.refreshStatus({ initial: true })
-    if (this.state.root !== '' && !this.state.dirs.has(this.state.root)) void this.loadDir(this.state.root)
+    if (this.state.root !== '' && !this.state.dirs.has(this.state.root)) void this.loadRestoredTree()
     // Sessions survive a trip to the Conversation: the terminal view is kept
     // mounted by the sidebar, so only its visibility changes.
   }
@@ -719,10 +805,18 @@ export class WorkbenchStore {
     if (!this.state.active || this.state.root === '' || this.polling) return
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     await this.refreshStatus({ silent: true })
-    void this.#checkActiveFileOnDisk()
+    await this.#checkActiveFileOnDisk()
   }
 
-  /** Cheap mtime probe for the active file; never reads the whole buffer. */
+  /**
+   * Cheap mtime probe for the active file; never reads the whole buffer.
+   *
+   * A timestamp difference alone is not an external edit: an atomic save can
+   * publish a new mtime a moment after the poll took its sample, and other
+   * tools touch files without changing them. Only a content difference may
+   * surface the conflict chip; a same-content touch just refreshes the
+   * baseline so the next poll stays quiet.
+   */
   async #checkActiveFileOnDisk() {
     const active = this.state.tabs.find(tab => tab.id === this.state.activeId)
     if (active === undefined || active.kind !== 'file' || active.loading === true) return
@@ -731,6 +825,17 @@ export class WorkbenchStore {
       const info = await call('fs.stat', { root: this.state.root, path: active.path })
       if (!Number.isFinite(info.mtimeMs) || Math.abs(info.mtimeMs - active.payload.mtimeMs) <= 0.5) return
       if (active.dirty === true || active.editing === true) {
+        const result = await call('fs.read', { root: this.state.root, path: active.path })
+        const latest = this.state.tabs.find(tab => tab.id === active.id)
+        if (latest === undefined) return
+        if (result.kind === 'text'
+          && normalizeNewlines(result.content) === normalizeNewlines(latest.payload?.content)) {
+          // Same bytes: accept the new timestamp as the baseline.
+          this.#updateTab(active.id, {
+            payload: { ...(latest.payload ?? {}), ...result, content: normalizeNewlines(result.content) },
+          })
+          return
+        }
         this.#updateTab(active.id, { conflict: { at: Date.now(), message: this.t('editor.conflictBody') } })
       } else {
         await this.ensureTabContent(active.id, { force: true })
@@ -810,7 +915,7 @@ export class WorkbenchStore {
       void call('fs.read', { root: this.state.root, path: active.path }).then((result) => {
         const latest = this.state.tabs.find(tab => tab.id === active.id)
         if (latest === undefined || result.kind !== 'text') return
-        if (result.content !== latest.payload?.content) {
+        if (normalizeNewlines(result.content) !== normalizeNewlines(latest.payload?.content)) {
           this.#updateTab(active.id, { conflict: { at: Date.now(), message: this.t('editor.conflictBody') } })
         }
       }).catch(() => {})
@@ -822,24 +927,49 @@ export class WorkbenchStore {
   // ── file tree ─────────────────────────────────────────────────────────
   async loadDir(path, options = {}) {
     if (this.state.root === '') return
+    const root = this.state.root
     const existing = this.state.dirs.get(path)
-    if (existing !== undefined && existing.loading) return
+    // A forced request (refresh / project switch) supersedes an in-flight one;
+    // a plain request shares it. Never return while a folder is stuck loading:
+    // a stale generation must not keep the row on "loading" forever.
+    if (existing !== undefined && existing.loading === true && options.force !== true) return
     if (existing !== undefined && existing.entries !== undefined && options.force !== true) return
+    const token = (this.treeTokens.get(path) ?? 0) + 1
+    this.treeTokens.set(path, token)
     const dirs = new Map(this.state.dirs)
     dirs.set(path, { ...(existing ?? {}), loading: true, error: null })
     this.set({ dirs })
-    const token = ++this.treeReloadToken
     try {
-      const listing = await call('fs.tree', { root: this.state.root, path })
-      if (token < this.treeReloadToken - 1) return
+      const listing = await call('fs.tree', { root, path })
+      // A newer request for this folder, or a project switch, wins.
+      if (this.state.root !== root || this.treeTokens.get(path) !== token) return
       const next = new Map(this.state.dirs)
       next.set(path, { loading: false, entries: listing.entries, truncated: listing.truncated, error: null })
       this.set({ dirs: next })
     } catch (error) {
+      if (this.state.root !== root || this.treeTokens.get(path) !== token) return
       const next = new Map(this.state.dirs)
-      next.set(path, { loading: false, entries: existing?.entries, error: error instanceof Error ? error.message : String(error) })
+      next.set(path, { loading: false, entries: existing?.entries, error: errorMessage(error) })
       this.set({ dirs: next })
     }
+  }
+
+  /**
+   * Load the persisted tree: the root plus every folder the user had expanded.
+   *
+   * The workspace state restores `expanded` synchronously, so without this the
+   * first render of a restored project shows a permanent "loading" row under
+   * each expanded folder (nothing ever asks for its listing).
+   */
+  async loadRestoredTree() {
+    if (this.state.root === '') return
+    const root = this.state.root
+    await this.loadDir(root)
+    if (this.state.root !== root) return
+    const pending = [...this.state.expanded]
+      .filter(dir => dir !== root && dir.startsWith(`${root}${root.includes('\\') ? '\\' : '/'}`) && this.state.dirs.get(dir)?.entries === undefined)
+      .slice(0, 200)
+    await Promise.all(pending.map(dir => this.loadDir(dir)))
   }
 
   async reloadTree() {
@@ -1353,10 +1483,21 @@ export class WorkbenchStore {
     return Number.isFinite(value) && value > 0 ? value : 1 << 20
   }
 
-  /** Whether a file of `size` bytes opens editable under the current mode. */
-  defaultEditing(size) {
+  /**
+   * Whether a file opens editable under the current mode.
+   *
+   * Markdown with the rendered preview enabled opens in the preview, not in
+   * the source editor (README: "Markdown … Preview / Source"). Checking the
+   * box "editable" is the explicit way to open the text buffer directly.
+   * @param {number} [size] file size in bytes, when already known
+   * @param {string} [path] absolute path, when the caller knows it
+   */
+  defaultEditing(size, path = '') {
     const mode = this.editorOpenMode()
     if (mode === 'readonly') return false
+    if (path !== '' && isMarkdownPath(path) && this.state.settings?.editor?.markdownPreview !== false) {
+      return mode === 'editable'
+    }
     if (mode === 'editable') return true
     return !Number.isFinite(size) || size <= this.editableMaxBytes()
   }
@@ -1396,7 +1537,7 @@ export class WorkbenchStore {
       content: null,
       error: null,
       scrollTop: 0,
-      editing: this.defaultEditing(undefined),
+      editing: this.defaultEditing(undefined, path),
       editingUserSet: false,
       view: isMarkdownPath(path) && this.state.settings?.editor?.markdownPreview !== false ? 'preview' : 'code',
       draft: null,
@@ -1444,19 +1585,24 @@ export class WorkbenchStore {
       if (tab.kind === 'file') {
         const result = await call('fs.read', { root: this.state.root, path: tab.path })
         const latest = this.state.tabs.find(item => item.id === id)
-        const text = result.kind === 'text' ? result.content : null
-        const eol = typeof text === 'string' && text.includes('\r\n') ? '\r\n' : '\n'
-        const keepDraft = latest?.dirty === true && options.force === true
+        const text = result.kind === 'text' ? normalizeNewlines(result.content) : null
+        const eol = typeof result.content === 'string' && result.content.includes('\r\n') ? '\r\n' : '\n'
+        const keepDraft = latest?.dirty === true && options.force === true && options.discardDraft !== true
         const editable = result.kind === 'text' && result.truncated !== true
-          ? (latest?.editingUserSet === true ? latest.editing === true : this.defaultEditing(result.size))
+          ? (latest?.editingUserSet === true ? latest.editing === true : this.defaultEditing(result.size, tab.path))
           : false
+        // A forced reload (external change) must rebuild the CodeMirror document;
+        // its value prop is only read on mount/resetToken change. `reloadTab`
+        // rebuilds explicitly, so it is not doubled here.
+        const rebuilt = options.force === true && !keepDraft && options.discardDraft !== true
         this.#updateTab(id, {
           loading: false,
           conflict: null,
-          payload: { ...result, eol },
+          payload: text === null ? { ...result, eol } : { ...result, content: text, eol },
           content: text,
           // A forced refresh (external change) must not clobber unsaved edits.
           ...(keepDraft ? {} : { draft: text, dirty: false }),
+          ...(rebuilt ? { resetToken: (latest?.resetToken ?? 0) + 1 } : {}),
           // Decision C: a file above the editable threshold opens read-only
           // even though the tab was created optimistically editable.
           ...(result.kind === 'text' && result.truncated !== true && !editable ? { editing: false } : {}),
@@ -1596,15 +1742,16 @@ export class WorkbenchStore {
   updateDraft(id, text) {
     const tab = this.state.tabs.find(item => item.id === id)
     if (tab === undefined || tab.kind !== 'file') return
-    const saved = tab.payload?.kind === 'text' ? tab.payload.content : (tab.content ?? '')
-    this.#updateTab(id, { draft: text, dirty: text !== saved })
+    const saved = normalizeNewlines(tab.payload?.kind === 'text' ? tab.payload.content : (tab.content ?? ''))
+    const draft = normalizeNewlines(text)
+    this.#updateTab(id, { draft, dirty: draft !== saved })
   }
 
   /** Throw the buffer away and return to the saved content. */
   discardDraft(id) {
     const tab = this.state.tabs.find(item => item.id === id)
     if (tab === undefined || tab.kind !== 'file') return
-    const saved = tab.payload?.kind === 'text' ? tab.payload.content : ''
+    const saved = normalizeNewlines(tab.payload?.kind === 'text' ? tab.payload.content : '')
     this.#updateTab(id, {
       draft: saved,
       dirty: false,
@@ -1617,11 +1764,10 @@ export class WorkbenchStore {
   async saveTab(id, options = {}) {
     const tab = this.state.tabs.find(item => item.id === id)
     if (tab === undefined || tab.kind !== 'file' || tab.dirty !== true || tab.saving === true) return
-    const text = tab.draft ?? ''
+    const text = normalizeNewlines(tab.draft ?? '')
     const payload = tab.payload ?? {}
     const eol = payload.eol === '\r\n' ? '\r\n' : '\n'
-    const normalized = text.replace(/\r\n/g, '\n')
-    const out = eol === '\r\n' ? normalized.replace(/\n/g, '\r\n') : normalized
+    const out = eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text
     this.#updateTab(id, { saving: true })
     try {
       const result = await call('fs.write', {
@@ -1632,7 +1778,7 @@ export class WorkbenchStore {
         expectedMtimeMs: options.force === true ? undefined : (Number.isFinite(payload.mtimeMs) ? payload.mtimeMs : undefined),
       })
       const latest = this.state.tabs.find(item => item.id === id)
-      const latestDraft = latest?.draft ?? text
+      const latestDraft = normalizeNewlines(latest?.draft ?? text)
       this.#updateTab(id, {
         saving: false,
         conflict: null,
@@ -1674,9 +1820,17 @@ export class WorkbenchStore {
     const tab = this.state.tabs.find(item => item.id === id)
     if (tab === undefined || tab.kind !== 'file') return
     this.#updateTab(id, { conflict: null })
-    await this.ensureTabContent(id, { force: true })
+    await this.ensureTabContent(id, { force: true, discardDraft: true })
     const latest = this.state.tabs.find(item => item.id === id)
-    if (latest !== undefined) this.#updateTab(id, { draft: latest.payload?.content ?? '', dirty: false })
+    if (latest === undefined) return
+    // Rebuild CodeMirror from the disk buffer; its `value` prop is only read on
+    // mount or when `resetToken` changes, so a draft swap alone leaves the old
+    // text on screen.
+    this.#updateTab(id, {
+      draft: latest.payload?.content ?? '',
+      dirty: false,
+      resetToken: (latest.resetToken ?? 0) + 1,
+    })
   }
 
   /** Open the diff of one changed file (Commit / Git windows). */

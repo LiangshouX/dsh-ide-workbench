@@ -13,7 +13,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ContextMenu } from './ui.jsx'
-import { FileTypeIcon, IconExternal, IconGlobe, IconRefresh, IconSearch } from './icons.jsx'
+import { FileTypeIcon, IconChat, IconExternal, IconGlobe, IconRefresh, IconSearch } from './icons.jsx'
 import { openInIdeMenu } from './ide-menu.js'
 import { aggregateStatus, statusClass } from './git-colors.js'
 import { baseName, matchesShortcut } from './util.js'
@@ -84,7 +84,7 @@ function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
       return
     }
     if (dir.error !== undefined && dir.error !== null) {
-      rows.push({ kind: 'error', key: `error:${path}`, depth, message: dir.error })
+      rows.push({ kind: 'error', key: `error:${path}`, depth, message: dir.error, path })
       return
     }
     for (const entry of dir.entries) {
@@ -102,6 +102,19 @@ function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
     if (dir.loading === true && dir.entries !== undefined) {
       rows.push({ kind: 'note', key: `busy:${path}`, depth, message: '…' })
     }
+  }
+
+  // A restored project loads its expanded folders asynchronously; until the
+  // first listing arrives the root itself has no entries. Show that as a
+  // loading row (and a retryable error row) instead of a blank tree.
+  const rootDir = dirs.get(root)
+  if (rootDir === undefined || rootDir.entries === undefined) {
+    if (rootDir !== undefined && rootDir.error !== undefined && rootDir.error !== null) {
+      rows.push({ kind: 'error', key: `error:${root}`, depth: 0, message: rootDir.error, path: root })
+    } else {
+      rows.push({ kind: 'loading', key: `loading:${root}`, depth: 0 })
+    }
+    return rows
   }
 
   for (const entry of (dirs.get(root)?.entries ?? [])) {
@@ -211,6 +224,14 @@ export function ProjectPanel({ store, state }) {
     if ((state.treeFocusTick ?? 0) > 0) scrollRef.current?.focus()
   }, [state.treeFocusTick])
 
+  // A project switch replaces the whole tree; a windowed list that kept the
+  // previous scroll offset would render an empty viewport until the user
+  // scrolled back.
+  useEffect(() => {
+    if (scrollRef.current !== null) scrollRef.current.scrollTop = 0
+    setScrollTop(0)
+  }, [state.root])
+
   // Reverse locate: reveal the selected path after any navigation source.
   useEffect(() => {
     if (state.selectedPath === '' || scrollRef.current === null) return
@@ -284,6 +305,12 @@ export function ProjectPanel({ store, state }) {
     const items = [
       { key: 'find-in-files', text: t('search.title'), shortcut: shortcut('findInFiles'), action: () => store.openSearchTab() },
       { key: 'quick-open', text: t('quickOpen.title'), shortcut: shortcut('quickOpen'), action: () => store.openQuickOpen() },
+      null,
+      {
+        key: 'send-to-chat', text: t('chat.sendToChat'), icon: React.createElement(IconChat, { width: 13, height: 13 }),
+        disabled: currentPaths.length === 0,
+        action: () => { void store.sendToChat(currentEntries.map(item => ({ path: item.path, isDir: item.isDir }))) },
+      },
       null,
       { key: 'new-file', text: t('project.newFile'), shortcut: 'Alt+Insert', action: () => beginNew(parentDir, false) },
       { key: 'new-dir', text: t('project.newDir'), shortcut: 'Alt+Insert', action: () => beginNew(parentDir, true) },
@@ -522,7 +549,13 @@ export function ProjectPanel({ store, state }) {
             return React.createElement('div', { key: row.key, className: 'iwb-tree-msg', style: { ...style, position: 'absolute', left: 0, right: 0 } }, t('common.loading'))
           }
           if (row.kind === 'error') {
-            return React.createElement('div', { key: row.key, className: 'iwb-error-box', style: { ...style, position: 'absolute', left: 8, right: 8 }, title: row.message }, row.message)
+            return React.createElement('div', {
+              key: row.key,
+              className: 'iwb-error-box',
+              style: { ...style, position: 'absolute', left: 8, right: 8, cursor: 'pointer' },
+              title: t('common.retry'),
+              onClick: () => { void store.loadDir(row.path, { force: true }) },
+            }, row.message)
           }
           if (row.kind === 'note') {
             return React.createElement('div', { key: row.key, className: 'iwb-tree-msg', style: { ...style, position: 'absolute', left: 0, right: 0 } }, row.message)

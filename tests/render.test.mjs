@@ -159,6 +159,27 @@ test('Find in Files renders grouped results', async () => {
   assert.match(html, /search\.title/)
 })
 
+test('Find in Files renders the match-case / whole-word / regexp toggles', async () => {
+  const mod = await loadModule()
+  const html = mod.renderSearchTab()
+  assert.match(html, /title="search\.caseSensitive"/)
+  assert.match(html, /title="search\.wholeWord"/)
+  assert.match(html, /title="search\.regexp"/)
+  assert.match(html, />Aa<\/button>/)
+  assert.match(html, />W<\/button>/)
+  assert.match(html, />\.\*<\/button>/)
+  assert.match(html, /aria-pressed="false"/)
+})
+
+test('markdown preview renders the DOM find bar over the document', async () => {
+  const mod = await loadModule()
+  const html = mod.renderMarkdownFind()
+  assert.match(html, /iwb-dom-findbar/)
+  assert.match(html, /iwb-find-input/)
+  assert.match(html, /editor\.find/)
+  assert.match(html, /Sample Doc/)
+})
+
 test('Quick Open renders matching paths', async () => {
   const mod = await loadModule()
   const html = mod.renderQuickOpen()

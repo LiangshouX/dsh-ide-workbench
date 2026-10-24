@@ -52,6 +52,18 @@ export function IconTerminal(props = {}) {
   ], props)
 }
 
+export function IconChat(props = {}) {
+  return svg([
+    React.createElement('path', {
+      key: 'a',
+      d: 'M2.6 2.8h10.8a1.2 1.2 0 0 1 1.2 1.2v6a1.2 1.2 0 0 1-1.2 1.2H6.8l-3 2.4v-2.4H2.6a1.2 1.2 0 0 1-1.2-1.2v-6a1.2 1.2 0 0 1 1.2-1.2z',
+      fill: 'none', stroke: 'currentColor', strokeWidth: 1.35, strokeLinejoin: 'round',
+    }),
+    path('M4.8 5.9h6.4', { key: 'b' }),
+    path('M4.8 8.2h4.2', { key: 'c' }),
+  ], props)
+}
+
 export function IconRefresh(props = {}) {
   return svg([
     path('M13 8a5 5 0 1 1-1.6-3.7', { key: 'a' }),

@@ -17,12 +17,20 @@ function token(root, name, fallback) {
   return value === '' ? fallback : value
 }
 
+/**
+ * A terminal narrower than this is treated as a transient state (a collapsing
+ * sidebar, a hidden pane, a layout animation). Fitting to it would resize the
+ * PTY to a handful of columns, which no shell can recover from gracefully.
+ */
+const MIN_FIT_WIDTH = 120
+
 function TerminalView({ store, state, session, active, visible }) {
   const t = store.t
   const hostRef = useRef(null)
   const termRef = useRef(null)
   const fitRef = useRef(null)
   const socketRef = useRef(null)
+  const scheduleRef = useRef(null)
   const [error, setError] = useState(null)
   const rootRef = useRef(null)
 
@@ -50,12 +58,50 @@ function TerminalView({ store, state, session, active, visible }) {
     terminal.open(hostRef.current)
     termRef.current = terminal
     fitRef.current = fit
-    try { fit.fit() } catch { /* the pane may be hidden at mount */ }
 
     const send = (frame) => {
       const socket = socketRef.current
       if (socket !== null && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame))
     }
+
+    // xterm and the PTY must agree on cols/rows. A fit that runs while the
+    // pane is hidden or mid-transition would resize the shell to a few
+    // columns, and the old code only told the PTY from the ResizeObserver, so
+    // a missed callback left the shell there. Every fit now reconciles the
+    // PTY explicitly, and a debounce collapses resize storms (docked →
+    // fullscreen animates the width) into one fit at the settled size.
+    let fitTimer = null
+    let disposed = false
+    let sentCols = 0
+    let sentRows = 0
+    const applyFit = () => {
+      fitTimer = null
+      if (disposed) return false
+      const host = hostRef.current
+      if (host === null || host.clientWidth < MIN_FIT_WIDTH || host.clientHeight === 0) return false
+      try { fit.fit() } catch { return false }
+      if (!(terminal.cols > 0) || !(terminal.rows > 0)) return false
+      if (terminal.cols === sentCols && terminal.rows === sentRows) return true
+      sentCols = terminal.cols
+      sentRows = terminal.rows
+      send({ type: 'resize', cols: terminal.cols, rows: terminal.rows })
+      return true
+    }
+    const scheduleFit = (delay = 60) => {
+      if (disposed) return
+      if (fitTimer !== null) clearTimeout(fitTimer)
+      fitTimer = setTimeout(applyFit, delay)
+    }
+    scheduleRef.current = scheduleFit
+    // The first measurement can land before the webfont is ready (cell width
+    // is then a fallback-font estimate) or before the pane has a size.
+    const firstFit = () => { scheduleFit(0) }
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(firstFit)
+    else firstFit()
+    if (typeof document !== 'undefined' && document.fonts?.ready !== undefined) {
+      document.fonts.ready.then(() => scheduleFit(0)).catch(() => {})
+    }
+
     const connect = () => {
       const url = wsUrl('ide-workbench/ws/terminal')
       url.searchParams.set('root', state.root)
@@ -67,7 +113,11 @@ function TerminalView({ store, state, session, active, visible }) {
       socketRef.current = socket
       socket.addEventListener('open', () => {
         store.patchTerminal(session.key, { status: 'running' })
-        send({ type: 'resize', cols: terminal.cols, rows: terminal.rows })
+        // Reconcile unconditionally: the URL carried the size known at connect
+        // time, which may already be stale by the time the socket opens.
+        sentCols = 0
+        sentRows = 0
+        applyFit()
         terminal.focus()
       })
       socket.addEventListener('message', (event) => {
@@ -113,13 +163,25 @@ function TerminalView({ store, state, session, active, visible }) {
       }
     })
     const resizeObserver = new ResizeObserver(() => {
-      if (hostRef.current === null || hostRef.current.clientWidth === 0) return
-      try {
-        fit.fit()
-        send({ type: 'resize', cols: terminal.cols, rows: terminal.rows })
-      } catch { /* hidden pane */ }
+      if (hostRef.current === null || hostRef.current.clientWidth < MIN_FIT_WIDTH) return
+      scheduleFit(60)
     })
     resizeObserver.observe(hostRef.current)
+    // A dock resize (pointer drag) and a window resize can both settle outside
+    // the observed pane; a single trailing fit keeps them consistent.
+    const onWindowResize = () => scheduleFit(80)
+    window.addEventListener('resize', onWindowResize)
+    // Self-heal: xterm's rendered width and the pane can disagree when a
+    // ResizeObserver notification is coalesced with a layout transition (the
+    // 9-column terminal came from exactly that). Comparing the two is cheap
+    // and recovers from any missed event, not only the known ones.
+    const watchdog = setInterval(() => {
+      if (disposed) return
+      const host = hostRef.current
+      const element = terminal.element
+      if (host === null || element === null || host.clientWidth < MIN_FIT_WIDTH) return
+      if (Math.abs(element.offsetWidth - host.clientWidth) > 32) scheduleFit(0)
+    }, 1200)
 
     const onKeyDown = (event) => {
       if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'v') {
@@ -140,13 +202,18 @@ function TerminalView({ store, state, session, active, visible }) {
     hostRef.current.addEventListener('keydown', onKeyDown, true)
 
     return () => {
+      disposed = true
       hostRef.current?.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('resize', onWindowResize)
+      clearInterval(watchdog)
+      if (fitTimer !== null) { clearTimeout(fitTimer); fitTimer = null }
       resizeObserver.disconnect()
       dataDisposable.dispose()
       selectionDisposable.dispose()
       const socket = socketRef.current
       socketRef.current = null
       if (socket !== null) socket.close()
+      scheduleRef.current = null
       terminal.dispose()
       termRef.current = null
       fitRef.current = null
@@ -159,8 +226,8 @@ function TerminalView({ store, state, session, active, visible }) {
       const terminal = termRef.current
       if (terminal !== null) {
         window.setTimeout(() => {
-          try { fitRef.current?.fit() } catch { /* hidden */ }
-          terminal.focus()
+          scheduleRef.current?.()
+          try { terminal.focus() } catch { /* disposed while hidden */ }
         }, 30)
       }
     }

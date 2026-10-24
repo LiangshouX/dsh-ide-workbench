@@ -1,7 +1,7 @@
 {
   "name": "dsh-ide-workbench",
-  "version": "0.3.0",
-  "description": "JetBrains-style IDE workbench for DeepSeek Harness: Project, Commit, Terminal and Git tool windows with IDE selection semantics, file operations, changelists, a bottom Git details pane, compare and word-level diff, in one shared repository model. | DSH 插件：JetBrains 式 IDE 工作台——Project / Commit / Terminal / Git 四窗共享同一份仓库状态，支持选中优先的文件操作、变更列表、Git 底部详情面板、比较与单词级差异。",
+  "version": "0.4.0",
+  "description": "JetBrains-style IDE workbench for DeepSeek Harness: Project, Commit, Terminal and Git tool windows around an embedded editor, with chat file links, send-to-chat @references, IDE selection semantics, file operations, changelists, compare and word-level diff, in one shared repository model. | DSH 插件：JetBrains 式 IDE 工作台——Project / Commit / Terminal / Git 四窗围绕内置编辑器，支持聊天文件链接、发送到聊天框的 @ 引用、选中优先的文件操作、变更列表、比较与单词级差异。",
   "type": "module",
   "repository": {
     "type": "git",
@@ -28,8 +28,6 @@
     "dsh.plugin.json",
     "locale/*.json",
     "icon.svg",
-    "docs/PRD-v2.md",
-    "docs/PRD-v1.md",
     "LICENSE",
     "README.md",
     "README_EN.md"

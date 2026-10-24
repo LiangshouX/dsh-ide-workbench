@@ -303,12 +303,29 @@ function ProjectPicker({ store, state }) {
 }
 
 function SettingsModal({ store, state, onClose }) {
+  const t = store.t
+  const [status, setStatus] = useState({ saving: false, saved: false })
   return React.createElement('div', { className: 'iwb-modal-backdrop', onMouseDown: event => { if (event.target === event.currentTarget) onClose() } },
-    React.createElement('div', { className: 'iwb-modal', style: { width: 'min(620px, calc(100% - 40px))', maxHeight: '80%', overflow: 'auto' }, role: 'dialog', 'aria-modal': 'true' },
-      React.createElement('h2', null, store.t('settings.title')),
-      React.createElement(SettingsForm, { store, state, compact: true }),
-      React.createElement('div', { className: 'iwb-modal-actions' },
-        React.createElement('button', { type: 'button', className: 'iwb-textbtn', onClick: onClose }, store.t('common.close')),
+    React.createElement('div', { className: 'iwb-modal iwb-settings-modal', role: 'dialog', 'aria-modal': 'true' },
+      // The header and the close control stay put while the long form scrolls;
+      // the save feedback rides along so a toggle never disappears silently.
+      React.createElement('div', { className: 'iwb-modal-head' },
+        React.createElement('h2', null, t('settings.title')),
+        status.saving === true
+          ? React.createElement('span', { className: 'iwb-settings-saved', role: 'status', 'aria-live': 'polite' }, t('settings.saving'))
+          : (status.saved === true
+              ? React.createElement('span', { className: 'iwb-settings-saved', role: 'status', 'aria-live': 'polite' }, t('settings.saved'))
+              : null),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-iconbtn', title: t('common.close'), 'aria-label': t('common.close'),
+          onClick: onClose,
+        }, React.createElement('span', { style: { fontSize: 17, lineHeight: 1 } }, '×')),
+      ),
+      React.createElement('div', { className: 'iwb-modal-body' },
+        React.createElement(SettingsForm, { store, state, compact: true, onStatusChange: setStatus }),
+      ),
+      React.createElement('div', { className: 'iwb-modal-actions iwb-modal-foot' },
+        React.createElement('button', { type: 'button', className: 'iwb-textbtn', onClick: onClose }, t('common.close')),
       ),
     ),
   )

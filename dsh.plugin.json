@@ -1,8 +1,8 @@
 {
   "name": "dsh-ide-workbench",
   "displayName": "IDE Workbench",
-  "version": "0.3.0",
-  "description": "JetBrains-style Project, Commit, Terminal and Git tool windows with read-only Markdown preview, outline navigation and an edit mode.",
+  "version": "0.4.0",
+  "description": "JetBrains-style Project, Commit, Terminal and Git tool windows around an embedded editor, with chat file links, send-to-chat @references, Markdown preview and outline navigation.",
   "author": "LiangshouX",
   "homepage": "https://github.com/LiangshouX/dsh-ide-workbench",
   "license": "MIT",
@@ -11,6 +11,7 @@
     "git",
     "terminal",
     "project",
-    "commit"
+    "commit",
+    "chat"
   ]
 }

@@ -678,8 +678,10 @@ export const CSS = `
 }
 .iwb-settings .iwb-textbtn:hover { border-color: var(--iwb-muted); background: var(--iwb-panel-2); }
 .iwb-settings-footer {
-  display: flex; align-items: center; gap: 12px; margin-top: 22px; padding-top: 16px;
+  display: flex; align-items: center; gap: 12px; margin-top: 22px; padding: 10px 0 6px;
   border-top: 1px solid var(--iwb-divider);
+  /* Keep the save feedback visible while a long settings page scrolls. */
+  position: sticky; bottom: 0; z-index: 2; background: var(--iwb-bg);
 }
 .iwb-settings-saved { margin-left: auto; color: var(--iwb-success); font-size: 12px; }
 @container iwb-settings (max-width: 520px) {
@@ -699,6 +701,20 @@ export const CSS = `
 }
 .iwb-modal h2 { font-size: 15px; margin: 0 0 8px; }
 .iwb-modal p { margin: 0 0 16px; color: var(--iwb-muted); font-size: 12.5px; white-space: pre-wrap; user-select: text; }
+/* Long forms (settings) keep their title, close control and save feedback in
+   place while the body scrolls; the body owns the scroll, not the modal. */
+.iwb-modal.iwb-settings-modal {
+  width: min(620px, calc(100% - 40px)); max-height: 82%; padding: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.iwb-modal-head {
+  display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  padding: 13px 16px 9px 18px; border-bottom: 1px solid var(--iwb-border);
+  background: var(--iwb-overlay); position: relative; z-index: 3;
+}
+.iwb-modal-head h2 { margin: 0; flex: 1; }
+.iwb-modal-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 18px; }
+.iwb-modal-foot { flex: 0 0 auto; padding: 10px 18px 13px; border-top: 1px solid var(--iwb-border); background: var(--iwb-overlay); }
 .iwb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .iwb-toast {
   position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: 8px;

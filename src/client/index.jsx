@@ -16,6 +16,7 @@ import {
   isPathWithin, sameScopePath, sessionCwdOf, shouldContinueIde, workspaceScopeKey,
 } from './workspace-scope.js'
 import { openInDefaultSidebar } from './file-link.js'
+import { registerChatInput } from './chat-bridge.js'
 
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs', 'sessions']
 const PANEL_ID = 'ide-workbench'
@@ -181,6 +182,20 @@ function OpenButton({ open, t }) {
     type: 'button', title: t('panelLabel'), 'aria-label': t('panelLabel'),
     className: 'iwb-sidebar-open', onClick: open,
   }, React.createElement(PanelIcon, { size: 18 }))
+}
+
+/**
+ * Invisible composer companion: the conversation plugin publishes its
+ * per-Session `inputActions` as standard props to Session-scoped slots, so one
+ * hidden registration in the composer dock is enough to let the workbench
+ * insert `@` references ("send to chat") without reaching into that plugin.
+ */
+function ChatInputBridge({ sessionId, inputActions }) {
+  useLayoutEffect(() => {
+    if (typeof sessionId !== 'string' || sessionId === '') return undefined
+    return registerChatInput(sessionId, inputActions)
+  }, [sessionId, inputActions])
+  return null
 }
 
 export function apply(ctx) {
@@ -357,6 +372,11 @@ export function apply(ctx) {
   }, () => React.createElement(React.Fragment, null,
     React.createElement(Styles), React.createElement(OpenButton, { open, t }),
   ))), 'dsh-ide-workbench: new-session entry')
+
+  ctx.effect(() => ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock', id: 'ide-workbench-chat-input', order: 80,
+    label: () => t('chat.sendToChat'),
+  }, props => React.createElement(ChatInputBridge, props))), 'dsh-ide-workbench: composer chat bridge')
 
   // The footer entry is the always-present fallback: it survives when a skin or
   // a narrow header hides the session utilities, and it is visible on the
