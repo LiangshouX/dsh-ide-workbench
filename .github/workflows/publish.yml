@@ -2,7 +2,7 @@ name: Publish
 # 发布到 npm：打 tag（v*）触发。
 # 自动发布需在 npm 包页面一次性配置 Trusted Publisher：
 #   Settings → Trusted Publisher → GitHub Actions
-#   owner: LiangshouX / repo: dsh-ide-workbench / workflow: publish.yml
+#   owner: LiangshouX / repo: dsh-ide-workbench / workflow: publish.yml / environment: 留空
 # 详见 https://docs.npmjs.com/trusted-publishers
 on:
   push:
@@ -15,10 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # 不要给 setup-node 设置 registry-url：它会往 .npmrc 写
+      # `_authToken=${NODE_AUTH_TOKEN}`，并导出占位哨兵 XXXXX-XXXXX-XXXXX-XXXXX。
+      # npm 见到这个假 token 就会走 token 认证、跳过 Trusted Publisher 的 OIDC，
+      # registry 随即返回 404。去掉 registry-url 后 npm 使用默认 registry + OIDC。
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: 'https://registry.npmjs.org'
       - run: npm install -g npm@latest   # OIDC 需要 npm >= 11.5.1
       - run: npm ci
       - run: npm test
