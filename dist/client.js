@@ -363,7 +363,7 @@ var en = {
   "settings.findInFilesShortcut": "Find in Files",
   "settings.findInFilesShortcutHint": "Search the whole project",
   "settings.findInFilesAltShortcut": "Find in Files (fallback)",
-  "settings.findInFilesAltShortcutHint": "Used when the shell reserves Ctrl+Shift+R",
+  "settings.findInFilesAltShortcutHint": "Used when the shell reserves Ctrl+Shift+R (in a browser Ctrl+Shift+R is a hard reload)",
   "settings.terminalGroup": "Terminal",
   "settings.defaultShell": "Default shell profile",
   "settings.defaultShellHint": "New sessions use this shell",
@@ -723,7 +723,6 @@ var en = {
   "editor.conflictBody": "The file was modified by another program after it was read. Reload it, or overwrite the disk with this editor buffer.",
   "editor.reloadFromDisk": "Reload from disk",
   "editor.overwriteDisk": "Overwrite disk",
-  "editor.externalChanged": "Changed on disk",
   "editor.find": "Find",
   "editor.replace": "Replace",
   "editor.findPlaceholder": "Find in file",
@@ -794,7 +793,7 @@ var zh = {
   "settings.findInFilesShortcut": "\u5168\u9879\u76EE\u67E5\u627E",
   "settings.findInFilesShortcutHint": "\u641C\u7D22\u6574\u4E2A\u9879\u76EE",
   "settings.findInFilesAltShortcut": "\u5168\u9879\u76EE\u67E5\u627E\uFF08\u5907\u7528\uFF09",
-  "settings.findInFilesAltShortcutHint": "\u5F53\u5916\u58F3\u5360\u7528 Ctrl+Shift+R \u65F6\u4F7F\u7528",
+  "settings.findInFilesAltShortcutHint": "\u5F53\u5916\u58F3\u5360\u7528 Ctrl+Shift+R \u65F6\u4F7F\u7528\uFF08\u6D4F\u89C8\u5668\u5F62\u6001\u4E0B Ctrl+Shift+R \u662F\u786C\u5237\u65B0\uFF09",
   "settings.terminalGroup": "\u7EC8\u7AEF",
   "settings.defaultShell": "\u9ED8\u8BA4 Shell \u914D\u7F6E",
   "settings.defaultShellHint": "\u65B0\u4F1A\u8BDD\u4F7F\u7528\u8BE5 Shell",
@@ -1154,7 +1153,6 @@ var zh = {
   "editor.conflictBody": "\u8BFB\u53D6\u540E\u8BE5\u6587\u4EF6\u88AB\u5176\u4ED6\u7A0B\u5E8F\u4FEE\u6539\u3002\u53EF\u4EE5\u91CD\u65B0\u52A0\u8F7D\u78C1\u76D8\u5185\u5BB9\uFF0C\u6216\u7528\u5F53\u524D\u7F16\u8F91\u5668\u5185\u5BB9\u8986\u76D6\u78C1\u76D8\u3002",
   "editor.reloadFromDisk": "\u4ECE\u78C1\u76D8\u91CD\u65B0\u52A0\u8F7D",
   "editor.overwriteDisk": "\u8986\u76D6\u78C1\u76D8",
-  "editor.externalChanged": "\u78C1\u76D8\u5185\u5BB9\u5DF2\u53D8\u5316",
   "editor.find": "\u67E5\u627E",
   "editor.replace": "\u66FF\u6362",
   "editor.findPlaceholder": "\u5728\u6587\u4EF6\u4E2D\u67E5\u627E",
@@ -1888,6 +1886,17 @@ function isPathWithin(root, path2) {
   const candidate = normalizeScopePath(path2);
   return candidate === parent || candidate.startsWith(`${parent}/`);
 }
+function relativePathWithin(base2, absolute) {
+  const parent = normalizeScopePath(base2);
+  if (parent === "") return null;
+  if (typeof absolute !== "string" || absolute === "") return null;
+  const slashed = absolute.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/+$/, "");
+  if (slashed === "") return null;
+  const candidate = normalizeScopePath(slashed);
+  if (candidate === parent) return "";
+  if (!candidate.startsWith(`${parent}/`)) return null;
+  return slashed.slice(parent.length + 1);
+}
 function sessionCwdOf(ctx, sessionId) {
   if (typeof sessionId !== "string" || sessionId === "") return "";
   try {
@@ -2121,8 +2130,28 @@ var WorkbenchStore = class {
   async setGitRepoRoot(path2) {
     if (typeof path2 !== "string" || path2 === "") return;
     if (sameScopePath(path2, this.state.gitRepoRoot)) return;
-    this.set({ gitRepoRoot: path2 });
+    this.set({
+      gitRepoRoot: path2,
+      // The commit selection belongs to the repository it was made in
+      // (PRD-v4 review M3): the old repository's paths must not be added to
+      // the new one.
+      commit: this.#resetCommitSelection()
+    });
+    this.#closeRepositoryTabs();
     await this.refreshStatus({ initial: true });
+  }
+  /** Close the tabs that belong to the repository the Git window reads. */
+  #closeRepositoryTabs() {
+    const index = this.state.tabs.findIndex((tab3) => tab3.kind === "diff");
+    if (index < 0) return;
+    const ids = new Set(this.state.tabs.filter((tab3) => tab3.kind === "diff").map((tab3) => tab3.id));
+    const tabs = this.state.tabs.filter((tab3) => !ids.has(tab3.id));
+    let activeId = this.state.activeId;
+    if (ids.has(activeId)) {
+      const next = tabs[Math.min(index, tabs.length - 1)];
+      activeId = next?.id ?? null;
+    }
+    this.set({ tabs, activeId });
   }
   /**
    * The repository the Git window reads by default.
@@ -2152,12 +2181,19 @@ var WorkbenchStore = class {
       this.#notify();
       return;
     }
+    let changed = false;
     for (const key of Object.keys(patch)) {
       if (this.state[key] !== patch[key]) {
-        this.state = { ...this.state, ...patch };
-        this.#notify();
-        return;
+        changed = true;
+        break;
       }
+    }
+    if (!changed) return;
+    const previousLeft = this.state.layout?.left;
+    this.state = { ...this.state, ...patch };
+    this.#notify();
+    if (patch.layout?.left === "commit" && previousLeft !== "commit") {
+      void this.refreshStatus({ silent: true, force: true });
     }
   }
   /** Wake every subscriber (one render). */
@@ -2389,7 +2425,7 @@ var WorkbenchStore = class {
     for (const candidate of this.#linkCandidates(parsed)) {
       if (!isPathWithin(workspace, candidate.absolute)) continue;
       try {
-        await call2("fs.stat", { root: candidate.base, path: candidate.rel });
+        await call2("fs.stat", { root: workspace, path: candidate.absolute });
         return candidate.absolute;
       } catch {
       }
@@ -2900,11 +2936,23 @@ var WorkbenchStore = class {
       this.polling = false;
     }
   }
+  /**
+   * The key of one file inside the git status snapshot.
+   *
+   * The status belongs to the repository the Git window reads (PRD-v4 §4.1),
+   * so its paths are relative to that repository. A file outside it has no
+   * status entry at all.
+   * @param {string} absolutePath the absolute path of the file
+   * @returns {string | null} the repository-relative path
+   */
+  #statusKeyOf(absolutePath) {
+    return relativePathWithin(this.gitRoot, absolutePath);
+  }
   /** Reload only the expanded directories that contain a changed path. */
   #invalidateChangedDirs(status) {
     const dirtyParents = /* @__PURE__ */ new Set();
     for (const entry of status.entries) {
-      dirtyParents.add(parentPath(joinPath(this.state.root, entry.path)));
+      dirtyParents.add(parentPath(joinPath(this.gitRoot, entry.path)));
     }
     const opened = [...this.state.expanded];
     for (const dir of opened) {
@@ -2918,7 +2966,9 @@ var WorkbenchStore = class {
   #refreshActiveFile(status) {
     const active = this.state.tabs.find((tab3) => tab3.id === this.state.activeId);
     if (active === void 0 || active.kind !== "file") return;
-    const entry = status.entries.find((item) => item.path === active.rel);
+    const key = this.#statusKeyOf(active.path);
+    if (key === null) return;
+    const entry = status.entries.find((item) => item.path === key);
     if (entry === void 0) return;
     if (active.editing === true || active.dirty === true) {
       void call2("fs.read", { root: this.state.root, path: active.path }).then((result) => {
@@ -3783,7 +3833,11 @@ ${target}`,
           this.t("editor.conflictTitle"),
           this.t("editor.conflictBody"),
           [
+            // "Cancel" means "not now": the conflict is cleared, otherwise the
+            // document pane would raise the very same dialog again
+            // (PRD-v4 review M6).
             { key: "cancel", label: this.t("common.cancel"), action: () => {
+              this.dismissConflict(id2);
             } },
             {
               key: "reload",
@@ -3807,6 +3861,18 @@ ${target}`,
       }
       this.toast("error", this.t("editor.saveFailed"), error instanceof Error ? error.message : String(error));
     }
+  }
+  /**
+   * Dismiss the conflict notice of one tab.
+   *
+   * The notice is a one-time offer: without clearing it, the document pane
+   * raises the same dialog again on the next render (PRD-v4 review M6).
+   * @param {string} tabId the tab whose conflict is dismissed
+   */
+  dismissConflict(tabId) {
+    const tab3 = this.state.tabs.find((item) => item.id === tabId);
+    if (tab3 === void 0 || tab3.conflict === null || tab3.conflict === void 0) return;
+    this.#updateTab(tabId, { conflict: null });
   }
   /** Reload one tab from disk, discarding the in-memory draft after confirm. */
   async reloadTab(id2) {
@@ -4011,7 +4077,7 @@ ${target}`,
       } else {
         checkedSet.delete(entry.path);
         uncheckedSet.add(entry.path);
-        if (entry.untracked === true) pendingStage.delete(entry.path);
+        pendingStage.delete(entry.path);
         if (entry.staged === true) toUnstage.push(entry.path);
       }
     }
@@ -4079,10 +4145,13 @@ ${target}`,
   async ignoreEntry(path2) {
     if (typeof path2 !== "string" || path2 === "") return;
     try {
+      const absolute = joinPath(this.gitRoot, path2);
+      const repoRoot = this.state.status.repoRoot ?? this.gitRoot;
+      const fence = this.state.workspaceRoot !== "" ? this.state.workspaceRoot : this.state.root;
       await call2("git.ignore", {
-        root: this.state.root,
-        path: path2,
-        repoRoot: this.state.status.repoRoot ?? void 0
+        root: fence,
+        path: absolute,
+        repoRoot
       });
       await this.refreshStatus({ initial: true });
       this.toast("success", this.t("common.success"), path2);
@@ -4250,6 +4319,11 @@ ${outcome.output ?? ""}`.trim();
       if (pushAfter) await this.push({ afterCommit: true });
     } catch (error) {
       const messageText = error instanceof Error ? error.message : String(error);
+      const staged = [...this.state.commit.pendingStage ?? []];
+      if (staged.length > 0) {
+        await call2("git.unstage", { root: this.gitRoot, paths: staged }).catch(() => {
+        });
+      }
       this.patch("commit", { committing: false, error: messageText });
       this.toast("error", this.t("commit.commitFailed"), messageText);
     }
@@ -4278,7 +4352,9 @@ ${outcome.output ?? ""}`.trim();
   /** Project → Git | Show History: scope the log to one file or folder. */
   showHistory(rel) {
     const value = typeof rel === "string" ? rel.replace(/[\\/]+$/, "") : "";
-    this.patch("git", { filters: { ...this.state.git.filters, path: value }, selectedHash: null, detail: null });
+    const repoPath = value === "" ? "" : relativePathWithin(this.gitRoot, joinPath(this.state.root, value));
+    const filter = repoPath === null ? "" : repoPath;
+    this.patch("git", { filters: { ...this.state.git.filters, path: filter }, selectedHash: null, detail: null });
     this.set({
       layout: {
         ...this.state.layout,
@@ -4716,18 +4792,24 @@ var StoreCache = class {
    * @param {string} key workspace key
    * @param {any} store the workspace store
    * @param {string} sessionId the Session that uses it
+   * @param {{ evict?: boolean }} [options] `evict: false` keeps the cache as
+   *   it is; the caller evicts later (outside a render).
    */
-  set(key, store, sessionId) {
+  set(key, store, sessionId, options = {}) {
     this.stores.delete(key);
     this.stores.set(key, store);
     this.claim(key, sessionId);
-    this.evict();
+    if (options.evict !== false) this.evict();
     if (false) perfCounters.stores = this.stores.size;
     return store;
   }
   /**
    * Drop the least recently used stores until the cache fits its limit.
-   * A workspace that still has a mounted Session keeps its store.
+   *
+   * A workspace that still has a mounted Session keeps its store, and so does
+   * a store with unsaved edits: the persisted workspace state does not carry
+   * the draft, so evicting it would lose the content silently (PRD-v4 review
+   * R1).
    */
   evict() {
     if (this.stores.size <= this.limit) return;
@@ -4736,6 +4818,8 @@ var StoreCache = class {
       const sessions = this.sessions.get(key);
       const alive = sessions !== void 0 && [...sessions].some((id2) => this.isMounted(id2));
       if (alive) continue;
+      const tabs = store?.state?.tabs ?? [];
+      if (tabs.some((tab3) => tab3.dirty === true)) continue;
       store.deactivate();
       this.stores.delete(key);
       this.sessions.delete(key);
@@ -5365,7 +5449,9 @@ function ConfirmModal({ dialog, onClose, scope = null }) {
       "div",
       { className: "iwb-modal", role: "dialog", "aria-modal": "true", "aria-label": dialog.title },
       import_react3.default.createElement("h2", null, dialog.title),
-      import_react3.default.createElement("p", null, dialog.body),
+      // The body can be clamped by the stylesheet (the editor-scoped variant
+      // keeps it to three lines), so the full text stays reachable on hover.
+      import_react3.default.createElement("p", { title: dialog.body }, dialog.body),
       import_react3.default.createElement(
         "div",
         { className: "iwb-modal-actions" },
@@ -5580,6 +5666,30 @@ function isExcluded(rel, patterns) {
   }
   return false;
 }
+function gitRootOf(tree) {
+  return typeof tree.gitRepoRoot === "string" && tree.gitRepoRoot !== "" ? tree.gitRepoRoot : tree.root;
+}
+function statusKeyOf(tree, absolute) {
+  return relativePathWithin(gitRootOf(tree), absolute);
+}
+function repoRelOf(tree, rel) {
+  if (typeof rel !== "string" || rel === "") return null;
+  return statusKeyOf(tree, absoluteOf(tree.root, rel));
+}
+function gitMenuItems(tree, currentRels, currentRel, isDir, tools) {
+  const repoRels = currentRels.map((rel) => repoRelOf(tree, rel)).filter((rel) => rel !== null);
+  const repoRel = repoRelOf(tree, currentRel);
+  const { t: t2, store } = tools;
+  return [
+    { key: "git-add", text: t2("git.add"), disabled: repoRels.length === 0, action: () => {
+      void store.stage(repoRels);
+    } },
+    { key: "git-diff", text: t2("git.showDiff"), disabled: repoRel === null || repoRels.length !== 1 || isDir, action: () => {
+      if (repoRel !== null) store.openDiff({ path: repoRel });
+    } },
+    { key: "git-history", text: t2("git.showHistory"), disabled: currentRels.length !== 1, action: () => store.showHistory(currentRel) }
+  ];
+}
 function flatten(state, filter, showIgnored, ignored, mode = "tree") {
   const rows = [];
   const dirs = state.dirs;
@@ -5587,7 +5697,8 @@ function flatten(state, filter, showIgnored, ignored, mode = "tree") {
   const root = state.root;
   if (root === "") return rows;
   const isExpanded = (path2) => state.expanded.has(path2);
-  const visible = (entry) => showIgnored || !ignored.has(entry.rel);
+  const gitRoot = gitRootOf(state);
+  const visible = (entry) => showIgnored || !ignored.has(relativePathWithin(gitRoot, entry.path));
   const walk = (path2, depth) => {
     const dir = dirs.get(path2);
     if (dir === void 0 || dir.entries === void 0) {
@@ -5637,7 +5748,7 @@ function flatten(state, filter, showIgnored, ignored, mode = "tree") {
   return rows;
 }
 function flattenInputs(state, showIgnored, ignored, mode) {
-  return [state.dirs, state.expanded, state.root, state.filter, showIgnored, ignored, mode];
+  return [state.dirs, state.expanded, state.root, state.filter, state.gitRepoRoot, showIgnored, ignored, mode];
 }
 function templateContent(templateId, name2) {
   const stem = name2.replace(/\.[^.]+$/, "") || name2;
@@ -5756,10 +5867,15 @@ var TreeRow = import_react4.default.memo(function TreeRow2({
       className: "iwb-tree-twisty iwb-tree-twisty-click",
       // The twisty sits inside the row, which selects on click: without
       // stopPropagation one click would select *and* toggle the folder.
+      // A double click sends two clicks plus a dblclick: only the first
+      // click may toggle, and the dblclick must not reach the row — else
+      // the folder would flip three times and visibly flicker.
       onClick: (event) => {
         event.stopPropagation();
+        if (event.detail > 1) return;
         onToggleDir(entry.path);
-      }
+      },
+      onDoubleClick: (event) => event.stopPropagation()
     }, open ? import_react4.default.createElement(ChevronDown, null) : import_react4.default.createElement(ChevronRight, null)) : import_react4.default.createElement("span", { className: "iwb-tree-twisty" }),
     isDir ? import_react4.default.createElement(FileTypeIcon, { name: entry.name, isDir: true, open, size: 15 }) : import_react4.default.createElement(FileTypeIcon, { name: entry.name, size: 15 }),
     isDir ? import_react4.default.createElement("span", { className: "iwb-tree-name iwb-dir" }, entry.name) : editing ? import_react4.default.createElement("input", {
@@ -5792,7 +5908,10 @@ function projectSlice(state) {
     tabs: state.tabs,
     activeId: state.activeId,
     treeFocusTick: state.treeFocusTick,
-    clipboard: state.clipboard
+    clipboard: state.clipboard,
+    // The repository the git status belongs to (GIT-01): its keys are
+    // repository-relative, the tree rows are project-relative.
+    gitRepoRoot: state.gitRepoRoot
   };
 }
 function ProjectPanel({ store, state: _state }) {
@@ -5995,17 +6114,11 @@ function ProjectPanel({ store, state: _state }) {
       items.push(null, {
         key: "git",
         text: "Git",
-        submenu: [
-          { key: "git-add", text: t2("git.add"), disabled: currentRels.length === 0, action: () => {
-            void store.stage(currentRels);
-          } },
-          { key: "git-diff", text: t2("git.showDiff"), disabled: currentRels.length !== 1 || isDir, action: () => store.openDiff({ path: currentRel }) },
-          { key: "git-history", text: t2("git.showHistory"), disabled: currentRels.length !== 1, action: () => store.showHistory(currentRel) }
-        ]
+        submenu: gitMenuItems(slice, currentRels, currentRel, isDir, { t: t2, store })
       });
     }
     return items;
-  }, [menu, currentPaths.join("|"), currentRels.join("|"), shortcuts, slice.root, slice.status.isRepo, slice.clipboard]);
+  }, [menu, currentPaths.join("|"), currentRels.join("|"), shortcuts, slice.root, slice.gitRepoRoot, slice.status.isRepo, slice.clipboard]);
   const onRowClick = (0, import_react4.useCallback)((event, entry, quick) => {
     if (entry === void 0) return;
     scrollRef.current?.focus();
@@ -6244,8 +6357,9 @@ function ProjectPanel({ store, state: _state }) {
       }
       const entry = row.entry;
       const selected = selection.has(entry.path);
-      const kind = row.kind === "dir" ? status.dirs.get(entry.rel) : status.files.get(entry.rel);
-      const ignoredFile = status.ignored.has(entry.rel);
+      const statusKey = statusKeyOf(slice, entry.path);
+      const kind = statusKey === null ? void 0 : row.kind === "dir" ? status.dirs.get(statusKey) : status.files.get(statusKey);
+      const ignoredFile = statusKey !== null && status.ignored.has(statusKey);
       const excludedEntry = isExcluded(entry.rel, excluded);
       const editing = renaming !== null && renaming.path === entry.path;
       const active = row.kind === "file" ? slice.tabs.find((tab3) => tab3.kind === "file" && tab3.path === entry.path && tab3.id === slice.activeId) !== void 0 : false;
@@ -47922,6 +48036,22 @@ var THEME = EditorView.theme({
 function selectionOf(view, match) {
   return { anchor: match.from, head: match.to };
 }
+function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOnly2 }) {
+  return [
+    { key: "Mod-s", run: () => {
+      if (readOnly2 !== true) onSaveRef.current();
+      return true;
+    } },
+    { key: "Mod-f", run: () => {
+      onFindRef.current?.();
+      return true;
+    } },
+    { key: "Mod-Alt-f", run: () => {
+      onFindInFilesRef.current?.();
+      return true;
+    } }
+  ];
+}
 function CodeEditor({
   value,
   path: path2,
@@ -47997,22 +48127,7 @@ function CodeEditor({
       // opened. FindBar drives the query through the controller below.
       search({ top: false }),
       keymap.of([
-        { key: "Mod-s", run: () => {
-          if (readOnly2 !== true) onSaveRef.current();
-          return true;
-        } },
-        { key: "Mod-f", run: () => {
-          onFindRef.current?.();
-          return true;
-        } },
-        { key: "Mod-Shift-f", run: () => {
-          onFindInFilesRef.current?.();
-          return true;
-        } },
-        { key: "Mod-Alt-f", run: () => {
-          onFindInFilesRef.current?.();
-          return true;
-        } },
+        ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOnly2 }),
         ...defaultKeymap,
         ...historyKeymap,
         indentWithTab
@@ -49926,9 +50041,56 @@ function TabBar({ store, slice }) {
     }) : null
   );
 }
+function breadcrumbOverflows(breadcrumb, measure) {
+  return measure.getBoundingClientRect().width > breadcrumb.clientWidth;
+}
+function breadcrumbParts(directories, middle, fileSegment, mode) {
+  const full = mode === "full";
+  const parts = [];
+  if (directories.length > 0) {
+    parts.push(import_react14.default.createElement("span", { key: "head" }, directories[0]));
+    if (middle.length > 0) {
+      parts.push(import_react14.default.createElement("span", { key: "head-sep", className: "iwb-sep" }, "\u203A"));
+    }
+  }
+  middle.forEach((segment, index) => {
+    parts.push(import_react14.default.createElement("span", {
+      key: `mid-${index}`,
+      className: full ? void 0 : "iwb-crumb-mid"
+    }, segment));
+    if (index < middle.length - 1) {
+      parts.push(import_react14.default.createElement("span", {
+        key: `mid-sep-${index}`,
+        className: full ? "iwb-sep" : "iwb-sep iwb-crumb-mid"
+      }, "\u203A"));
+    }
+  });
+  if (!full && middle.length > 0) {
+    parts.push(import_react14.default.createElement("span", { key: "more", className: "iwb-crumb-more" }, "\u2026"));
+  }
+  if (directories.length > 0) {
+    parts.push(import_react14.default.createElement("span", { key: "file-sep", className: "iwb-sep" }, "\u203A"));
+  }
+  parts.push(import_react14.default.createElement("b", { key: "file" }, fileSegment));
+  return parts;
+}
 function EditorToolbar({ store, tab: tab3 }) {
   const t2 = store.t;
   const [diffMenu, setDiffMenu] = (0, import_react14.useState)(null);
+  const [overflow, setOverflow] = (0, import_react14.useState)(false);
+  const breadcrumbRef = (0, import_react14.useRef)(null);
+  (0, import_react14.useEffect)(() => {
+    const element = breadcrumbRef.current;
+    if (element === null) return void 0;
+    const measure = element.querySelector(".iwb-breadcrumb-measure");
+    if (measure === null) return void 0;
+    const update = () => setOverflow(breadcrumbOverflows(element, measure));
+    update();
+    if (typeof ResizeObserver !== "function") return void 0;
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [tab3.id, tab3.rel]);
   if (tab3.kind === "diff") {
     const variant = tab3.compare !== void 0 ? `${tab3.compare.a.slice(0, 7)} \u2194 ${tab3.compare.b.slice(0, 7)}` : tab3.against === "head" ? t2("commit.lastRevision") : tab3.against === "latest" ? t2("commit.latest") : tab3.staged === true ? t2("commit.staged") : tab3.untracked === true ? t2("commit.untracked") : t2("commit.workingTree");
     const readOnly2 = tab3.readOnly === true;
@@ -50010,24 +50172,25 @@ function EditorToolbar({ store, tab: tab3 }) {
   const view = tab3.view ?? (markdown2 ? "preview" : "code");
   const dirty = tab3.dirty === true;
   const saving = tab3.saving === true;
+  const dirtyBadge = dirty ? import_react14.default.createElement("span", { className: "iwb-toolbar-dirty", title: t2("editor.dirty") }, t2("editor.dirty")) : null;
   return import_react14.default.createElement(
     "div",
-    { className: "iwb-editor-toolbar" },
+    {
+      className: "iwb-editor-toolbar",
+      "data-overflow": overflow === true ? "true" : void 0
+    },
     import_react14.default.createElement(
       "div",
-      { className: "iwb-breadcrumb", title: tab3.path },
-      directories.length === 0 ? null : import_react14.default.createElement("span", null, directories[0]),
-      middle.length === 0 ? null : import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
-      middle.map((segment, index) => import_react14.default.createElement(
-        import_react14.default.Fragment,
-        { key: index },
-        import_react14.default.createElement("span", { className: "iwb-crumb-mid" }, segment),
-        index < middle.length - 1 ? import_react14.default.createElement("span", { className: "iwb-sep iwb-crumb-mid" }, "\u203A") : null
-      )),
-      middle.length > 0 ? import_react14.default.createElement("span", { className: "iwb-crumb-more" }, "\u2026") : null,
-      directories.length === 0 ? null : import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
-      import_react14.default.createElement("b", null, fileSegment),
-      dirty ? import_react14.default.createElement("span", { className: "iwb-toolbar-dirty", title: t2("editor.dirty") }, t2("editor.dirty")) : null
+      { className: "iwb-breadcrumb", title: tab3.path, ref: breadcrumbRef },
+      ...breadcrumbParts(directories, middle, fileSegment, "visible"),
+      dirtyBadge,
+      // The uncollapsed path, measured but never shown.
+      import_react14.default.createElement(
+        "span",
+        { className: "iwb-breadcrumb-measure", "aria-hidden": "true" },
+        ...breadcrumbParts(directories, middle, fileSegment, "full"),
+        dirtyBadge
+      )
     ),
     import_react14.default.createElement("div", { className: "iwb-spacer" }),
     payload?.truncated === true ? import_react14.default.createElement("span", { style: { color: "var(--iwb-warn)" } }, t2("editor.truncated")) : null,
@@ -50142,8 +50305,13 @@ function buildConflictDialog(store, tab3) {
     title: t2("editor.conflictTitle"),
     body: tab3.conflict.message ?? t2("editor.conflictBody"),
     actions: [
-      { key: "cancel", label: t2("common.cancel"), action: () => {
-      } },
+      {
+        key: "cancel",
+        label: t2("common.cancel"),
+        action: () => {
+          store.dismissConflict(tab3.id);
+        }
+      },
       {
         key: "reload",
         label: t2("editor.reloadFromDisk"),
@@ -50277,9 +50445,10 @@ function EditorArea({ store, state: _state }) {
     return buildConflictDialog(store, conflictTab);
   }, [conflictTab, dismissedTab, slice.confirm, store]);
   const closeConflict = (0, import_react14.useCallback)(() => setDismissedTab(conflictTab?.id ?? null), [conflictTab?.id]);
+  const bufferStamp = active?.payload?.mtimeMs ?? null;
   (0, import_react14.useEffect)(() => {
-    if (conflictTab === null) setDismissedTab(null);
-  }, [conflictTab]);
+    setDismissedTab(null);
+  }, [bufferStamp]);
   if (active === void 0) {
     return import_react14.default.createElement(
       "div",
@@ -51722,24 +51891,35 @@ var CSS2 = `
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;
-  /* Own container so the breadcrumb can collapse on a narrow *document* pane,
-     not only on a narrow window. */
+  /* Own container: the document pane may be narrow while the window is wide. */
   container-type: inline-size; container-name: iwb-editor-toolbar;
 }
 /* One line, always: a squeezed segment must clip, never wrap inside the
-   30px toolbar. */
-.iwb-breadcrumb { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; }
+   30px toolbar. The breadcrumb takes the free width, so its box is exactly
+   the width the path may use - that is what the overflow check measures. */
+.iwb-breadcrumb {
+  position: relative; flex: 1 1 auto; display: flex; align-items: center; gap: 4px;
+  min-width: 0; overflow: hidden; white-space: nowrap;
+}
 .iwb-breadcrumb > * { flex-shrink: 0; }
 .iwb-breadcrumb .iwb-sep { opacity: .5; }
-.iwb-breadcrumb b { color: var(--iwb-fg); font-weight: 600; }
-/* The middle segments collapse into one ellipsis; the file name always stays
-   visible and the full path stays in the element title. */
-.iwb-breadcrumb .iwb-crumb-more { display: none; color: var(--iwb-muted); }
-@container iwb-editor-toolbar (max-width: 520px) {
-  .iwb-breadcrumb .iwb-crumb-mid { display: none; }
-  .iwb-breadcrumb .iwb-crumb-more { display: inline-flex; }
+.iwb-breadcrumb b { color: var(--iwb-fg); font-weight: 600; flex-shrink: 0; }
+/* The middle segments give up their space first: the first segment and the
+   file name always stay visible. */
+.iwb-breadcrumb .iwb-crumb-mid { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The full path, measured but never shown: it tells whether the breadcrumb
+   really overflows, whatever the collapse state is. */
+.iwb-breadcrumb-measure {
+  position: absolute; left: 0; top: 0; width: max-content; max-width: none;
+  display: inline-flex; align-items: center; gap: 4px;
+  visibility: hidden; white-space: nowrap; pointer-events: none;
 }
-.iwb-editor-toolbar .iwb-spacer { flex: 1; }
+/* The middle segments collapse into one ellipsis when the path really does
+   not fit; the toolbar sets data-overflow when that is the case. */
+.iwb-breadcrumb .iwb-crumb-more { display: none; color: var(--iwb-muted); }
+.iwb-editor-toolbar[data-overflow='true'] .iwb-breadcrumb .iwb-crumb-mid { display: none; }
+.iwb-editor-toolbar[data-overflow='true'] .iwb-breadcrumb .iwb-crumb-more { display: inline-flex; }
+.iwb-editor-toolbar .iwb-spacer { flex: 0 0 auto; }
 .iwb-seg {
   display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 6px; overflow: hidden; background: var(--iwb-panel);
 }
@@ -52329,8 +52509,13 @@ var CSS2 = `
   background: rgba(0, 0, 0, .45); padding: 0 12px;
 }
 .iwb-editor-scoped-backdrop .iwb-modal { width: min(440px, 100%); }
-.iwb-editor-scoped-backdrop .iwb-modal h2,
-.iwb-editor-scoped-backdrop .iwb-modal p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The title stays on one line; the body explains the conflict and may wrap -
+   it is clamped to three lines and carries the full text in its title. */
+.iwb-editor-scoped-backdrop .iwb-modal h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iwb-editor-scoped-backdrop .iwb-modal p {
+  white-space: normal; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
 .iwb-editor-scoped-backdrop .iwb-modal-actions { flex-wrap: wrap; }
 
 .iwb-search { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; z-index: 8; pointer-events: auto; }
@@ -52726,13 +52911,18 @@ ${CSS2}`);
   const scopeKeyOf = (sessionId) => workspaceScopeKey(cachedSessionsCtx, sessionId);
   const isMountedSession = (sessionId) => {
     if (typeof sessionId !== "string" || sessionId === "") return false;
-    if (ctx.sidebarRight?.mounted?.getSnapshot?.() === sessionId) return true;
-    const inventory = ctx.sidebarRight?.openTabs?.getSnapshot?.();
-    if (!Array.isArray(inventory)) return false;
-    return inventory.some((tab3) => tab3?.kind === PANEL_ID && tab3?.sessionId === sessionId);
+    return ctx.sidebarRight?.mounted?.getSnapshot?.() === sessionId;
   };
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === "function";
   const stores = new StoreCache({ limit: 3, isMounted: isMountedSession });
+  let evictTimer = null;
+  const scheduleEvict = () => {
+    if (evictTimer !== null) return;
+    evictTimer = setTimeout(() => {
+      evictTimer = null;
+      stores.evict();
+    }, 0);
+  };
   const getStore = (sessionId) => {
     const id2 = typeof sessionId === "string" ? sessionId : "";
     const key = hasMounted ? scopeKeyOf(id2) : `session:${id2}`;
@@ -52741,7 +52931,9 @@ ${CSS2}`);
       stores.claim(key, id2);
       return existing;
     }
-    return stores.set(key, new WorkbenchStore(ctx, t2, cwdOf(id2)), id2);
+    const store = stores.set(key, new WorkbenchStore(ctx, t2, cwdOf(id2)), id2, { evict: false });
+    scheduleEvict();
+    return store;
   };
   const activeStore = () => {
     const sessionId = ctx.sidebarRight.mounted?.getSnapshot();

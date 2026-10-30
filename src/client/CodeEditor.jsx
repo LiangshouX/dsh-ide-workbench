@@ -107,6 +107,28 @@ function selectionOf(view, match) {
 }
 
 /**
+ * The CodeMirror keymap of the editor buffer.
+ *
+ * The global Find in Files view is reachable by shortcut only: `Ctrl+Shift+R`
+ * (the document area intercepts it in the capture phase) and the
+ * `Ctrl+Alt+F` fallback alias. The legacy `Ctrl+Shift+F` combo must never
+ * open the global view: the document area does not match it, so the event
+ * would sink into the buffer and hit the keymap below - which is exactly
+ * how it used to slip through. It is therefore not bound here.
+ *
+ * Exported so the bindings can be checked without a browser.
+ * @param {{onSaveRef: object, onFindRef: object, onFindInFilesRef: object, readOnly: boolean}} refs
+ * @returns {Array<{key: string, run: Function}>} the keymap entries
+ */
+export function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly }) {
+  return [
+    { key: 'Mod-s', run: () => { if (readOnly !== true) onSaveRef.current(); return true } },
+    { key: 'Mod-f', run: () => { onFindRef.current?.(); return true } },
+    { key: 'Mod-Alt-f', run: () => { onFindInFilesRef.current?.(); return true } },
+  ]
+}
+
+/**
  * One editable or read-only buffer.
  * @param {{ value: string, path: string, fontSize?: number, resetToken?: number, readOnly?: boolean,
  *   onFindRequest?: () => void, onReady?: (api: any) => void,
@@ -183,10 +205,7 @@ export function CodeEditor({
       // opened. FindBar drives the query through the controller below.
       search({ top: false }),
       keymap.of([
-        { key: 'Mod-s', run: () => { if (readOnly !== true) onSaveRef.current(); return true } },
-        { key: 'Mod-f', run: () => { onFindRef.current?.(); return true } },
-        { key: 'Mod-Shift-f', run: () => { onFindInFilesRef.current?.(); return true } },
-        { key: 'Mod-Alt-f', run: () => { onFindInFilesRef.current?.(); return true } },
+        ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly }),
         ...defaultKeymap,
         ...historyKeymap,
         indentWithTab,
@@ -333,3 +352,4 @@ export function CodeEditor({
       : null,
   )
 }
+

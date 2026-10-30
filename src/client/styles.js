@@ -203,24 +203,35 @@ export const CSS = `
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;
-  /* Own container so the breadcrumb can collapse on a narrow *document* pane,
-     not only on a narrow window. */
+  /* Own container: the document pane may be narrow while the window is wide. */
   container-type: inline-size; container-name: iwb-editor-toolbar;
 }
 /* One line, always: a squeezed segment must clip, never wrap inside the
-   30px toolbar. */
-.iwb-breadcrumb { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; }
+   30px toolbar. The breadcrumb takes the free width, so its box is exactly
+   the width the path may use - that is what the overflow check measures. */
+.iwb-breadcrumb {
+  position: relative; flex: 1 1 auto; display: flex; align-items: center; gap: 4px;
+  min-width: 0; overflow: hidden; white-space: nowrap;
+}
 .iwb-breadcrumb > * { flex-shrink: 0; }
 .iwb-breadcrumb .iwb-sep { opacity: .5; }
-.iwb-breadcrumb b { color: var(--iwb-fg); font-weight: 600; }
-/* The middle segments collapse into one ellipsis; the file name always stays
-   visible and the full path stays in the element title. */
-.iwb-breadcrumb .iwb-crumb-more { display: none; color: var(--iwb-muted); }
-@container iwb-editor-toolbar (max-width: 520px) {
-  .iwb-breadcrumb .iwb-crumb-mid { display: none; }
-  .iwb-breadcrumb .iwb-crumb-more { display: inline-flex; }
+.iwb-breadcrumb b { color: var(--iwb-fg); font-weight: 600; flex-shrink: 0; }
+/* The middle segments give up their space first: the first segment and the
+   file name always stay visible. */
+.iwb-breadcrumb .iwb-crumb-mid { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The full path, measured but never shown: it tells whether the breadcrumb
+   really overflows, whatever the collapse state is. */
+.iwb-breadcrumb-measure {
+  position: absolute; left: 0; top: 0; width: max-content; max-width: none;
+  display: inline-flex; align-items: center; gap: 4px;
+  visibility: hidden; white-space: nowrap; pointer-events: none;
 }
-.iwb-editor-toolbar .iwb-spacer { flex: 1; }
+/* The middle segments collapse into one ellipsis when the path really does
+   not fit; the toolbar sets data-overflow when that is the case. */
+.iwb-breadcrumb .iwb-crumb-more { display: none; color: var(--iwb-muted); }
+.iwb-editor-toolbar[data-overflow='true'] .iwb-breadcrumb .iwb-crumb-mid { display: none; }
+.iwb-editor-toolbar[data-overflow='true'] .iwb-breadcrumb .iwb-crumb-more { display: inline-flex; }
+.iwb-editor-toolbar .iwb-spacer { flex: 0 0 auto; }
 .iwb-seg {
   display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 6px; overflow: hidden; background: var(--iwb-panel);
 }
@@ -810,8 +821,13 @@ export const CSS = `
   background: rgba(0, 0, 0, .45); padding: 0 12px;
 }
 .iwb-editor-scoped-backdrop .iwb-modal { width: min(440px, 100%); }
-.iwb-editor-scoped-backdrop .iwb-modal h2,
-.iwb-editor-scoped-backdrop .iwb-modal p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The title stays on one line; the body explains the conflict and may wrap -
+   it is clamped to three lines and carries the full text in its title. */
+.iwb-editor-scoped-backdrop .iwb-modal h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iwb-editor-scoped-backdrop .iwb-modal p {
+  white-space: normal; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
 .iwb-editor-scoped-backdrop .iwb-modal-actions { flex-wrap: wrap; }
 
 .iwb-search { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; z-index: 8; pointer-events: auto; }

@@ -118,6 +118,7 @@ function baseState() {
     tabs: [],
     activeId: '',
     treeFocusTick: 0,
+    gitRepoRoot: '',
   }
 }
 
@@ -315,14 +316,15 @@ test('the flatten memo depends on every input the tree reads', async () => {
   const ignored = new Set()
   const inputs = mod.flattenInputs(state, false, ignored, 'tree')
 
-  assert.equal(inputs.length, 7)
+  assert.equal(inputs.length, 8)
   assert.equal(inputs[0], state.dirs, 'dirs')
   assert.equal(inputs[1], state.expanded, 'expanded')
   assert.equal(inputs[2], state.root, 'root')
   assert.equal(inputs[3], state.filter, 'filter')
-  assert.equal(inputs[4], false, 'showIgnored')
-  assert.equal(inputs[5], ignored, 'status.ignored')
-  assert.equal(inputs[6], 'tree', 'filterMode')
+  assert.equal(inputs[4], state.gitRepoRoot, 'gitRepoRoot')
+  assert.equal(inputs[5], false, 'showIgnored')
+  assert.equal(inputs[6], ignored, 'status.ignored')
+  assert.equal(inputs[7], 'tree', 'filterMode')
 })
 
 test('every tree mutation changes the rows and its memo input', async () => {

@@ -158,7 +158,9 @@ export function ConfirmModal({ dialog, onClose, scope = null }) {
   return React.createElement('div', { className: backdropClass, onMouseDown: event => { if (event.target === event.currentTarget) onClose() } },
     React.createElement('div', { className: 'iwb-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': dialog.title },
       React.createElement('h2', null, dialog.title),
-      React.createElement('p', null, dialog.body),
+      // The body can be clamped by the stylesheet (the editor-scoped variant
+      // keeps it to three lines), so the full text stays reachable on hover.
+      React.createElement('p', { title: dialog.body }, dialog.body),
       React.createElement('div', { className: 'iwb-modal-actions' },
         actions.map((action, index) => React.createElement('button', {
           key: action.key ?? index,

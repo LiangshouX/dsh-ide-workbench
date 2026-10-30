@@ -259,23 +259,38 @@ export function apply(ctx) {
   const scopeKeyOf = sessionId => workspaceScopeKey(cachedSessionsCtx, sessionId)
 
   /**
-   * Whether one Session still has its workbench body mounted.
+   * Whether one Session is the one the right Sidebar is drawing right now.
    *
-   * The host keeps a Session's tab body alive (`keepMounted`), so a body that
-   * is still mounted must not lose its store.
+   * A Session that is not the current one keeps its tab body alive
+   * (`keepMounted`), but that body renders nothing (see `BoundWorkbench`),
+   * so its store is not in use and may be evicted. The evicted store's
+   * persisted state comes back when the workspace is entered again
+   * (PRD-v4 review M9).
    * @param {string} sessionId
    */
   const isMountedSession = (sessionId) => {
     if (typeof sessionId !== 'string' || sessionId === '') return false
-    if (ctx.sidebarRight?.mounted?.getSnapshot?.() === sessionId) return true
-    const inventory = ctx.sidebarRight?.openTabs?.getSnapshot?.()
-    if (!Array.isArray(inventory)) return false
-    return inventory.some(tab => tab?.kind === PANEL_ID && tab?.sessionId === sessionId)
+    return ctx.sidebarRight?.mounted?.getSnapshot?.() === sessionId
   }
 
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === 'function'
   // One store per workspace, at most three of them resident (PRD PERF-05).
   const stores = new StoreCache({ limit: 3, isMounted: isMountedSession })
+  /**
+   * Evict outside the render stack.
+   *
+   * Evicting deactivates a store, which notifies its subscribers and writes
+   * the persisted state to disk — both must not happen while React renders
+   * (PRD-v4 review M4).
+   */
+  let evictTimer = null
+  const scheduleEvict = () => {
+    if (evictTimer !== null) return
+    evictTimer = setTimeout(() => {
+      evictTimer = null
+      stores.evict()
+    }, 0)
+  }
   const getStore = (sessionId) => {
     const id = typeof sessionId === 'string' ? sessionId : ''
     const key = hasMounted ? scopeKeyOf(id) : `session:${id}`
@@ -287,7 +302,10 @@ export function apply(ctx) {
       stores.claim(key, id)
       return existing
     }
-    return stores.set(key, new WorkbenchStore(ctx, t, cwdOf(id)), id)
+    // The eviction is deferred: `getStore` runs while React renders.
+    const store = stores.set(key, new WorkbenchStore(ctx, t, cwdOf(id)), id, { evict: false })
+    scheduleEvict()
+    return store
   }
   const activeStore = () => {
     const sessionId = ctx.sidebarRight.mounted?.getSnapshot()

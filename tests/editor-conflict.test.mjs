@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 
@@ -56,7 +56,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { WorkbenchStore } from './src/client/store.js'
 import { Workbench } from './src/client/Workbench.jsx'
-import { EditorArea, buildConflictDialog } from './src/client/EditorArea.jsx'
+import { EditorArea, buildConflictDialog, breadcrumbOverflows } from './src/client/EditorArea.jsx'
 
 const t = key => key
 
@@ -111,6 +111,7 @@ export function createConflictFixture() {
   const calls = []
   store.reloadTab = id => { calls.push({ kind: 'reload', id }) }
   store.saveTab = (id, options) => { calls.push({ kind: 'save', id, options }) }
+  store.dismissConflict = id => { calls.push({ kind: 'dismiss', id }) }
   return { store, state: store.state, tab, calls }
 }
 
@@ -122,7 +123,7 @@ export function renderWorkbench(fixture) {
   return renderToStaticMarkup(React.createElement(Workbench, { store: fixture.store }))
 }
 
-export { buildConflictDialog }
+export { buildConflictDialog, breadcrumbOverflows }
 `
 
 let modulePromise
@@ -226,6 +227,25 @@ test('a tab without a conflict renders no dialog', async () => {
   assert.equal(mod.buildConflictDialog(fixture.store, fixture.tab), null)
 })
 
+test('M6: cancelling the conflict dialog clears the notice', async () => {
+  const mod = await loadModule()
+  const fixture = mod.createConflictFixture()
+  const dialog = mod.buildConflictDialog(fixture.store, fixture.tab)
+  const cancel = dialog.actions.find(action => action.key === 'cancel')
+  assert.ok(cancel !== undefined)
+  // The notice is a one-time offer: cancelling clears `tab.conflict`, so the
+  // document pane does not raise the same dialog again.
+  cancel.action()
+  assert.deepEqual(fixture.calls, [{ kind: 'dismiss', id: fixture.tab.id }])
+
+  const source = await readFile(join(root, 'src/client/EditorArea.jsx'), 'utf8')
+  // The dismissal survives the cleared flag: the poll re-detects the same
+  // divergence every couple of seconds, so it is only released when the
+  // buffer itself is refreshed.
+  assert.match(source, /const bufferStamp = active\?\.payload\?\.mtimeMs/)
+  assert.doesNotMatch(source, /if \(conflictTab === null\) setDismissedTab\(null\)/)
+})
+
 test('the Terminal/Git dock spans the whole workbench width', async () => {
   const mod = await loadModule()
   const fixture = mod.createConflictFixture()
@@ -264,7 +284,8 @@ test('a short path has no ellipsis and no duplicate separator', async () => {
   fixture.tab.name = 'main.ts'
   const html = mod.renderEditor(fixture)
   const start = html.indexOf('class="iwb-breadcrumb"')
-  const crumb = html.slice(start, html.indexOf('</div>', start))
+  // The visible breadcrumb, without the hidden measuring copy of the path.
+  const crumb = html.slice(start, html.indexOf('iwb-breadcrumb-measure'))
   assert.doesNotMatch(crumb, /iwb-crumb-more/)
   assert.equal((crumb.match(/iwb-sep/g) ?? []).length, 1)
 })
@@ -287,4 +308,60 @@ test('the repository picker is disabled while the Git window is not active', asy
   const html = mod.renderWorkbench(fixture)
   const button = html.slice(html.indexOf('iwb-branch-switch'), html.indexOf('iwb-branch-switch') + 220)
   assert.match(button, /disabled/)
+})
+
+test('M5: the conflict body carries the full text and may wrap', async () => {
+  const mod = await loadModule()
+  const fixture = mod.createConflictFixture()
+  const html = mod.renderEditor(fixture)
+  const body = html.slice(html.indexOf('<p title='), html.indexOf('</p>') + 4)
+  // The body is clamped to three lines, so it carries the full text in its
+  // title: the user can always read the whole explanation.
+  assert.match(body, /title="editor\.conflictBody"/)
+  assert.match(body, />editor\.conflictBody</)
+
+  const styles = await readFile(join(root, 'src/client/styles.js'), 'utf8')
+  // The title stays on one line, the body wraps.
+  assert.match(styles, /\.iwb-editor-scoped-backdrop \.iwb-modal h2 \{ white-space: nowrap;/)
+  const bodyRule = styles.slice(styles.indexOf('.iwb-editor-scoped-backdrop .iwb-modal p {'))
+  assert.match(bodyRule.slice(0, bodyRule.indexOf('}')), /white-space: normal/)
+  assert.doesNotMatch(bodyRule.slice(0, bodyRule.indexOf('}')), /nowrap/)
+  assert.match(bodyRule.slice(0, bodyRule.indexOf('}')), /-webkit-line-clamp: 3/)
+})
+
+test('M7: the breadcrumb collapses only when the path really overflows', async () => {
+  const mod = await loadModule()
+  // The decision itself: the measured path against the width it may use.
+  const fits = mod.breadcrumbOverflows({ clientWidth: 400 }, { getBoundingClientRect: () => ({ width: 300 }) })
+  const overflows = mod.breadcrumbOverflows({ clientWidth: 120 }, { getBoundingClientRect: () => ({ width: 300 }) })
+  assert.equal(fits, false)
+  assert.equal(overflows, true)
+
+  // Without a layout the toolbar is not marked, so the full path is shown.
+  const fixture = mod.createConflictFixture()
+  fixture.tab.rel = 'src/components/Button.tsx'
+  fixture.tab.path = 'C:/work/demo/src/components/Button.tsx'
+  fixture.tab.name = 'Button.tsx'
+  const html = mod.renderEditor(fixture)
+  assert.doesNotMatch(html, /data-overflow/)
+  const crumb = html.slice(html.indexOf('class="iwb-breadcrumb"'), html.indexOf('</div>', html.indexOf('class="iwb-breadcrumb"')))
+  assert.match(crumb, /class="iwb-crumb-mid">components</)
+  // The full path is measured out of flow, so the decision does not depend
+  // on the collapse state.
+  assert.match(crumb, /iwb-breadcrumb-measure/)
+  assert.match(crumb, /aria-hidden="true"/)
+})
+
+test('M7: the file name never shrinks and the collapse follows the overflow marker', async () => {
+  const styles = await readFile(join(root, 'src/client/styles.js'), 'utf8')
+  // The file name and the first segment keep their size ...
+  assert.match(styles, /\.iwb-breadcrumb b \{[^}]*flex-shrink: 0/)
+  // ... the middle segments give up their space first ...
+  assert.match(styles, /\.iwb-breadcrumb \.iwb-crumb-mid \{[^}]*flex-shrink: 1/)
+  assert.match(styles, /\.iwb-breadcrumb \.iwb-crumb-mid \{[^}]*text-overflow: ellipsis/)
+  // ... and the collapse is driven by the overflow marker, not by a fixed
+  // width.
+  assert.match(styles, /\.iwb-editor-toolbar\[data-overflow='true'\] \.iwb-breadcrumb \.iwb-crumb-mid \{ display: none; \}/)
+  assert.match(styles, /\.iwb-editor-toolbar\[data-overflow='true'\] \.iwb-breadcrumb \.iwb-crumb-more \{ display: inline-flex; \}/)
+  assert.doesNotMatch(styles, /@container iwb-editor-toolbar/)
 })

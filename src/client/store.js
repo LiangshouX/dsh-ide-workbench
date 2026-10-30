@@ -19,7 +19,7 @@ import { openInDefaultSidebar } from './file-link.js'
 import {
   composeCodeReference, formatFileMention, insertChatText,
 } from './chat-bridge.js'
-import { isPathWithin, sameScopePath, sessionCwdOf } from './workspace-scope.js'
+import { isPathWithin, relativePathWithin, sameScopePath, sessionCwdOf } from './workspace-scope.js'
 
 let sequence = 0
 
@@ -296,10 +296,33 @@ export class WorkbenchStore {
   async setGitRepoRoot(path) {
     if (typeof path !== 'string' || path === '') return
     if (sameScopePath(path, this.state.gitRepoRoot)) return
-    this.set({ gitRepoRoot: path })
+    this.set({
+      gitRepoRoot: path,
+      // The commit selection belongs to the repository it was made in
+      // (PRD-v4 review M3): the old repository's paths must not be added to
+      // the new one.
+      commit: this.#resetCommitSelection(),
+    })
+    // The diff tabs belong to the old repository: they would show its
+    // content against the new one (PRD-v4 review L3).
+    this.#closeRepositoryTabs()
     // The Git window now reads another repository: its log, branches and
     // status are reloaded.
     await this.refreshStatus({ initial: true })
+  }
+
+  /** Close the tabs that belong to the repository the Git window reads. */
+  #closeRepositoryTabs() {
+    const index = this.state.tabs.findIndex(tab => tab.kind === 'diff')
+    if (index < 0) return
+    const ids = new Set(this.state.tabs.filter(tab => tab.kind === 'diff').map(tab => tab.id))
+    const tabs = this.state.tabs.filter(tab => !ids.has(tab.id))
+    let activeId = this.state.activeId
+    if (ids.has(activeId)) {
+      const next = tabs[Math.min(index, tabs.length - 1)]
+      activeId = next?.id ?? null
+    }
+    this.set({ tabs, activeId })
   }
 
   /**
@@ -331,12 +354,22 @@ export class WorkbenchStore {
       this.#notify()
       return
     }
+    let changed = false
     for (const key of Object.keys(patch)) {
       if (this.state[key] !== patch[key]) {
-        this.state = { ...this.state, ...patch }
-        this.#notify()
-        return
+        changed = true
+        break
       }
+    }
+    if (!changed) return
+    const previousLeft = this.state.layout?.left
+    this.state = { ...this.state, ...patch }
+    this.#notify()
+    // The Commit window shows the per-file line counts, and those are only
+    // fetched while it is visible: switching to it refreshes the status right
+    // away instead of waiting for the next poll (PRD-v4 review L7).
+    if (patch.layout?.left === 'commit' && previousLeft !== 'commit') {
+      void this.refreshStatus({ silent: true, force: true })
     }
   }
 
@@ -597,7 +630,10 @@ export class WorkbenchStore {
     for (const candidate of this.#linkCandidates(parsed)) {
       if (!isPathWithin(workspace, candidate.absolute)) continue
       try {
-        await call('fs.stat', { root: candidate.base, path: candidate.rel })
+        // The host fence is the workspace, the same one the client uses: a
+        // candidate that leaves its own base but stays inside the workspace
+        // must not be rejected by the host (PRD-v4 review L2).
+        await call('fs.stat', { root: workspace, path: candidate.absolute })
         return candidate.absolute
       } catch {
         // This candidate does not exist (or is not reachable): try the next
@@ -1178,11 +1214,25 @@ export class WorkbenchStore {
     }
   }
 
+  /**
+   * The key of one file inside the git status snapshot.
+   *
+   * The status belongs to the repository the Git window reads (PRD-v4 §4.1),
+   * so its paths are relative to that repository. A file outside it has no
+   * status entry at all.
+   * @param {string} absolutePath the absolute path of the file
+   * @returns {string | null} the repository-relative path
+   */
+  #statusKeyOf(absolutePath) {
+    return relativePathWithin(this.gitRoot, absolutePath)
+  }
+
   /** Reload only the expanded directories that contain a changed path. */
   #invalidateChangedDirs(status) {
     const dirtyParents = new Set()
     for (const entry of status.entries) {
-      dirtyParents.add(parentPath(joinPath(this.state.root, entry.path)))
+      // The status paths are relative to the repository the Git window reads.
+      dirtyParents.add(parentPath(joinPath(this.gitRoot, entry.path)))
     }
     const opened = [...this.state.expanded]
     for (const dir of opened) {
@@ -1198,7 +1248,11 @@ export class WorkbenchStore {
   #refreshActiveFile(status) {
     const active = this.state.tabs.find(tab => tab.id === this.state.activeId)
     if (active === undefined || active.kind !== 'file') return
-    const entry = status.entries.find(item => item.path === active.rel)
+    // The status is keyed by the repository-relative path, the tab by its
+    // absolute path: both speak the same basis (PRD-v4 §4.1).
+    const key = this.#statusKeyOf(active.path)
+    if (key === null) return
+    const entry = status.entries.find(item => item.path === key)
     if (entry === undefined) return
     if (active.editing === true || active.dirty === true) {
       // Do not yank the document from under the user; detect the divergence
@@ -2111,7 +2165,10 @@ export class WorkbenchStore {
           this.t('editor.conflictTitle'),
           this.t('editor.conflictBody'),
           [
-            { key: 'cancel', label: this.t('common.cancel'), action: () => {} },
+            // "Cancel" means "not now": the conflict is cleared, otherwise the
+            // document pane would raise the very same dialog again
+            // (PRD-v4 review M6).
+            { key: 'cancel', label: this.t('common.cancel'), action: () => { this.dismissConflict(id) } },
             {
               key: 'reload', label: this.t('editor.reloadFromDisk'), danger: true,
               action: () => { void this.reloadTab(id) },
@@ -2126,6 +2183,19 @@ export class WorkbenchStore {
       }
       this.toast('error', this.t('editor.saveFailed'), error instanceof Error ? error.message : String(error))
     }
+  }
+
+  /**
+   * Dismiss the conflict notice of one tab.
+   *
+   * The notice is a one-time offer: without clearing it, the document pane
+   * raises the same dialog again on the next render (PRD-v4 review M6).
+   * @param {string} tabId the tab whose conflict is dismissed
+   */
+  dismissConflict(tabId) {
+    const tab = this.state.tabs.find(item => item.id === tabId)
+    if (tab === undefined || tab.conflict === null || tab.conflict === undefined) return
+    this.#updateTab(tabId, { conflict: null })
   }
 
   /** Reload one tab from disk, discarding the in-memory draft after confirm. */
@@ -2349,8 +2419,10 @@ export class WorkbenchStore {
       } else {
         checkedSet.delete(entry.path)
         uncheckedSet.add(entry.path)
-        // A file that was never added has no index entry to undo.
-        if (entry.untracked === true) pendingStage.delete(entry.path)
+        // The file may have entered the index by another route (the tree's
+        // "Add" action), so the pending set is cleaned unconditionally; only a
+        // file that really is staged needs an index reset.
+        pendingStage.delete(entry.path)
         if (entry.staged === true) toUnstage.push(entry.path)
       }
     }
@@ -2428,13 +2500,17 @@ export class WorkbenchStore {
   async ignoreEntry(path) {
     if (typeof path !== 'string' || path === '') return
     try {
-      // The .gitignore belongs to the repository of the file tree: the path
-      // is workspace-relative, so it must not follow the Git window's
-      // repository (GIT-01).
+      // The path and the repository must share one base (PRD-v4 review R3):
+      // the file is addressed absolutely and the repository is given as an
+      // absolute toplevel, so the host can write a legal entry such as
+      // "/src/a.ts" into that repository's .gitignore.
+      const absolute = joinPath(this.gitRoot, path)
+      const repoRoot = this.state.status.repoRoot ?? this.gitRoot
+      const fence = this.state.workspaceRoot !== '' ? this.state.workspaceRoot : this.state.root
       await call('git.ignore', {
-        root: this.state.root,
-        path,
-        repoRoot: this.state.status.repoRoot ?? undefined,
+        root: fence,
+        path: absolute,
+        repoRoot,
       })
       await this.refreshStatus({ initial: true })
       this.toast('success', this.t('common.success'), path)
@@ -2627,6 +2703,14 @@ export class WorkbenchStore {
       if (pushAfter) await this.push({ afterCommit: true })
     } catch (error) {
       const messageText = error instanceof Error ? error.message : String(error)
+      // The commit itself failed: undo the files this commit added, so no
+      // half-added state is left behind (PRD-v4 §3.1). The pending set only
+      // holds the untracked files this round added, so rolling it back never
+      // touches what the user had staged before.
+      const staged = [...(this.state.commit.pendingStage ?? [])]
+      if (staged.length > 0) {
+        await call('git.unstage', { root: this.gitRoot, paths: staged }).catch(() => {})
+      }
       this.patch('commit', { committing: false, error: messageText })
       this.toast('error', this.t('commit.commitFailed'), messageText)
     }
@@ -2658,7 +2742,11 @@ export class WorkbenchStore {
   /** Project → Git | Show History: scope the log to one file or folder. */
   showHistory(rel) {
     const value = typeof rel === 'string' ? rel.replace(/[\\/]+$/, '') : ''
-    this.patch('git', { filters: { ...this.state.git.filters, path: value }, selectedHash: null, detail: null })
+    // The log filter is a repository path (GIT-01), while the tree speaks
+    // project-relative paths.
+    const repoPath = value === '' ? '' : relativePathWithin(this.gitRoot, joinPath(this.state.root, value))
+    const filter = repoPath === null ? '' : repoPath
+    this.patch('git', { filters: { ...this.state.git.filters, path: filter }, selectedHash: null, detail: null })
     this.set({
       layout: {
         ...this.state.layout,
@@ -3155,19 +3243,25 @@ export class StoreCache {
    * @param {string} key workspace key
    * @param {any} store the workspace store
    * @param {string} sessionId the Session that uses it
+   * @param {{ evict?: boolean }} [options] `evict: false` keeps the cache as
+   *   it is; the caller evicts later (outside a render).
    */
-  set(key, store, sessionId) {
+  set(key, store, sessionId, options = {}) {
     this.stores.delete(key)
     this.stores.set(key, store)
     this.claim(key, sessionId)
-    this.evict()
+    if (options.evict !== false) this.evict()
     if (process.env.NODE_ENV !== 'production' && perfCounters !== null) perfCounters.stores = this.stores.size
     return store
   }
 
   /**
    * Drop the least recently used stores until the cache fits its limit.
-   * A workspace that still has a mounted Session keeps its store.
+   *
+   * A workspace that still has a mounted Session keeps its store, and so does
+   * a store with unsaved edits: the persisted workspace state does not carry
+   * the draft, so evicting it would lose the content silently (PRD-v4 review
+   * R1).
    */
   evict() {
     if (this.stores.size <= this.limit) return
@@ -3176,6 +3270,11 @@ export class StoreCache {
       const sessions = this.sessions.get(key)
       const alive = sessions !== undefined && [...sessions].some(id => this.isMounted(id))
       if (alive) continue
+      // A store with unsaved edits keeps its buffer: the persisted workspace
+      // state does not carry the draft, so evicting it would lose the
+      // content silently.
+      const tabs = store?.state?.tabs ?? []
+      if (tabs.some(tab => tab.dirty === true)) continue
       store.deactivate()
       this.stores.delete(key)
       this.sessions.delete(key)

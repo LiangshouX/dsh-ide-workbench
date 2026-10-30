@@ -48,6 +48,32 @@ export function isPathWithin(root, path) {
 }
 
 /**
+ * The path of `absolute` relative to `base`, with `/` separators.
+ *
+ * The git status belongs to the repository the Git window reads (PRD-v4
+ * §4.1), so its paths are relative to *that* repository while the file tree
+ * speaks project-relative paths. This helper converts one into the other and
+ * returns `null` when the path does not live inside `base` — a caller must
+ * never treat an outside path as a relative one.
+ * @param {unknown} base the containing directory
+ * @param {unknown} absolute the absolute path
+ * @returns {string | null} `''` when the path is the base itself
+ */
+export function relativePathWithin(base, absolute) {
+  const parent = normalizeScopePath(base)
+  if (parent === '') return null
+  if (typeof absolute !== 'string' || absolute === '') return null
+  const slashed = absolute.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/+$/, '')
+  if (slashed === '') return null
+  const candidate = normalizeScopePath(slashed)
+  if (candidate === parent) return ''
+  if (!candidate.startsWith(`${parent}/`)) return null
+  // The prefix has the same length as the original spelling (case folding
+  // never changes a length), so the slice keeps the original casing.
+  return slashed.slice(parent.length + 1)
+}
+
+/**
  * The workspace root a Session belongs to, when the host has published it.
  * @param {any} ctx client cordis context
  * @param {string} sessionId

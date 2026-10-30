@@ -13,7 +13,7 @@ import { spawn } from 'node:child_process'
 import {
   appendFile, cp, lstat, mkdir, readFile, rename, rm, writeFile,
 } from 'node:fs/promises'
-import { basename, dirname, extname, join, relative, sep } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve as resolvePath, sep } from 'node:path'
 import { ApiError } from './wire.js'
 import { resolveInside, toRelative } from './workspace.js'
 
@@ -268,15 +268,28 @@ export async function deleteEntries(root, input) {
 /**
  * Append one path to the repository's `.gitignore` (unless already covered
  * verbatim). The file stays at the repository root so git actually honors it.
+ *
+ * `path` is the absolute path of the file and `repoRoot` the absolute root of
+ * the repository it belongs to; a path relative to that repository is still
+ * accepted. Both must name the same repository — the entry is written
+ * relative to it, because a "../" entry would never match the file
+ * (PRD-v4 review R3).
  * @param {string} root canonical workspace root
  * @param {{ path: string, repoRoot?: string }} input
  */
 export async function appendIgnore(root, input) {
-  const absolute = resolveInside(root, input.path)
   const repoRoot = typeof input.repoRoot === 'string' && input.repoRoot !== ''
     ? resolveInside(root, input.repoRoot)
     : root
-  const line = `/${toRelative(repoRoot, absolute).split(sep).join('/')}`
+  const absolute = isAbsolute(input.path)
+    ? resolveInside(root, input.path)
+    : resolveInside(root, resolvePath(repoRoot, input.path))
+  const relative = toRelative(repoRoot, absolute)
+  // The entry has to name a path inside the repository.
+  if (relative === '' || relative === '..' || relative.startsWith('../')) {
+    throw new ApiError('bad-request', 'path is outside the repository')
+  }
+  const line = `/${relative}`
   const file = join(repoRoot, '.gitignore')
   let existing = ''
   try {

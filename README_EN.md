@@ -25,10 +25,10 @@ DSH conversations are great for "chat and change at the same time", but editing 
 
 | Preview | Feature |
 |:--|:--|
-| ![Project tool window](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/project.png) | **Project tool window.** Lazy-loading tree with JetBrains status colors (red = untracked, green = added, blue = modified, recursively on folders). Single click selects, double click opens or expands; Ctrl/Shift multi-select; drag to move (Ctrl = copy). New file/folder, `F2` rename, `Delete` (recycle bin first), `F5` duplicate, `F6` move, cut/copy/paste. Favorites, tree filter and whole-project file filter; **Send to chat** in the context menu. |
-| ![CodeMirror editor](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/editor.png) | **Embedded editor.** CodeMirror 6 with syntax highlighting; auto / always-editable / always-read-only open modes, where auto makes text up to 1 MiB editable (Markdown opens in the rendered preview). `Ctrl+S` saves atomically and preserves UTF-8 / BOM / UTF-16 and CRLF; dirty markers are explicit. Concurrent edits show a conflict bar with *Reload from disk* or *Overwrite*; a file you just saved no longer reports a false conflict. In-file find/replace, cursor position and encoding in the status bar. |
+| ![Project tool window](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/project.png) | **Project tool window.** Lazy-loading tree with JetBrains status colors (red = untracked, green = added, blue = modified, recursively on folders). Single click selects, double click opens or expands; the folder twisty toggles on a single click. Ctrl/Shift multi-select; drag to move (Ctrl = copy). New file/folder, `F2` rename, `Delete` (recycle bin first), `F5` duplicate, `F6` move, cut/copy/paste. **Locate File** jumps to the open file, tree filter and whole-project file filter; **Send to chat** in the context menu. |
+| ![CodeMirror editor](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/editor.png) | **Embedded editor.** CodeMirror 6 with syntax highlighting; auto / always-editable / always-read-only open modes, where auto makes text up to 1 MiB editable (Markdown opens in the rendered preview). `Ctrl+S` saves atomically and preserves UTF-8 / BOM / UTF-16 and CRLF; dirty markers are explicit. Concurrent edits raise a conflict dialog **centred on the document pane** with *Reload from disk* or *Overwrite*; a file you just saved no longer reports a false conflict. In-file find/replace, cursor position and encoding in the status bar. |
 | ![Markdown preview and outline](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/markdown.png) | **Markdown preview.** Rendered with the host's `MarkdownText`, matching DSH chat typography for tables, task lists and code cards. Opens directly in the rendered view; Preview / Source / Edit switch from the toolbar; the outline jumps and highlights while scrolling. No more landing in the source buffer first. |
-| ![Find in Files](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/search.png) | **Find in Files and Quick Open.** `Ctrl+Shift+F` searches the whole project (`Ctrl+Alt+F` when the outer shell owns the first binding); Aa / whole word / regexp all work. Results are grouped by file with counts and elapsed time; a hit opens the file at its line. `Ctrl+P` / `Ctrl+Shift+N` opens files by name. |
+| ![Find in Files](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/search.png) | **Find in Files and Quick Open.** `Ctrl+Shift+R` searches the whole project (in a plain browser use the `Ctrl+Alt+F` fallback); Aa / whole word / regexp all work. Results are grouped by file with counts and elapsed time; a hit opens the file at its line. `Ctrl+P` / `Ctrl+Shift+N` opens files by name. |
 | ![Commit tool window](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/commit.png) | **Commit tool window.** `Changes` / `Unversioned` groups; checking a row stages it without reordering the list; changelists and group-by-directory. Change View (working tree / last revision / latest), jump to source, revert; hunk-level staging in the diff toolbar. Commit, Commit and Push, Amend, recent messages and optional pre-commit commands. |
 | ![Unified diff](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/diff-unified.png) | **Diff.** Side-by-side or unified layouts, word-level highlights and collapsible unchanged blocks. Compare against the working tree, the last revision, a commit or two commits (Ctrl+click); stage or discard a single hunk. HTML and binary files fall back to the DSH sidebar or the OS default app. |
 | ![Git history and details drawer](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/git.png) | **Git history.** Paged commit table with a swimlane commit graph; filter by branch, author, message or path. Single click selects, double click (or Enter) opens the details drawer: metadata, full message and changed files with per-file diffs. Copy SHA, checkout, revert, compare two commits; show history for a tree path. |
@@ -81,7 +81,7 @@ dsh plugin --profile web add ./dsh-ide-workbench
 
 1. **Open the workbench** from the session header (or press `Alt+1` to focus Project).
 2. **Choose a project** in the project-header dropdown: the workspace root or a first-level folder (repositories carry a Git badge).
-3. **Work**: double-click a file, `Ctrl+Shift+F` to search, `Alt+0` to commit, `Alt+F12` for the terminal, `Ctrl+K` for the commit message.
+3. **Work**: double-click a file, `Ctrl+Shift+R` to search, `Alt+0` to commit, `Alt+F12` for the terminal, `Ctrl+K` for the commit message.
 
 ### Common shortcuts
 
@@ -89,7 +89,7 @@ dsh plugin --profile web add ./dsh-ide-workbench
 |:--|:--|
 | Tool windows | `Alt+1` Project · `Alt+0` Commit · `Alt+9` Git · `Alt+F12` Terminal |
 | Focus commit message / push | `Ctrl+K` / `Ctrl+Shift+K` |
-| Find in Files / fallback | `Ctrl+Shift+F` / `Ctrl+Alt+F` |
+| Find in Files / fallback | `Ctrl+Shift+R` / `Ctrl+Alt+F` |
 | Quick Open | `Ctrl+P` or `Ctrl+Shift+N` |
 | Full screen / docked | `F11` |
 | Hide all tool windows | `Ctrl+Shift+F12` |
@@ -127,7 +127,7 @@ A DSH workspace is often a container whose root is not a Git repository while fi
 - Host sidebar entries cannot render numeric badges (the count lives on the plugin's own stripe).
 - The Markdown preview does not rewrite relative images/links to local paths yet (http(s) works).
 - Not implemented: interactive rebase, three-way merge editing, stash, blame, fetch/pull, split terminals.
-- `Ctrl+Shift+F` may be captured by DSH or the browser; `Ctrl+Alt+F` is the fallback.
+- `Ctrl+Shift+R` is Chromium's **hard reload** shortcut in a plain browser (DSH Web, Chromium-based browsers) and a page cannot intercept it — the page reloads and the editor buffer is lost. **Use the `Ctrl+Alt+F` fallback in a browser**; the desktop build (DSH Desktop) is unaffected.
 - **Send to chat** needs the host's per-session composer actions. When a host does not publish them, the action reports "The chat input is not available right now" instead of silently dropping the reference. Code ranges use `@file (Lx-Ly)` plus a fenced block because the `@` grammar has no line suffix.
 - The editor context menu replaces the native one only when there is a selection (Send to chat / Copy); an empty selection keeps the native menu.
 

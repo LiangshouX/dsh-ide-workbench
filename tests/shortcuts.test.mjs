@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 
@@ -65,7 +65,11 @@ async function loadModule() {
     await build({
       absWorkingDir: root,
       stdin: {
-        contents: "export { createEditorKeyHandler } from './src/client/EditorArea.jsx'\n",
+        contents: `
+export { createEditorKeyHandler } from './src/client/EditorArea.jsx'
+export { editorKeymap } from './src/client/CodeEditor.jsx'
+export { defaultKeymap, historyKeymap } from '@codemirror/commands'
+`,
         resolveDir: root,
         loader: 'jsx',
         sourcefile: 'shortcuts-entry.jsx',
@@ -175,4 +179,64 @@ test('the global find shortcut is ignored inside the Find in Files view', async 
   handler(event)
   assert.deepEqual(calls, [])
   assert.equal(event.prevented, 0)
+})
+
+/**
+ * The keymap of the editor buffer, with the callbacks it would call.
+ * @returns {{entries: Array<object>, calls: Array<string>}} the entries and the calls they made
+ */
+function editorKeymapFixture(mod) {
+  const calls = []
+  const entries = mod.editorKeymap({
+    onSaveRef: { current: () => { calls.push('save') } },
+    onFindRef: { current: () => { calls.push('find') } },
+    onFindInFilesRef: { current: () => { calls.push('findInFiles') } },
+    readOnly: false,
+  })
+  return { entries, calls }
+}
+
+test('the editor keymap does not bind the legacy Ctrl+Shift+F', async () => {
+  const mod = await loadModule()
+  const { entries } = editorKeymapFixture(mod)
+  const keys = entries.map(entry => String(entry.key).toLowerCase())
+  assert.ok(!keys.includes('mod-shift-f'))
+  // The fallback alias and the in-file find stay bound.
+  assert.ok(keys.includes('mod-alt-f'))
+  assert.ok(keys.includes('mod-f'))
+})
+
+test('no binding of the installed keymap opens the global find on Ctrl+Shift+F', async () => {
+  const mod = await loadModule()
+  const { entries } = editorKeymapFixture(mod)
+  // The keymap CodeMirror really installs: ours plus the package keymaps.
+  const installed = [...entries, ...mod.defaultKeymap, ...mod.historyKeymap]
+  const bound = installed
+    .flatMap(entry => [entry.key, entry.mac])
+    .filter(key => typeof key === 'string')
+    .map(key => key.toLowerCase())
+  assert.ok(!bound.includes('mod-shift-f'))
+  // Only the fallback alias may open the global view.
+  const globalKeys = bound.filter(key => key === 'mod-shift-f' || key === 'mod-alt-f' || key === 'mod-shift-r')
+  assert.deepEqual(globalKeys, ['mod-alt-f'])
+})
+
+test('the editor keymap still opens the global find through the Ctrl+Alt+F alias', async () => {
+  const mod = await loadModule()
+  const { entries, calls } = editorKeymapFixture(mod)
+  entries.find(entry => entry.key === 'Mod-Alt-f').run()
+  assert.deepEqual(calls, ['findInFiles'])
+})
+
+test('the editor keymap still opens the in-file find through Ctrl+F', async () => {
+  const mod = await loadModule()
+  const { entries, calls } = editorKeymapFixture(mod)
+  entries.find(entry => entry.key === 'Mod-f').run()
+  assert.deepEqual(calls, ['find'])
+})
+
+test('the editor installs the exported keymap and knows no Mod-Shift-f', async () => {
+  const source = await readFile(join(root, 'src/client/CodeEditor.jsx'), 'utf8')
+  assert.match(source, /keymap\.of\(\[\s*\.\.\.editorKeymap\(/)
+  assert.doesNotMatch(source, /Mod-Shift-f/)
 })

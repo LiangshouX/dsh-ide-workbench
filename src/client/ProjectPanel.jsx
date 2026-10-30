@@ -17,6 +17,7 @@ import { FileTypeIcon, IconChat, IconExternal, IconGlobe, IconRefresh, IconSearc
 import { openInIdeMenu } from './ide-menu.js'
 import { aggregateStatus, statusClass } from './git-colors.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
+import { relativePathWithin } from './workspace-scope.js'
 import { baseName, matchesShortcut } from './util.js'
 
 const ROW_HEIGHT = 22
@@ -64,6 +65,81 @@ export function isExcluded(rel, patterns) {
   return false
 }
 
+/**
+ * The repository the git status belongs to.
+ *
+ * The Git window may read another repository than the Project tree (GIT-01),
+ * and the status is taken from that one — so the status keys are
+ * repository-relative while the tree speaks project-relative paths.
+ *
+ * @param {{ root: string, gitRepoRoot?: string }} tree the tree slice
+ * @returns {string} the absolute repository root
+ */
+export function gitRootOf(tree) {
+  return typeof tree.gitRepoRoot === 'string' && tree.gitRepoRoot !== '' ? tree.gitRepoRoot : tree.root
+}
+
+/**
+ * The status key of one absolute path: relative to the repository the Git
+ * window reads.
+ *
+ * `null` means the path lives outside that repository — such a file has no
+ * status entry and must never borrow the colour of a same-named file in
+ * another repository.
+ *
+ * @param {{ root: string, gitRepoRoot?: string }} tree the tree slice
+ * @param {string} absolute the absolute path of a tree entry
+ * @returns {string | null} the repository-relative key
+ */
+export function statusKeyOf(tree, absolute) {
+  return relativePathWithin(gitRootOf(tree), absolute)
+}
+
+/**
+ * The repository-relative key of one project-relative path.
+ *
+ * The git layer runs at the repository the Git window reads (GIT-01), so the
+ * tree has to hand over repository-relative paths. `null` means the file does
+ * not live in that repository — the git actions do not apply to it.
+ *
+ * @param {{ root: string, gitRepoRoot?: string }} tree the tree slice
+ * @param {string} rel the project-relative path
+ * @returns {string | null} the repository-relative key
+ */
+export function repoRelOf(tree, rel) {
+  if (typeof rel !== 'string' || rel === '') return null
+  return statusKeyOf(tree, absoluteOf(tree.root, rel))
+}
+
+/**
+ * The Git submenu of the tree context menu.
+ *
+ * The git layer runs at the repository the Git window reads, so the tree hands
+ * over repository-relative paths — the Commit panel sends the very same ones
+ * (its status entries are repository-relative). A file outside that repository
+ * has no key: the action does not apply to it.
+ *
+ * showHistory is the exception: the store converts that one itself, so it
+ * must not be converted twice (PRD-v4 review M8).
+ *
+ * @param {object} tree the tree slice
+ * @param {string[]} currentRels project-relative paths of the selection
+ * @param {string} currentRel project-relative path of the focused entry
+ * @param {boolean} isDir whether the focused entry is a folder
+ * @param {{ t: (key: string) => string, store: any }} tools
+ * @returns {Array<object>} the submenu items
+ */
+export function gitMenuItems(tree, currentRels, currentRel, isDir, tools) {
+  const repoRels = currentRels.map(rel => repoRelOf(tree, rel)).filter(rel => rel !== null)
+  const repoRel = repoRelOf(tree, currentRel)
+  const { t, store } = tools
+  return [
+    { key: 'git-add', text: t('git.add'), disabled: repoRels.length === 0, action: () => { void store.stage(repoRels) } },
+    { key: 'git-diff', text: t('git.showDiff'), disabled: repoRel === null || repoRels.length !== 1 || isDir, action: () => { if (repoRel !== null) store.openDiff({ path: repoRel }) } },
+    { key: 'git-history', text: t('git.showHistory'), disabled: currentRels.length !== 1, action: () => store.showHistory(currentRel) },
+  ]
+}
+
 /** Flatten the expanded tree into render rows. */
 export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
   const rows = []
@@ -75,7 +151,10 @@ export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
   // A tree filter only searches what is already loaded; never pretend an
   // unloaded folder is "loading" just because a filter is active.
   const isExpanded = path => state.expanded.has(path)
-  const visible = entry => showIgnored || !ignored.has(entry.rel)
+  // The ignored set is keyed by the repository-relative path, not by the
+  // project-relative one (see `statusKeyOf`).
+  const gitRoot = gitRootOf(state)
+  const visible = entry => showIgnored || !ignored.has(relativePathWithin(gitRoot, entry.path))
 
   const walk = (path, depth) => {
     const dir = dirs.get(path)
@@ -138,10 +217,11 @@ export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
  * The store replaces `dirs` (a new Map) and `expanded` (a new Set) on every
  * write, never mutating them in place, so reference comparison is enough to
  * know the tree changed. Depending on the whole `state` object instead would
- * recompute the tree on every store notification.
+ * recompute the tree on every store notification. `gitRepoRoot` is part of it
+ * because the ignored entries are keyed relative to that repository.
  */
 export function flattenInputs(state, showIgnored, ignored, mode) {
-  return [state.dirs, state.expanded, state.root, state.filter, showIgnored, ignored, mode]
+  return [state.dirs, state.expanded, state.root, state.filter, state.gitRepoRoot, showIgnored, ignored, mode]
 }
 
 /** Starter content for the New File templates. */
@@ -246,7 +326,15 @@ const TreeRow = React.memo(function TreeRow({
           className: 'iwb-tree-twisty iwb-tree-twisty-click',
           // The twisty sits inside the row, which selects on click: without
           // stopPropagation one click would select *and* toggle the folder.
-          onClick: event => { event.stopPropagation(); onToggleDir(entry.path) },
+          // A double click sends two clicks plus a dblclick: only the first
+          // click may toggle, and the dblclick must not reach the row — else
+          // the folder would flip three times and visibly flicker.
+          onClick: event => {
+            event.stopPropagation()
+            if (event.detail > 1) return
+            onToggleDir(entry.path)
+          },
+          onDoubleClick: event => event.stopPropagation(),
         }, open ? React.createElement(ChevronDown, null) : React.createElement(ChevronRight, null))
       : React.createElement('span', { className: 'iwb-tree-twisty' }),
     isDir
@@ -301,6 +389,9 @@ export function projectSlice(state) {
     activeId: state.activeId,
     treeFocusTick: state.treeFocusTick,
     clipboard: state.clipboard,
+    // The repository the git status belongs to (GIT-01): its keys are
+    // repository-relative, the tree rows are project-relative.
+    gitRepoRoot: state.gitRepoRoot,
   }
 }
 
@@ -511,15 +602,11 @@ export function ProjectPanel({ store, state: _state }) {
     if (entry !== undefined && slice.status.isRepo === true) {
       items.push(null, {
         key: 'git', text: 'Git',
-        submenu: [
-          { key: 'git-add', text: t('git.add'), disabled: currentRels.length === 0, action: () => { void store.stage(currentRels) } },
-          { key: 'git-diff', text: t('git.showDiff'), disabled: currentRels.length !== 1 || isDir, action: () => store.openDiff({ path: currentRel }) },
-          { key: 'git-history', text: t('git.showHistory'), disabled: currentRels.length !== 1, action: () => store.showHistory(currentRel) },
-        ],
+        submenu: gitMenuItems(slice, currentRels, currentRel, isDir, { t, store }),
       })
     }
     return items
-  }, [menu, currentPaths.join('|'), currentRels.join('|'), shortcuts, slice.root, slice.status.isRepo, slice.clipboard])
+  }, [menu, currentPaths.join('|'), currentRels.join('|'), shortcuts, slice.root, slice.gitRepoRoot, slice.status.isRepo, slice.clipboard])
 
   const onRowClick = useCallback((event, entry, quick) => {
     if (entry === undefined) return
@@ -733,8 +820,15 @@ export function ProjectPanel({ store, state: _state }) {
           }
           const entry = row.entry
           const selected = selection.has(entry.path)
-          const kind = row.kind === 'dir' ? status.dirs.get(entry.rel) : status.files.get(entry.rel)
-          const ignoredFile = status.ignored.has(entry.rel)
+          // The git status belongs to the repository the Git window reads, so
+          // its keys are repository-relative while the tree rows are
+          // project-relative. A file outside that repository has no status —
+          // it must not borrow the colour of a same-named file elsewhere.
+          const statusKey = statusKeyOf(slice, entry.path)
+          const kind = statusKey === null
+            ? undefined
+            : (row.kind === 'dir' ? status.dirs.get(statusKey) : status.files.get(statusKey))
+          const ignoredFile = statusKey !== null && status.ignored.has(statusKey)
           const excludedEntry = isExcluded(entry.rel, excluded)
           const editing = renaming !== null && renaming.path === entry.path
           const active = row.kind === 'file'

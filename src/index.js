@@ -254,6 +254,10 @@ export function apply(ctx) {
     },
 
     'git.ignore': async (payload) => {
+      // The fence is the workspace root. `path` is the absolute path of the
+      // file and `repoRoot` the absolute root of the repository it belongs
+      // to: both must name that repository, because the `.gitignore` entry is
+      // written relative to it (PRD-v4 review R3).
       const root = await canonicalRoot(payload.root)
       const repoRoot = typeof payload.repoRoot === 'string' ? payload.repoRoot : undefined
       return appendIgnore(root, { path: requireString(payload, 'path'), repoRoot })

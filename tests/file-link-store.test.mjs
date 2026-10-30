@@ -79,17 +79,18 @@ test('an ambiguous link path opens the file of the IDE project root', async () =
   const store = fakeStore()
   const calls = []
   const restore = mockFetch({
-    stat: body => body.root === PROJECT && body.path === 'docs/PRD-v4.md',
+    stat: body => body.root === WORKSPACE && body.path === `${PROJECT}\\docs\\PRD-v4.md`,
   }, calls)
   try {
     // The chat wrote the link with a leading slash: `s1//docs/PRD-v4.md`.
     const result = await store.openExternalFile('dsh-resource://file/session/s1//docs/PRD-v4.md')
     assert.equal(result.status, 'opened')
     assert.equal(result.absolute, 'C:\\work\\demo\\src\\docs\\PRD-v4.md')
-    // The project root is the first base of PRD-v4 §7.4.
+    // The project root is the first base of PRD-v4 §7.4, and the probe uses
+    // the workspace fence (PRD-v4 review L2).
     assert.equal(stats(calls).length, 1)
-    assert.equal(stats(calls)[0].body.root, PROJECT)
-    assert.equal(stats(calls)[0].body.path, 'docs/PRD-v4.md')
+    assert.equal(stats(calls)[0].body.root, WORKSPACE)
+    assert.equal(stats(calls)[0].body.path, 'C:\\work\\demo\\src\\docs\\PRD-v4.md')
     assert.equal(store.state.tabs.length, 1)
     assert.equal(store.state.tabs[0].path, 'C:\\work\\demo\\src\\docs\\PRD-v4.md')
   } finally {
@@ -103,7 +104,7 @@ test('a plain relative link opens the file of the IDE project root', async () =>
   const store = fakeStore()
   const calls = []
   const restore = mockFetch({
-    stat: body => body.root === PROJECT && body.path === 'docs/PRD-v4.md',
+    stat: body => body.root === WORKSPACE && body.path === `${PROJECT}\\docs\\PRD-v4.md`,
   }, calls)
   try {
     // The link resolves against the Session cwd, which is the workspace root,
@@ -112,7 +113,7 @@ test('a plain relative link opens the file of the IDE project root', async () =>
     assert.equal(result.status, 'opened')
     assert.equal(result.absolute, 'C:\\work\\demo\\src\\docs\\PRD-v4.md')
     assert.equal(stats(calls).length, 1)
-    assert.equal(stats(calls)[0].body.root, PROJECT)
+    assert.equal(stats(calls)[0].body.root, WORKSPACE)
   } finally {
     if (store.toastTimer !== null) clearTimeout(store.toastTimer)
     store.persist.cancel()
@@ -200,7 +201,7 @@ test('a candidate outside the workspace is never opened', async () => {
     const result = await store.openExternalFile('dsh-resource://file/session/s1//docs/PRD-v4.md')
     assert.equal(result.status, 'opened')
     // The project root candidate is inside the workspace and wins.
-    assert.equal(stats(calls)[0].body.root, PROJECT)
+    assert.equal(stats(calls)[0].body.root, WORKSPACE)
     assert.ok(result.absolute.startsWith(WORKSPACE))
   } finally {
     if (store.toastTimer !== null) clearTimeout(store.toastTimer)

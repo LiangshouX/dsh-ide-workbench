@@ -114,7 +114,7 @@ npm run build   # dist/client.js 已更新
 | 切到**热**工作区 **0** 个 git 子进程 | ✅ | `tests/perf-notify.test.mjs` |
 | 单次轮询 **1** 个 git 子进程（Commit 窗口可见时 3） | ✅ | `tests/perf-notify.test.mjs` + `src/host/git.js` 的 `subprocesses` 计数 |
 | 连续 50 次等值 `set()` → **0** 次通知 | ✅ | `tests/perf-notify.test.mjs` |
-| 开 10 个工作区后常驻 store **≤ 3**；共享工作区的第二个会话仍挂载时不淘汰 | ✅ | `tests/perf-notify.test.mjs` |
+| 开 10 个工作区后常驻 store **≤ 3**；**有未保存编辑的 store 不淘汰**（宁可超过 3 也不丢草稿） | ✅ | `tests/perf-notify.test.mjs` + `tests/store-lifecycle.test.mjs` |
 | 500 条目目录列举 **0** 次 `lstat` | ✅ | `tests/perf-notify.test.mjs` |
 | 冷工作区进入：**0** 次未聚焦标签读盘、**1** 次目录列表请求 | ✅ | `tests/perf-cold-workspace.test.mjs` |
 | 6 个面板 + 2 个视图迁移到 slice 订阅，无关字段变化不再触发重渲染 | ✅ | `tests/perf-slice-{project,editor,git}.test.mjs`（含「`state` prop 一读即抛」的 Proxy 守卫） |
@@ -132,7 +132,7 @@ npm run build   # dist/client.js 已更新
 | 切项目/切工作区后不残留旧的勾选与分组 | ✅ | `tests/commit-staging.test.mjs` |
 | Git 面板的仓库自治：切仓库不动文件树与标签页，git 调用换根 | ✅ | `tests/git-repo-scope.test.mjs` + `tests/git-panel.test.mjs` |
 | Commit 抽屉：删除冗余预览、变更文件成树且可折叠、rename 取 `b/` 侧路径 | ✅ | `tests/git-panel.test.mjs` |
-| 聊天 File link 的相对路径可打开；工作区外相对路径被拒（0 次 stat 探测） | ✅ | `tests/file-link-store.test.mjs` + `tests/file-address.test.mjs` |
+| 聊天 File link 的相对路径可打开；**工作区外**的链接被拒（歧义形态 0 次 stat 探测；纯相对形态若主解析落在项目根内也是 0 次，落在项目根外时按 PRD §7.7 第 2 条要探测项目根那份，最多 3 次） | ✅ | `tests/file-link-store.test.mjs` + `tests/file-address.test.mjs` |
 | 绝对路径形态无回归；POSIX 工作区内绝对路径不被改写 | ✅ | `tests/file-link-store.test.mjs` |
 
 ### 实机（待补）
@@ -149,6 +149,7 @@ npm run build   # dist/client.js 已更新
   「跳到源文件」遇到这类文件会提示而不是打开（见 `docs/PRD-v4-实施进展.md` §6）。
 - **一次轮询在操作系统层面是 2 个 git 进程**（`rev-parse` + `status`）：PRD §1.2 PERF-06 的基线口径
   只统计 `status()` 内部的 3 个，宿主 `repoEnv()` 的那次 `rev-parse` 不在其内（见 §3.1 注 1）。
-- **恢复出的展开目录是后台逐个加载**，不是严格等到用户展开才加载（见 §3.1 注 3）。
+- **恢复出的展开目录是后台逐个（串行）加载**，不是严格等到用户展开才加载（见 §3.1 注 3）；冷进入本身只发 1 次目录列表请求。
+- **`Ctrl+Shift+R` 在纯浏览器形态是 Chromium 的硬刷新**，网页无法拦截 → 浏览器形态请用备用键 `Ctrl+Alt+F`；桌面形态不受影响（见 README「已知限制」）。
 - `BottomTabs`（底部栏组标题）仍随 Workbench 一起重渲染（它是 dock chrome，代价很小）。
 

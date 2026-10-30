@@ -253,9 +253,84 @@ function TabBar({ store, slice }) {
   )
 }
 
+/**
+ * Whether the breadcrumb really overflows the width it may use.
+ *
+ * The full path is measured out of flow, so the answer does not depend on the
+ * collapse state: the middle segments may go, the file name stays.
+ * @param {{clientWidth: number}} breadcrumb the breadcrumb element
+ * @param {{getBoundingClientRect: () => {width: number}}} measure the hidden full-path element
+ * @returns {boolean} whether the path does not fit
+ */
+export function breadcrumbOverflows(breadcrumb, measure) {
+  return measure.getBoundingClientRect().width > breadcrumb.clientWidth
+}
+
+/**
+ * The parts of one breadcrumb.
+ *
+ * The first segment and the file name are always there; the middle segments
+ * are marked so the stylesheet can collapse them when the path does not fit.
+ * The `full` mode renders the uncollapsed path - it is only used to measure.
+ * @param {Array<string>} directories the directory segments
+ * @param {Array<string>} middle the collapsible middle segments
+ * @param {string} fileSegment the file name
+ * @param {'visible'|'full'} mode 'visible' for the breadcrumb, 'full' for the measure
+ * @returns {Array<React.ReactElement>} the parts
+ */
+function breadcrumbParts(directories, middle, fileSegment, mode) {
+  const full = mode === 'full'
+  const parts = []
+  if (directories.length > 0) {
+    parts.push(React.createElement('span', { key: 'head' }, directories[0]))
+    // The separator only exists when the middle segments follow it.
+    if (middle.length > 0) {
+      parts.push(React.createElement('span', { key: 'head-sep', className: 'iwb-sep' }, '›'))
+    }
+  }
+  middle.forEach((segment, index) => {
+    parts.push(React.createElement('span', {
+      key: `mid-${index}`,
+      className: full ? undefined : 'iwb-crumb-mid',
+    }, segment))
+    if (index < middle.length - 1) {
+      parts.push(React.createElement('span', {
+        key: `mid-sep-${index}`,
+        className: full ? 'iwb-sep' : 'iwb-sep iwb-crumb-mid',
+      }, '›'))
+    }
+  })
+  if (!full && middle.length > 0) {
+    parts.push(React.createElement('span', { key: 'more', className: 'iwb-crumb-more' }, '…'))
+  }
+  if (directories.length > 0) {
+    parts.push(React.createElement('span', { key: 'file-sep', className: 'iwb-sep' }, '›'))
+  }
+  parts.push(React.createElement('b', { key: 'file' }, fileSegment))
+  return parts
+}
+
 function EditorToolbar({ store, tab }) {
   const t = store.t
   const [diffMenu, setDiffMenu] = useState(null)
+  const [overflow, setOverflow] = useState(false)
+  const breadcrumbRef = useRef(null)
+
+  // The path collapses only when it really does not fit: the toolbar is
+  // marked and the stylesheet folds the middle segments away.
+  useEffect(() => {
+    const element = breadcrumbRef.current
+    if (element === null) return undefined
+    const measure = element.querySelector('.iwb-breadcrumb-measure')
+    if (measure === null) return undefined
+    const update = () => setOverflow(breadcrumbOverflows(element, measure))
+    update()
+    if (typeof ResizeObserver !== 'function') return undefined
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [tab.id, tab.rel])
+
   if (tab.kind === 'diff') {
     const variant = tab.compare !== undefined
       ? `${tab.compare.a.slice(0, 7)} \u2194 ${tab.compare.b.slice(0, 7)}`
@@ -326,8 +401,8 @@ function EditorToolbar({ store, tab }) {
   const segments = tab.rel.split(/[\\/]/)
   const fileSegment = segments[segments.length - 1]
   const directories = segments.slice(0, -1)
-  // The middle segments collapse into one ellipsis when the document pane is
-  // narrow; the file name always stays visible and the full path stays in the
+  // The middle segments collapse into one ellipsis when the path does not
+  // fit; the file name always stays visible and the full path stays in the
   // breadcrumb title.
   const middle = directories.slice(1)
   const payload = tab.payload
@@ -337,28 +412,21 @@ function EditorToolbar({ store, tab }) {
   const view = tab.view ?? (markdown ? 'preview' : 'code')
   const dirty = tab.dirty === true
   const saving = tab.saving === true
-  return React.createElement('div', { className: 'iwb-editor-toolbar' },
-    React.createElement('div', { className: 'iwb-breadcrumb', title: tab.path },
-      directories.length === 0
-        ? null
-        : React.createElement('span', null, directories[0]),
-      middle.length === 0
-        ? null
-        : React.createElement('span', { className: 'iwb-sep' }, '›'),
-      middle.map((segment, index) => React.createElement(React.Fragment, { key: index },
-        React.createElement('span', { className: 'iwb-crumb-mid' }, segment),
-        index < middle.length - 1
-          ? React.createElement('span', { className: 'iwb-sep iwb-crumb-mid' }, '›')
-          : null,
-      )),
-      middle.length > 0
-        ? React.createElement('span', { className: 'iwb-crumb-more' }, '…')
-        : null,
-      directories.length === 0
-        ? null
-        : React.createElement('span', { className: 'iwb-sep' }, '›'),
-      React.createElement('b', null, fileSegment),
-      dirty ? React.createElement('span', { className: 'iwb-toolbar-dirty', title: t('editor.dirty') }, t('editor.dirty')) : null,
+  const dirtyBadge = dirty
+    ? React.createElement('span', { className: 'iwb-toolbar-dirty', title: t('editor.dirty') }, t('editor.dirty'))
+    : null
+  return React.createElement('div', {
+    className: 'iwb-editor-toolbar',
+    'data-overflow': overflow === true ? 'true' : undefined,
+  },
+    React.createElement('div', { className: 'iwb-breadcrumb', title: tab.path, ref: breadcrumbRef },
+      ...breadcrumbParts(directories, middle, fileSegment, 'visible'),
+      dirtyBadge,
+      // The uncollapsed path, measured but never shown.
+      React.createElement('span', { className: 'iwb-breadcrumb-measure', 'aria-hidden': 'true' },
+        ...breadcrumbParts(directories, middle, fileSegment, 'full'),
+        dirtyBadge,
+      ),
     ),
     React.createElement('div', { className: 'iwb-spacer' }),
     payload?.truncated === true ? React.createElement('span', { style: { color: 'var(--iwb-warn)' } }, t('editor.truncated')) : null,
@@ -454,7 +522,8 @@ function HtmlPreviewActions({ store, tab }) {
  * The dialog is rendered inside the document pane (`.iwb-editor`), so it
  * centers on the document window instead of the whole workbench root. Both
  * actions reuse the store's own verbs: reload reads the file again, overwrite
- * writes the editor buffer back to disk.
+ * writes the editor buffer back to disk. Cancel clears the notice, so the
+ * document pane does not raise the same dialog again (PRD-v4 review M6).
  * @param {object} store the workbench store
  * @param {object} tab the active tab
  * @returns {{title: string, body: string, actions: Array<object>}|null}
@@ -467,7 +536,11 @@ export function buildConflictDialog(store, tab) {
     title: t('editor.conflictTitle'),
     body: tab.conflict.message ?? t('editor.conflictBody'),
     actions: [
-      { key: 'cancel', label: t('common.cancel'), action: () => {} },
+      {
+        key: 'cancel',
+        label: t('common.cancel'),
+        action: () => { store.dismissConflict(tab.id) },
+      },
       {
         key: 'reload',
         label: t('editor.reloadFromDisk'),
@@ -622,7 +695,7 @@ export function EditorArea({ store, state: _state }) {
   // on a narrow pane.
   // The poll re-detects the same divergence every couple of seconds, so the
   // dialog is keyed by the tab, not by the detection timestamp: a dismissed
-  // notice stays away until the conflict is resolved.
+  // notice stays away until the buffer is refreshed.
   const conflictTab = useMemo(() => {
     if (active?.conflict === null || active?.conflict === undefined) return null
     return { id: active.id, conflict: { message: active.conflict.message ?? null } }
@@ -634,11 +707,14 @@ export function EditorArea({ store, state: _state }) {
     return buildConflictDialog(store, conflictTab)
   }, [conflictTab, dismissedTab, slice.confirm, store])
   const closeConflict = useCallback(() => setDismissedTab(conflictTab?.id ?? null), [conflictTab?.id])
+  // The poll re-detects the same divergence every couple of seconds, so a
+  // dismissed notice has to stay dismissed until the buffer is reloaded or
+  // overwritten - only then is the divergence really gone. The buffer stamp
+  // changes exactly then (the store refreshes the payload).
+  const bufferStamp = active?.payload?.mtimeMs ?? null
   useEffect(() => {
-    // The conflict is resolved (reloaded or overwritten): a later one may
-    // show the dialog again.
-    if (conflictTab === null) setDismissedTab(null)
-  }, [conflictTab])
+    setDismissedTab(null)
+  }, [bufferStamp])
 
   // The Find-in-Files view and the diff view subscribe to their own slices;
   // the editor only hands them the store.

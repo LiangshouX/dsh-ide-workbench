@@ -109,6 +109,7 @@ function baseState() {
     activeId: '',
     treeFocusTick: 0,
     clipboard: null,
+    gitRepoRoot: '',
     localeTick: 0,
     // Fields the panel does NOT read — a change here must not re-render it.
     toast: null,
@@ -196,7 +197,7 @@ test('the slice selector returns exactly the fields the panel reads', async () =
   const expected = [
     'dirs', 'expanded', 'root', 'filter', 'filterMode', 'fileIndex', 'fileIndexLoading',
     'fileIndexError', 'status', 'settings', 'selectedPath', 'selectedPaths', 'tabs',
-    'activeId', 'treeFocusTick', 'clipboard',
+    'activeId', 'treeFocusTick', 'clipboard', 'gitRepoRoot',
   ]
   assert.deepEqual(Object.keys(slice).sort(), [...expected].sort())
 
@@ -210,10 +211,12 @@ test('the slice selector returns exactly the fields the panel reads', async () =
   assert.doesNotMatch(body, /(?<![\w.])state\./, 'the panel must not read the raw state')
   const read = new Set([...body.matchAll(/\bslice\.([a-zA-Z]+)/g)].map(match => match[1]))
   // `dirs` and `expanded` are read by `flatten(slice, …)` and
-  // `flattenInputs(slice, …)`. The language is not a slice field at all:
-  // `useStoreSlice` invalidates the slice when the store's locale tick
-  // changes, so every panel follows the host language.
-  const indirect = new Set(['dirs', 'expanded'])
+  // `flattenInputs(slice, …)`; `gitRepoRoot` is read by `gitRootOf(slice)` /
+  // `statusKeyOf(slice, …)`, which turn an absolute path into the key of the
+  // git status. The language is not a slice field at all: `useStoreSlice`
+  // invalidates the slice when the store's locale tick changes, so every
+  // panel follows the host language.
+  const indirect = new Set(['dirs', 'expanded', 'gitRepoRoot'])
   for (const field of read) {
     assert.ok(expected.includes(field), `${field} is read but missing from the slice`)
   }
