@@ -1,8 +1,8 @@
 {
   "name": "dsh-ide-workbench",
   "displayName": "IDE Workbench",
-  "version": "0.4.0",
-  "description": "JetBrains-style Project, Commit, Terminal and Git tool windows around an embedded editor, with chat file links, send-to-chat @references, Markdown preview and outline navigation.",
+  "version": "0.4.1",
+  "description": "JetBrains-style Project, Commit, Terminal and Git tool windows around an embedded editor, with chat file links, send-to-chat @references, a Git repository picker that leaves the file tree alone, a file-locate button and a faster session switch.",
   "author": "LiangshouX",
   "homepage": "https://github.com/LiangshouX/dsh-ide-workbench",
   "license": "MIT",

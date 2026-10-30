@@ -43,7 +43,7 @@ DSH conversations are great for "chat and change at the same time", but editing 
 ### Option 1: DSH Desktop (recommended)
 
 1. Open **Settings → Plugins**.
-2. Click **Add plugin** and enter `dsh-ide-workbench` (optionally with a version, e.g. `dsh-ide-workbench@0.4.0`).
+2. Click **Add plugin** and enter `dsh-ide-workbench` (optionally with a version, e.g. `dsh-ide-workbench@0.4.1`).
 3. After installation, open it from the IDE Workbench button in the session header (or the footer entry).
 
 > The Desktop profile is owned exclusively by the Electron app; `dsh plugin --profile desktop ...` is refused. Use the Plugins page on Desktop.
@@ -55,7 +55,7 @@ DSH conversations are great for "chat and change at the same time", but editing 
 dsh plugin --profile web add dsh-ide-workbench
 
 # Pin a version
-dsh plugin --profile web add dsh-ide-workbench@0.4.0
+dsh plugin --profile web add dsh-ide-workbench@0.4.1
 ```
 
 Restart that profile, then enable **IDE Workbench** in **Settings → Plugins** if the bundle is still off.

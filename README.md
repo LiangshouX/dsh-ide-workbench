@@ -43,7 +43,7 @@ DSH 的对话很适合“边聊边改”，但真正改代码时还是要在聊�
 ### 方式一：DSH Desktop（推荐）
 
 1. 打开 **设置 → 插件**。
-2. 点 **添加插件**，在包名输入框填入 `dsh-ide-workbench`（可带版本号，如 `dsh-ide-workbench@0.4.0`）。
+2. 点 **添加插件**，在包名输入框填入 `dsh-ide-workbench`（可带版本号，如 `dsh-ide-workbench@0.4.1`）。
 3. 安装完成后，在会话头部点 IDE 工作台按钮（或侧栏底部的常驻入口）打开。
 
 > Desktop 的 profile 由 Electron 应用独占管理，`dsh plugin --profile desktop ...` 会被拒绝——桌面端请走插件页安装。
@@ -55,7 +55,7 @@ DSH 的对话很适合“边聊边改”，但真正改代码时还是要在聊�
 dsh plugin --profile web add dsh-ide-workbench
 
 # 只装指定版本
-dsh plugin --profile web add dsh-ide-workbench@0.4.0
+dsh plugin --profile web add dsh-ide-workbench@0.4.1
 ```
 
 安装后重启该 profile；如果 bundle 尚未启用，在 **设置 → 插件** 里打开 **IDE Workbench**。
