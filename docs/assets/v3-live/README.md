@@ -6,9 +6,9 @@ read-only live audit. They intentionally show the old, broken behavior
 Git details replacing the log, cleared terminal scrollback, etc.).
 
 They are kept as historical audit evidence for
-[`../../V3-体验问题与改进说明.md`](../../V3-体验问题与改进说明.md).
+[`../../PRD-v3-体验问题与改进说明.md`](../../PRD-v3-体验问题与改进说明.md).
 Do **not** use them as a reference for the current UI; see
-[`../../V3-实施进展.md`](../../V3-实施进展.md) for the implemented behavior.
+[`../../PRD-v3-实施进展.md`](../../PRD-v3-实施进展.md) for the implemented behavior.
 
 The screenshots may contain local paths and commit metadata from the test
 machine. They were produced from a local test repository, not from user data.
