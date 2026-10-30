@@ -246,7 +246,9 @@
 | 日期 | 提交 | 内容 |
 |---|---|---|
 | 2026-10-30 | `e6f491d` | docs：V3 三份文档按 `PRD-vN` 命名规范改名（并修正引用）；新增 `docs/PRD-v4.md` 规格 |
-| 2026-10-30 | `f7fe228` | feat：PRD-v4 全部条目（PERF-01~09、TREE-01~04、COMMIT-01、GIT-01~03、LAYOUT-01、EDITOR-01/02、FILE-01）+ `dist/client.js` + 本文件与 `docs/VERIFICATION.md`；测试 159 → **289** |
+| 2026-10-30 | `de3625f` | feat：PRD-v4 全部条目（PERF-01~09、TREE-01~04、COMMIT-01、GIT-01~03、LAYOUT-01、EDITOR-01/02、FILE-01）+ `dist/client.js` + 本文件与 `docs/VERIFICATION.md`；测试 159 → **289** |
+| 2026-10-30 | `4fc5232` | fix：**复核轮修复**（R1/R2/R3 严重、A1 核心验收、M1~M9 中等、L2~L7 轻微；L1/L4 改验收表述；E1 接受现状 + 文档化）+ `dist/client.js` + `docs/PRD-v4-复核记录.md`；测试 289 → **322** |
+| 2026-10-30 | （本提交） | docs：回填 §7 的**实际**提交哈希 —— 此前记录的 `f7fe228` 已被 amend 成 `de3625f`，该哈希已不在分支历史里（见 `docs/PRD-v4-复核记录.md` §6.2 第 4 条） |
 
 ---
 
