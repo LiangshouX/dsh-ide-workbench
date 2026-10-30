@@ -10,6 +10,7 @@ import { buildPatch, firstFile, hunkChangeIndexes, parseUnifiedDiff, sideBySideR
 import { IconRefresh } from './icons.jsx'
 import { FindBar } from './FindBar.jsx'
 import { buildFindRegExp } from './find.js'
+import { shallowEqual, useStoreSlice } from './hooks.js'
 
 const LINE_HEIGHT = 20
 
@@ -38,11 +39,25 @@ function diffSource(tab) {
   return { text: payload.diff ?? '', staged: tab.staged === true, stageable, path: tab.rel }
 }
 
-export function DiffView({ store, state, tab }) {
+/**
+ * The slice of the workbench snapshot the diff viewer reads.
+ *
+ * Only the diff mode comes from the store: everything else is in the tab.
+ * @param {object} state the whole workbench snapshot
+ * @returns {{ commitMode: string|undefined }} the diff slice
+ */
+export function diffSlice(state) {
+  return { commitMode: state.commit?.mode }
+}
+
+export function DiffView({ store, tab }) {
   const t = store.t
+  // The viewer subscribes to its own slice; the whole snapshot is not pushed
+  // into it any more.
+  const slice = useStoreSlice(store, diffSlice, shallowEqual)
   const source = useMemo(() => diffSource(tab), [tab])
   const parsed = useMemo(() => parseUnifiedDiff(source.text), [source.text])
-  const mode = tab.kind === 'commit' ? 'unified' : (state.commit.mode ?? 'side')
+  const mode = tab.kind === 'commit' ? 'unified' : (slice.commitMode ?? 'side')
   const [selection, setSelection] = useState(() => new Set())
   const [scrollTop, setScrollTop] = useState(0)
   const [viewport, setViewport] = useState(400)

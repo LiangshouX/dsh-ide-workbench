@@ -8,6 +8,21 @@ import { FitAddon } from '@xterm/addon-fit'
 import { wsUrl, call } from './api.js'
 import { IconFolder, IconPlus, IconTerminal } from './icons.jsx'
 import { dirName } from './util.js'
+import { shallowEqual, useStoreSlice } from './hooks.js'
+
+/**
+ * Fields of the workbench state the terminal panel renders.
+ *
+ * The panel only shows the session list; the PTY itself lives in the xterm
+ * instance, so nothing else has to be in the slice. A session that starts,
+ * exits or is renamed replaces `state.terminal`, which re-renders the tabs.
+ *
+ * @param {object} state workbench state
+ * @returns {object} the panel's slice
+ */
+export function terminalSlice(state) {
+  return { terminal: state.terminal }
+}
 
 /** Read one theme token from the workbench root (with a neutral fallback). */
 function token(root, name, fallback) {
@@ -24,7 +39,7 @@ function token(root, name, fallback) {
  */
 const MIN_FIT_WIDTH = 120
 
-function TerminalView({ store, state, session, active, visible }) {
+function TerminalView({ store, session, active, visible }) {
   const t = store.t
   const hostRef = useRef(null)
   const termRef = useRef(null)
@@ -39,7 +54,7 @@ function TerminalView({ store, state, session, active, visible }) {
     rootRef.current = document.querySelector('.iwb-root')
     const terminal = new Terminal({
       cursorBlink: true,
-      fontSize: state.settings?.terminal?.fontSize ?? 13,
+      fontSize: store.state.settings?.terminal?.fontSize ?? 13,
       fontFamily: '"JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, monospace',
       allowProposedApi: true,
       theme: {
@@ -104,7 +119,7 @@ function TerminalView({ store, state, session, active, visible }) {
 
     const connect = () => {
       const url = wsUrl('ide-workbench/ws/terminal')
-      url.searchParams.set('root', state.root)
+      url.searchParams.set('root', store.state.root)
       if (session.cwd !== undefined && session.cwd !== '') url.searchParams.set('cwd', session.cwd)
       if (session.shell !== undefined && session.shell !== '') url.searchParams.set('shell', session.shell)
       url.searchParams.set('cols', String(terminal.cols || 80))
@@ -246,8 +261,11 @@ function TerminalView({ store, state, session, active, visible }) {
 
 export function TerminalPanel({ store, state, visible = true }) {
   const t = store.t
-  const sessions = state.terminal.sessions
-  const activeKey = state.terminal.activeKey ?? sessions[0]?.key ?? null
+  // `state` is still accepted (the Workbench cleanup drops the prop in a
+  // parallel step) but the panel reads its own slice from now on.
+  const slice = useStoreSlice(store, terminalSlice, shallowEqual)
+  const sessions = slice.terminal.sessions
+  const activeKey = slice.terminal.activeKey ?? sessions[0]?.key ?? null
   const [renaming, setRenaming] = useState(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -294,7 +312,9 @@ export function TerminalPanel({ store, state, visible = true }) {
       React.createElement('button', {
         type: 'button', className: 'iwb-iconbtn', title: t('terminal.atFile'),
         onClick: () => {
-          const active = state.tabs.find(tab => tab.id === state.activeId)
+          // Read the live state: the open tabs are not part of the panel's
+          // slice, so they must not be captured from an older render.
+          const active = store.state.tabs.find(tab => tab.id === store.state.activeId)
           if (active?.kind === 'file') store.addTerminal({ cwd: dirName(active.path) })
           else store.addTerminal()
         },
@@ -312,7 +332,7 @@ export function TerminalPanel({ store, state, visible = true }) {
             React.createElement('button', { type: 'button', className: 'iwb-textbtn iwb-primary', onClick: () => store.addTerminal() }, t('terminal.new')),
           )
         : sessions.map(session => React.createElement(TerminalView, {
-            key: session.key, store, state, session, active: session.key === activeKey, visible,
+            key: session.key, store, session, active: session.key === activeKey, visible,
           })),
     ),
   )

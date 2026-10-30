@@ -2,7 +2,7 @@
 import React, { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import xtermCss from '@xterm/xterm/css/xterm.css'
 import { NS, en, zh } from './i18n.js'
-import { WorkbenchStore } from './store.js'
+import { StoreCache, WorkbenchStore } from './store.js'
 import { Workbench } from './Workbench.jsx'
 import { SettingsSection } from './SettingsPanel.jsx'
 import { CSS } from './styles.js'
@@ -222,13 +222,72 @@ export function apply(ctx) {
 
   // Render styles through React so their lifetime follows the plugin's seats.
   const Styles = () => React.createElement('style', { 'data-dsh-ide-workbench': '' }, `${xtermCss}\n${CSS}`)
-  const stores = new Map()
+
+  /**
+   * The host session table, read once and then cached.
+   *
+   * `sessions.list.getSnapshot()` rebuilds the whole table, and the workbench
+   * body of every Session stays mounted — reading it during render would hit
+   * the host on every render of every Session. The table only changes when
+   * the host changes it, so the cache is dropped then.
+   */
+  let sessionSnapshot = null
+  let sessionSnapshotValid = false
+  const readSessionSnapshot = () => {
+    if (!sessionSnapshotValid) {
+      const sessions = ctx?.sessions ?? ctx?.get?.('sessions')
+      sessionSnapshot = sessions?.list?.getSnapshot?.() ?? null
+      sessionSnapshotValid = true
+    }
+    return sessionSnapshot
+  }
+  const invalidateSessionSnapshot = () => { sessionSnapshotValid = false }
+  /**
+   * A context whose session table comes from the cache.
+   *
+   * The scope rules of `workspace-scope.js` stay the single source of truth:
+   * only the table behind them is cached.
+   */
+  const cachedSessionsCtx = {
+    get sessions() {
+      return { list: { getSnapshot: () => readSessionSnapshot() } }
+    },
+  }
+  /** The workspace root of one Session. */
+  const cwdOf = sessionId => sessionCwdOf(cachedSessionsCtx, sessionId)
+  /** The store key of one Session (the rule of `workspaceScopeKey`). */
+  const scopeKeyOf = sessionId => workspaceScopeKey(cachedSessionsCtx, sessionId)
+
+  /**
+   * Whether one Session still has its workbench body mounted.
+   *
+   * The host keeps a Session's tab body alive (`keepMounted`), so a body that
+   * is still mounted must not lose its store.
+   * @param {string} sessionId
+   */
+  const isMountedSession = (sessionId) => {
+    if (typeof sessionId !== 'string' || sessionId === '') return false
+    if (ctx.sidebarRight?.mounted?.getSnapshot?.() === sessionId) return true
+    const inventory = ctx.sidebarRight?.openTabs?.getSnapshot?.()
+    if (!Array.isArray(inventory)) return false
+    return inventory.some(tab => tab?.kind === PANEL_ID && tab?.sessionId === sessionId)
+  }
+
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === 'function'
+  // One store per workspace, at most three of them resident (PRD PERF-05).
+  const stores = new StoreCache({ limit: 3, isMounted: isMountedSession })
   const getStore = (sessionId) => {
     const id = typeof sessionId === 'string' ? sessionId : ''
-    const key = hasMounted ? workspaceScopeKey(ctx, id) : `session:${id}`
-    if (!stores.has(key)) stores.set(key, new WorkbenchStore(ctx, t, sessionCwdOf(ctx, id)))
-    return stores.get(key)
+    const key = hasMounted ? scopeKeyOf(id) : `session:${id}`
+    const existing = stores.get(key)
+    if (existing !== undefined) {
+      // Several Sessions can share one workspace: every one of them must be
+      // known, or the store could be evicted while a mounted body still uses
+      // it.
+      stores.claim(key, id)
+      return existing
+    }
+    return stores.set(key, new WorkbenchStore(ctx, t, cwdOf(id)), id)
   }
   const activeStore = () => {
     const sessionId = ctx.sidebarRight.mounted?.getSnapshot()
@@ -332,8 +391,8 @@ export function apply(ctx) {
       const parsed = parseFileAddress(address)
       if (parsed === undefined) return false
       const mountedSession = ctx.sidebarRight?.mounted?.getSnapshot()
-      const current = sessionCwdOf(ctx, mountedSession)
-      const linkCwd = parsed.scope === 'session' ? sessionCwdOf(ctx, parsed.sessionId) : ''
+      const current = cwdOf(mountedSession)
+      const linkCwd = parsed.scope === 'session' ? cwdOf(parsed.sessionId) : ''
       if (current !== '' && linkCwd !== '' && !sameScopePath(current, linkCwd)) return false
       // Claim only files inside the DSH workspace. A link that points elsewhere
       // (another drive, a temp file, a sibling checkout) must fall through to
@@ -399,7 +458,13 @@ export function apply(ctx) {
       const previous = lastMounted
       lastMounted = next
       if (typeof next !== 'string' || next === '' || next === previous) return
-      if (!shouldContinueIde(ctx, previous, next, ideVisibleSession)) return
+      // The workspace roots come from the cached session table: the switch
+      // itself must not read the host snapshot.
+      const continueIde = shouldContinueIde(cachedSessionsCtx, previous, next, ideVisibleSession)
+      // The host may have published another workspace root; the next lookup
+      // re-reads the session table once.
+      invalidateSessionSnapshot()
+      if (!continueIde) return
       requestOpen(next)
     }
     const unsubscribeMounted = mounted.subscribe(onMounted)
@@ -411,6 +476,14 @@ export function apply(ctx) {
       clearPending()
     }
   }, 'dsh-ide-workbench: workspace continuity')
+
+  ctx.effect(() => {
+    // The session table backs the workspace scope of every Session. When the
+    // host publishes a new table, the cached copy is dropped.
+    const sessionList = ctx.sessions?.list
+    if (typeof sessionList?.subscribe !== 'function') return () => {}
+    return sessionList.subscribe(() => { invalidateSessionSnapshot() })
+  }, 'dsh-ide-workbench: session scope cache')
 
   ctx.effect(() => ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section', id: PANEL_ID, order: 60, label: () => t('settings.nav'),
@@ -429,7 +502,7 @@ export function apply(ctx) {
       const inWorkbench = target instanceof Element && target.closest('.iwb-root') !== null
       const inTerminal = isTerminalTarget(event.target)
       if (store?.state.active === true && inWorkbench) {
-        if (matchesShortcut(shortcuts.findInFiles ?? 'Ctrl+Shift+F', event)
+        if (matchesShortcut(shortcuts.findInFiles ?? 'Ctrl+Shift+R', event)
           || matchesShortcut(shortcuts.findInFilesAlt ?? 'Ctrl+Alt+F', event)) {
           event.preventDefault()
           event.stopPropagation()
@@ -513,10 +586,11 @@ export function apply(ctx) {
   }, 'dsh-ide-workbench: shortcuts')
 
   ctx.effect(() => () => {
-    for (const store of [...stores.values(), settingsStore]) {
-      store.deactivate()
+    for (const store of stores.stores.values()) {
       for (const unsubscribe of store.unsubscribers.splice(0)) unsubscribe()
     }
     stores.clear()
+    settingsStore.deactivate()
+    for (const unsubscribe of settingsStore.unsubscribers.splice(0)) unsubscribe()
   }, 'dsh-ide-workbench: store teardown')
 }

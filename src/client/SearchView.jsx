@@ -4,6 +4,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { IconSearch } from './icons.jsx'
+import { shallowEqual, useStoreSlice } from './hooks.js'
 
 function Flag({ on, label, title, onClick }) {
   return React.createElement('button', {
@@ -15,9 +16,23 @@ function Flag({ on, label, title, onClick }) {
   }, label)
 }
 
-export function SearchView({ store, state }) {
+/**
+ * The slice of the workbench snapshot the Find in Files view reads.
+ *
+ * Only the search slice itself is needed: the results, the flags and the
+ * elapsed time all live in it.
+ * @param {object} state the whole workbench snapshot
+ * @returns {{ search: object }} the search slice
+ */
+export function searchSlice(state) {
+  return { search: state.search }
+}
+
+export function SearchView({ store }) {
   const t = store.t
-  const search = state.search
+  // The view subscribes to its own slice; the whole snapshot is not pushed
+  // into it any more.
+  const { search } = useStoreSlice(store, searchSlice, shallowEqual)
   const [query, setQuery] = useState(search.query)
   const [caseSensitive, setCaseSensitive] = useState(search.caseSensitive)
   const [wholeWord, setWholeWord] = useState(search.wholeWord)

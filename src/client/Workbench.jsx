@@ -5,10 +5,10 @@
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { useWorkbench } from './hooks.js'
-import { IconFolder, IconGit, IconGear, IconRefresh, IconSearch, IconTerminal, StripeIcon } from './icons.jsx'
+import { IconFolder, IconGit, IconGear, IconRefresh, IconTerminal, StripeIcon } from './icons.jsx'
 import { ProjectPanel } from './ProjectPanel.jsx'
 import { CommitPanel } from './CommitPanel.jsx'
-import { GitPanel } from './GitPanel.jsx'
+import { GitPanel, RepoPopover } from './GitPanel.jsx'
 import { TerminalPanel } from './TerminalPanel.jsx'
 import { EditorArea } from './EditorArea.jsx'
 import { SettingsForm } from './SettingsPanel.jsx'
@@ -16,6 +16,26 @@ import { QuickOpen } from './QuickOpen.jsx'
 import { ContextMenu, ConfirmModal, Kbd, Toast } from './ui.jsx'
 import { baseName } from './util.js'
 import { STACK_WIDTH } from './layout.js'
+
+/**
+ * Translate with an English fallback for keys the locale table does not
+ * carry yet.
+ */
+function label(t, key, fallback) {
+  const value = t(key)
+  return value === key || value === undefined || value === null || value === '' ? fallback : value
+}
+
+/*
+ * PERF-02: a panel that subscribes to its own slice does not need the whole
+ * state. The memo keeps a Workbench re-render (a toast, a terminal chunk)
+ * from re-rendering the panel: its only prop is the store, which is stable.
+ */
+const MemoEditorArea = React.memo(EditorArea)
+const MemoProjectPanel = React.memo(ProjectPanel)
+const MemoCommitPanel = React.memo(CommitPanel)
+const MemoGitPanel = React.memo(GitPanel)
+const MemoTerminalPanel = React.memo(TerminalPanel)
 
 function TopBar({ store, state, fullscreen, onOpenSettings }) {
   const t = store.t
@@ -64,10 +84,6 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       'aria-pressed': fullscreen,
       onClick: event => store.toggleFullscreen(event.currentTarget),
     }, '⛶'),
-    React.createElement('button', {
-      type: 'button', className: 'iwb-iconbtn', title: `${t('search.title')} (${state.settings?.shortcuts?.findInFiles ?? 'Ctrl+Shift+F'})`,
-      onClick: () => store.openSearchTab(),
-    }, React.createElement(IconSearch, { width: 15, height: 15 })),
     React.createElement('button', {
       type: 'button', className: 'iwb-iconbtn', title: t('common.refresh'),
       onClick: () => { void store.reloadTree(); void store.refreshStatus({ initial: true }); void store.loadBranches() },
@@ -125,6 +141,89 @@ function Stripe({ store, state }) {
   )
 }
 
+/**
+ * Repository picker for the Git tool window (GIT-01).
+ *
+ * The Git panel works against its own repository: picking one here never
+ * touches the Project file tree or the open tabs. The control lives in the
+ * Terminal/Git dock header and is only active while the Git window is the
+ * visible one.
+ */
+function RepoSwitch({ store, state }) {
+  const t = store.t
+  const [anchor, setAnchor] = useState(null)
+  const [placement, setPlacement] = useState(null)
+  const holderRef = useRef(null)
+  const current = typeof state.gitRepoRoot === 'string' ? state.gitRepoRoot : ''
+  const enabled = state.layout.bottom === 'git'
+  const name = current === '' ? '' : (baseName(current) || current)
+
+  useEffect(() => {
+    if (anchor === null) return undefined
+    const onDown = (event) => {
+      if (event.target instanceof Element && event.target.closest('.iwb-branch-popover, .iwb-branch-switch') !== null) return
+      setAnchor(null)
+    }
+    window.addEventListener('mousedown', onDown, true)
+    return () => window.removeEventListener('mousedown', onDown, true)
+  }, [anchor])
+
+  // The dock header sits at the bottom of the workbench: measure the popover
+  // once and place it below the button when there is room, above it otherwise.
+  useEffect(() => {
+    if (anchor === null) return undefined
+    const holder = holderRef.current
+    if (holder === null) return undefined
+    const popover = holder.querySelector('.iwb-branch-popover')
+    if (popover === null) return undefined
+    const height = popover.getBoundingClientRect().height
+    if (!(height > 0)) return undefined
+    const below = anchor.bottom + 4
+    const top = below + height + 8 <= window.innerHeight
+      ? below
+      : Math.max(8, anchor.top - height - 4)
+    setPlacement({ top })
+    return undefined
+  }, [anchor])
+
+  return React.createElement(React.Fragment, null,
+    React.createElement('button', {
+      type: 'button',
+      className: 'iwb-branch-switch',
+      disabled: !enabled,
+      title: !enabled
+        ? label(t, 'git.switchRepoDisabled', 'Only the Git window can switch repositories')
+        : (current === '' ? label(t, 'git.pickRepoHint', 'Pick a repository in the Terminal/Git header') : current),
+      style: {
+        opacity: enabled ? 1 : 0.55,
+        cursor: enabled ? 'pointer' : 'default',
+        alignSelf: 'center',
+      },
+      onClick: event => {
+        if (!enabled) return
+        const rect = event.currentTarget.getBoundingClientRect()
+        const left = Math.max(6, Math.min(rect.left, window.innerWidth - 268))
+        setPlacement(null)
+        setAnchor({ left, top: rect.top, bottom: rect.bottom })
+      },
+    },
+      React.createElement('span', null, name === '' ? label(t, 'git.pickRepo', 'Choose repository') : name),
+      React.createElement('span', { className: 'iwb-branch-caret' }, '▾'),
+    ),
+    anchor !== null
+      ? React.createElement('div', {
+          ref: holderRef,
+          style: { width: 0, height: 0, opacity: placement === null ? 0 : 1 },
+        },
+          React.createElement(RepoPopover, {
+            store, x: anchor.left, y: placement?.top ?? anchor.bottom + 4,
+            onClose: () => setAnchor(null),
+          }),
+        )
+      : null,
+  )
+}
+
 function BottomTabs({ store, state }) {
   const t = store.t
   const tool = state.layout.bottom
@@ -141,6 +240,7 @@ function BottomTabs({ store, state }) {
       type: 'button', className: `iwb-bottom-tab ${tool === 'git' ? 'iwb-on' : ''}`,
       onClick: () => store.showTool('git'),
     }, React.createElement(IconGit, { width: 13, height: 13 }), t('git.title')),
+    React.createElement(RepoSwitch, { store, state }),
     React.createElement('button', {
       type: 'button', className: 'iwb-iconbtn iwb-bottom-close', title: t('common.close'),
       onClick: () => store.setLayout({ bottom: null }),
@@ -399,8 +499,8 @@ export function Workbench({ store, visible = true, fullscreen = false }) {
       style: { '--iwb-left-width': `${state.layout.leftWidth}px` },
     },
       state.layout.left === 'project'
-        ? React.createElement(ProjectPanel, { store, state })
-        : React.createElement(CommitPanel, { store, state }),
+        ? React.createElement(MemoProjectPanel, { store })
+        : React.createElement(MemoCommitPanel, { store }),
       React.createElement('div', { className: 'iwb-left-resizer', onPointerDown: startLeftResize }),
     )
   }
@@ -419,12 +519,12 @@ export function Workbench({ store, visible = true, fullscreen = false }) {
             )
           : null,
         React.createElement('div', { className: 'iwb-bottom-body' },
-          bottom === 'git' ? React.createElement(GitPanel, { store, state }) : null,
+          bottom === 'git' ? React.createElement(MemoGitPanel, { store }) : null,
           terminalKeep
             ? React.createElement('div', {
                 className: bottom === 'terminal' ? 'iwb-bottom-content' : 'iwb-term-hidden',
-              }, React.createElement(TerminalPanel, { store, state, visible: bottom === 'terminal' }))
-            : (bottom === 'terminal' ? React.createElement(TerminalPanel, { store, state, visible: true }) : null),
+              }, React.createElement(MemoTerminalPanel, { store, visible: bottom === 'terminal' }))
+            : (bottom === 'terminal' ? React.createElement(MemoTerminalPanel, { store, visible: true }) : null),
         ),
       )
     : null
@@ -435,10 +535,12 @@ export function Workbench({ store, visible = true, fullscreen = false }) {
       React.createElement(Stripe, { store, state }),
       left,
       React.createElement('div', { className: 'iwb-center' },
-        React.createElement(EditorArea, { store, state }),
-        bottomNode,
+        React.createElement(MemoEditorArea, { store }),
       ),
     ),
+    // The Terminal/Git dock spans the whole workbench width: it is a sibling
+    // of the body, so the left dock shrinks above it instead of squeezing it.
+    bottomNode,
     React.createElement(StatusBar, { store, state }),
     state.phase === 'booting'
       ? React.createElement('div', { className: 'iwb-empty', style: { position: 'absolute', inset: 0, background: 'var(--iwb-bg)' } }, store.t('common.loading'))

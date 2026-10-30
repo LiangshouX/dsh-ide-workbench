@@ -6,8 +6,10 @@
  * selects a row; double click / Enter opens the detail Drawer. The log keeps
  * the full height while the Drawer is open.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GRAPH_COLORS, layoutGraph, rowGeometry } from './graph.js'
+import { groupByDirectory } from './commit-model.js'
+import { shallowEqual, useStoreSlice } from './hooks.js'
 import { ContextMenu } from './ui.jsx'
 import { IconBranch, IconClose, IconCopy, IconRefresh } from './icons.jsx'
 import { formatGitDate } from './util.js'
@@ -16,6 +18,66 @@ import { gitLayout, DRAWER_MIN } from './git-layout.js'
 const ROW_HEIGHT = 24
 const CELL = 14
 const GRAPH_MAX = 8
+// Tree indentation: the base padding of a row comes from the stylesheet
+// (.iwb-git-tree-dir / .iwb-git-tree-file), every nesting level adds a step.
+const TREE_DIR_INDENT = 5
+const TREE_FILE_INDENT = 20
+const TREE_INDENT_STEP = 12
+
+/**
+ * Translate with an English fallback for keys the locale table does not
+ * carry yet (the repository picker ships ahead of its i18n entries).
+ */
+function label(t, key, fallback) {
+  const value = t(key)
+  return value === key || value === undefined || value === null || value === '' ? fallback : value
+}
+
+/** Candidate repositories of the Git panel (store-provided, with a fallback). */
+function gitRepoCandidates(slice) {
+  const list = Array.isArray(slice.gitRepos) ? slice.gitRepos : []
+  if (list.length > 0) return list
+  return (slice.projects ?? [])
+    .filter(project => project.isRepo === true)
+    .map(project => ({ path: project.path, name: project.name ?? project.path }))
+}
+
+/**
+ * Fields of the workbench state the Git panel renders.
+ *
+ * The slice is compared field by field, so an unrelated write — a toast, a
+ * terminal chunk, a file-tree change — no longer re-renders the panel.
+ *
+ * @param {object} state workbench state
+ * @returns {object} the panel's slice
+ */
+export function gitSlice(state) {
+  return {
+    git: state.git,
+    branch: state.status.branch,
+    detached: state.status.detached,
+    isRepo: state.status.isRepo,
+    drawerWidth: state.layout.gitDrawerWidth,
+    projects: state.projects,
+    gitRepoRoot: state.gitRepoRoot,
+    gitRepos: state.gitRepos,
+  }
+}
+
+/**
+ * Fields the repository picker renders — it subscribes on its own, so the
+ * dock header can host it with a `store` prop only.
+ *
+ * @param {object} state workbench state
+ * @returns {object} the picker's slice
+ */
+export function repoSlice(state) {
+  return {
+    gitRepos: state.gitRepos,
+    gitRepoRoot: state.gitRepoRoot,
+    projects: state.projects,
+  }
+}
 
 function GraphCell({ row, width, height, offset }) {
   const geometry = rowGeometry(row)
@@ -111,24 +173,171 @@ export function diffFiles(diff) {
   return output
 }
 
-function InlinePatch({ text }) {
-  return React.createElement('div', { className: 'iwb-git-inline-diff' },
-    String(text ?? '').split('\n').map((line, index) => React.createElement('div', {
-      key: index,
-      className: `iwb-git-inline-line ${line.startsWith('+') && !line.startsWith('+++') ? 'iwb-add' : ''} ${line.startsWith('-') && !line.startsWith('---') ? 'iwb-del' : ''} ${line.startsWith('@@') ? 'iwb-hunk' : ''}`,
-    }, line === '' ? '\u00a0' : line)),
+/**
+ * Build the changed-file tree of one commit from repository-relative paths.
+ *
+ * The first level reuses `groupByDirectory` (the Commit panel's grouping);
+ * deeper levels nest by directory segment. Every directory node keeps its
+ * full repository-relative path so the collapse state can key on it.
+ *
+ * @param {Array<{ path: string }>} files changed files of one commit
+ * @returns {{ name: string, path: string, depth: number, dirs: Map<string, object>, files: Array<object> }}
+ */
+export function buildChangedFileTree(files) {
+  const root = { name: '', path: '', depth: 0, dirs: new Map(), files: [] }
+  for (const group of groupByDirectory(files)) {
+    const segments = group.dir === '' ? [] : group.dir.split('/').filter(segment => segment !== '')
+    let node = root
+    let prefix = ''
+    for (const segment of segments) {
+      prefix = prefix === '' ? segment : `${prefix}/${segment}`
+      let child = node.dirs.get(segment)
+      if (child === undefined) {
+        child = { name: segment, path: prefix, depth: node.depth + 1, dirs: new Map(), files: [] }
+        node.dirs.set(segment, child)
+      }
+      node = child
+    }
+    node.files.push(...group.entries)
+  }
+  return root
+}
+
+/** Directories closed by default: everything below the first level. */
+export function defaultCollapsedDirs(root) {
+  const collapsed = new Set()
+  const walk = (node) => {
+    for (const dir of node.dirs.values()) {
+      if (dir.depth >= 2) collapsed.add(dir.path)
+      walk(dir)
+    }
+  }
+  walk(root)
+  return collapsed
+}
+
+/** Children of one tree node: directories and files mixed, sorted by name. */
+function sortedChildren(node) {
+  const children = []
+  for (const dir of node.dirs.values()) children.push({ kind: 'dir', name: dir.name, node: dir })
+  for (const file of node.files) {
+    children.push({ kind: 'file', name: file.path.split('/').pop() ?? file.path, file })
+  }
+  children.sort((left, right) => left.name.localeCompare(right.name))
+  return children
+}
+
+/** Path of the first changed file of the tree (the default selection). */
+function firstLeafOf(node) {
+  for (const child of sortedChildren(node)) {
+    if (child.kind === 'file') return child.file.path
+    const found = firstLeafOf(child.node)
+    if (found !== '') return found
+  }
+  return ''
+}
+
+/**
+ * Render the changed-file tree rows.
+ *
+ * Pure (no hooks) so the tree can be driven directly by tests. `collapsed`
+ * holds the closed directory paths; the file selection travels separately in
+ * `selectedPath` — the two states never mix.
+ *
+ * @param {object} node tree node to render
+ * @param {{ collapsed: Set<string>, selectedPath: string, depth: number, onToggleDir: Function, onSelectFile: Function, onOpenFile: Function }} options
+ * @returns {Array<React.ReactElement>} the rows of this level
+ */
+export function fileTreeRows(node, options) {
+  const rows = []
+  for (const [index, child] of sortedChildren(node).entries()) {
+    if (child.kind === 'dir') {
+      const dir = child.node
+      const expanded = !options.collapsed.has(dir.path)
+      rows.push(React.createElement('button', {
+        key: `dir:${dir.path}`,
+        type: 'button',
+        className: 'iwb-git-tree-dir',
+        title: dir.path,
+        'aria-expanded': expanded,
+        style: { paddingLeft: `${TREE_DIR_INDENT + options.depth * TREE_INDENT_STEP}px` },
+        onClick: () => options.onToggleDir(dir.path),
+      },
+        React.createElement('span', { className: 'iwb-git-tree-caret' }, expanded ? '▾' : '▸'),
+        React.createElement('span', { className: 'iwb-git-tree-dir-name' }, dir.name),
+      ))
+      if (expanded) rows.push(...fileTreeRows(dir, { ...options, depth: options.depth + 1 }))
+      continue
+    }
+    const file = child.file
+    rows.push(React.createElement('button', {
+      key: `file:${file.path}:${index}`,
+      type: 'button',
+      className: `iwb-git-drawer-file iwb-git-tree-file${options.selectedPath === file.path ? ' iwb-selected' : ''}`,
+      title: file.path,
+      style: { paddingLeft: `${TREE_FILE_INDENT + options.depth * TREE_INDENT_STEP}px` },
+      onClick: () => options.onSelectFile(file.path),
+      onDoubleClick: () => options.onOpenFile(file.path),
+    },
+      React.createElement('span', { className: `iwb-git-file-status iwb-status-${file.status}` }, file.status),
+      React.createElement('span', { className: 'iwb-git-file-name' }, child.name),
+      React.createElement('span', { className: 'iwb-additions' }, `+${file.additions}`),
+      React.createElement('span', { className: 'iwb-deletions' }, `-${file.deletions}`),
+    ))
+  }
+  return rows
+}
+
+/** Changed files of one commit as a collapsible directory tree. */
+function ChangedFileTree({ store, hash, files }) {
+  const tree = useMemo(() => buildChangedFileTree(files), [files])
+  const [toggles, setToggles] = useState(() => new Map())
+  const [selectedPath, setSelectedPath] = useState('')
+
+  const collapsed = useMemo(() => {
+    const dirs = defaultCollapsedDirs(tree)
+    for (const [path, isCollapsed] of toggles) {
+      if (isCollapsed) dirs.add(path)
+      else dirs.delete(path)
+    }
+    return dirs
+  }, [tree, toggles])
+
+  useEffect(() => { setSelectedPath('') }, [hash])
+
+  const toggleDir = useCallback((path) => {
+    setToggles(previous => {
+      const next = new Map(previous)
+      next.set(path, !collapsed.has(path))
+      return next
+    })
+  }, [collapsed])
+
+  const openFile = useCallback((path) => { void store.openCommitFile(hash, path) }, [store, hash])
+
+  const selected = selectedPath === '' ? firstLeafOf(tree) : selectedPath
+
+  return React.createElement('div', { className: 'iwb-git-drawer-files iwb-git-tree' },
+    fileTreeRows(tree, {
+      collapsed,
+      selectedPath: selected,
+      depth: 0,
+      onToggleDir: toggleDir,
+      onSelectFile: setSelectedPath,
+      onOpenFile: openFile,
+    }),
   )
 }
 
-function BranchPopover({ store, state, x, y, onClose }) {
+function BranchPopover({ store, branches, currentBranch, x, y, onClose }) {
   const t = store.t
   const [query, setQuery] = useState('')
   const [index, setIndex] = useState(0)
   const inputRef = useRef(null)
   const names = useMemo(() => {
     const value = query.trim().toLowerCase()
-    return state.git.branches.filter(name => value === '' || name.toLowerCase().includes(value))
-  }, [query, state.git.branches])
+    return branches.filter(name => value === '' || name.toLowerCase().includes(value))
+  }, [query, branches])
   useEffect(() => { inputRef.current?.focus() }, [])
   useEffect(() => { setIndex(0) }, [query])
   const choose = (name) => { onClose(); store.requestCheckout(name) }
@@ -161,26 +370,99 @@ function BranchPopover({ store, state, x, y, onClose }) {
             onMouseEnter: () => setIndex(position),
             onClick: () => choose(name),
           },
-            React.createElement('span', { className: 'iwb-branch-check' }, name === state.status.branch ? '✓' : ''),
+            React.createElement('span', { className: 'iwb-branch-check' }, name === currentBranch ? '✓' : ''),
             React.createElement('span', { className: 'iwb-branch-name' }, name),
           )),
     ),
   )
 }
 
-function CommitDrawer({ store, state, narrow, width, onResizeStart, onClose }) {
+/**
+ * Rows of the repository picker (pure, so the choices can be driven directly
+ * by tests).
+ *
+ * @param {Array<{ path: string, name: string }>} repos candidate repositories
+ * @param {{ current: string, index: number, onHover?: Function, onChoose: Function }} options
+ * @returns {Array<React.ReactElement>}
+ */
+export function repoRows(repos, options) {
+  return repos.map((repo, position) => React.createElement('button', {
+    key: repo.path,
+    type: 'button',
+    className: `iwb-branch-row ${position === options.index ? 'iwb-selected' : ''}`,
+    title: repo.path,
+    onMouseEnter: () => options.onHover?.(position),
+    onClick: () => options.onChoose(repo.path),
+  },
+    React.createElement('span', { className: 'iwb-branch-check' }, repo.path === options.current ? '✓' : ''),
+    React.createElement('span', { className: 'iwb-branch-name' }, repo.name),
+  ))
+}
+
+/**
+ * Repository picker of the Git tool window.
+ *
+ * Exported so the Terminal/Git dock header can host the same popover. The
+ * candidates come from `state.gitRepos`; choosing one only moves the Git
+ * panel — the file tree and the open tabs stay untouched.
+ */
+export function RepoPopover({ store, x, y, onClose }) {
   const t = store.t
-  const git = state.git
-  const [selectedFile, setSelectedFile] = useState('')
+  const slice = useStoreSlice(store, repoSlice, shallowEqual)
+  const [query, setQuery] = useState('')
+  const [index, setIndex] = useState(0)
+  const inputRef = useRef(null)
+  const repos = useMemo(() => gitRepoCandidates(slice), [slice])
+  const names = useMemo(() => {
+    const value = query.trim().toLowerCase()
+    return repos.filter(repo => value === ''
+      || String(repo.name).toLowerCase().includes(value)
+      || String(repo.path).toLowerCase().includes(value))
+  }, [query, repos])
+  useEffect(() => { inputRef.current?.focus() }, [])
+  useEffect(() => { setIndex(0) }, [query])
+  const choose = (path) => { onClose(); store.setGitRepoRoot(path) }
+  return React.createElement('div', {
+    className: 'iwb-branch-popover iwb-repo-popover',
+    style: { left: `${x}px`, top: `${y}px` },
+    onMouseDown: event => event.stopPropagation(),
+  },
+    React.createElement('input', {
+      ref: inputRef,
+      className: 'iwb-input',
+      style: { width: '100%' },
+      placeholder: label(t, 'git.searchRepo', 'Search repository'),
+      value: query,
+      onChange: event => setQuery(event.target.value),
+      onKeyDown: event => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); setIndex(value => Math.min(names.length - 1, value + 1)) }
+        else if (event.key === 'ArrowUp') { event.preventDefault(); setIndex(value => Math.max(0, value - 1)) }
+        else if (event.key === 'Enter') { event.preventDefault(); if (names[index] !== undefined) choose(names[index].path) }
+        else if (event.key === 'Escape') { event.preventDefault(); onClose() }
+      },
+    }),
+    React.createElement('div', { className: 'iwb-branch-list' },
+      names.length === 0
+        ? React.createElement('div', { className: 'iwb-quick-empty' }, t('quickOpen.empty'))
+        : repoRows(names, {
+            current: slice.gitRepoRoot ?? '',
+            index,
+            onHover: position => setIndex(position),
+            onChoose: choose,
+          }),
+    ),
+  )
+}
+
+function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
+  const t = store.t
   const detail = git.detail
   const closeRef = useRef(null)
   const files = useMemo(() => diffFiles(detail?.diff), [detail?.diff])
   const additions = files.reduce((sum, file) => sum + file.additions, 0)
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0)
-  const selected = files.find(file => file.path === selectedFile) ?? files[0]
 
   useEffect(() => {
-    setSelectedFile('')
     closeRef.current?.focus()
   }, [detail?.hash])
 
@@ -249,30 +531,7 @@ function CommitDrawer({ store, state, narrow, width, onResizeStart, onClose }) {
                 ),
                 files.length === 0
                   ? React.createElement('div', { className: 'iwb-git-detail-dim' }, t('git.noFiles'))
-                  : React.createElement(React.Fragment, null,
-                      React.createElement('div', { className: 'iwb-git-drawer-files' },
-                        files.map(file => React.createElement('button', {
-                          key: file.path,
-                          type: 'button',
-                          className: `iwb-git-drawer-file ${selected?.path === file.path ? 'iwb-selected' : ''}`,
-                          title: file.path,
-                          onClick: () => setSelectedFile(file.path),
-                          onDoubleClick: () => { void store.openCommitFile(detail.hash, file.path) },
-                        },
-                          React.createElement('span', { className: `iwb-git-file-status iwb-status-${file.status}` }, file.status),
-                          React.createElement('span', { className: 'iwb-git-file-name' }, file.path.split('/').pop()),
-                          React.createElement('span', { className: 'iwb-git-file-dir' }, file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : ''),
-                          React.createElement('span', { className: 'iwb-additions' }, `+${file.additions}`),
-                          React.createElement('span', { className: 'iwb-deletions' }, `-${file.deletions}`),
-                        )),
-                      ),
-                      selected !== undefined
-                        ? React.createElement('div', { className: 'iwb-git-drawer-inline' },
-                            React.createElement('div', { className: 'iwb-git-drawer-section-title' }, selected.path),
-                            React.createElement(InlinePatch, { text: selected.patch }),
-                          )
-                        : null,
-                    ),
+                  : React.createElement(ChangedFileTree, { store, hash: detail.hash, files }),
               )),
     ),
   )
@@ -280,13 +539,24 @@ function CommitDrawer({ store, state, narrow, width, onResizeStart, onClose }) {
 
 export function GitPanel({ store, state }) {
   const t = store.t
-  const git = state.git
-  const repoProjects = (state.projects ?? []).filter(project => project.isRepo === true && project.path !== state.root)
+  // `state` is still accepted (the Workbench cleanup drops the prop in a
+  // parallel step) but the panel reads its own slice from now on.
+  const slice = useStoreSlice(store, gitSlice, shallowEqual)
+  const git = slice.git
   const [scrollTop, setScrollTop] = useState(0)
   const [viewport, setViewport] = useState(300)
   const [menu, setMenu] = useState(null)
   const [mainWidth, setMainWidth] = useState(0)
   const [branchMenu, setBranchMenu] = useState(null)
+  const [repoMenu, setRepoMenu] = useState(null)
+  const repoRoot = slice.gitRepoRoot ?? ''
+  const repoName = useMemo(() => {
+    const match = gitRepoCandidates(slice).find(repo => repo.path === repoRoot)
+    if (match !== undefined) return match.name
+    if (repoRoot === '') return ''
+    const parts = repoRoot.split(/[\\/]/)
+    return parts[parts.length - 1] ?? repoRoot
+  }, [slice, repoRoot])
   const scrollRef = useRef(null)
   const mainRef = useRef(null)
   const queryTimer = useRef(null)
@@ -324,7 +594,7 @@ export function GitPanel({ store, state }) {
   const drawerOpen = git.detail !== null || git.detailLoading === true
   const geometry = gitLayout({
     mainWidth,
-    configuredWidth: state.layout.gitDrawerWidth ?? 420,
+    configuredWidth: slice.drawerWidth ?? 420,
     drawerOpen,
   })
   const drawerNarrow = geometry.drawerNarrow
@@ -415,14 +685,15 @@ export function GitPanel({ store, state }) {
   }, [menu, t])
 
   useEffect(() => {
-    if (branchMenu === null) return undefined
+    if (branchMenu === null && repoMenu === null) return undefined
     const onDown = (event) => {
-      if (event.target instanceof Element && event.target.closest('.iwb-branch-popover, .iwb-branch-switch') !== null) return
+      if (event.target instanceof Element && event.target.closest('.iwb-branch-popover, .iwb-branch-switch, .iwb-repo-switch') !== null) return
       setBranchMenu(null)
+      setRepoMenu(null)
     }
     window.addEventListener('mousedown', onDown, true)
     return () => window.removeEventListener('mousedown', onDown, true)
-  }, [branchMenu])
+  }, [branchMenu, repoMenu])
 
   const startDrawerResize = (event) => {
     event.preventDefault()
@@ -450,6 +721,17 @@ export function GitPanel({ store, state }) {
   return React.createElement('div', { className: 'iwb-git' },
     React.createElement('div', { className: 'iwb-git-filters' },
       React.createElement('button', {
+        type: 'button', className: 'iwb-branch-switch iwb-repo-switch',
+        title: repoRoot === '' ? label(t, 'git.pickRepoHint', 'Choose a repository in the Terminal/Git header.') : repoRoot,
+        onClick: event => {
+          const rect = event.currentTarget.getBoundingClientRect()
+          setRepoMenu({ x: rect.left, y: rect.bottom + 4 })
+        },
+      },
+        React.createElement('span', { className: 'iwb-repo-name' }, repoName === '' ? label(t, 'git.pickRepo', 'Choose repository') : repoName),
+        React.createElement('span', { className: 'iwb-branch-caret' }, '▾'),
+      ),
+      React.createElement('button', {
         type: 'button', className: 'iwb-branch-switch', title: t('git.switchBranchTitle'),
         onClick: event => {
           const rect = event.currentTarget.getBoundingClientRect()
@@ -457,7 +739,7 @@ export function GitPanel({ store, state }) {
         },
       },
         React.createElement(IconBranch, { width: 13, height: 13 }),
-        React.createElement('span', null, state.status.detached === true ? t('git.detached') : (state.status.branch ?? '—')),
+        React.createElement('span', null, slice.detached === true ? t('git.detached') : (slice.branch ?? '—')),
         React.createElement('span', { className: 'iwb-branch-caret' }, '▾'),
       ),
       (git.compare ?? []).length > 0
@@ -479,7 +761,7 @@ export function GitPanel({ store, state }) {
         type: 'button',
         className: `iwb-textbtn iwb-small ${git.filters.branch === '' ? 'iwb-primary' : ''}`,
         title: t('git.branchFilter'),
-        onClick: () => store.setGitFilters({ branch: git.filters.branch === '' ? (state.status.branch ?? '') : '' }),
+        onClick: () => store.setGitFilters({ branch: git.filters.branch === '' ? (slice.branch ?? '') : '' }),
       }, git.filters.branch === '' ? t('git.allBranches') : t('git.currentBranchOnly')),
       React.createElement('select', {
         className: 'iwb-select', title: t('git.dateFilter'),
@@ -542,15 +824,25 @@ export function GitPanel({ store, state }) {
           rows.length === 0 && git.loading !== true
             ? React.createElement('div', { className: 'iwb-git-empty' },
                 React.createElement('div', null,
-                  state.status.isRepo === true
+                  slice.isRepo === true
                     ? (git.error ?? t('git.noCommits'))
                     : t('project.noRepoHint'),
                 ),
-                state.status.isRepo !== true
-                  ? React.createElement('button', {
-                      type: 'button', className: 'iwb-textbtn iwb-primary iwb-small', style: { marginTop: 10 },
-                      onClick: () => store.openProjectPicker(),
-                    }, repoProjects.length > 0 ? t('project.chooseRepo') : t('project.selectProject'))
+                slice.isRepo !== true
+                  ? React.createElement('div', { className: 'iwb-git-no-repo' },
+                      React.createElement('div', { className: 'iwb-git-detail-dim' },
+                        label(t, 'git.pickRepoHint', 'Choose a repository in the Terminal/Git header.')),
+                      gitRepoCandidates(slice).length > 0
+                        ? React.createElement('button', {
+                            type: 'button', className: 'iwb-textbtn iwb-primary iwb-small',
+                            onClick: event => {
+                              const rect = event.currentTarget.getBoundingClientRect()
+                              setRepoMenu({ x: rect.left, y: rect.bottom + 4 })
+                            },
+                          }, t('project.chooseRepo'))
+                        : React.createElement('div', { className: 'iwb-git-detail-dim' },
+                            label(t, 'git.noRepoCandidate', 'No Git repository candidate was found in this workspace.')),
+                    )
                   : (git.error !== null && git.error !== undefined
                       ? React.createElement('button', { type: 'button', className: 'iwb-textbtn iwb-small', style: { marginTop: 10 }, onClick: () => { void store.loadLog(true) } }, t('common.retry'))
                       : null),
@@ -602,7 +894,7 @@ export function GitPanel({ store, state }) {
       ),
       drawerOpen
         ? React.createElement(CommitDrawer, {
-            store, state, narrow: drawerNarrow, width: drawerWidth,
+            store, git, narrow: drawerNarrow, width: drawerWidth,
             onResizeStart: startDrawerResize, onClose: closeDetail,
           })
         : null,
@@ -610,7 +902,13 @@ export function GitPanel({ store, state }) {
     menu !== null ? React.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
     branchMenu !== null
       ? React.createElement(BranchPopover, {
-          store, state, x: branchMenu.x, y: branchMenu.y, onClose: () => setBranchMenu(null),
+          store, branches: git.branches, currentBranch: slice.branch,
+          x: branchMenu.x, y: branchMenu.y, onClose: () => setBranchMenu(null),
+        })
+      : null,
+    repoMenu !== null
+      ? React.createElement(RepoPopover, {
+          store, x: repoMenu.x, y: repoMenu.y, onClose: () => setRepoMenu(null),
         })
       : null,
   )

@@ -17,6 +17,19 @@ const READ_TIMEOUT_MS = 30_000
 const REMOTE_TIMEOUT_MS = 180_000
 
 /**
+ * How many git CLI processes this host has started.
+ *
+ * The counter backs the PRD §1.3 development metrics; it is a plain integer
+ * in the host process and never reaches the UI on its own.
+ */
+let gitProcesses = 0
+
+/** The number of git CLI processes started so far. */
+export function gitProcessCount() {
+  return gitProcesses
+}
+
+/**
  * One command failure with the raw stderr preserved for the UI.
  */
 export class GitError extends Error {
@@ -48,6 +61,7 @@ export function runGit(env, args, options = {}) {
   return new Promise((resolve, reject) => {
     let child
     try {
+      gitProcesses += 1
       child = spawn(executable, argv, {
         cwd: env.root,
         windowsHide: true,
@@ -225,27 +239,48 @@ export function parseNumstat(output) {
 
 /**
  * One repository status snapshot, shaped for the three Commit groups.
- * @param {{ gitPath?: string, root: string }} env
+ *
+ * The snapshot costs one `git status` subprocess. The two `git diff --numstat`
+ * calls that add the per-file line counts are only made when the Commit
+ * window asks for them, and `--ignored=matching` (which walks the whole
+ * worktree) is only passed when the user enabled the ignored-file listing.
+ * @param {{ gitPath?: string, root: string, repoRoot?: string | null }} env
+ * @param {{ ignored?: boolean, numstat?: boolean }} [options]
  */
 export async function status(env, options = {}) {
-  const root = await repoRootOf(env)
+  /** The git processes this snapshot spawned (PRD §1.3 counter). */
+  let subprocesses = 0
+  const run = (repo, args) => {
+    subprocesses += 1
+    return runGit(repo, args)
+  }
+  // The host route resolves the repository toplevel before it calls us, so
+  // asking git again would add a second subprocess to every poll tick.
+  const known = typeof env.repoRoot === 'string' && env.repoRoot !== '' ? env.repoRoot : null
+  let root = known
   if (root === null) {
-    return { isRepo: false, entries: [], root: null }
+    subprocesses += 1
+    root = await repoRootOf(env)
+  }
+  if (root === null) {
+    return { isRepo: false, entries: [], root: null, subprocesses }
   }
   const repo = { ...env, root }
   const args = ['status', '--porcelain=v2', '--branch', '-z']
   if (options.ignored === true) args.push('--ignored=matching')
-  const statusResult = await runGit(repo, args)
+  const statusResult = await run(repo, args)
   const parsed = parseStatusV2(statusResult.stdout)
   let unstagedNumstat = new Map()
   let stagedNumstat = new Map()
-  try {
-    const unstaged = await runGit(repo, ['diff', '--numstat', '-z', '--no-renames'])
-    unstagedNumstat = parseNumstat(unstaged.stdout)
-    const staged = await runGit(repo, ['diff', '--cached', '--numstat', '-z', '--no-renames'])
-    stagedNumstat = parseNumstat(staged.stdout)
-  } catch {
-    // A status snapshot without line counts is still useful.
+  if (options.numstat !== false) {
+    try {
+      const unstaged = await run(repo, ['diff', '--numstat', '-z', '--no-renames'])
+      unstagedNumstat = parseNumstat(unstaged.stdout)
+      const staged = await run(repo, ['diff', '--cached', '--numstat', '-z', '--no-renames'])
+      stagedNumstat = parseNumstat(staged.stdout)
+    } catch {
+      // A status snapshot without line counts is still useful.
+    }
   }
   const entries = parsed.entries.map((entry) => {
     const x = entry.xy[0] ?? '.'
@@ -272,6 +307,7 @@ export async function status(env, options = {}) {
     ahead: parsed.ahead,
     behind: parsed.behind,
     entries,
+    subprocesses,
   }
 }
 

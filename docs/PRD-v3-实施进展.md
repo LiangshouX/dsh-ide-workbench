@@ -1,4 +1,4 @@
-# V3 实施进展（第一轮）
+# PRD-v3 实施进展（第一轮）
 
 > 对应决策：`docs/PRD-v3.md`。
 > 状态：已进入实施，M1 主体 + M2 搜索/Git Drawer 已落地；部分实机交互仍待补验。
@@ -91,7 +91,7 @@
 - Git Drawer 已通过 `Ctrl+Alt+D` 实机打开/关闭；双击与 Enter 打开仍受点击/焦点问题影响，未单独确认。
 - 终端输出 marker 后经过工具窗切换仍在 scrollback 中；跨对话（切到聊天再回 IDE）未实测。
 - `Ctrl+F` 实机正常；`Ctrl+Shift+F` 被 DSH/Chromium 外层吞掉；`Ctrl+Alt+F` 备用键可用。顶部按钮点击仍被外层覆盖层拦截，Project 面板头部与右键菜单入口作为兜底。
-- Find in Files 结果打开已实机确认：搜索 `requestCheckout` 后按 Enter 打开 `docs/V3-实施进展.md` 第 75 行；F8 / Shift+F8 可在命中项间循环。
+- Find in Files 结果打开已实机确认：搜索 `requestCheckout` 后按 Enter 打开 `docs/PRD-v3-实施进展.md` 第 75 行；F8 / Shift+F8 可在命中项间循环。
 - 回收站失败二次确认、删除/回滚的真实点击流程尚未手工执行。
 - 分支检出、删除、回滚未做破坏性实机操作。
 - 文件树“打开态 vs 选中态”代码与 SSR 测试已完成；用户真实鼠标点击树/顶栏正常，我的合成点击仍被外壳拦截，因此未取得最终视觉对照。

@@ -243,6 +243,15 @@ test('openExternalFile asks before widening a sub-folder project to the workspac
   ]
   const original = globalThis.fetch
   globalThis.fetch = async (url) => {
+    if (String(url).includes('fs.stat')) {
+      // The relative candidates do not exist (PRD-v4 §7.6.2), so the link
+      // still needs the project switch.
+      return {
+        ok: false,
+        status: 404,
+        async json() { return { ok: false, error: { code: 'not-found', message: 'file not found' } } },
+      }
+    }
     const value = String(url).includes('git.status')
       ? { isRepo: false, entries: [], detached: false }
       : String(url).includes('git.log')

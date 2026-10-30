@@ -6,13 +6,15 @@
  * not for the lifetime of the rendered panel, so switching back to the
  * Conversation and returning keeps tabs, expanded folders and layout.
  */
-import { call } from './api.js'
+import { call as hostCall } from './api.js'
 import { isMarkdownFile } from './file-types.js'
 import {
   DEFAULT_CHANGELIST, assignChangelist, changelistOf, isEntryChecked, splitCommitGroups, checkedPathsOf,
 } from './commit-model.js'
 import { baseName, debounce, dirName, formatGitDate } from './util.js'
-import { fileAddressFor, fileUrlForPath, parseFileAddress, resolveFileAddress } from './file-address.js'
+import {
+  fileAddressFor, fileUrlForPath, isAmbiguousLinkPath, parseFileAddress, relativeLinkCandidateEntries, resolveFileAddress,
+} from './file-address.js'
 import { openInDefaultSidebar } from './file-link.js'
 import {
   composeCodeReference, formatFileMention, insertChatText,
@@ -20,6 +22,46 @@ import {
 import { isPathWithin, sameScopePath, sessionCwdOf } from './workspace-scope.js'
 
 let sequence = 0
+
+/**
+ * How long the cold entry waits before it lists the restored folders.
+ *
+ * The root is listed right away; the deeper levels follow a moment later, so
+ * the tree paints before the workspace is read (PRD-v4 §1.2 PERF-07).
+ */
+const RESTORED_TREE_DELAY_MS = 200
+
+/**
+ * Development-only counters (PRD §1.3).
+ *
+ * `process.env.NODE_ENV` is inlined to `"production"` by the client build, so
+ * every gate below folds to `false` and the whole block is dropped from a
+ * production bundle: the counters are `null` and `window.__iwbPerf` does not
+ * exist there. The gate is written out at each use site on purpose — only an
+ * inline constant folds away without minification.
+ */
+export const perfCounters = process.env.NODE_ENV !== 'production'
+  ? { notify: 0, git: 0, gitSubprocesses: 0, fs: 0, stores: 0 }
+  : null
+
+if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+  window.__iwbPerf = perfCounters
+}
+
+/**
+ * One host call, counted for the development metrics.
+ * @param {string} method
+ * @param {Record<string, unknown>} [payload]
+ * @param {AbortSignal} [signal]
+ */
+function call(method, payload = {}, signal) {
+  if (process.env.NODE_ENV !== 'production' && perfCounters !== null) {
+    if (method.startsWith('fs.')) perfCounters.fs += 1
+    else if (method.startsWith('git.')) perfCounters.git += 1
+  }
+  return hostCall(method, payload, signal)
+}
+
 /** A process-local id for transient UI keys. */
 export function nextId(prefix = 'id') {
   sequence += 1
@@ -55,6 +97,20 @@ function errorMessage(error) {
 }
 
 /**
+ * Whether one link path is a plain relative path (no leading slash at all).
+ *
+ * The ambiguous shape — exactly one leading slash — is decided by
+ * `isAmbiguousLinkPath`; a drive-letter or UNC path is absolute and produces
+ * no candidates at all.
+ * @param {unknown} path
+ * @returns {boolean}
+ */
+function isPlainRelativeLinkPath(path) {
+  if (typeof path !== 'string' || path === '') return false
+  return !path.replace(/\\/g, '/').startsWith('/')
+}
+
+/**
  * Editor buffers are CRLF-agnostic: CodeMirror always hands back `\n`, while a
  * CRLF file on disk reads back as `\r\n`. Comparing the two spellings marks a
  * just-saved file as "changed on disk", so both sides of every dirty/conflict
@@ -75,6 +131,10 @@ function initialState() {
     workspaceRoot: '',
     /** The selected IDE project root (workspace root or a first-level child). */
     root: '',
+    /** The repository the Git window reads (GIT-01); the Project root by default. */
+    gitRepoRoot: '',
+    /** The candidate repositories of the Git window. */
+    gitRepos: [],
     /** Root + first-level folders offered by the project picker. */
     projects: [],
     projectPicker: false,
@@ -84,6 +144,8 @@ function initialState() {
     status: { isRepo: false, entries: [], branch: undefined, detached: false, ahead: undefined, behind: undefined, root: null },
     statusError: null,
     statusAt: 0,
+    /** True while the cached status is older than the last poll tick. */
+    statusStale: false,
     layout: { left: 'project', leftWidth: 300, bottom: null, bottomHeight: 270, gitDrawerWidth: 420 },
     /** True while the pane is too narrow for side-by-side docks (CSS + JS agree). */
     stacked: false,
@@ -132,6 +194,8 @@ function initialState() {
       unchecked: new Set(),
       /** Paths that stay in the Unversioned group after `git add`. */
       buckets: {},
+      /** Untracked paths that are added to the index when the commit is made. */
+      pendingStage: new Set(),
       /** Selected row for the Change View double-click. */
       selectedPath: '',
       /** Pre-commit tasks the user enabled (only shown when configured). */
@@ -184,6 +248,8 @@ export class WorkbenchStore {
     this.state = initialState()
     this.listeners = new Set()
     this.pollTimer = null
+    /** Timer of the background listing of the restored folders (PERF-07). */
+    this.restoredTimer = null
     this.polling = false
     this.persist = debounce(() => { void this.#persist() }, 700)
     this.toastTimer = null
@@ -210,10 +276,96 @@ export class WorkbenchStore {
 
   getSnapshot = () => this.state
 
-  /** Replace state and notify (one render per change). */
+  /**
+   * The repository every git call works on (GIT-01).
+   *
+   * The Git window may read another repository than the Project tree, but the
+   * two stay independent: only the git calls follow this root.
+   */
+  get gitRoot() {
+    return this.state.gitRepoRoot || this.state.root
+  }
+
+  /**
+   * Point the Git window at another repository.
+   *
+   * Only the Git window follows: the file tree, the project root and the open
+   * tabs stay exactly as they are (PRD-v4 §4.1).
+   * @param {string} path absolute repository root
+   */
+  async setGitRepoRoot(path) {
+    if (typeof path !== 'string' || path === '') return
+    if (sameScopePath(path, this.state.gitRepoRoot)) return
+    this.set({ gitRepoRoot: path })
+    // The Git window now reads another repository: its log, branches and
+    // status are reloaded.
+    await this.refreshStatus({ initial: true })
+  }
+
+  /**
+   * The repository the Git window reads by default.
+   *
+   * The Project root when it is a repository, otherwise the first candidate
+   * repository of the workspace (PRD-v4 §4.1).
+   * @param {string} projectRoot
+   */
+  #defaultGitRepoRoot(projectRoot) {
+    const repos = this.state.gitRepos ?? []
+    if (repos.some(repo => sameScopePath(repo.path, projectRoot))) return projectRoot
+    const first = repos[0]
+    return first?.path ?? projectRoot
+  }
+
+  /**
+   * Replace state and notify (one render per change).
+   *
+   * A patch whose values are all `===` to the current state changes nothing,
+   * so it neither replaces the state object nor wakes the subscribers: one
+   * `set` costs one render only when something really changed. Reference
+   * types (`Set`, `Map`, arrays) compare by reference, as they always did.
+   * @param {Record<string, unknown>} patch
+   */
   set(patch) {
-    this.state = { ...this.state, ...patch }
+    if (patch === null || typeof patch !== 'object') {
+      this.state = { ...this.state, ...patch }
+      this.#notify()
+      return
+    }
+    for (const key of Object.keys(patch)) {
+      if (this.state[key] !== patch[key]) {
+        this.state = { ...this.state, ...patch }
+        this.#notify()
+        return
+      }
+    }
+  }
+
+  /** Wake every subscriber (one render). */
+  #notify() {
     for (const listener of this.listeners) listener()
+    if (process.env.NODE_ENV !== 'production' && perfCounters !== null) perfCounters.notify += 1
+  }
+
+  /**
+   * Subscribe to one slice of the state.
+   *
+   * The callback runs only when the selected slice really changed, so a
+   * panel that reads a few fields is not woken by every unrelated change.
+   * @param {(state: any) => unknown} selector picks the slice
+   * @param {(slice: unknown) => void} notify called with the new slice
+   * @param {(left: unknown, right: unknown) => boolean} [isEqual]
+   * @returns {() => void} unsubscribe
+   */
+  subscribeSlice(selector, notify, isEqual = Object.is) {
+    let current = selector(this.state)
+    const listener = () => {
+      const next = selector(this.state)
+      if (isEqual(current, next)) return
+      current = next
+      notify(next)
+    }
+    this.listeners.add(listener)
+    return () => { this.listeners.delete(listener) }
   }
 
   /** Patch one nested slice. */
@@ -305,9 +457,9 @@ export class WorkbenchStore {
       if (preferred !== undefined && preferred !== '') {
         await this.loadProjects(preferred)
         const projectRoot = this.#projectRootFor(preferred)
-        this.set({ root: projectRoot })
+        this.set({ root: projectRoot, gitRepoRoot: this.#defaultGitRepoRoot(projectRoot) })
         this.#restoreWorkspace(projectRoot)
-        void this.loadRestoredTree()
+        void this.loadRestoredTree({ lazy: true })
         this.patch('commit', { mode: settings?.editor?.sideBySide === false ? 'unified' : 'side' })
         void this.refreshStatus({ initial: true })
         void this.refreshShells()
@@ -348,6 +500,11 @@ export class WorkbenchStore {
    * - a file outside the workspace → report `outside-workspace`; the caller
    *   hands it to DSH's own sidebar instead of erroring.
    *
+   * A relative link may also name a file of the IDE project root without
+   * saying so (PRD-v4 §7.6.2): the absolute reading is tried first and the
+   * relative candidates → project root, Session cwd, workspace root → get
+   * their turn when the link does not resolve.
+   *
    * The chat's own file opener resolves a path against the viewing Session's
    * workspace and hands the address to `sidebarRight.openResource`; this method
    * turns that address into an absolute path and reveals it in the Project tree
@@ -376,6 +533,14 @@ export class WorkbenchStore {
     // caller falls back to DSH's own sidebar, which keeps its own security and
     // preview rules for files that live outside the project.
     if (workspace === '' || !isPathWithin(workspace, absolute)) {
+      // One leading slash is the ambiguous shape: the link may name a file
+      // relative to the project root, the Session cwd or the workspace root.
+      // The absolute reading landed outside the workspace, so the relative
+      // candidates get their turn → always inside the workspace fence.
+      if (isAmbiguousLinkPath(parsed.path, this.state.workspaceRoot)) {
+        const candidate = await this.#firstExistingCandidate(parsed)
+        if (candidate !== undefined) return this.#openResolved(candidate, workspace, options)
+      }
       return { status: 'outside-workspace', absolute }
     }
     if (this.#insideRoot(absolute)) {
@@ -383,8 +548,76 @@ export class WorkbenchStore {
       return { status: 'opened', absolute }
     }
     // Inside the workspace but outside the current IDE project (the project is
-    // a sub-folder). Widening the project resets the tree, Git view and tabs,
-    // so it only happens after the user agrees.
+    // a sub-folder). A plain relative link may still name a file of the
+    // project root, so the candidates are tried before the project is widened.
+    if (isPlainRelativeLinkPath(parsed.path)) {
+      const candidate = await this.#firstExistingCandidate(parsed)
+      if (candidate !== undefined) return this.#openResolved(candidate, workspace, options)
+    }
+    if (this.state.tabs.some(tab => tab.dirty === true)) {
+      return { status: 'dirty', absolute }
+    }
+    if (options.switchProject !== true) {
+      return { status: 'needs-project-switch', absolute }
+    }
+    const switched = await this.selectProject(workspace)
+    if (switched === false || !this.#insideRoot(absolute)) {
+      return { status: 'failed', absolute }
+    }
+    this.#revealInProject(absolute, options.line)
+    return { status: 'opened', absolute }
+  }
+
+  /**
+   * The fallback candidates of one chat link, in the order of PRD-v4 §7.4:
+   * the IDE project root, then the Session cwd, then the workspace root.
+   * @param {{ scope: string, sessionId?: string, path: string }} parsed
+   * @returns {{ base: string, rel: string, absolute: string }[]}
+   */
+  #linkCandidates(parsed) {
+    return relativeLinkCandidateEntries(parsed.path, [
+      this.state.root,
+      parsed.scope === 'session' ? sessionCwdOf(this.ctx, parsed.sessionId) : '',
+      this.state.workspaceRoot,
+    ])
+  }
+
+  /**
+   * The first fallback candidate that exists on disk.
+   *
+   * Every candidate is fenced by the DSH workspace: a file outside it is never
+   * opened here, whatever the link says. The host route is the second barrier →
+   * it refuses a path that leaves its root again after `..` is resolved.
+   * @param {{ scope: string, sessionId?: string, path: string }} parsed
+   * @returns {Promise<string | undefined>} the absolute path of the winner
+   */
+  async #firstExistingCandidate(parsed) {
+    const workspace = this.state.workspaceRoot
+    if (workspace === '') return undefined
+    for (const candidate of this.#linkCandidates(parsed)) {
+      if (!isPathWithin(workspace, candidate.absolute)) continue
+      try {
+        await call('fs.stat', { root: candidate.base, path: candidate.rel })
+        return candidate.absolute
+      } catch {
+        // This candidate does not exist (or is not reachable): try the next
+        // base. A link that names nothing at all stays with DSH's sidebar.
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Route one resolved absolute path to the workbench.
+   * @param {string} absolute
+   * @param {string} workspace the DSH workspace root
+   * @param {{ line?: number, switchProject?: boolean }} options
+   */
+  async #openResolved(absolute, workspace, options) {
+    if (this.#insideRoot(absolute)) {
+      this.#revealInProject(absolute, options.line)
+      return { status: 'opened', absolute }
+    }
     if (this.state.tabs.some(tab => tab.dirty === true)) {
       return { status: 'dirty', absolute }
     }
@@ -559,7 +792,12 @@ export class WorkbenchStore {
     if (!projects.some(project => project.path === workspaceRoot)) {
       projects.unshift({ path: workspaceRoot, name: baseName(workspaceRoot), isRepo: false, isRoot: true })
     }
-    this.set({ projects })
+    // The Git window offers the repositories of the workspace (GIT-01); the
+    // file tree keeps its own project list.
+    const gitRepos = projects
+      .filter(project => project.isRepo === true)
+      .map(project => ({ path: project.path, name: project.name }))
+    this.set({ projects, gitRepos })
     return projects
   }
 
@@ -603,6 +841,7 @@ export class WorkbenchStore {
     this.set({
       workspaceRoot,
       root: projectRoot,
+      gitRepoRoot: this.#defaultGitRepoRoot(projectRoot),
       projectPicker: false,
       dirs: new Map(),
       expanded: new Set(),
@@ -616,10 +855,13 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The commit selection belongs to the repository it was made in
+      // (PRD-v4 §3.2): it must not survive the switch.
+      commit: this.#resetCommitSelection(),
     })
     this.#rememberProjectRoot(projectRoot)
     this.#restoreWorkspace(projectRoot)
-    void this.loadRestoredTree()
+    void this.loadRestoredTree({ lazy: true })
     await this.refreshStatus({ initial: true })
     void this.refreshShells()
     void this.loadLog(true)
@@ -653,6 +895,7 @@ export class WorkbenchStore {
   async #switchProject(projectRoot) {
     this.set({
       root: projectRoot,
+      gitRepoRoot: this.#defaultGitRepoRoot(projectRoot),
       projectPicker: false,
       dirs: new Map(),
       expanded: new Set(),
@@ -666,14 +909,30 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The checked paths and the group pins belong to the repository they
+      // were made in (PRD-v4 §3.2): a path of repository A must not stay
+      // pinned in the Unversioned group of repository B.
+      commit: this.#resetCommitSelection(),
     })
     this.#rememberProjectRoot(projectRoot)
     this.#restoreWorkspace(projectRoot)
-    void this.loadRestoredTree()
+    void this.loadRestoredTree({ lazy: true })
     await this.refreshStatus({ initial: true })
     void this.refreshShells()
     void this.loadLog(true)
     void this.persistNow()
+  }
+
+  /** The commit slice without the selection of the previous repository. */
+  #resetCommitSelection() {
+    return {
+      ...this.state.commit,
+      checked: new Set(),
+      unchecked: new Set(),
+      buckets: {},
+      pendingStage: new Set(),
+      selectedPath: '',
+    }
   }
 
   openProjectPicker() {
@@ -732,7 +991,10 @@ export class WorkbenchStore {
       gitDrawerWidth: typeof saved.layout?.gitDrawerWidth === 'number' ? saved.layout.gitDrawerWidth : 420,
     }
     this.set({ expanded, tabs, activeId, layout })
-    for (const tab of tabs) void this.ensureTabContent(tab.id)
+    // Only the focused tab is read from disk. The others wait until the user
+    // focuses them, so a cold workspace does not replay every open file
+    // (PRD-v4 §1.2 PERF-07).
+    if (activeId !== null) void this.ensureTabContent(activeId)
   }
 
   async #persist() {
@@ -784,8 +1046,17 @@ export class WorkbenchStore {
     if (this.pollTimer === null) {
       this.pollTimer = setInterval(() => { void this.pollStatus() }, 2000)
     }
-    if (this.state.root !== '' && this.state.statusAt === 0) void this.refreshStatus({ initial: true })
-    if (this.state.root !== '' && !this.state.dirs.has(this.state.root)) void this.loadRestoredTree()
+    if (this.state.root !== '') {
+      if (this.state.statusAt === 0) {
+        void this.refreshStatus({ initial: true })
+      } else {
+        // A hot workspace reuses its cached snapshot: coming back to it must
+        // not spawn a git subprocess. The 2s poll refreshes the snapshot in
+        // the background and clears the stale flag.
+        this.set({ statusStale: true })
+      }
+    }
+    if (this.state.root !== '' && !this.state.dirs.has(this.state.root)) void this.loadRestoredTree({ lazy: true })
     // Sessions survive a trip to the Conversation: the terminal view is kept
     // mounted by the sidebar, so only its visibility changes.
   }
@@ -797,6 +1068,10 @@ export class WorkbenchStore {
     if (this.pollTimer !== null) {
       clearInterval(this.pollTimer)
       this.pollTimer = null
+    }
+    if (this.restoredTimer !== null) {
+      clearTimeout(this.restoredTimer)
+      this.restoredTimer = null
     }
     void this.persistNow()
   }
@@ -845,14 +1120,26 @@ export class WorkbenchStore {
     }
   }
 
+  /**
+   * Whether the Commit window is on screen.
+   *
+   * Only the Commit window shows the per-file line counts, so the two
+   * `git diff --numstat` calls behind them are only worth their subprocesses
+   * while that window is visible.
+   */
+  #wantsNumstat() {
+    return this.state.layout.left === 'commit'
+  }
+
   async refreshStatus(options = {}) {
     if (this.state.root === '') return
-    if (this.polling && options.silent !== false) return
+    if (this.polling && options.silent !== false && options.force !== true) return
     this.polling = true
-    const root = this.state.root
+    // The status belongs to the repository the Git window reads (GIT-01).
+    const root = this.gitRoot
     try {
-      const status = await call('git.status', { root })
-      if (this.state.root !== root) return
+      const status = await call('git.status', { root, numstat: this.#wantsNumstat() })
+      if (this.gitRoot !== root) return
       const previousPaths = new Set(this.state.status.entries.map(entry => entry.path))
       const nextPaths = new Set(status.entries.map(entry => entry.path))
       const changed = status.entries.some(entry => !previousPaths.has(entry.path))
@@ -861,7 +1148,11 @@ export class WorkbenchStore {
         status,
         statusError: null,
         statusAt: Date.now(),
+        statusStale: false,
       })
+      if (process.env.NODE_ENV !== 'production' && perfCounters !== null && Number.isFinite(status.subprocesses)) {
+        perfCounters.gitSubprocesses += status.subprocesses
+      }
       // Default the history to the current branch once; the user can then pick
       // "All branches" or another branch without the poll resetting it.
       if (!this.state.git.branchInitialized && status.isRepo === true && status.detached !== true && typeof status.branch === 'string' && status.branch !== '') {
@@ -955,21 +1246,53 @@ export class WorkbenchStore {
   }
 
   /**
-   * Load the persisted tree: the root plus every folder the user had expanded.
+   * Load the persisted tree.
    *
-   * The workspace state restores `expanded` synchronously, so without this the
-   * first render of a restored project shows a permanent "loading" row under
-   * each expanded folder (nothing ever asks for its listing).
+   * By default the root and every expanded folder are listed, so a restored
+   * tree never keeps a "loading" row under an expanded folder. The cold entry
+   * uses `{ lazy: true }` instead: it lists the root only (one request) and
+   * fills the deeper levels in the background, so switching to a big workspace
+   * no longer replays its whole tree (PRD-v4 §1.2 PERF-07).
+   * @param {{ lazy?: boolean }} [options]
    */
-  async loadRestoredTree() {
+  async loadRestoredTree(options = {}) {
     if (this.state.root === '') return
     const root = this.state.root
     await this.loadDir(root)
     if (this.state.root !== root) return
-    const pending = [...this.state.expanded]
-      .filter(dir => dir !== root && dir.startsWith(`${root}${root.includes('\\') ? '\\' : '/'}`) && this.state.dirs.get(dir)?.entries === undefined)
+    if (options.lazy === true) {
+      this.#scheduleRestoredFolders(root)
+      return
+    }
+    await Promise.all(this.#restoredFolders(root).map(dir => this.loadDir(dir)))
+  }
+
+  /** The expanded folders of the workspace state that are not listed yet. */
+  #restoredFolders(root) {
+    const separator = root.includes('\\') ? '\\' : '/'
+    return [...this.state.expanded]
+      .filter(dir => dir !== root && dir.startsWith(`${root}${separator}`) && this.state.dirs.get(dir)?.entries === undefined)
       .slice(0, 200)
-    await Promise.all(pending.map(dir => this.loadDir(dir)))
+  }
+
+  /**
+   * List the folders the workspace state had expanded, one after the other.
+   * @param {string} root the project root the folders belong to
+   */
+  async #loadRestoredFolders(root) {
+    for (const dir of this.#restoredFolders(root)) {
+      if (this.state.root !== root) return
+      await this.loadDir(dir)
+    }
+  }
+
+  /** Start the background listing of the restored folders. */
+  #scheduleRestoredFolders(root) {
+    if (this.restoredTimer !== null) clearTimeout(this.restoredTimer)
+    this.restoredTimer = setTimeout(() => {
+      this.restoredTimer = null
+      void this.#loadRestoredFolders(root)
+    }, RESTORED_TREE_DELAY_MS)
   }
 
   async reloadTree() {
@@ -1365,19 +1688,6 @@ export class WorkbenchStore {
     }
   }
 
-  /** Star / unstar absolute paths in Favorites. */
-  async toggleFavorite(paths) {
-    const list = (Array.isArray(paths) ? paths : []).filter(path => typeof path === 'string' && path !== '')
-    if (list.length === 0) return
-    const favorites = Array.isArray(this.state.settings?.favorites) ? [...this.state.settings.favorites] : []
-    for (const path of list) {
-      const index = favorites.indexOf(path)
-      if (index >= 0) favorites.splice(index, 1)
-      else favorites.push(path)
-    }
-    await this.updateSettings({ favorites })
-  }
-
   /** Synchronize: re-read the tree and the git snapshot, keep expansion. */
   async sync() {
     await this.reloadTree()
@@ -1609,20 +1919,20 @@ export class WorkbenchStore {
         })
       } else if (tab.kind === 'diff') {
         const result = tab.compare !== undefined
-          ? await call('git.diff-refs', { root: this.state.root, a: tab.compare.a, b: tab.compare.b })
+          ? await call('git.diff-refs', { root: this.gitRoot, a: tab.compare.a, b: tab.compare.b })
           : tab.commitHash !== undefined
-            ? await call('git.commit-file-diff', { root: this.state.root, hash: tab.commitHash, path: tab.rel })
+            ? await call('git.commit-file-diff', { root: this.gitRoot, hash: tab.commitHash, path: tab.rel })
             : (tab.against === 'head' || tab.against === 'latest')
-              ? await call('git.diff-rev', { root: this.state.root, path: tab.rel, rev: tab.against })
+              ? await call('git.diff-rev', { root: this.gitRoot, path: tab.rel, rev: tab.against })
               : await call('git.diff', {
-                  root: this.state.root,
+                  root: this.gitRoot,
                   path: tab.rel,
                   staged: tab.staged === true,
                   untracked: tab.untracked === true,
                 })
         this.#updateTab(id, { loading: false, payload: result })
       } else if (tab.kind === 'commit') {
-        const detail = await call('git.detail', { root: this.state.root, hash: tab.hash })
+        const detail = await call('git.detail', { root: this.gitRoot, hash: tab.hash })
         this.#updateTab(id, { loading: false, detail })
       }
     } catch (error) {
@@ -1651,6 +1961,9 @@ export class WorkbenchStore {
     this.set({ activeId: id })
     const tab = this.state.tabs.find(item => item.id === id)
     if (tab?.kind === 'file') this.setSelectedPath(tab.path)
+    // A restored tab is read from disk when it is focused for the first time
+    // (PRD-v4 §1.2 PERF-07).
+    void this.ensureTabContent(id)
     this.persist()
   }
 
@@ -2006,6 +2319,11 @@ export class WorkbenchStore {
   /**
    * Check / uncheck a batch. Checking stages, unchecking restages; an
    * untracked file that gets added stays in the Unversioned group (bucket).
+   *
+   * An untracked file is **not** added to the index here (PRD-v4 §3.1): it is
+   * only remembered in `commit.pendingStage` and added when the commit is
+   * made. Checking a row therefore never changes the index, and the row keeps
+   * its `U` letter and its untracked colour.
    */
   async setCommitChecked(entries, checked) {
     const list = (Array.isArray(entries) ? entries : []).filter(entry => entry !== null && entry !== undefined && entry.conflict !== true)
@@ -2014,6 +2332,7 @@ export class WorkbenchStore {
     const checkedSet = new Set(commit.checked)
     const uncheckedSet = new Set(commit.unchecked)
     const buckets = { ...(commit.buckets ?? {}) }
+    const pendingStage = new Set(commit.pendingStage ?? [])
     const toStage = []
     const toUnstage = []
     for (const entry of list) {
@@ -2023,14 +2342,25 @@ export class WorkbenchStore {
         checkedSet.add(entry.path)
         uncheckedSet.delete(entry.path)
         if (entry.untracked === true || buckets[entry.path] === 'untracked') buckets[entry.path] = 'untracked'
-        if (entry.staged !== true) toStage.push(entry.path)
+        if (entry.staged !== true) {
+          if (entry.untracked === true) pendingStage.add(entry.path)
+          else toStage.push(entry.path)
+        }
       } else {
         checkedSet.delete(entry.path)
         uncheckedSet.add(entry.path)
+        // A file that was never added has no index entry to undo.
+        if (entry.untracked === true) pendingStage.delete(entry.path)
         if (entry.staged === true) toUnstage.push(entry.path)
       }
     }
-    this.patch('commit', { checked: checkedSet, unchecked: uncheckedSet, buckets, selectedPath: commit.selectedPath })
+    this.patch('commit', {
+      checked: checkedSet,
+      unchecked: uncheckedSet,
+      buckets,
+      pendingStage,
+      selectedPath: commit.selectedPath,
+    })
     if (toStage.length > 0) await this.stage(toStage)
     if (toUnstage.length > 0) await this.unstage(toUnstage)
   }
@@ -2098,6 +2428,9 @@ export class WorkbenchStore {
   async ignoreEntry(path) {
     if (typeof path !== 'string' || path === '') return
     try {
+      // The .gitignore belongs to the repository of the file tree: the path
+      // is workspace-relative, so it must not follow the Git window's
+      // repository (GIT-01).
       await call('git.ignore', {
         root: this.state.root,
         path,
@@ -2113,7 +2446,16 @@ export class WorkbenchStore {
   /** Open a file in the editor (Change View "Jump to Source"). */
   jumpToSource(path) {
     if (typeof path !== 'string' || path === '') return
-    const absolute = /^([a-zA-Z]:[\\/]|[\\/])/.test(path) ? path : this.#absoluteOf(path)
+    // A status path is relative to the repository the Git window reads, which
+    // may be another repository than the IDE project (PRD-v4 §4.1).
+    const absolute = /^([a-zA-Z]:[\\/]|[\\/])/.test(path) ? path : joinPath(this.gitRoot, path)
+    if (!this.#insideRoot(absolute)) {
+      // The file lives outside the IDE project: the editor is fenced to the
+      // project root, so it cannot open it. Say so instead of opening the
+      // wrong file.
+      this.toast('error', this.t('commit.outsideProject'), absolute)
+      return
+    }
     this.openFile(absolute, { rel: this.relOf(absolute), preview: false })
   }
 
@@ -2147,7 +2489,7 @@ export class WorkbenchStore {
     if (this.state.root === '') return
     this.patch('commit', { messagesLoading: true })
     try {
-      const result = await call('git.messages', { root: this.state.root, count: 10 })
+      const result = await call('git.messages', { root: this.gitRoot, count: 10 })
       this.patch('commit', { messages: result.messages, messagesLoading: false })
     } catch {
       this.patch('commit', { messagesLoading: false })
@@ -2157,7 +2499,7 @@ export class WorkbenchStore {
   async stage(paths, options = {}) {
     if (paths.length === 0) return
     try {
-      await call('git.stage', { root: this.state.root, paths })
+      await call('git.stage', { root: this.gitRoot, paths })
       await this.refreshStatus({ initial: false })
       if (options.refreshDiff === true) this.#reloadActiveDiff()
     } catch (error) {
@@ -2168,7 +2510,7 @@ export class WorkbenchStore {
   async unstage(paths, options = {}) {
     if (paths.length === 0) return
     try {
-      await call('git.unstage', { root: this.state.root, paths })
+      await call('git.unstage', { root: this.gitRoot, paths })
       await this.refreshStatus({ initial: false })
       if (options.refreshDiff === true) this.#reloadActiveDiff()
     } catch (error) {
@@ -2182,7 +2524,7 @@ export class WorkbenchStore {
       return
     }
     try {
-      await call('git.apply-patch', { root: this.state.root, patch, direction })
+      await call('git.apply-patch', { root: this.gitRoot, patch, direction })
       await this.refreshStatus({ initial: false })
       this.#reloadActiveDiff()
     } catch (error) {
@@ -2204,7 +2546,7 @@ export class WorkbenchStore {
       .filter(entry => entry.untracked !== true && !addedPaths.has(entry.path))
       .map(entry => entry.path)
     try {
-      await call('git.discard', { root: this.state.root, paths: tracked, untracked })
+      await call('git.discard', { root: this.gitRoot, paths: tracked, untracked })
       await this.refreshStatus({ initial: false })
       this.toast('success', this.t('common.success'))
     } catch (error) {
@@ -2244,7 +2586,27 @@ export class WorkbenchStore {
           return
         }
       }
-      const result = await call('git.commit', { root: this.state.root, message, amend })
+      // The index may have moved since the last poll, so the commit runs
+      // against a freshly forced status snapshot.
+      await this.refreshStatus({ initial: false, force: true })
+      // The untracked files the user checked are added now, not when they
+      // were checked (PRD-v4 §3.1). A failed Add aborts the commit and leaves
+      // the index as it was.
+      const pendingStage = [...(this.state.commit.pendingStage ?? [])]
+      if (pendingStage.length > 0) {
+        try {
+          await call('git.stage', { root: this.gitRoot, paths: pendingStage })
+        } catch (error) {
+          // Undo whatever reached the index, so no half-added file is left
+          // behind, and keep the selection for a retry.
+          await call('git.unstage', { root: this.gitRoot, paths: pendingStage }).catch(() => {})
+          const text = error instanceof Error ? error.message : String(error)
+          this.patch('commit', { committing: false, error: text })
+          this.toast('error', this.t('commit.commitFailed'), text)
+          return
+        }
+      }
+      const result = await call('git.commit', { root: this.gitRoot, message, amend })
       this.patch('commit', {
         committing: false,
         message: '',
@@ -2253,6 +2615,7 @@ export class WorkbenchStore {
         checked: new Set(),
         unchecked: new Set(),
         buckets: {},
+        pendingStage: new Set(),
         selectedPath: '',
         tasks: { tests: false, optimize: false, cleanup: false },
       })
@@ -2271,7 +2634,7 @@ export class WorkbenchStore {
 
   async push(options = {}) {
     try {
-      await call('git.push', { root: this.state.root })
+      await call('git.push', { root: this.gitRoot })
       this.toast('success', this.t('commit.pushed'))
       await this.refreshStatus({ initial: false })
     } catch (error) {
@@ -2311,7 +2674,7 @@ export class WorkbenchStore {
   async loadBranches() {
     if (this.state.root === '') return
     try {
-      const result = await call('git.branches', { root: this.state.root })
+      const result = await call('git.branches', { root: this.gitRoot })
       this.patch('git', { branches: result.names ?? [] })
     } catch {
       this.patch('git', { branches: [] })
@@ -2327,7 +2690,7 @@ export class WorkbenchStore {
     this.patch('git', { loading: true, error: null })
     try {
       const result = await call('git.log', {
-        root: this.state.root,
+        root: this.gitRoot,
         skip,
         count: pageSize,
         ...this.state.git.filters,
@@ -2371,7 +2734,7 @@ export class WorkbenchStore {
     const token = ++this.gitDetailToken
     this.patch('git', { selectedHash: hash, detailHash: hash, detailLoading: true, detail: null })
     try {
-      const detail = await call('git.detail', { root: this.state.root, hash })
+      const detail = await call('git.detail', { root: this.gitRoot, hash })
       if (token !== this.gitDetailToken || this.state.git.detailHash !== hash) return
       this.patch('git', { detail, detailLoading: false })
     } catch (error) {
@@ -2415,7 +2778,7 @@ export class WorkbenchStore {
 
   async checkout(ref) {
     try {
-      await call('git.checkout', { root: this.state.root, ref })
+      await call('git.checkout', { root: this.gitRoot, ref })
       this.toast('success', this.t('git.branchSwitched'), ref)
       const detached = /^[0-9a-f]{7,40}$/i.test(ref)
       this.patch('git', {
@@ -2435,7 +2798,7 @@ export class WorkbenchStore {
 
   async revert(hash) {
     try {
-      await call('git.revert', { root: this.state.root, hash })
+      await call('git.revert', { root: this.gitRoot, hash })
       this.toast('success', this.t('git.reverted'))
       await this.refreshStatus({ initial: true })
       void this.loadLog(true)
@@ -2689,7 +3052,12 @@ export class WorkbenchStore {
   async updateSettings(patch) {
     try {
       const result = await call('settings.update', { patch })
+      const before = this.state.settings?.project?.showIgnored === true
+      const after = result.value?.project?.showIgnored === true
       this.set({ settings: result.value })
+      // The host only lists ignored entries while that setting is on, so the
+      // status has to be re-read as soon as the toggle changed.
+      if (before !== after) void this.refreshStatus({ silent: true, force: true })
     } catch (error) {
       this.toast('error', this.t('commit.failed'), error instanceof Error ? error.message : String(error))
     }
@@ -2726,5 +3094,99 @@ export class WorkbenchStore {
       ahead: status.ahead,
       behind: status.behind,
     }
+  }
+}
+
+/**
+ * The resident workspace stores, ordered least recently used first.
+ *
+ * One store holds the whole file tree, the tab list and the git snapshot of
+ * its workspace, so keeping one per visited workspace grows the memory
+ * without bound. Only the most recent workspaces stay resident; an older one
+ * is deactivated and dropped. Its persisted state (expanded folders, open
+ * tabs, dock geometry) survives, so re-entering the workspace restores it.
+ *
+ * A workspace whose Session is still mounted keeps its store: the mounted
+ * body would lose its in-memory state when the store disappears.
+ */
+export class StoreCache {
+  /**
+   * @param {{ limit?: number, isMounted?: (sessionId: string) => boolean }} [options]
+   */
+  constructor(options = {}) {
+    this.limit = Number.isInteger(options.limit) && options.limit > 0 ? options.limit : 3
+    this.isMounted = typeof options.isMounted === 'function' ? options.isMounted : () => false
+    /** workspace key → store, in least-recently-used order. */
+    this.stores = new Map()
+    /** workspace key → the Sessions that share that store. */
+    this.sessions = new Map()
+  }
+
+  /** How many stores are resident. */
+  get size() {
+    return this.stores.size
+  }
+
+  /** The store of one workspace key, moved to the most recent slot. */
+  get(key) {
+    const store = this.stores.get(key)
+    if (store === undefined) return undefined
+    this.stores.delete(key)
+    this.stores.set(key, store)
+    return store
+  }
+
+  /**
+   * Remember that one Session uses the store of one workspace key.
+   * A workspace can be shared by several Sessions; every one of them must be
+   * known before the store may be evicted.
+   * @param {string} key workspace key
+   * @param {string} sessionId the Session that uses the store
+   */
+  claim(key, sessionId) {
+    if (typeof sessionId !== 'string' || sessionId === '') return
+    const sessions = this.sessions.get(key)
+    if (sessions === undefined) this.sessions.set(key, new Set([sessionId]))
+    else sessions.add(sessionId)
+  }
+
+  /**
+   * Remember the store of one workspace key and the Session that uses it.
+   * @param {string} key workspace key
+   * @param {any} store the workspace store
+   * @param {string} sessionId the Session that uses it
+   */
+  set(key, store, sessionId) {
+    this.stores.delete(key)
+    this.stores.set(key, store)
+    this.claim(key, sessionId)
+    this.evict()
+    if (process.env.NODE_ENV !== 'production' && perfCounters !== null) perfCounters.stores = this.stores.size
+    return store
+  }
+
+  /**
+   * Drop the least recently used stores until the cache fits its limit.
+   * A workspace that still has a mounted Session keeps its store.
+   */
+  evict() {
+    if (this.stores.size <= this.limit) return
+    for (const [key, store] of [...this.stores]) {
+      if (this.stores.size <= this.limit) break
+      const sessions = this.sessions.get(key)
+      const alive = sessions !== undefined && [...sessions].some(id => this.isMounted(id))
+      if (alive) continue
+      store.deactivate()
+      this.stores.delete(key)
+      this.sessions.delete(key)
+    }
+  }
+
+  /** Deactivate and drop every store (plugin teardown). */
+  clear() {
+    for (const store of this.stores.values()) store.deactivate()
+    this.stores.clear()
+    this.sessions.clear()
+    if (process.env.NODE_ENV !== 'production' && perfCounters !== null) perfCounters.stores = 0
   }
 }

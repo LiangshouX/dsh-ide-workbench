@@ -105,18 +105,60 @@ export async function listProjectCandidates(root) {
 /** Human ordering: directories first, then numeric-aware name order. */
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
 
+/** How many stat calls may run at the same time. */
+const STAT_CONCURRENCY = 16
+
+/**
+ * Map over items with a bounded number of concurrent calls.
+ *
+ * The tree only needs the extra `stat` of the few symlinked entries, so they
+ * are resolved in parallel — but never all at once, so a directory full of
+ * links cannot flood the file descriptor table.
+ * @template T, R
+ * @param {T[]} items
+ * @param {number} limit
+ * @param {(item: T, index: number) => Promise<R>} mapper
+ * @returns {Promise<R[]>}
+ */
+async function mapLimit(items, limit, mapper) {
+  const results = new Array(items.length)
+  let cursor = 0
+  const size = Math.max(1, Math.min(limit, items.length))
+  const workers = []
+  for (let worker = 0; worker < size; worker += 1) {
+    workers.push((async () => {
+      while (cursor < items.length) {
+        const index = cursor
+        cursor += 1
+        results[index] = await mapper(items[index], index)
+      }
+    })())
+  }
+  await Promise.all(workers)
+  return results
+}
+
+/** The filesystem calls `listDirectory` makes; the tests replace them. */
+const listingFs = { readdir, stat }
+
 /**
  * List one directory level.
+ *
+ * The listing comes from one `readdir(withFileTypes)` call: the tree does not
+ * read the size or the mtime of an entry, so no per-entry `lstat` is needed
+ * (a 5k-file directory used to cost 5k serial stats). Only a symlink needs
+ * one extra `stat`, to learn whether it points at a directory.
  * @param {string} root canonical workspace root
  * @param {string} path absolute path inside the workspace
- * @param {{ showHidden?: boolean }} [options]
+ * @param {{ showHidden?: boolean, fs?: { readdir: Function, stat: Function } }} [options]
  */
 export async function listDirectory(root, path, options = {}) {
   const showHidden = options.showHidden !== false
+  const fs = options.fs ?? listingFs
   const dir = resolveInside(root, path)
   let entries
   try {
-    entries = await readdir(dir, { withFileTypes: true })
+    entries = await fs.readdir(dir, { withFileTypes: true })
   } catch (error) {
     throw new ApiError('fs-error', `cannot read directory: ${error instanceof Error ? error.message : String(error)}`, 404)
   }
@@ -128,40 +170,36 @@ export async function listDirectory(root, path, options = {}) {
     const hidden = name.startsWith('.')
     if (hidden && !showHidden) continue
     const absolute = join(dir, name)
-    let isDir = entry.isDirectory()
-    let isSymlink = entry.isSymbolicLink()
-    if (isSymlink) {
-      try {
-        const target = await stat(absolute)
-        isDir = target.isDirectory()
-      } catch {
-        // broken link: keep it visible as a file row
-      }
-    }
-    let size
-    let mtimeMs
-    try {
-      const info = await lstat(absolute)
-      size = info.size
-      mtimeMs = info.mtimeMs
-    } catch {
-      // ToC entry disappeared between readdir and stat: still list it.
-    }
+    const isSymlink = entry.isSymbolicLink()
     output.push({
       name,
       path: absolute,
       rel: toRelative(root, absolute),
-      isDir,
+      isDir: entry.isDirectory(),
       isSymlink,
       hidden,
-      size,
-      mtimeMs,
-      ext: isDir ? '' : extname(name).toLowerCase(),
+      ext: '',
     })
     if (output.length >= MAX_ENTRIES) {
       truncated = true
       break
     }
+  }
+  const links = output.filter(entry => entry.isSymlink)
+  if (links.length > 0) {
+    const resolved = await mapLimit(links, STAT_CONCURRENCY, async (entry) => {
+      try {
+        const target = await fs.stat(entry.path)
+        return target.isDirectory()
+      } catch {
+        // broken link: keep it visible as a file row
+        return false
+      }
+    })
+    links.forEach((entry, index) => { entry.isDir = resolved[index] })
+  }
+  for (const entry of output) {
+    entry.ext = entry.isDir ? '' : extname(entry.name).toLowerCase()
   }
   output.sort((a, b) => {
     if (a.isDir !== b.isDir) return a.isDir ? -1 : 1

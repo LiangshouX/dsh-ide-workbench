@@ -203,10 +203,23 @@ export const CSS = `
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;
+  /* Own container so the breadcrumb can collapse on a narrow *document* pane,
+     not only on a narrow window. */
+  container-type: inline-size; container-name: iwb-editor-toolbar;
 }
-.iwb-breadcrumb { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+/* One line, always: a squeezed segment must clip, never wrap inside the
+   30px toolbar. */
+.iwb-breadcrumb { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.iwb-breadcrumb > * { flex-shrink: 0; }
 .iwb-breadcrumb .iwb-sep { opacity: .5; }
 .iwb-breadcrumb b { color: var(--iwb-fg); font-weight: 600; }
+/* The middle segments collapse into one ellipsis; the file name always stays
+   visible and the full path stays in the element title. */
+.iwb-breadcrumb .iwb-crumb-more { display: none; color: var(--iwb-muted); }
+@container iwb-editor-toolbar (max-width: 520px) {
+  .iwb-breadcrumb .iwb-crumb-mid { display: none; }
+  .iwb-breadcrumb .iwb-crumb-more { display: inline-flex; }
+}
 .iwb-editor-toolbar .iwb-spacer { flex: 1; }
 .iwb-seg {
   display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 6px; overflow: hidden; background: var(--iwb-panel);
@@ -286,6 +299,9 @@ export const CSS = `
   color: var(--iwb-muted); font-size: 10.5px; font-family: var(--iwb-mono); white-space: nowrap;
 }
 
+/* The bottom dock is a direct child of .iwb-root, so it spans the whole
+   workbench width. Its content keeps a 44px left gutter so it never slides
+   under the tool-window stripe. */
 .iwb-bottom {
   position: relative; flex: 0 0 auto; display: flex; flex-direction: column; min-height: 90px;
   border-top: 1px solid var(--iwb-border); background: var(--iwb-panel);
@@ -295,7 +311,7 @@ export const CSS = `
 }
 .iwb-bottom-resizer:hover { background: rgba(76, 154, 255, .22); }
 .iwb-bottom-tabs {
-  height: 30px; flex: 0 0 30px; display: flex; align-items: stretch; gap: 2px; padding: 0 8px;
+  height: 30px; flex: 0 0 30px; display: flex; align-items: stretch; gap: 2px; padding: 0 8px 0 44px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
 }
 .iwb-bottom-tab {
@@ -305,7 +321,7 @@ export const CSS = `
 .iwb-bottom-tab:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .07); }
 .iwb-bottom-tab.iwb-on { color: var(--iwb-fg); border-bottom-color: var(--iwb-accent); }
 .iwb-bottom-tab .iwb-badge { position: static; margin-left: 2px; }
-.iwb-bottom-body { flex: 1; min-height: 0; display: flex; }
+.iwb-bottom-body { flex: 1; min-height: 0; display: flex; padding-left: 44px; }
 .iwb-bottom-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .iwb-bottom-hidden { min-height: 0 !important; border-top: 0 !important; overflow: hidden; }
 .iwb-bottom-hidden .iwb-bottom-body { display: none; }
@@ -331,6 +347,12 @@ export const CSS = `
 .iwb-tree:focus { outline: none; }
 .iwb-tree:focus-visible { outline: 1px solid rgba(76, 154, 255, .35); outline-offset: -1px; }
 .iwb-tree-twisty { width: 16px; flex: 0 0 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--iwb-muted); }
+/* Only a directory twisty is a control; a file row keeps an empty spacer, so
+   the pointer is limited to the rows that can actually be toggled. */
+.iwb-tree-twisty.iwb-tree-twisty-click,
+.iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty { cursor: pointer; border-radius: 3px; }
+.iwb-tree-twisty.iwb-tree-twisty-click:hover,
+.iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .16); }
 .iwb-tree-name { overflow: hidden; text-overflow: ellipsis; }
 .iwb-tree-name.iwb-dir { font-weight: 500; }
 .iwb-tree-row.iwb-git-untracked .iwb-tree-name { color: var(--iwb-git-untracked); }
@@ -409,12 +431,6 @@ export const CSS = `
 .iwb-menu .iwb-menu-sep { height: 1px; margin: 4px 2px; background: var(--iwb-border); }
 .iwb-menu .iwb-menu-label { padding: 5px 8px; color: var(--iwb-muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
 
-.iwb-favorites { max-height: 160px; overflow: auto; border-bottom: 1px solid var(--iwb-border); padding: 4px 6px; }
-.iwb-favorite-row { display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 4px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-.iwb-favorite-row:hover { background: rgba(127, 127, 127, .1); }
-.iwb-favorite-star { color: var(--iwb-warn); }
-.iwb-favorite-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-.iwb-favorite-remove { width: 18px; height: 18px; opacity: .6; }
 .iwb-field { display: flex; flex-direction: column; gap: 5px; margin: 10px 0; font-size: 12px; color: var(--iwb-muted); }
 .iwb-field input, .iwb-field select {
   height: 30px; padding: 0 9px; border-radius: 6px; border: 1px solid var(--iwb-border);
@@ -581,7 +597,6 @@ export const CSS = `
 }
 .iwb-git-file:hover { background: rgba(127, 127, 127, .14); }
 .iwb-git-file-name { font-family: var(--iwb-mono); }
-.iwb-git-file-dir { color: var(--iwb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .iwb-term { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .iwb-term-tabs { display: flex; align-items: center; gap: 2px; padding: 3px 6px; border-bottom: 1px solid var(--iwb-border); overflow-x: auto; }
@@ -787,10 +802,17 @@ export const CSS = `
 .iwb-dom-findbar { position: absolute; top: 0; left: 0; right: 0; z-index: 14; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
 ::highlight(iwb-dom-find) { background-color: rgba(215, 162, 74, .38); }
 ::highlight(iwb-dom-find-active) { background-color: rgba(76, 154, 255, .55); color: inherit; }
-.iwb-conflict-chip {
-  display: inline-flex; align-items: center; gap: 4px; color: var(--iwb-warn); font-size: 11px;
-  padding: 0 4px; border: 1px solid rgba(215,162,74,.45); border-radius: 5px;
+/* Editor-owned dialogs center on the *document* window, not on the whole
+   workbench root: the backdrop is scoped to the editor pane so the top bar
+   and the status bar stay untouched. */
+.iwb-editor-scoped-backdrop {
+  position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .45); padding: 0 12px;
 }
+.iwb-editor-scoped-backdrop .iwb-modal { width: min(440px, 100%); }
+.iwb-editor-scoped-backdrop .iwb-modal h2,
+.iwb-editor-scoped-backdrop .iwb-modal p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iwb-editor-scoped-backdrop .iwb-modal-actions { flex-wrap: wrap; }
 
 .iwb-search { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; z-index: 8; pointer-events: auto; }
 .iwb-search * { pointer-events: auto; }
@@ -912,20 +934,28 @@ export const CSS = `
 .iwb-git-drawer-file:hover { background: rgba(127,127,127,.12); }
 .iwb-git-drawer-file.iwb-selected { background: rgba(76,154,255,.16); }
 .iwb-git-drawer-file .iwb-git-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iwb-git-drawer-file .iwb-git-file-dir { color: var(--iwb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-git-drawer-file .iwb-additions, .iwb-git-drawer-file .iwb-deletions { margin-left: 0; font-size: 10px; }
+/* Changed files render as a collapsible directory tree. */
+.iwb-git-tree { display: flex; flex-direction: column; gap: 1px; }
+.iwb-git-tree-dir {
+  display: flex; align-items: center; gap: 5px; width: 100%; min-height: 23px; padding: 0 5px;
+  border-radius: 4px; text-align: left; font-size: 11.5px;
+}
+.iwb-git-tree-dir:hover { background: rgba(127,127,127,.12); }
+.iwb-git-tree-caret { width: 10px; flex: 0 0 10px; color: var(--iwb-muted); font-size: 9px; text-align: center; }
+.iwb-git-tree-dir-name {
+  font-family: var(--iwb-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.iwb-git-tree-file { padding-left: 20px; }
+/* The Git panel's own repository switcher, mirroring the branch switch. */
+.iwb-repo-switch { max-width: 190px; }
+.iwb-repo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iwb-git-no-repo {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 26px 20px; color: var(--iwb-muted); text-align: center; font-size: 12px;
+}
 .iwb-git-file-status { width: 13px; flex: 0 0 13px; text-align: center; font-family: var(--iwb-mono); font-size: 10px; color: var(--iwb-muted); }
 .iwb-status-A { color: var(--iwb-add); } .iwb-status-D { color: var(--iwb-del); } .iwb-status-R { color: var(--iwb-warn); }
-.iwb-git-drawer-inline { margin-top: 8px; border-top: 1px solid var(--iwb-border); }
-.iwb-git-inline-diff {
-  max-height: 320px; overflow: auto; border: 1px solid var(--iwb-border); border-radius: 5px;
-  background: var(--iwb-bg); font-family: var(--iwb-mono); font-size: 11px; line-height: 17px;
-  user-select: text; padding: 4px 0;
-}
-.iwb-git-inline-line { white-space: pre; padding: 0 8px; }
-.iwb-git-inline-line.iwb-add { background: rgba(79,180,119,.12); }
-.iwb-git-inline-line.iwb-del { background: rgba(226,104,111,.12); }
-.iwb-git-inline-line.iwb-hunk { color: var(--iwb-accent); background: rgba(76,154,255,.08); }
 
 /* Read-only code / diff must be copyable despite the root user-select:none. */
 .iwb-code, .iwb-diff-text, .iwb-diff-side-cell, .iwb-diff-row { user-select: text; }
@@ -958,6 +988,10 @@ export const CSS = `
   .iwb-left { width: 100% !important; min-width: 0; max-width: none; flex: 0 1 38%; min-height: 120px; border-right: 0; border-bottom: 1px solid var(--iwb-border); }
   .iwb-left-resizer { display: none; }
   .iwb-center { min-height: 140px; }
-  .iwb-bottom { max-height: 65%; min-height: 100px; }
+  /* Stacked: the stripe is a horizontal bar, so the dock needs no left gutter.
+     The percentage basis is the root height now, not the editor column. */
+  .iwb-bottom { max-height: 60%; min-height: 100px; }
+  .iwb-bottom-tabs { padding-left: 8px; }
+  .iwb-bottom-body { padding-left: 0; }
 }
 `

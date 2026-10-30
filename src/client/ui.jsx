@@ -112,8 +112,15 @@ export function ContextMenu({ x, y, items, onClose, depth = 0 }) {
   }))
 }
 
-/** Confirmation modal (danger actions always go through this). */
-export function ConfirmModal({ dialog, onClose }) {
+/**
+ * Confirmation modal (danger actions always go through this).
+ *
+ * `scope` picks the centering base: the default centers on the workbench
+ * root (top bar and status bar included), `editor` centers on the document
+ * pane the dialog is rendered in.
+ * @param {{dialog: object|null, onClose: Function, scope?: string|null}} props
+ */
+export function ConfirmModal({ dialog, onClose, scope = null }) {
   const cancelRef = useRef(null)
   useEffect(() => {
     if (dialog === null) return undefined
@@ -145,7 +152,10 @@ export function ConfirmModal({ dialog, onClose }) {
           action: () => dialog.onConfirm?.(),
         },
       ]
-  return React.createElement('div', { className: 'iwb-modal-backdrop', onMouseDown: event => { if (event.target === event.currentTarget) onClose() } },
+  const backdropClass = scope === 'editor'
+    ? 'iwb-modal-backdrop iwb-editor-scoped-backdrop'
+    : 'iwb-modal-backdrop'
+  return React.createElement('div', { className: backdropClass, onMouseDown: event => { if (event.target === event.currentTarget) onClose() } },
     React.createElement('div', { className: 'iwb-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': dialog.title },
       React.createElement('h2', null, dialog.title),
       React.createElement('p', null, dialog.body),

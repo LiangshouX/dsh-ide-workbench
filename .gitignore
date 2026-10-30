@@ -1,5 +1,7 @@
 node_modules/
 dist/client.bundle.cjs
+dist/client.dev.bundle.cjs
+dist/client.dev.js
 .render-tmp/
 .verify/
 .codegraph/

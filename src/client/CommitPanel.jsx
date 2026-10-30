@@ -12,6 +12,31 @@ import { ContextMenu } from './ui.jsx'
 import { FileTypeIcon, IconRefresh } from './icons.jsx'
 import { headerState, groupByChangelist, groupByDirectory, changelistOf, DEFAULT_CHANGELIST } from './commit-model.js'
 import { dirName } from './util.js'
+import { shallowEqual, useStoreSlice } from './hooks.js'
+
+/**
+ * Fields of the workbench state the Commit panel renders.
+ *
+ * `entries` is part of the slice even though the groups are read through the
+ * store getters: the panel has to re-render when the changed-file list moves.
+ * `workspaceRoot` is there for the same reason — the changelists live under
+ * the workspace key in the settings.
+ *
+ * @param {object} state workbench state
+ * @returns {object} the panel's slice
+ */
+export function commitSlice(state) {
+  return {
+    commit: state.commit,
+    entries: state.status.entries,
+    isRepo: state.status.isRepo,
+    branch: state.status.branch,
+    detached: state.status.detached,
+    oid: state.status.oid,
+    settings: state.settings,
+    workspaceRoot: state.workspaceRoot,
+  }
+}
 
 function LineStats({ stats }) {
   if (stats === undefined || stats === null) return null
@@ -23,8 +48,7 @@ function LineStats({ stats }) {
 }
 
 /** One changed file row: checkbox, icon, name, folder, stats, status letter. */
-function FileRow({ store, state, entry, checked, onOpen, onMenu }) {
-  const selected = state.commit.selectedPath === entry.path
+function FileRow({ store, selected, entry, checked, onOpen, onMenu }) {
   const name = entry.path.split(/[\\/]/).pop()
   const parent = dirName(entry.path)
   const stats = entry.staged ? entry.stagedLines : entry.unstagedLines
@@ -76,11 +100,11 @@ function GroupHeader({ store, title, entries, checkedPaths }) {
 }
 
 /** One directory heading inside a group (Group by Directory). */
-function DirectorySection({ store, state, dir, entries, checkedPaths, onOpen, onMenu }) {
+function DirectorySection({ store, dir, entries, checkedPaths, selectedPath, onOpen, onMenu }) {
   return React.createElement('div', { className: 'iwb-dir-section' },
     React.createElement('div', { className: 'iwb-dir-heading' }, dir === '' ? store.t('common.root') : dir),
     entries.map(entry => React.createElement(FileRow, {
-      key: entry.path, store, state, entry,
+      key: entry.path, store, selected: selectedPath === entry.path, entry,
       checked: checkedPaths.has(entry.path), onOpen, onMenu,
     })),
   )
@@ -88,13 +112,16 @@ function DirectorySection({ store, state, dir, entries, checkedPaths, onOpen, on
 
 export function CommitPanel({ store, state }) {
   const t = store.t
+  // `state` is still accepted (the Workbench cleanup drops the prop in a
+  // parallel step) but the panel reads its own slice from now on.
+  const slice = useStoreSlice(store, commitSlice, shallowEqual)
   const groups = store.commitGroups
-  const commit = state.commit
+  const commit = slice.commit
   const checkedPaths = store.checkedCommitPaths
   const changelists = store.changelists
-  const groupByDir = state.settings?.commit?.groupByDirectory === true
+  const groupByDir = slice.settings?.commit?.groupByDirectory === true
   const textareaRef = useRef(null)
-  const initial = state.status.oid === undefined
+  const initial = slice.oid === undefined
   const [menu, setMenu] = useState(null)
   const [dialog, setDialog] = useState(null)
   const history = useMemo(() => commit.messages.map(message => ({
@@ -115,7 +142,7 @@ export function CommitPanel({ store, state }) {
   }, [commit.focusTick])
 
   const canCommit = commit.committing !== true && (checkedPaths.size > 0 || commit.amend === true)
-  const commitSettings = state.settings?.commit ?? {}
+  const commitSettings = slice.settings?.commit ?? {}
   const taskDefs = [
     ['tests', t('commit.taskTests'), commitSettings.testCommand],
     ['optimize', t('commit.taskOptimize'), commitSettings.optimizeImportsCommand],
@@ -136,7 +163,7 @@ export function CommitPanel({ store, state }) {
   }
 
   const rollback = () => {
-    const selected = store.changedEntries.filter(entry => entry.path === state.commit.selectedPath)
+    const selected = store.changedEntries.filter(entry => entry.path === commit.selectedPath)
     const entries = selected.length > 0 ? selected : store.changedEntries.filter(entry => checkedPaths.has(entry.path))
     if (entries.length === 0) return
     store.askConfirm(
@@ -153,7 +180,7 @@ export function CommitPanel({ store, state }) {
     const patchEntry = { path: entry.path, untracked: entry.untracked === true }
     const items = [
       { key: 'show', text: t('commit.showDiff'), action: () => openChange(entry) },
-      { key: 'jump', text: t('commit.jumpToSource'), shortcut: store.state.settings?.shortcuts?.jumpToSource ?? 'F4', action: () => store.jumpToSource(entry.path) },
+      { key: 'jump', text: t('commit.jumpToSource'), shortcut: slice.settings?.shortcuts?.jumpToSource ?? 'F4', action: () => store.jumpToSource(entry.path) },
       null,
       {
         key: 'changelist', text: t('commit.moveToChangelist'),
@@ -170,19 +197,19 @@ export function CommitPanel({ store, state }) {
       { key: 'revert', text: t('commit.revert'), danger: true, action: () => store.revertChange(patchEntry) },
     ]
     return items
-  }, [menu, customLists.join('|'), t, state.settings?.shortcuts])
+  }, [menu, customLists.join('|'), t, slice.settings?.shortcuts])
 
   const renderEntries = (entries) => {
     if (entries.length === 0) return null
     if (!groupByDir) {
       return entries.map(entry => React.createElement(FileRow, {
-        key: entry.path, store, state, entry,
+        key: entry.path, store, selected: commit.selectedPath === entry.path, entry,
         checked: checkedPaths.has(entry.path), onOpen: openChange, onMenu: openMenuFor,
       }))
     }
     return groupByDirectory(entries).map(section => React.createElement(DirectorySection, {
-      key: section.dir, store, state, dir: section.dir, entries: section.entries,
-      checkedPaths, onOpen: openChange, onMenu: openMenuFor,
+      key: section.dir, store, dir: section.dir, entries: section.entries,
+      checkedPaths, selectedPath: commit.selectedPath, onOpen: openChange, onMenu: openMenuFor,
     }))
   }
 
@@ -200,8 +227,8 @@ export function CommitPanel({ store, state }) {
   return React.createElement('div', { className: 'iwb-commit' },
     React.createElement('div', { className: 'iwb-panel-header' },
       React.createElement('span', { className: 'iwb-panel-title' }, t('commit.title')),
-      state.status.isRepo === true
-        ? React.createElement('span', { className: 'iwb-panel-sub' }, state.status.detached === true ? t('git.detached') : (state.status.branch ?? ''))
+      slice.isRepo === true
+        ? React.createElement('span', { className: 'iwb-panel-sub' }, slice.detached === true ? t('git.detached') : (slice.branch ?? ''))
         : React.createElement('span', { className: 'iwb-panel-sub' }, t('welcome.noRepo')),
       React.createElement('span', { className: 'iwb-spacer' }),
       React.createElement('button', {
@@ -215,7 +242,7 @@ export function CommitPanel({ store, state }) {
         onClick: () => { void store.refreshStatus({ initial: true }); void store.loadCommitMessages() },
       }, React.createElement(IconRefresh, { width: 14, height: 14 })),
     ),
-    state.status.isRepo !== true
+    slice.isRepo !== true
       ? React.createElement('div', { className: 'iwb-commit-hint' },
           React.createElement('span', null, t('project.noRepoHint')),
           React.createElement('button', {
@@ -227,7 +254,7 @@ export function CommitPanel({ store, state }) {
     React.createElement('div', { className: 'iwb-commit-message' },
       React.createElement('textarea', {
         ref: textareaRef,
-        placeholder: state.settings?.git?.commitTemplate || t('commit.messagePlaceholder'),
+        placeholder: slice.settings?.git?.commitTemplate || t('commit.messagePlaceholder'),
         value: commit.message,
         spellCheck: false,
         onChange: event => store.setCommitMessage(event.target.value),
@@ -322,7 +349,7 @@ export function CommitPanel({ store, state }) {
       React.createElement('span', { className: 'iwb-spacer' }),
       React.createElement('button', {
         type: 'button', className: 'iwb-textbtn iwb-small iwb-danger', title: t('commit.rollback'),
-        disabled: checkedPaths.size === 0 && state.commit.selectedPath === '',
+        disabled: checkedPaths.size === 0 && commit.selectedPath === '',
         onClick: rollback,
       }, t('commit.rollback')),
     ),

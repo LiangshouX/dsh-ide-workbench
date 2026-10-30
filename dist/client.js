@@ -363,7 +363,7 @@ var en = {
   "settings.findInFilesShortcut": "Find in Files",
   "settings.findInFilesShortcutHint": "Search the whole project",
   "settings.findInFilesAltShortcut": "Find in Files (fallback)",
-  "settings.findInFilesAltShortcutHint": "Used when the shell reserves Ctrl+Shift+F",
+  "settings.findInFilesAltShortcutHint": "Used when the shell reserves Ctrl+Shift+R",
   "settings.terminalGroup": "Terminal",
   "settings.defaultShell": "Default shell profile",
   "settings.defaultShellHint": "New sessions use this shell",
@@ -502,9 +502,7 @@ var en = {
   "project.collapseAll": "Collapse All",
   "project.synchronize": "Synchronize",
   "project.synchronized": "Tree synchronized",
-  "project.addFavorite": "Add to Favorites",
-  "project.removeFavorite": "Remove from Favorites",
-  "project.favorites": "Favorites",
+  "project.locateFile": "Locate File",
   "project.openTerminal": "Open in Terminal",
   "project.openInSidebar": "Open in sidebar tab",
   "project.moveTitle": "Move",
@@ -540,6 +538,11 @@ var en = {
   "git.add": "Add",
   "git.showDiff": "Show Diff",
   "git.showHistory": "Show History",
+  "git.pickRepoHint": "Choose a repository in the Terminal/Git header.",
+  "git.pickRepo": "Choose repository",
+  "git.searchRepo": "Search repository",
+  "git.noRepoCandidate": "No Git repository candidate was found in this workspace.",
+  "git.switchRepoDisabled": "Only the Git window can switch repositories.",
   "git.clearPath": "Clear path filter",
   "git.openFull": "Open full diff",
   "git.detailHint": "Double-click a commit for the full diff",
@@ -574,6 +577,7 @@ var en = {
   "commit.unstageSelection": "Unstage Selection",
   "commit.discardTitle": "Discard changes?",
   "commit.discardBody": "Discard changes in the selected file? This cannot be undone.",
+  "commit.outsideProject": "This file belongs to another repository and is outside the current IDE project.",
   "commit.messageRequired": "Enter a commit message first.",
   "commit.committed": "Committed",
   "commit.commitFailed": "Commit failed",
@@ -790,7 +794,7 @@ var zh = {
   "settings.findInFilesShortcut": "\u5168\u9879\u76EE\u67E5\u627E",
   "settings.findInFilesShortcutHint": "\u641C\u7D22\u6574\u4E2A\u9879\u76EE",
   "settings.findInFilesAltShortcut": "\u5168\u9879\u76EE\u67E5\u627E\uFF08\u5907\u7528\uFF09",
-  "settings.findInFilesAltShortcutHint": "\u5F53\u5916\u58F3\u5360\u7528 Ctrl+Shift+F \u65F6\u4F7F\u7528",
+  "settings.findInFilesAltShortcutHint": "\u5F53\u5916\u58F3\u5360\u7528 Ctrl+Shift+R \u65F6\u4F7F\u7528",
   "settings.terminalGroup": "\u7EC8\u7AEF",
   "settings.defaultShell": "\u9ED8\u8BA4 Shell \u914D\u7F6E",
   "settings.defaultShellHint": "\u65B0\u4F1A\u8BDD\u4F7F\u7528\u8BE5 Shell",
@@ -929,9 +933,7 @@ var zh = {
   "project.collapseAll": "\u6298\u53E0\u5168\u90E8",
   "project.synchronize": "\u4E0E\u78C1\u76D8\u540C\u6B65",
   "project.synchronized": "\u6587\u4EF6\u6811\u5DF2\u540C\u6B65",
-  "project.addFavorite": "\u6DFB\u52A0\u5230\u6536\u85CF\u5939",
-  "project.removeFavorite": "\u4ECE\u6536\u85CF\u5939\u79FB\u9664",
-  "project.favorites": "\u6536\u85CF\u5939",
+  "project.locateFile": "\u6587\u4EF6\u5B9A\u4F4D",
   "project.openTerminal": "\u5728\u7EC8\u7AEF\u4E2D\u6253\u5F00",
   "project.openInSidebar": "\u5728\u4FA7\u680F\u6807\u7B7E\u4E2D\u6253\u5F00",
   "project.moveTitle": "\u79FB\u52A8",
@@ -967,6 +969,11 @@ var zh = {
   "git.add": "\u6DFB\u52A0\u5230\u6682\u5B58\u533A",
   "git.showDiff": "\u663E\u793A\u5DEE\u5F02",
   "git.showHistory": "\u67E5\u770B\u5386\u53F2",
+  "git.pickRepoHint": "\u5728 Terminal/Git \u7EC4\u6807\u9898\u680F\u4E2D\u9009\u62E9\u4ED3\u5E93\u3002",
+  "git.pickRepo": "\u9009\u62E9\u4ED3\u5E93",
+  "git.searchRepo": "\u641C\u7D22\u4ED3\u5E93",
+  "git.noRepoCandidate": "\u5F53\u524D\u5DE5\u4F5C\u533A\u91CC\u6CA1\u6709\u627E\u5230 Git \u4ED3\u5E93\u5019\u9009\u3002",
+  "git.switchRepoDisabled": "\u53EA\u6709 Git \u7A97\u53E3\u624D\u80FD\u5207\u6362\u4ED3\u5E93\u3002",
   "git.clearPath": "\u6E05\u9664\u8DEF\u5F84\u8FC7\u6EE4",
   "git.openFull": "\u6253\u5F00\u5B8C\u6574\u5DEE\u5F02",
   "git.detailHint": "\u53CC\u51FB\u63D0\u4EA4\u67E5\u770B\u5B8C\u6574\u5DEE\u5F02",
@@ -1001,6 +1008,7 @@ var zh = {
   "commit.unstageSelection": "\u53D6\u6D88\u6682\u5B58\u6240\u9009\u884C",
   "commit.discardTitle": "\u4E22\u5F03\u6539\u52A8\uFF1F",
   "commit.discardBody": "\u786E\u5B9A\u4E22\u5F03\u6240\u9009\u6587\u4EF6\u7684\u6539\u52A8\uFF1F\u6B64\u64CD\u4F5C\u65E0\u6CD5\u64A4\u9500\u3002",
+  "commit.outsideProject": "\u8BE5\u6587\u4EF6\u5C5E\u4E8E\u53E6\u4E00\u4E2A\u4ED3\u5E93\uFF0C\u4E0D\u5728\u5F53\u524D IDE \u9879\u76EE\u5185\u3002",
   "commit.messageRequired": "\u8BF7\u5148\u586B\u5199\u63D0\u4EA4\u6D88\u606F\u3002",
   "commit.committed": "\u5DF2\u63D0\u4EA4",
   "commit.commitFailed": "\u63D0\u4EA4\u5931\u8D25",
@@ -1576,6 +1584,58 @@ function resolveFileAddress(parsed, cwd) {
   if (typeof cwd !== "string" || cwd === "") return void 0;
   return normalizeFilePath(`${cwd.replace(/[\\/]+$/, "")}/${path2}`, cwd);
 }
+var MAX_LINK_CANDIDATES = 3;
+function isDriveAbsolutePath(path2) {
+  return /^[A-Za-z]:[\\/]/.test(path2);
+}
+function isUncPath(path2) {
+  return path2.startsWith("\\\\");
+}
+function comparablePath(path2) {
+  if (typeof path2 !== "string" || path2 === "") return "";
+  const slashed = path2.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/+$/, "");
+  const windows2 = /^[A-Za-z]:\//.test(slashed) || slashed.startsWith("//");
+  return windows2 ? slashed.toLowerCase() : slashed;
+}
+function isWithinRoot(root, path2) {
+  const parent = comparablePath(root);
+  if (parent === "") return false;
+  const candidate = comparablePath(path2);
+  return candidate === parent || candidate.startsWith(`${parent}/`);
+}
+function isAmbiguousLinkPath(path2, workspaceRoot) {
+  if (typeof path2 !== "string" || path2 === "") return false;
+  if (isDriveAbsolutePath(path2) || isUncPath(path2)) return false;
+  const slashed = path2.replace(/\\/g, "/");
+  if (!slashed.startsWith("/") || slashed.startsWith("//")) return false;
+  if (typeof workspaceRoot === "string" && workspaceRoot !== "") {
+    return !isWithinRoot(workspaceRoot, slashed);
+  }
+  return true;
+}
+function relativeLinkCandidateEntries(path2, bases) {
+  if (typeof path2 !== "string" || path2 === "") return [];
+  if (isDriveAbsolutePath(path2) || isUncPath(path2)) return [];
+  const slashed = path2.replace(/\\/g, "/");
+  if (slashed.startsWith("//")) return [];
+  const rel = slashed.startsWith("/") ? slashed.slice(1) : slashed;
+  if (rel === "") return [];
+  const list = Array.isArray(bases) ? bases : [];
+  const entries = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const base2 of list) {
+    if (typeof base2 !== "string" || base2 === "") continue;
+    const trimmed = base2.replace(/[\\/]+$/, "");
+    if (trimmed === "") continue;
+    const absolute = normalizeFilePath(`${trimmed}/${rel}`, trimmed);
+    const key = comparablePath(absolute);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push({ base: trimmed, rel, absolute });
+    if (entries.length >= MAX_LINK_CANDIDATES) break;
+  }
+  return entries;
+}
 var NON_IDE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".pdf",
   ".doc",
@@ -1855,6 +1915,17 @@ function shouldContinueIde(ctx, previous, next, visibleSession) {
 
 // src/client/store.js
 var sequence = 0;
+var RESTORED_TREE_DELAY_MS = 200;
+if (false) {
+  window.__iwbPerf = perfCounters;
+}
+function call2(method, payload = {}, signal) {
+  if (false) {
+    if (method.startsWith("fs.")) perfCounters.fs += 1;
+    else if (method.startsWith("git.")) perfCounters.git += 1;
+  }
+  return call(method, payload, signal);
+}
 function nextId(prefix = "id") {
   sequence += 1;
   return `${prefix}-${sequence}`;
@@ -1873,6 +1944,10 @@ function joinPath(root, rel) {
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
+function isPlainRelativeLinkPath(path2) {
+  if (typeof path2 !== "string" || path2 === "") return false;
+  return !path2.replace(/\\/g, "/").startsWith("/");
+}
 function normalizeNewlines(text) {
   return typeof text === "string" ? text.replace(/\r\n/g, "\n") : text;
 }
@@ -1886,6 +1961,10 @@ function initialState() {
     workspaceRoot: "",
     /** The selected IDE project root (workspace root or a first-level child). */
     root: "",
+    /** The repository the Git window reads (GIT-01); the Project root by default. */
+    gitRepoRoot: "",
+    /** The candidate repositories of the Git window. */
+    gitRepos: [],
     /** Root + first-level folders offered by the project picker. */
     projects: [],
     projectPicker: false,
@@ -1895,6 +1974,8 @@ function initialState() {
     status: { isRepo: false, entries: [], branch: void 0, detached: false, ahead: void 0, behind: void 0, root: null },
     statusError: null,
     statusAt: 0,
+    /** True while the cached status is older than the last poll tick. */
+    statusStale: false,
     layout: { left: "project", leftWidth: 300, bottom: null, bottomHeight: 270, gitDrawerWidth: 420 },
     /** True while the pane is too narrow for side-by-side docks (CSS + JS agree). */
     stacked: false,
@@ -1943,6 +2024,8 @@ function initialState() {
       unchecked: /* @__PURE__ */ new Set(),
       /** Paths that stay in the Unversioned group after `git add`. */
       buckets: {},
+      /** Untracked paths that are added to the index when the commit is made. */
+      pendingStage: /* @__PURE__ */ new Set(),
       /** Selected row for the Change View double-click. */
       selectedPath: "",
       /** Pre-commit tasks the user enabled (only shown when configured). */
@@ -1994,6 +2077,7 @@ var WorkbenchStore = class {
     this.state = initialState();
     this.listeners = /* @__PURE__ */ new Set();
     this.pollTimer = null;
+    this.restoredTimer = null;
     this.polling = false;
     this.persist = debounce(() => {
       void this.#persist();
@@ -2018,10 +2102,91 @@ var WorkbenchStore = class {
     };
   };
   getSnapshot = () => this.state;
-  /** Replace state and notify (one render per change). */
+  /**
+   * The repository every git call works on (GIT-01).
+   *
+   * The Git window may read another repository than the Project tree, but the
+   * two stay independent: only the git calls follow this root.
+   */
+  get gitRoot() {
+    return this.state.gitRepoRoot || this.state.root;
+  }
+  /**
+   * Point the Git window at another repository.
+   *
+   * Only the Git window follows: the file tree, the project root and the open
+   * tabs stay exactly as they are (PRD-v4 §4.1).
+   * @param {string} path absolute repository root
+   */
+  async setGitRepoRoot(path2) {
+    if (typeof path2 !== "string" || path2 === "") return;
+    if (sameScopePath(path2, this.state.gitRepoRoot)) return;
+    this.set({ gitRepoRoot: path2 });
+    await this.refreshStatus({ initial: true });
+  }
+  /**
+   * The repository the Git window reads by default.
+   *
+   * The Project root when it is a repository, otherwise the first candidate
+   * repository of the workspace (PRD-v4 §4.1).
+   * @param {string} projectRoot
+   */
+  #defaultGitRepoRoot(projectRoot) {
+    const repos = this.state.gitRepos ?? [];
+    if (repos.some((repo) => sameScopePath(repo.path, projectRoot))) return projectRoot;
+    const first = repos[0];
+    return first?.path ?? projectRoot;
+  }
+  /**
+   * Replace state and notify (one render per change).
+   *
+   * A patch whose values are all `===` to the current state changes nothing,
+   * so it neither replaces the state object nor wakes the subscribers: one
+   * `set` costs one render only when something really changed. Reference
+   * types (`Set`, `Map`, arrays) compare by reference, as they always did.
+   * @param {Record<string, unknown>} patch
+   */
   set(patch) {
-    this.state = { ...this.state, ...patch };
+    if (patch === null || typeof patch !== "object") {
+      this.state = { ...this.state, ...patch };
+      this.#notify();
+      return;
+    }
+    for (const key of Object.keys(patch)) {
+      if (this.state[key] !== patch[key]) {
+        this.state = { ...this.state, ...patch };
+        this.#notify();
+        return;
+      }
+    }
+  }
+  /** Wake every subscriber (one render). */
+  #notify() {
     for (const listener of this.listeners) listener();
+    if (false) perfCounters.notify += 1;
+  }
+  /**
+   * Subscribe to one slice of the state.
+   *
+   * The callback runs only when the selected slice really changed, so a
+   * panel that reads a few fields is not woken by every unrelated change.
+   * @param {(state: any) => unknown} selector picks the slice
+   * @param {(slice: unknown) => void} notify called with the new slice
+   * @param {(left: unknown, right: unknown) => boolean} [isEqual]
+   * @returns {() => void} unsubscribe
+   */
+  subscribeSlice(selector, notify, isEqual = Object.is) {
+    let current = selector(this.state);
+    const listener = () => {
+      const next = selector(this.state);
+      if (isEqual(current, next)) return;
+      current = next;
+      notify(next);
+    };
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
   /** Patch one nested slice. */
   patch(key, patch) {
@@ -2086,9 +2251,9 @@ var WorkbenchStore = class {
       this.set({ localeTick: this.state.localeTick + 1 });
     }));
     try {
-      const settingsResult = await call("settings.get");
+      const settingsResult = await call2("settings.get");
       this.settingsFile = settingsResult.file;
-      const workspaces = await call("workspace.list");
+      const workspaces = await call2("workspace.list");
       const settings = settingsResult.value;
       const preferred = this.preferredRoot !== "" ? this.preferredRoot : this.#pickRoot(settings, workspaces);
       const savedProject = preferred !== void 0 ? settings?.projectRoots?.[preferred] : void 0;
@@ -2103,15 +2268,15 @@ var WorkbenchStore = class {
       if (preferred !== void 0 && preferred !== "") {
         await this.loadProjects(preferred);
         const projectRoot = this.#projectRootFor(preferred);
-        this.set({ root: projectRoot });
+        this.set({ root: projectRoot, gitRepoRoot: this.#defaultGitRepoRoot(projectRoot) });
         this.#restoreWorkspace(projectRoot);
-        void this.loadRestoredTree();
+        void this.loadRestoredTree({ lazy: true });
         this.patch("commit", { mode: settings?.editor?.sideBySide === false ? "unified" : "side" });
         void this.refreshStatus({ initial: true });
         void this.refreshShells();
         if (settings?.lastRoot === void 0 || settings.lastRoot === "") {
           this.state.settings = { ...this.state.settings ?? settings, lastRoot: preferred };
-          void call("settings.update", { patch: { lastRoot: preferred } }).then((result) => {
+          void call2("settings.update", { patch: { lastRoot: preferred } }).then((result) => {
             this.state.settings = result.value;
           }).catch(() => {
           });
@@ -2141,6 +2306,11 @@ var WorkbenchStore = class {
    * - a file outside the workspace → report `outside-workspace`; the caller
    *   hands it to DSH's own sidebar instead of erroring.
    *
+   * A relative link may also name a file of the IDE project root without
+   * saying so (PRD-v4 §7.6.2): the absolute reading is tried first and the
+   * relative candidates → project root, Session cwd, workspace root → get
+   * their turn when the link does not resolve.
+   *
    * The chat's own file opener resolves a path against the viewing Session's
    * workspace and hands the address to `sidebarRight.openResource`; this method
    * turns that address into an absolute path and reveals it in the Project tree
@@ -2164,8 +2334,75 @@ var WorkbenchStore = class {
     if (absolute === void 0) return { status: "failed" };
     const workspace = this.state.workspaceRoot || cwd;
     if (workspace === "" || !isPathWithin(workspace, absolute)) {
+      if (isAmbiguousLinkPath(parsed.path, this.state.workspaceRoot)) {
+        const candidate = await this.#firstExistingCandidate(parsed);
+        if (candidate !== void 0) return this.#openResolved(candidate, workspace, options);
+      }
       return { status: "outside-workspace", absolute };
     }
+    if (this.#insideRoot(absolute)) {
+      this.#revealInProject(absolute, options.line);
+      return { status: "opened", absolute };
+    }
+    if (isPlainRelativeLinkPath(parsed.path)) {
+      const candidate = await this.#firstExistingCandidate(parsed);
+      if (candidate !== void 0) return this.#openResolved(candidate, workspace, options);
+    }
+    if (this.state.tabs.some((tab3) => tab3.dirty === true)) {
+      return { status: "dirty", absolute };
+    }
+    if (options.switchProject !== true) {
+      return { status: "needs-project-switch", absolute };
+    }
+    const switched = await this.selectProject(workspace);
+    if (switched === false || !this.#insideRoot(absolute)) {
+      return { status: "failed", absolute };
+    }
+    this.#revealInProject(absolute, options.line);
+    return { status: "opened", absolute };
+  }
+  /**
+   * The fallback candidates of one chat link, in the order of PRD-v4 §7.4:
+   * the IDE project root, then the Session cwd, then the workspace root.
+   * @param {{ scope: string, sessionId?: string, path: string }} parsed
+   * @returns {{ base: string, rel: string, absolute: string }[]}
+   */
+  #linkCandidates(parsed) {
+    return relativeLinkCandidateEntries(parsed.path, [
+      this.state.root,
+      parsed.scope === "session" ? sessionCwdOf(this.ctx, parsed.sessionId) : "",
+      this.state.workspaceRoot
+    ]);
+  }
+  /**
+   * The first fallback candidate that exists on disk.
+   *
+   * Every candidate is fenced by the DSH workspace: a file outside it is never
+   * opened here, whatever the link says. The host route is the second barrier →
+   * it refuses a path that leaves its root again after `..` is resolved.
+   * @param {{ scope: string, sessionId?: string, path: string }} parsed
+   * @returns {Promise<string | undefined>} the absolute path of the winner
+   */
+  async #firstExistingCandidate(parsed) {
+    const workspace = this.state.workspaceRoot;
+    if (workspace === "") return void 0;
+    for (const candidate of this.#linkCandidates(parsed)) {
+      if (!isPathWithin(workspace, candidate.absolute)) continue;
+      try {
+        await call2("fs.stat", { root: candidate.base, path: candidate.rel });
+        return candidate.absolute;
+      } catch {
+      }
+    }
+    return void 0;
+  }
+  /**
+   * Route one resolved absolute path to the workbench.
+   * @param {string} absolute
+   * @param {string} workspace the DSH workspace root
+   * @param {{ line?: number, switchProject?: boolean }} options
+   */
+  async #openResolved(absolute, workspace, options) {
     if (this.#insideRoot(absolute)) {
       this.#revealInProject(absolute, options.line);
       return { status: "opened", absolute };
@@ -2219,7 +2456,7 @@ var WorkbenchStore = class {
   async openInDefaultBrowser(path2) {
     if (typeof path2 !== "string" || path2 === "") return false;
     try {
-      await call("shell.openExternal", { url: fileUrlForPath(path2) });
+      await call2("shell.openExternal", { url: fileUrlForPath(path2) });
       return true;
     } catch (error) {
       this.toast("error", this.t("browser.openFailed"), errorMessage(error));
@@ -2314,7 +2551,7 @@ var WorkbenchStore = class {
     if (typeof workspaceRoot !== "string" || workspaceRoot === "") return [];
     let projects = [];
     try {
-      const result = await call("workspace.projects", { root: workspaceRoot });
+      const result = await call2("workspace.projects", { root: workspaceRoot });
       projects = Array.isArray(result?.projects) ? result.projects.filter((project) => project !== null && typeof project === "object" && typeof project.path === "string").map((project) => ({
         path: project.path,
         name: typeof project.name === "string" && project.name !== "" ? project.name : baseName(project.path),
@@ -2327,7 +2564,8 @@ var WorkbenchStore = class {
     if (!projects.some((project) => project.path === workspaceRoot)) {
       projects.unshift({ path: workspaceRoot, name: baseName(workspaceRoot), isRepo: false, isRoot: true });
     }
-    this.set({ projects });
+    const gitRepos = projects.filter((project) => project.isRepo === true).map((project) => ({ path: project.path, name: project.name }));
+    this.set({ projects, gitRepos });
     return projects;
   }
   /** The persisted project root for a workspace, when the folder still exists. */
@@ -2342,7 +2580,7 @@ var WorkbenchStore = class {
     if (workspaceRoot === "" || projectRoot === "") return;
     const projectRoots = { ...this.state.settings?.projectRoots ?? {}, [workspaceRoot]: projectRoot };
     this.state.settings = { ...this.state.settings ?? {}, projectRoots };
-    void call("settings.update", { patch: { projectRoots: { [workspaceRoot]: projectRoot } } }).then((result) => {
+    void call2("settings.update", { patch: { projectRoots: { [workspaceRoot]: projectRoot } } }).then((result) => {
       this.state.settings = result.value;
     }).catch(() => {
     });
@@ -2370,6 +2608,7 @@ var WorkbenchStore = class {
     this.set({
       workspaceRoot,
       root: projectRoot,
+      gitRepoRoot: this.#defaultGitRepoRoot(projectRoot),
       projectPicker: false,
       dirs: /* @__PURE__ */ new Map(),
       expanded: /* @__PURE__ */ new Set(),
@@ -2382,11 +2621,14 @@ var WorkbenchStore = class {
       activeId: null,
       status: initialState().status,
       git: { ...initialState().git },
-      search: initialState().search
+      search: initialState().search,
+      // The commit selection belongs to the repository it was made in
+      // (PRD-v4 §3.2): it must not survive the switch.
+      commit: this.#resetCommitSelection()
     });
     this.#rememberProjectRoot(projectRoot);
     this.#restoreWorkspace(projectRoot);
-    void this.loadRestoredTree();
+    void this.loadRestoredTree({ lazy: true });
     await this.refreshStatus({ initial: true });
     void this.refreshShells();
     void this.loadLog(true);
@@ -2418,6 +2660,7 @@ var WorkbenchStore = class {
   async #switchProject(projectRoot) {
     this.set({
       root: projectRoot,
+      gitRepoRoot: this.#defaultGitRepoRoot(projectRoot),
       projectPicker: false,
       dirs: /* @__PURE__ */ new Map(),
       expanded: /* @__PURE__ */ new Set(),
@@ -2430,15 +2673,30 @@ var WorkbenchStore = class {
       activeId: null,
       status: initialState().status,
       git: { ...initialState().git },
-      search: initialState().search
+      search: initialState().search,
+      // The checked paths and the group pins belong to the repository they
+      // were made in (PRD-v4 §3.2): a path of repository A must not stay
+      // pinned in the Unversioned group of repository B.
+      commit: this.#resetCommitSelection()
     });
     this.#rememberProjectRoot(projectRoot);
     this.#restoreWorkspace(projectRoot);
-    void this.loadRestoredTree();
+    void this.loadRestoredTree({ lazy: true });
     await this.refreshStatus({ initial: true });
     void this.refreshShells();
     void this.loadLog(true);
     void this.persistNow();
+  }
+  /** The commit slice without the selection of the previous repository. */
+  #resetCommitSelection() {
+    return {
+      ...this.state.commit,
+      checked: /* @__PURE__ */ new Set(),
+      unchecked: /* @__PURE__ */ new Set(),
+      buckets: {},
+      pendingStage: /* @__PURE__ */ new Set(),
+      selectedPath: ""
+    };
   }
   openProjectPicker() {
     if (this.state.workspaceRoot === "") {
@@ -2487,7 +2745,7 @@ var WorkbenchStore = class {
       gitDrawerWidth: typeof saved.layout?.gitDrawerWidth === "number" ? saved.layout.gitDrawerWidth : 420
     };
     this.set({ expanded, tabs, activeId, layout });
-    for (const tab3 of tabs) void this.ensureTabContent(tab3.id);
+    if (activeId !== null) void this.ensureTabContent(activeId);
   }
   async #persist() {
     const state = this.state;
@@ -2512,7 +2770,7 @@ var WorkbenchStore = class {
         workspaceState: { [state.root]: workspaceState }
       };
       if (state.active === true) patch.lastRoot = state.workspaceRoot;
-      const result = await call("settings.update", { patch });
+      const result = await call2("settings.update", { patch });
       const next = { ...state.settings, ...result.value };
       this.state.settings = next;
     } catch {
@@ -2530,14 +2788,24 @@ var WorkbenchStore = class {
         void this.pollStatus();
       }, 2e3);
     }
-    if (this.state.root !== "" && this.state.statusAt === 0) void this.refreshStatus({ initial: true });
-    if (this.state.root !== "" && !this.state.dirs.has(this.state.root)) void this.loadRestoredTree();
+    if (this.state.root !== "") {
+      if (this.state.statusAt === 0) {
+        void this.refreshStatus({ initial: true });
+      } else {
+        this.set({ statusStale: true });
+      }
+    }
+    if (this.state.root !== "" && !this.state.dirs.has(this.state.root)) void this.loadRestoredTree({ lazy: true });
   }
   deactivate() {
     this.set({ active: false });
     if (this.pollTimer !== null) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
+    }
+    if (this.restoredTimer !== null) {
+      clearTimeout(this.restoredTimer);
+      this.restoredTimer = null;
     }
     void this.persistNow();
   }
@@ -2561,10 +2829,10 @@ var WorkbenchStore = class {
     if (active === void 0 || active.kind !== "file" || active.loading === true) return;
     if (!Number.isFinite(active.payload?.mtimeMs)) return;
     try {
-      const info = await call("fs.stat", { root: this.state.root, path: active.path });
+      const info = await call2("fs.stat", { root: this.state.root, path: active.path });
       if (!Number.isFinite(info.mtimeMs) || Math.abs(info.mtimeMs - active.payload.mtimeMs) <= 0.5) return;
       if (active.dirty === true || active.editing === true) {
-        const result = await call("fs.read", { root: this.state.root, path: active.path });
+        const result = await call2("fs.read", { root: this.state.root, path: active.path });
         const latest = this.state.tabs.find((tab3) => tab3.id === active.id);
         if (latest === void 0) return;
         if (result.kind === "text" && normalizeNewlines(result.content) === normalizeNewlines(latest.payload?.content)) {
@@ -2580,22 +2848,36 @@ var WorkbenchStore = class {
     } catch {
     }
   }
+  /**
+   * Whether the Commit window is on screen.
+   *
+   * Only the Commit window shows the per-file line counts, so the two
+   * `git diff --numstat` calls behind them are only worth their subprocesses
+   * while that window is visible.
+   */
+  #wantsNumstat() {
+    return this.state.layout.left === "commit";
+  }
   async refreshStatus(options = {}) {
     if (this.state.root === "") return;
-    if (this.polling && options.silent !== false) return;
+    if (this.polling && options.silent !== false && options.force !== true) return;
     this.polling = true;
-    const root = this.state.root;
+    const root = this.gitRoot;
     try {
-      const status = await call("git.status", { root });
-      if (this.state.root !== root) return;
+      const status = await call2("git.status", { root, numstat: this.#wantsNumstat() });
+      if (this.gitRoot !== root) return;
       const previousPaths = new Set(this.state.status.entries.map((entry) => entry.path));
       const nextPaths = new Set(status.entries.map((entry) => entry.path));
       const changed = status.entries.some((entry) => !previousPaths.has(entry.path)) || [...previousPaths].some((path2) => !nextPaths.has(path2));
       this.set({
         status,
         statusError: null,
-        statusAt: Date.now()
+        statusAt: Date.now(),
+        statusStale: false
       });
+      if (false) {
+        perfCounters.gitSubprocesses += status.subprocesses;
+      }
       if (!this.state.git.branchInitialized && status.isRepo === true && status.detached !== true && typeof status.branch === "string" && status.branch !== "") {
         this.patch("git", {
           branchInitialized: true,
@@ -2639,7 +2921,7 @@ var WorkbenchStore = class {
     const entry = status.entries.find((item) => item.path === active.rel);
     if (entry === void 0) return;
     if (active.editing === true || active.dirty === true) {
-      void call("fs.read", { root: this.state.root, path: active.path }).then((result) => {
+      void call2("fs.read", { root: this.state.root, path: active.path }).then((result) => {
         const latest = this.state.tabs.find((tab3) => tab3.id === active.id);
         if (latest === void 0 || result.kind !== "text") return;
         if (normalizeNewlines(result.content) !== normalizeNewlines(latest.payload?.content)) {
@@ -2664,7 +2946,7 @@ var WorkbenchStore = class {
     dirs.set(path2, { ...existing ?? {}, loading: true, error: null });
     this.set({ dirs });
     try {
-      const listing = await call("fs.tree", { root, path: path2 });
+      const listing = await call2("fs.tree", { root, path: path2 });
       if (this.state.root !== root || this.treeTokens.get(path2) !== token2) return;
       const next = new Map(this.state.dirs);
       next.set(path2, { loading: false, entries: listing.entries, truncated: listing.truncated, error: null });
@@ -2677,19 +2959,48 @@ var WorkbenchStore = class {
     }
   }
   /**
-   * Load the persisted tree: the root plus every folder the user had expanded.
+   * Load the persisted tree.
    *
-   * The workspace state restores `expanded` synchronously, so without this the
-   * first render of a restored project shows a permanent "loading" row under
-   * each expanded folder (nothing ever asks for its listing).
+   * By default the root and every expanded folder are listed, so a restored
+   * tree never keeps a "loading" row under an expanded folder. The cold entry
+   * uses `{ lazy: true }` instead: it lists the root only (one request) and
+   * fills the deeper levels in the background, so switching to a big workspace
+   * no longer replays its whole tree (PRD-v4 §1.2 PERF-07).
+   * @param {{ lazy?: boolean }} [options]
    */
-  async loadRestoredTree() {
+  async loadRestoredTree(options = {}) {
     if (this.state.root === "") return;
     const root = this.state.root;
     await this.loadDir(root);
     if (this.state.root !== root) return;
-    const pending = [...this.state.expanded].filter((dir) => dir !== root && dir.startsWith(`${root}${root.includes("\\") ? "\\" : "/"}`) && this.state.dirs.get(dir)?.entries === void 0).slice(0, 200);
-    await Promise.all(pending.map((dir) => this.loadDir(dir)));
+    if (options.lazy === true) {
+      this.#scheduleRestoredFolders(root);
+      return;
+    }
+    await Promise.all(this.#restoredFolders(root).map((dir) => this.loadDir(dir)));
+  }
+  /** The expanded folders of the workspace state that are not listed yet. */
+  #restoredFolders(root) {
+    const separator = root.includes("\\") ? "\\" : "/";
+    return [...this.state.expanded].filter((dir) => dir !== root && dir.startsWith(`${root}${separator}`) && this.state.dirs.get(dir)?.entries === void 0).slice(0, 200);
+  }
+  /**
+   * List the folders the workspace state had expanded, one after the other.
+   * @param {string} root the project root the folders belong to
+   */
+  async #loadRestoredFolders(root) {
+    for (const dir of this.#restoredFolders(root)) {
+      if (this.state.root !== root) return;
+      await this.loadDir(dir);
+    }
+  }
+  /** Start the background listing of the restored folders. */
+  #scheduleRestoredFolders(root) {
+    if (this.restoredTimer !== null) clearTimeout(this.restoredTimer);
+    this.restoredTimer = setTimeout(() => {
+      this.restoredTimer = null;
+      void this.#loadRestoredFolders(root);
+    }, RESTORED_TREE_DELAY_MS);
   }
   async reloadTree() {
     const expanded = [...this.state.expanded];
@@ -2751,7 +3062,7 @@ var WorkbenchStore = class {
     if (this.state.fileIndexLoading && !force) return this.state.fileIndex;
     this.set({ fileIndexLoading: true, fileIndexError: null });
     try {
-      const result = await call("fs.files", { root: this.state.root });
+      const result = await call2("fs.files", { root: this.state.root });
       const files = Array.isArray(result.files) ? result.files : [];
       this.set({ fileIndex: files, fileIndexRoot: this.state.root, fileIndexLoading: false });
       return files;
@@ -2843,7 +3154,7 @@ var WorkbenchStore = class {
     });
     if (value === "") return;
     try {
-      const result = await call("fs.search", { root: this.state.root, query: value, ...flags });
+      const result = await call2("fs.search", { root: this.state.root, query: value, ...flags });
       if (token2 !== this.searchToken) return;
       this.patch("search", {
         loading: false,
@@ -2922,7 +3233,7 @@ var WorkbenchStore = class {
     const name2 = String(options.name ?? "").trim();
     if (name2 === "") return;
     try {
-      const result = await call("fs.create", {
+      const result = await call2("fs.create", {
         root: this.state.root,
         parent,
         name: name2,
@@ -2943,7 +3254,7 @@ var WorkbenchStore = class {
     const next = String(name2 ?? "").trim();
     if (next === "" || next === baseName(path2)) return;
     try {
-      const result = await call("fs.rename", { root: this.state.root, path: path2, name: next });
+      const result = await call2("fs.rename", { root: this.state.root, path: path2, name: next });
       this.#applyPathMapping([[path2, this.#absoluteOf(result.target)]]);
       await this.loadDir(parentPath(path2), { force: true });
       await this.refreshStatus();
@@ -2958,7 +3269,7 @@ var WorkbenchStore = class {
     let last2;
     for (const path2 of list) {
       try {
-        last2 = await call("fs.duplicate", { root: this.state.root, path: path2 });
+        last2 = await call2("fs.duplicate", { root: this.state.root, path: path2 });
         await this.loadDir(parentPath(path2), { force: true });
       } catch (error) {
         this.toast("error", this.t("common.error"), errorMessage(error));
@@ -2979,7 +3290,7 @@ var WorkbenchStore = class {
     const list = Array.isArray(paths) ? paths.filter((path2) => typeof path2 === "string") : [];
     if (list.length === 0 || typeof target !== "string" || target === "") return;
     try {
-      const result = await call("fs.move", {
+      const result = await call2("fs.move", {
         root: this.state.root,
         paths: list,
         target,
@@ -3037,7 +3348,7 @@ ${target}`,
     if (list.length === 0) return;
     const trash = options.trash ?? this.state.settings?.delete?.useRecycleBin !== false;
     try {
-      const result = await call("fs.delete", {
+      const result = await call2("fs.delete", {
         root: this.state.root,
         paths: list,
         trash,
@@ -3084,18 +3395,6 @@ ${target}`,
     } catch (error) {
       this.toast("error", this.t("common.error"), errorMessage(error));
     }
-  }
-  /** Star / unstar absolute paths in Favorites. */
-  async toggleFavorite(paths) {
-    const list = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
-    if (list.length === 0) return;
-    const favorites = Array.isArray(this.state.settings?.favorites) ? [...this.state.settings.favorites] : [];
-    for (const path2 of list) {
-      const index = favorites.indexOf(path2);
-      if (index >= 0) favorites.splice(index, 1);
-      else favorites.push(path2);
-    }
-    await this.updateSettings({ favorites });
   }
   /** Synchronize: re-read the tree and the git snapshot, keep expansion. */
   async sync() {
@@ -3156,7 +3455,7 @@ ${target}`,
   /** Reveal one path in the native file manager. */
   async reveal(path2) {
     try {
-      await call("fs.reveal", { root: this.state.root, path: path2 });
+      await call2("fs.reveal", { root: this.state.root, path: path2 });
     } catch (error) {
       this.toast("error", this.t("common.error"), error instanceof Error ? error.message : String(error));
     }
@@ -3164,7 +3463,7 @@ ${target}`,
   /** Open the saved file in the selected external IDE and current project. */
   async openInIde(ide, path2) {
     try {
-      const result = await call("fs.openInIde", { ide, root: this.state.root, path: path2 });
+      const result = await call2("fs.openInIde", { ide, root: this.state.root, path: path2 });
       this.toast("success", this.t("project.ideRequested"));
       return result;
     } catch (error) {
@@ -3287,7 +3586,7 @@ ${target}`,
     this.#updateTab(id2, { loading: true, error: null });
     try {
       if (tab3.kind === "file") {
-        const result = await call("fs.read", { root: this.state.root, path: tab3.path });
+        const result = await call2("fs.read", { root: this.state.root, path: tab3.path });
         const latest = this.state.tabs.find((item) => item.id === id2);
         const text = result.kind === "text" ? normalizeNewlines(result.content) : null;
         const eol2 = typeof result.content === "string" && result.content.includes("\r\n") ? "\r\n" : "\n";
@@ -3307,15 +3606,15 @@ ${target}`,
           ...result.kind === "text" && result.truncated !== true && !editable2 ? { editing: false } : {}
         });
       } else if (tab3.kind === "diff") {
-        const result = tab3.compare !== void 0 ? await call("git.diff-refs", { root: this.state.root, a: tab3.compare.a, b: tab3.compare.b }) : tab3.commitHash !== void 0 ? await call("git.commit-file-diff", { root: this.state.root, hash: tab3.commitHash, path: tab3.rel }) : tab3.against === "head" || tab3.against === "latest" ? await call("git.diff-rev", { root: this.state.root, path: tab3.rel, rev: tab3.against }) : await call("git.diff", {
-          root: this.state.root,
+        const result = tab3.compare !== void 0 ? await call2("git.diff-refs", { root: this.gitRoot, a: tab3.compare.a, b: tab3.compare.b }) : tab3.commitHash !== void 0 ? await call2("git.commit-file-diff", { root: this.gitRoot, hash: tab3.commitHash, path: tab3.rel }) : tab3.against === "head" || tab3.against === "latest" ? await call2("git.diff-rev", { root: this.gitRoot, path: tab3.rel, rev: tab3.against }) : await call2("git.diff", {
+          root: this.gitRoot,
           path: tab3.rel,
           staged: tab3.staged === true,
           untracked: tab3.untracked === true
         });
         this.#updateTab(id2, { loading: false, payload: result });
       } else if (tab3.kind === "commit") {
-        const detail = await call("git.detail", { root: this.state.root, hash: tab3.hash });
+        const detail = await call2("git.detail", { root: this.gitRoot, hash: tab3.hash });
         this.#updateTab(id2, { loading: false, detail });
       }
     } catch (error) {
@@ -3339,6 +3638,7 @@ ${target}`,
     this.set({ activeId: id2 });
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3?.kind === "file") this.setSelectedPath(tab3.path);
+    void this.ensureTabContent(id2);
     this.persist();
   }
   async pinTab(id2, options = {}) {
@@ -3455,7 +3755,7 @@ ${target}`,
     const out = eol2 === "\r\n" ? text.replace(/\n/g, "\r\n") : text;
     this.#updateTab(id2, { saving: true });
     try {
-      const result = await call("fs.write", {
+      const result = await call2("fs.write", {
         root: this.state.root,
         path: tab3.path,
         content: out,
@@ -3681,6 +3981,11 @@ ${target}`,
   /**
    * Check / uncheck a batch. Checking stages, unchecking restages; an
    * untracked file that gets added stays in the Unversioned group (bucket).
+   *
+   * An untracked file is **not** added to the index here (PRD-v4 §3.1): it is
+   * only remembered in `commit.pendingStage` and added when the commit is
+   * made. Checking a row therefore never changes the index, and the row keeps
+   * its `U` letter and its untracked colour.
    */
   async setCommitChecked(entries, checked) {
     const list = (Array.isArray(entries) ? entries : []).filter((entry) => entry !== null && entry !== void 0 && entry.conflict !== true);
@@ -3689,6 +3994,7 @@ ${target}`,
     const checkedSet = new Set(commit.checked);
     const uncheckedSet = new Set(commit.unchecked);
     const buckets2 = { ...commit.buckets ?? {} };
+    const pendingStage = new Set(commit.pendingStage ?? []);
     const toStage = [];
     const toUnstage = [];
     for (const entry of list) {
@@ -3698,14 +4004,24 @@ ${target}`,
         checkedSet.add(entry.path);
         uncheckedSet.delete(entry.path);
         if (entry.untracked === true || buckets2[entry.path] === "untracked") buckets2[entry.path] = "untracked";
-        if (entry.staged !== true) toStage.push(entry.path);
+        if (entry.staged !== true) {
+          if (entry.untracked === true) pendingStage.add(entry.path);
+          else toStage.push(entry.path);
+        }
       } else {
         checkedSet.delete(entry.path);
         uncheckedSet.add(entry.path);
+        if (entry.untracked === true) pendingStage.delete(entry.path);
         if (entry.staged === true) toUnstage.push(entry.path);
       }
     }
-    this.patch("commit", { checked: checkedSet, unchecked: uncheckedSet, buckets: buckets2, selectedPath: commit.selectedPath });
+    this.patch("commit", {
+      checked: checkedSet,
+      unchecked: uncheckedSet,
+      buckets: buckets2,
+      pendingStage,
+      selectedPath: commit.selectedPath
+    });
     if (toStage.length > 0) await this.stage(toStage);
     if (toUnstage.length > 0) await this.unstage(toUnstage);
   }
@@ -3763,7 +4079,7 @@ ${target}`,
   async ignoreEntry(path2) {
     if (typeof path2 !== "string" || path2 === "") return;
     try {
-      await call("git.ignore", {
+      await call2("git.ignore", {
         root: this.state.root,
         path: path2,
         repoRoot: this.state.status.repoRoot ?? void 0
@@ -3777,7 +4093,11 @@ ${target}`,
   /** Open a file in the editor (Change View "Jump to Source"). */
   jumpToSource(path2) {
     if (typeof path2 !== "string" || path2 === "") return;
-    const absolute = /^([a-zA-Z]:[\\/]|[\\/])/.test(path2) ? path2 : this.#absoluteOf(path2);
+    const absolute = /^([a-zA-Z]:[\\/]|[\\/])/.test(path2) ? path2 : joinPath(this.gitRoot, path2);
+    if (!this.#insideRoot(absolute)) {
+      this.toast("error", this.t("commit.outsideProject"), absolute);
+      return;
+    }
     this.openFile(absolute, { rel: this.relOf(absolute), preview: false });
   }
   /** Revert one changed file after confirmation (Change View "Revert"). */
@@ -3809,7 +4129,7 @@ ${name2}`,
     if (this.state.root === "") return;
     this.patch("commit", { messagesLoading: true });
     try {
-      const result = await call("git.messages", { root: this.state.root, count: 10 });
+      const result = await call2("git.messages", { root: this.gitRoot, count: 10 });
       this.patch("commit", { messages: result.messages, messagesLoading: false });
     } catch {
       this.patch("commit", { messagesLoading: false });
@@ -3818,7 +4138,7 @@ ${name2}`,
   async stage(paths, options = {}) {
     if (paths.length === 0) return;
     try {
-      await call("git.stage", { root: this.state.root, paths });
+      await call2("git.stage", { root: this.gitRoot, paths });
       await this.refreshStatus({ initial: false });
       if (options.refreshDiff === true) this.#reloadActiveDiff();
     } catch (error) {
@@ -3828,7 +4148,7 @@ ${name2}`,
   async unstage(paths, options = {}) {
     if (paths.length === 0) return;
     try {
-      await call("git.unstage", { root: this.state.root, paths });
+      await call2("git.unstage", { root: this.gitRoot, paths });
       await this.refreshStatus({ initial: false });
       if (options.refreshDiff === true) this.#reloadActiveDiff();
     } catch (error) {
@@ -3841,7 +4161,7 @@ ${name2}`,
       return;
     }
     try {
-      await call("git.apply-patch", { root: this.state.root, patch, direction });
+      await call2("git.apply-patch", { root: this.gitRoot, patch, direction });
       await this.refreshStatus({ initial: false });
       this.#reloadActiveDiff();
     } catch (error) {
@@ -3858,7 +4178,7 @@ ${name2}`,
     const addedPaths = new Set(added.map((entry) => entry.path));
     const tracked = entries.filter((entry) => entry.untracked !== true && !addedPaths.has(entry.path)).map((entry) => entry.path);
     try {
-      await call("git.discard", { root: this.state.root, paths: tracked, untracked });
+      await call2("git.discard", { root: this.gitRoot, paths: tracked, untracked });
       await this.refreshStatus({ initial: false });
       this.toast("success", this.t("common.success"));
     } catch (error) {
@@ -3886,7 +4206,7 @@ ${name2}`,
       ];
       for (const [key, command2, labelKey] of configured) {
         if (tasks[key] !== true || typeof command2 !== "string" || command2.trim() === "") continue;
-        const outcome = await call("run.command", { root: this.state.root, command: command2 });
+        const outcome = await call2("run.command", { root: this.state.root, command: command2 });
         if (outcome.code !== 0) {
           const text = `${this.t(labelKey)} \xB7 exit ${outcome.code}
 ${outcome.output ?? ""}`.trim();
@@ -3895,7 +4215,21 @@ ${outcome.output ?? ""}`.trim();
           return;
         }
       }
-      const result = await call("git.commit", { root: this.state.root, message, amend });
+      await this.refreshStatus({ initial: false, force: true });
+      const pendingStage = [...this.state.commit.pendingStage ?? []];
+      if (pendingStage.length > 0) {
+        try {
+          await call2("git.stage", { root: this.gitRoot, paths: pendingStage });
+        } catch (error) {
+          await call2("git.unstage", { root: this.gitRoot, paths: pendingStage }).catch(() => {
+          });
+          const text = error instanceof Error ? error.message : String(error);
+          this.patch("commit", { committing: false, error: text });
+          this.toast("error", this.t("commit.commitFailed"), text);
+          return;
+        }
+      }
+      const result = await call2("git.commit", { root: this.gitRoot, message, amend });
       this.patch("commit", {
         committing: false,
         message: "",
@@ -3904,6 +4238,7 @@ ${outcome.output ?? ""}`.trim();
         checked: /* @__PURE__ */ new Set(),
         unchecked: /* @__PURE__ */ new Set(),
         buckets: {},
+        pendingStage: /* @__PURE__ */ new Set(),
         selectedPath: "",
         tasks: { tests: false, optimize: false, cleanup: false }
       });
@@ -3921,7 +4256,7 @@ ${outcome.output ?? ""}`.trim();
   }
   async push(options = {}) {
     try {
-      await call("git.push", { root: this.state.root });
+      await call2("git.push", { root: this.gitRoot });
       this.toast("success", this.t("commit.pushed"));
       await this.refreshStatus({ initial: false });
     } catch (error) {
@@ -3958,7 +4293,7 @@ ${outcome.output ?? ""}`.trim();
   async loadBranches() {
     if (this.state.root === "") return;
     try {
-      const result = await call("git.branches", { root: this.state.root });
+      const result = await call2("git.branches", { root: this.gitRoot });
       this.patch("git", { branches: result.names ?? [] });
     } catch {
       this.patch("git", { branches: [] });
@@ -3972,8 +4307,8 @@ ${outcome.output ?? ""}`.trim();
     const skip = reset ? 0 : this.state.git.skip;
     this.patch("git", { loading: true, error: null });
     try {
-      const result = await call("git.log", {
-        root: this.state.root,
+      const result = await call2("git.log", {
+        root: this.gitRoot,
         skip,
         count: pageSize,
         ...this.state.git.filters
@@ -4011,7 +4346,7 @@ ${outcome.output ?? ""}`.trim();
     const token2 = ++this.gitDetailToken;
     this.patch("git", { selectedHash: hash3, detailHash: hash3, detailLoading: true, detail: null });
     try {
-      const detail = await call("git.detail", { root: this.state.root, hash: hash3 });
+      const detail = await call2("git.detail", { root: this.gitRoot, hash: hash3 });
       if (token2 !== this.gitDetailToken || this.state.git.detailHash !== hash3) return;
       this.patch("git", { detail, detailLoading: false });
     } catch (error) {
@@ -4058,7 +4393,7 @@ ${outcome.output ?? ""}`.trim();
   }
   async checkout(ref) {
     try {
-      await call("git.checkout", { root: this.state.root, ref });
+      await call2("git.checkout", { root: this.gitRoot, ref });
       this.toast("success", this.t("git.branchSwitched"), ref);
       const detached = /^[0-9a-f]{7,40}$/i.test(ref);
       this.patch("git", {
@@ -4077,7 +4412,7 @@ ${outcome.output ?? ""}`.trim();
   }
   async revert(hash3) {
     try {
-      await call("git.revert", { root: this.state.root, hash: hash3 });
+      await call2("git.revert", { root: this.gitRoot, hash: hash3 });
       this.toast("success", this.t("git.reverted"));
       await this.refreshStatus({ initial: true });
       void this.loadLog(true);
@@ -4088,7 +4423,7 @@ ${outcome.output ?? ""}`.trim();
   // ── terminal ──────────────────────────────────────────────────────────
   async refreshShells() {
     try {
-      const result = await call("terminal.shells");
+      const result = await call2("terminal.shells");
       this.patch("terminal", { shells: result.shells, shellsLoaded: true });
     } catch {
       this.patch("terminal", { shellsLoaded: true });
@@ -4150,7 +4485,7 @@ ${outcome.output ?? ""}`.trim();
     };
     if (session.id !== void 0 && session.status === "running") {
       try {
-        const activity = await call("terminal.activity", { id: session.id });
+        const activity = await call2("terminal.activity", { id: session.id });
         if (activity.state === "busy") {
           this.askConfirm(
             this.t("terminal.close"),
@@ -4304,8 +4639,11 @@ ${outcome.output ?? ""}`.trim();
   // ── settings ──────────────────────────────────────────────────────────
   async updateSettings(patch) {
     try {
-      const result = await call("settings.update", { patch });
+      const result = await call2("settings.update", { patch });
+      const before = this.state.settings?.project?.showIgnored === true;
+      const after = result.value?.project?.showIgnored === true;
       this.set({ settings: result.value });
+      if (before !== after) void this.refreshStatus({ silent: true, force: true });
     } catch (error) {
       this.toast("error", this.t("commit.failed"), error instanceof Error ? error.message : String(error));
     }
@@ -4318,7 +4656,7 @@ ${outcome.output ?? ""}`.trim();
   }
   async addWorkspace(path2) {
     try {
-      const workspace = await call("workspace.add", { path: path2 });
+      const workspace = await call2("workspace.add", { path: path2 });
       const items = this.state.workspaces.some((item) => item.path === workspace.path) ? this.state.workspaces : [...this.state.workspaces, workspace];
       this.set({ workspaces: items, rootPicker: false });
       await this.setRoot(workspace.path);
@@ -4338,6 +4676,79 @@ ${outcome.output ?? ""}`.trim();
     };
   }
 };
+var StoreCache = class {
+  /**
+   * @param {{ limit?: number, isMounted?: (sessionId: string) => boolean }} [options]
+   */
+  constructor(options = {}) {
+    this.limit = Number.isInteger(options.limit) && options.limit > 0 ? options.limit : 3;
+    this.isMounted = typeof options.isMounted === "function" ? options.isMounted : () => false;
+    this.stores = /* @__PURE__ */ new Map();
+    this.sessions = /* @__PURE__ */ new Map();
+  }
+  /** How many stores are resident. */
+  get size() {
+    return this.stores.size;
+  }
+  /** The store of one workspace key, moved to the most recent slot. */
+  get(key) {
+    const store = this.stores.get(key);
+    if (store === void 0) return void 0;
+    this.stores.delete(key);
+    this.stores.set(key, store);
+    return store;
+  }
+  /**
+   * Remember that one Session uses the store of one workspace key.
+   * A workspace can be shared by several Sessions; every one of them must be
+   * known before the store may be evicted.
+   * @param {string} key workspace key
+   * @param {string} sessionId the Session that uses the store
+   */
+  claim(key, sessionId) {
+    if (typeof sessionId !== "string" || sessionId === "") return;
+    const sessions = this.sessions.get(key);
+    if (sessions === void 0) this.sessions.set(key, /* @__PURE__ */ new Set([sessionId]));
+    else sessions.add(sessionId);
+  }
+  /**
+   * Remember the store of one workspace key and the Session that uses it.
+   * @param {string} key workspace key
+   * @param {any} store the workspace store
+   * @param {string} sessionId the Session that uses it
+   */
+  set(key, store, sessionId) {
+    this.stores.delete(key);
+    this.stores.set(key, store);
+    this.claim(key, sessionId);
+    this.evict();
+    if (false) perfCounters.stores = this.stores.size;
+    return store;
+  }
+  /**
+   * Drop the least recently used stores until the cache fits its limit.
+   * A workspace that still has a mounted Session keeps its store.
+   */
+  evict() {
+    if (this.stores.size <= this.limit) return;
+    for (const [key, store] of [...this.stores]) {
+      if (this.stores.size <= this.limit) break;
+      const sessions = this.sessions.get(key);
+      const alive = sessions !== void 0 && [...sessions].some((id2) => this.isMounted(id2));
+      if (alive) continue;
+      store.deactivate();
+      this.stores.delete(key);
+      this.sessions.delete(key);
+    }
+  }
+  /** Deactivate and drop every store (plugin teardown). */
+  clear() {
+    for (const store of this.stores.values()) store.deactivate();
+    this.stores.clear();
+    this.sessions.clear();
+    if (false) perfCounters.stores = 0;
+  }
+};
 
 // src/client/Workbench.jsx
 var import_react17 = __toESM(require("react"), 1);
@@ -4346,6 +4757,36 @@ var import_react17 = __toESM(require("react"), 1);
 var import_react = require("react");
 function useWorkbench(store) {
   return (0, import_react.useSyncExternalStore)(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+function shallowEqual(left, right) {
+  if (Object.is(left, right)) return true;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return false;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (const key of leftKeys) {
+    if (!Object.is(left[key], right[key])) return false;
+  }
+  return true;
+}
+function useStoreSlice(store, selector, isEqual = Object.is) {
+  const selectorRef = (0, import_react.useRef)(selector);
+  const isEqualRef = (0, import_react.useRef)(isEqual);
+  selectorRef.current = selector;
+  isEqualRef.current = isEqual;
+  const cacheRef = (0, import_react.useRef)({ value: void 0, ready: false, localeTick: void 0 });
+  const getSnapshot = (0, import_react.useCallback)(() => {
+    const cache4 = cacheRef.current;
+    const state = store.getSnapshot();
+    const next = selector(state);
+    const localeTick = state?.localeTick;
+    if (cache4.ready && cache4.localeTick === localeTick && isEqualRef.current(cache4.value, next)) return cache4.value;
+    cache4.value = next;
+    cache4.localeTick = localeTick;
+    cache4.ready = true;
+    return next;
+  }, [store]);
+  return (0, import_react.useSyncExternalStore)(store.subscribe, getSnapshot, getSnapshot);
 }
 
 // src/client/icons.jsx
@@ -4885,7 +5326,7 @@ function ContextMenu({ x, y, items, onClose, depth = 0 }) {
     );
   }));
 }
-function ConfirmModal({ dialog, onClose }) {
+function ConfirmModal({ dialog, onClose, scope = null }) {
   const cancelRef = (0, import_react3.useRef)(null);
   (0, import_react3.useEffect)(() => {
     if (dialog === null) return void 0;
@@ -4914,9 +5355,10 @@ function ConfirmModal({ dialog, onClose }) {
       action: () => dialog.onConfirm?.()
     }
   ];
+  const backdropClass = scope === "editor" ? "iwb-modal-backdrop iwb-editor-scoped-backdrop" : "iwb-modal-backdrop";
   return import_react3.default.createElement(
     "div",
-    { className: "iwb-modal-backdrop", onMouseDown: (event) => {
+    { className: backdropClass, onMouseDown: (event) => {
       if (event.target === event.currentTarget) onClose();
     } },
     import_react3.default.createElement(
@@ -5115,9 +5557,8 @@ var SHORTCUT_FALLBACK = {
   duplicate: "F5",
   move: "F6",
   synchronize: "Ctrl+Alt+Y",
-  favorite: "Alt+Shift+F",
   compare: "Ctrl+D",
-  findInFiles: "Ctrl+Shift+F",
+  findInFiles: "Ctrl+Shift+R",
   quickOpen: "Ctrl+Shift+N",
   openEntry: "Enter"
 };
@@ -5195,6 +5636,9 @@ function flatten(state, filter, showIgnored, ignored, mode = "tree") {
   }
   return rows;
 }
+function flattenInputs(state, showIgnored, ignored, mode) {
+  return [state.dirs, state.expanded, state.root, state.filter, showIgnored, ignored, mode];
+}
 function templateContent(templateId, name2) {
   const stem = name2.replace(/\.[^.]+$/, "") || name2;
   const pascal = stem.replace(/(^|[-_.\s]+)([a-zA-Z0-9])/g, (_2, __, ch) => ch.toUpperCase()).replace(/[^a-zA-Z0-9]/g, "");
@@ -5255,7 +5699,104 @@ var NEW_TEMPLATES = [
   { id: "shell", labelKey: "project.tplShell", ext: ".sh" },
   { id: "gitignore", labelKey: "project.tplGitignore", ext: "" }
 ];
-function ProjectPanel({ store, state }) {
+var TreeRow = import_react4.default.memo(function TreeRow2({
+  entry,
+  depth,
+  top: top2,
+  open,
+  selected,
+  statusKind,
+  ignored,
+  excluded,
+  dropTarget,
+  active,
+  editing,
+  renameValue,
+  relative,
+  quick,
+  onRowClick,
+  onRowDoubleClick,
+  onContextMenu,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  onToggleDir,
+  onRenameChange,
+  onRenameKeyDown,
+  onRenameBlur
+}) {
+  const isDir = entry.isDir === true;
+  const style = (0, import_react4.useMemo)(() => ({ top: `${top2}px`, paddingLeft: `${8 + depth * 14}px` }), [top2, depth]);
+  const classes = (0, import_react4.useMemo)(() => [
+    "iwb-vlist-row",
+    "iwb-tree-row",
+    selected ? "iwb-selected" : "",
+    statusKind !== void 0 ? statusClass(statusKind) : "",
+    ignored ? "iwb-git-ignored" : "",
+    excluded ? "iwb-excluded" : "",
+    dropTarget ? "iwb-drop-target" : ""
+  ].filter(Boolean).join(" "), [selected, statusKind, ignored, excluded, dropTarget]);
+  return import_react4.default.createElement(
+    "div",
+    {
+      className: active ? `${classes} iwb-opened` : classes,
+      style,
+      title: entry.rel,
+      draggable: isDir ? true : !editing,
+      onClick: (event) => onRowClick(event, entry, quick),
+      onDoubleClick: () => onRowDoubleClick(entry),
+      onContextMenu: (event) => onContextMenu(event, entry),
+      onDragStart: (event) => onDragStart(event, entry),
+      onDragOver: (event) => onDragOver(event, entry),
+      onDrop: (event) => onDrop(event, entry),
+      onDragEnd
+    },
+    isDir ? import_react4.default.createElement("span", {
+      className: "iwb-tree-twisty iwb-tree-twisty-click",
+      // The twisty sits inside the row, which selects on click: without
+      // stopPropagation one click would select *and* toggle the folder.
+      onClick: (event) => {
+        event.stopPropagation();
+        onToggleDir(entry.path);
+      }
+    }, open ? import_react4.default.createElement(ChevronDown, null) : import_react4.default.createElement(ChevronRight, null)) : import_react4.default.createElement("span", { className: "iwb-tree-twisty" }),
+    isDir ? import_react4.default.createElement(FileTypeIcon, { name: entry.name, isDir: true, open, size: 15 }) : import_react4.default.createElement(FileTypeIcon, { name: entry.name, size: 15 }),
+    isDir ? import_react4.default.createElement("span", { className: "iwb-tree-name iwb-dir" }, entry.name) : editing ? import_react4.default.createElement("input", {
+      className: "iwb-rename-input",
+      autoFocus: true,
+      value: renameValue,
+      onChange: (event) => onRenameChange(event.target.value),
+      onKeyDown: onRenameKeyDown,
+      onBlur: onRenameBlur,
+      onClick: (event) => event.stopPropagation(),
+      onDoubleClick: (event) => event.stopPropagation()
+    }) : import_react4.default.createElement("span", { className: "iwb-tree-name" }, entry.name),
+    relative !== void 0 ? import_react4.default.createElement("span", { className: "iwb-tree-relative" }, relative) : null
+  );
+});
+function projectSlice(state) {
+  return {
+    dirs: state.dirs,
+    expanded: state.expanded,
+    root: state.root,
+    filter: state.filter,
+    filterMode: state.filterMode,
+    fileIndex: state.fileIndex,
+    fileIndexLoading: state.fileIndexLoading,
+    fileIndexError: state.fileIndexError,
+    status: state.status,
+    settings: state.settings,
+    selectedPath: state.selectedPath,
+    selectedPaths: state.selectedPaths,
+    tabs: state.tabs,
+    activeId: state.activeId,
+    treeFocusTick: state.treeFocusTick,
+    clipboard: state.clipboard
+  };
+}
+function ProjectPanel({ store, state: _state }) {
+  const slice = useStoreSlice(store, projectSlice, shallowEqual);
   const t2 = store.t;
   const [filterOpen, setFilterOpen] = (0, import_react4.useState)(false);
   const [menu, setMenu] = (0, import_react4.useState)(null);
@@ -5263,36 +5804,41 @@ function ProjectPanel({ store, state }) {
   const [viewport, setViewport] = (0, import_react4.useState)(600);
   const [renaming, setRenaming] = (0, import_react4.useState)(null);
   const [dialog, setDialog] = (0, import_react4.useState)(null);
-  const [favoritesOpen, setFavoritesOpen] = (0, import_react4.useState)(false);
   const [dropTarget, setDropTarget] = (0, import_react4.useState)(null);
   const scrollRef = (0, import_react4.useRef)(null);
   const treeRef = (0, import_react4.useRef)(null);
   const dragRef = (0, import_react4.useRef)(null);
-  const shortcuts = state.settings?.shortcuts ?? {};
+  const shortcuts = slice.settings?.shortcuts ?? {};
   const shortcutFor = (key) => shortcuts[key] ?? SHORTCUT_FALLBACK[key] ?? "";
-  const showIgnored = state.settings?.project?.showIgnored === true;
-  const singleClickOpen = state.settings?.project?.singleClickOpen === true;
-  const status = (0, import_react4.useMemo)(() => aggregateStatus(state.status.entries ?? []), [state.status]);
-  const filterMode = state.filterMode === "tree" ? "tree" : "files";
+  const showIgnored = slice.settings?.project?.showIgnored === true;
+  const singleClickOpen = slice.settings?.project?.singleClickOpen === true;
+  const status = (0, import_react4.useMemo)(() => aggregateStatus(slice.status.entries ?? []), [slice.status]);
+  const filterMode = slice.filterMode === "tree" ? "tree" : "files";
   const quickRows = (0, import_react4.useMemo)(() => {
-    const query = state.filter.trim().toLowerCase();
+    const query = slice.filter.trim().toLowerCase();
     if (filterMode !== "files" || query === "") return [];
-    return state.fileIndex.filter((rel) => rel.toLowerCase().includes(query)).slice(0, 300).map((rel) => ({
+    return slice.fileIndex.filter((rel) => rel.toLowerCase().includes(query)).slice(0, 300).map((rel) => ({
       kind: "file",
       key: `quick:${rel}`,
       quick: true,
       entry: {
         name: rel.slice(rel.lastIndexOf("/") + 1),
-        path: absoluteOf(state.root, rel),
+        path: absoluteOf(slice.root, rel),
         rel,
         isDir: false
       }
     }));
-  }, [filterMode, state.filter, state.fileIndex, state.root]);
-  const treeRows = (0, import_react4.useMemo)(() => flatten(state, state.filter, showIgnored, status.ignored, filterMode), [state, state.filter, showIgnored, status, filterMode]);
-  const rows = filterMode === "files" && state.filter.trim() !== "" ? quickRows : treeRows;
+  }, [filterMode, slice.filter, slice.fileIndex, slice.root]);
+  const treeRows = (0, import_react4.useMemo)(
+    () => flatten(slice, slice.filter, showIgnored, status.ignored, filterMode),
+    flattenInputs(slice, showIgnored, status.ignored, filterMode)
+  );
+  const rows = filterMode === "files" && slice.filter.trim() !== "" ? quickRows : treeRows;
   const rowPaths = (0, import_react4.useMemo)(() => rows.filter((row) => row.entry !== void 0).map((row) => row.entry.path), [rows]);
-  const excluded = state.settings?.project?.excluded ?? [];
+  const excluded = slice.settings?.project?.excluded ?? [];
+  const rowPathsRef = (0, import_react4.useRef)(rowPaths);
+  const selectionRef = (0, import_react4.useRef)(/* @__PURE__ */ new Set());
+  const currentPathsRef = (0, import_react4.useRef)([]);
   (0, import_react4.useEffect)(() => {
     if (scrollRef.current === null) return void 0;
     const element = scrollRef.current;
@@ -5302,34 +5848,36 @@ function ProjectPanel({ store, state }) {
     return () => observer.disconnect();
   }, []);
   (0, import_react4.useEffect)(() => {
-    if ((state.treeFocusTick ?? 0) > 0) scrollRef.current?.focus();
-  }, [state.treeFocusTick]);
+    if ((slice.treeFocusTick ?? 0) > 0) scrollRef.current?.focus();
+  }, [slice.treeFocusTick]);
   (0, import_react4.useEffect)(() => {
     if (scrollRef.current !== null) scrollRef.current.scrollTop = 0;
     setScrollTop(0);
-  }, [state.root]);
+  }, [slice.root]);
   (0, import_react4.useEffect)(() => {
-    if (state.selectedPath === "" || scrollRef.current === null) return;
-    const index = rows.findIndex((row) => row.entry?.path === state.selectedPath);
+    if (slice.selectedPath === "" || scrollRef.current === null) return;
+    const index = rows.findIndex((row) => row.entry?.path === slice.selectedPath);
     if (index < 0) return;
     const top2 = index * ROW_HEIGHT;
     const element = scrollRef.current;
     if (top2 < element.scrollTop || top2 > element.scrollTop + element.clientHeight - ROW_HEIGHT * 2) {
       element.scrollTop = Math.max(0, top2 - element.clientHeight / 2);
     }
-  }, [state.selectedPath, rows.length]);
+  }, [slice.selectedPath, rows]);
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 6);
   const end = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + 6);
   const visible = rows.slice(start, end);
-  const selection = state.selectedPaths instanceof Set ? state.selectedPaths : new Set(state.selectedPath === "" ? [] : [state.selectedPath]);
-  const selectedEntries = rows.filter((row) => selection.has(row.entry?.path)).map((row) => row.entry);
-  const openMenu = (event, row) => {
+  const selection = (0, import_react4.useMemo)(
+    () => slice.selectedPaths instanceof Set ? slice.selectedPaths : new Set(slice.selectedPath === "" ? [] : [slice.selectedPath]),
+    [slice.selectedPaths, slice.selectedPath]
+  );
+  const selectedEntries = (0, import_react4.useMemo)(() => rows.filter((row) => selection.has(row.entry?.path)).map((row) => row.entry), [rows, selection]);
+  const openMenu = (0, import_react4.useCallback)((event, entry) => {
     event.preventDefault();
     event.stopPropagation();
-    const entry = row?.entry;
-    if (entry !== void 0 && !selection.has(entry.path)) store.setSelection([entry.path], entry.path);
-    setMenu({ x: event.clientX, y: event.clientY, row });
-  };
+    if (entry !== void 0 && !selectionRef.current.has(entry.path)) store.setSelection([entry.path], entry.path);
+    setMenu({ x: event.clientX, y: event.clientY, entry });
+  }, [store]);
   const copy = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -5354,20 +5902,27 @@ function ProjectPanel({ store, state }) {
   const beginMove = (entries) => {
     setDialog({ kind: "move", paths: entries.map((entry) => entry.path), target: "" });
   };
-  const currentEntries = selectedEntries.length > 0 ? selectedEntries : menu?.row?.entry !== void 0 ? [menu.row.entry] : [];
+  const currentEntries = (0, import_react4.useMemo)(
+    () => selectedEntries.length > 0 ? selectedEntries : menu?.entry !== void 0 ? [menu.entry] : [],
+    [selectedEntries, menu?.entry]
+  );
   const currentEntry = currentEntries[0];
   const currentRel = currentEntry?.rel ?? "";
-  const currentPaths = currentEntries.map((entry) => entry.path);
-  const currentRels = currentEntries.map((entry) => entry.rel);
+  const currentPaths = (0, import_react4.useMemo)(() => currentEntries.map((entry) => entry.path), [currentEntries]);
+  const currentRels = (0, import_react4.useMemo)(() => currentEntries.map((entry) => entry.rel), [currentEntries]);
+  (0, import_react4.useEffect)(() => {
+    rowPathsRef.current = rowPaths;
+    selectionRef.current = selection;
+    currentPathsRef.current = currentPaths;
+  });
   const menuItems = (0, import_react4.useMemo)(() => {
     if (menu === null) return [];
-    const entry = menu.row?.entry;
+    const entry = menu.entry;
     const isDir = entry?.isDir === true;
-    const parentDir = entry === void 0 ? state.root : isDir ? entry.path : parentOf(entry.path);
-    const pasteTarget = isDir ? entry.path : entry === void 0 ? state.root : parentOf(entry.path);
+    const parentDir = entry === void 0 ? slice.root : isDir ? entry.path : parentOf(entry.path);
+    const pasteTarget = isDir ? entry.path : entry === void 0 ? slice.root : parentOf(entry.path);
     const shortcut = shortcutFor;
     const items = [
-      { key: "find-in-files", text: t2("search.title"), shortcut: shortcut("findInFiles"), action: () => store.openSearchTab() },
       { key: "quick-open", text: t2("quickOpen.title"), shortcut: shortcut("quickOpen"), action: () => store.openQuickOpen() },
       null,
       {
@@ -5385,7 +5940,7 @@ function ProjectPanel({ store, state }) {
       null,
       { key: "cut", text: t2("project.cut"), shortcut: shortcut("cut") || "Ctrl+X", disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, true) },
       { key: "copy", text: t2("project.copy"), shortcut: shortcut("copy") || "Ctrl+C", disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, false) },
-      { key: "paste", text: t2("project.paste"), shortcut: shortcut("paste") || "Ctrl+V", disabled: store.state.clipboard === null, action: () => store.pasteEntries(pasteTarget) },
+      { key: "paste", text: t2("project.paste"), shortcut: shortcut("paste") || "Ctrl+V", disabled: slice.clipboard === null, action: () => store.pasteEntries(pasteTarget) },
       null,
       { key: "duplicate", text: t2("project.duplicate"), shortcut: shortcut("duplicate"), disabled: currentPaths.length === 0, action: () => {
         void store.duplicateEntries(currentPaths);
@@ -5419,11 +5974,8 @@ function ProjectPanel({ store, state }) {
         void store.sync();
       } },
       null,
-      { key: "favorite", text: t2("project.addFavorite"), shortcut: shortcut("favorite"), disabled: currentPaths.length === 0, action: () => {
-        void store.toggleFavorite(currentPaths);
-      } },
       { key: "terminal", text: t2("project.openTerminal"), action: () => {
-        store.addTerminal({ cwd: isDir ? entry.path : entry === void 0 ? state.root : parentDir });
+        store.addTerminal({ cwd: isDir ? entry.path : entry === void 0 ? slice.root : parentDir });
       } },
       {
         key: "sidebar",
@@ -5439,7 +5991,7 @@ function ProjectPanel({ store, state }) {
         void store.reveal(entry.path);
       } }
     ];
-    if (entry !== void 0 && state.status.isRepo === true) {
+    if (entry !== void 0 && slice.status.isRepo === true) {
       items.push(null, {
         key: "git",
         text: "Git",
@@ -5453,9 +6005,8 @@ function ProjectPanel({ store, state }) {
       });
     }
     return items;
-  }, [menu, currentPaths.join("|"), currentRels.join("|"), shortcuts, state.root, state.status.isRepo, state.clipboard]);
-  const onRowClick = (event, row) => {
-    const entry = row.entry;
+  }, [menu, currentPaths.join("|"), currentRels.join("|"), shortcuts, slice.root, slice.status.isRepo, slice.clipboard]);
+  const onRowClick = (0, import_react4.useCallback)((event, entry, quick) => {
     if (entry === void 0) return;
     scrollRef.current?.focus();
     if (event.ctrlKey || event.metaKey) {
@@ -5463,22 +6014,24 @@ function ProjectPanel({ store, state }) {
       return;
     }
     if (event.shiftKey) {
-      store.selectRange(entry.path, rowPaths);
+      store.selectRange(entry.path, rowPathsRef.current);
       return;
     }
     store.setSelection([entry.path], entry.path);
-    if (row.quick === true) {
+    if (quick === true) {
       store.openFile(entry.path, { rel: entry.rel, preview: true });
       return;
     }
     if (!entry.isDir && singleClickOpen) store.openFile(entry.path, { rel: entry.rel, preview: true });
-  };
-  const onRowDoubleClick = (row) => {
-    const entry = row.entry;
+  }, [store, singleClickOpen]);
+  const onRowDoubleClick = (0, import_react4.useCallback)((entry) => {
     if (entry === void 0) return;
     if (entry.isDir) store.toggleDir(entry.path);
     else store.openFile(entry.path, { rel: entry.rel, preview: false });
-  };
+  }, [store]);
+  const onToggleDir = (0, import_react4.useCallback)((path2) => {
+    store.toggleDir(path2);
+  }, [store]);
   const onKeyDown = (event) => {
     const target = event.target;
     if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
@@ -5515,15 +6068,10 @@ function ProjectPanel({ store, state }) {
       void store.sync();
       return;
     }
-    if (hit("favorite")) {
-      event.preventDefault();
-      void store.toggleFavorite(currentPaths);
-      return;
-    }
     if (event.altKey && key === "Insert") {
       event.preventDefault();
-      const row = rows.find((item) => item.entry?.path === state.selectedPath);
-      const parent = row === void 0 ? state.root : row.entry.isDir ? row.entry.path : parentOf(row.entry.path);
+      const row = rows.find((item) => item.entry?.path === slice.selectedPath);
+      const parent = row === void 0 ? slice.root : row.entry.isDir ? row.entry.path : parentOf(row.entry.path);
       beginNew(parent, false);
       return;
     }
@@ -5534,7 +6082,7 @@ function ProjectPanel({ store, state }) {
     }
     if (key === "Enter") {
       event.preventDefault();
-      const row = rows.find((item) => item.entry?.path === state.selectedPath);
+      const row = rows.find((item) => item.entry?.path === slice.selectedPath);
       if (row === void 0) return;
       if (row.entry.isDir) store.toggleDir(row.entry.path);
       else store.openFile(row.entry.path, { rel: row.entry.rel, preview: false });
@@ -5542,7 +6090,7 @@ function ProjectPanel({ store, state }) {
     }
     if (key === "ArrowDown" || key === "ArrowUp") {
       event.preventDefault();
-      const index = rowPaths.indexOf(state.selectedPath);
+      const index = rowPaths.indexOf(slice.selectedPath);
       const next = key === "ArrowDown" ? Math.min(rowPaths.length - 1, index + 1) : Math.max(0, index - 1);
       const path2 = rowPaths[next];
       if (path2 !== void 0) store.setSelection([path2], path2);
@@ -5550,7 +6098,7 @@ function ProjectPanel({ store, state }) {
     }
     if (key === "ArrowRight") {
       event.preventDefault();
-      const row = rows.find((item) => item.entry?.path === state.selectedPath);
+      const row = rows.find((item) => item.entry?.path === slice.selectedPath);
       if (row?.entry?.isDir === true) {
         if (!row.open) store.toggleDir(row.entry.path);
         else {
@@ -5562,13 +6110,13 @@ function ProjectPanel({ store, state }) {
     }
     if (key === "ArrowLeft") {
       event.preventDefault();
-      const row = rows.find((item) => item.entry?.path === state.selectedPath);
+      const row = rows.find((item) => item.entry?.path === slice.selectedPath);
       if (row?.entry?.isDir === true && row.open) {
         store.toggleDir(row.entry.path);
         return;
       }
-      const parent = parentOf(state.selectedPath);
-      if (parent !== state.root && rowPaths.includes(parent)) store.setSelection([parent], parent);
+      const parent = parentOf(slice.selectedPath);
+      if (parent !== slice.root && rowPaths.includes(parent)) store.setSelection([parent], parent);
       return;
     }
     if (key === "Escape") {
@@ -5578,52 +6126,51 @@ function ProjectPanel({ store, state }) {
     if ((event.ctrlKey || event.metaKey) && (key === "c" || key === "x" || key === "v")) {
       event.preventDefault();
       if (key === "v") {
-        const pasteTarget = currentEntry?.isDir === true ? currentEntry.path : state.selectedPath === "" ? state.root : parentOf(state.selectedPath);
+        const pasteTarget = currentEntry?.isDir === true ? currentEntry.path : slice.selectedPath === "" ? slice.root : parentOf(slice.selectedPath);
         void store.pasteEntries(pasteTarget);
       } else {
         store.setFileClipboard(currentPaths, key === "x");
       }
     }
   };
-  const onDragStart = (event, row) => {
-    const entry = row.entry;
+  const onDragStart = (0, import_react4.useCallback)((event, entry) => {
     if (entry === void 0) return;
-    const paths = selection.has(entry.path) ? currentPaths : [entry.path];
+    const paths = selectionRef.current.has(entry.path) ? currentPathsRef.current : [entry.path];
     dragRef.current = { paths, copy: false };
     event.dataTransfer.effectAllowed = "copyMove";
     event.dataTransfer.setData("application/x-iwb-paths", JSON.stringify(paths));
     event.dataTransfer.setData("text/plain", paths.join("\n"));
-  };
-  const onDragOver = (event, row) => {
+  }, []);
+  const onDragOver = (0, import_react4.useCallback)((event, entry) => {
     if (dragRef.current === null) return;
     event.stopPropagation();
-    const entry = row?.entry;
-    if (entry !== void 0 && !entry.isDir) return;
-    if (entry !== void 0 && dragRef.current.paths.includes(entry.path)) return;
+    const item = entry ?? void 0;
+    if (item !== void 0 && !item.isDir) return;
+    if (item !== void 0 && dragRef.current.paths.includes(item.path)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = event.ctrlKey ? "copy" : "move";
-    setDropTarget(entry?.path ?? state.root);
-  };
-  const onDrop = (event, row) => {
+    setDropTarget(item?.path ?? slice.root);
+  }, [slice.root]);
+  const onDrop = (0, import_react4.useCallback)((event, entry) => {
     event.stopPropagation();
     if (dragRef.current === null) return;
     event.preventDefault();
-    const entry = row?.entry;
-    if (entry !== void 0 && !entry.isDir) {
+    const item = entry ?? void 0;
+    if (item !== void 0 && !item.isDir) {
       setDropTarget(null);
       return;
     }
-    const target = entry?.path ?? state.root;
+    const destination = item?.path ?? slice.root;
     const paths = dragRef.current.paths;
     const copy2 = event.ctrlKey;
     dragRef.current = null;
     setDropTarget(null);
-    void store.moveEntries(paths, target, copy2);
-  };
-  const onDragEnd = () => {
+    void store.moveEntries(paths, destination, copy2);
+  }, [store, slice.root]);
+  const onDragEnd = (0, import_react4.useCallback)(() => {
     dragRef.current = null;
     setDropTarget(null);
-  };
+  }, []);
   const commitRename = () => {
     if (renaming === null) return;
     const next = renaming.value.trim();
@@ -5631,6 +6178,20 @@ function ProjectPanel({ store, state }) {
     setRenaming(null);
     if (next === "" || next === current) return;
     void store.renameEntry(renaming.path, next);
+  };
+  const handleRenameChange = (value) => {
+    setRenaming((current) => current === null ? current : { ...current, value });
+  };
+  const handleRenameKeyDown = (event) => {
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitRename();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setRenaming(null);
+    }
   };
   const submitDialog = () => {
     if (dialog === null) return;
@@ -5649,12 +6210,12 @@ function ProjectPanel({ store, state }) {
       void store.moveEntries(dialog.paths, target, false);
     }
   };
-  const rootRow = state.root === "" ? import_react4.default.createElement(
+  const rootRow = slice.root === "" ? import_react4.default.createElement(
     "div",
     { className: "iwb-empty" },
     import_react4.default.createElement("div", { className: "iwb-empty-title" }, t2("project.empty")),
     import_react4.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => store.openRootPicker() }, t2("project.openWorkspace"))
-  ) : filterMode === "files" && state.filter.trim() !== "" && rows.length === 0 && state.fileIndexLoading !== true ? import_react4.default.createElement(
+  ) : filterMode === "files" && slice.filter.trim() !== "" && rows.length === 0 && slice.fileIndexLoading !== true ? import_react4.default.createElement(
     "div",
     { className: "iwb-empty" },
     import_react4.default.createElement("div", { className: "iwb-empty-title" }, t2("project.noMatches"))
@@ -5686,108 +6247,45 @@ function ProjectPanel({ store, state }) {
       const kind = row.kind === "dir" ? status.dirs.get(entry.rel) : status.files.get(entry.rel);
       const ignoredFile = status.ignored.has(entry.rel);
       const excludedEntry = isExcluded(entry.rel, excluded);
-      const classes = [
-        "iwb-vlist-row",
-        "iwb-tree-row",
-        selected ? "iwb-selected" : "",
-        kind !== void 0 ? statusClass(kind) : "",
-        ignoredFile ? "iwb-git-ignored" : "",
-        excludedEntry ? "iwb-excluded" : "",
-        dropTarget === entry.path ? "iwb-drop-target" : ""
-      ].filter(Boolean).join(" ");
-      if (row.kind === "dir") {
-        return import_react4.default.createElement(
-          "div",
-          {
-            key: row.key,
-            className: classes,
-            style,
-            title: entry.rel,
-            draggable: true,
-            onClick: (event) => onRowClick(event, row),
-            onDoubleClick: () => onRowDoubleClick(row),
-            onContextMenu: (event) => openMenu(event, row),
-            onDragStart: (event) => onDragStart(event, row),
-            onDragOver: (event) => onDragOver(event, row),
-            onDrop: (event) => onDrop(event, row),
-            onDragEnd
-          },
-          import_react4.default.createElement("span", { className: "iwb-tree-twisty" }, row.open ? import_react4.default.createElement(ChevronDown, null) : import_react4.default.createElement(ChevronRight, null)),
-          import_react4.default.createElement(FileTypeIcon, { name: entry.name, isDir: true, open: row.open, size: 15 }),
-          import_react4.default.createElement("span", { className: "iwb-tree-name iwb-dir" }, entry.name)
-        );
-      }
-      const active = state.tabs.find((tab3) => tab3.kind === "file" && tab3.path === entry.path && tab3.id === state.activeId);
       const editing = renaming !== null && renaming.path === entry.path;
-      return import_react4.default.createElement(
-        "div",
-        {
-          key: row.key,
-          className: `${classes} ${active !== void 0 ? "iwb-opened" : ""}`,
-          style,
-          title: entry.rel,
-          draggable: !editing,
-          onClick: (event) => onRowClick(event, row),
-          onDoubleClick: () => onRowDoubleClick(row),
-          onContextMenu: (event) => openMenu(event, row),
-          onDragStart: (event) => onDragStart(event, row),
-          onDragOver: (event) => onDragOver(event, row),
-          onDrop: (event) => onDrop(event, row),
-          onDragEnd
-        },
-        import_react4.default.createElement("span", { className: "iwb-tree-twisty" }),
-        import_react4.default.createElement(FileTypeIcon, { name: entry.name, size: 15 }),
-        editing ? import_react4.default.createElement("input", {
-          className: "iwb-rename-input",
-          autoFocus: true,
-          value: renaming.value,
-          onChange: (event) => setRenaming({ ...renaming, value: event.target.value }),
-          onKeyDown: (event) => {
-            event.stopPropagation();
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commitRename();
-            }
-            if (event.key === "Escape") {
-              event.preventDefault();
-              setRenaming(null);
-            }
-          },
-          onBlur: commitRename,
-          onClick: (event) => event.stopPropagation(),
-          onDoubleClick: (event) => event.stopPropagation()
-        }) : import_react4.default.createElement("span", { className: "iwb-tree-name" }, entry.name),
-        row.quick === true ? import_react4.default.createElement("span", { className: "iwb-tree-relative" }, entry.rel) : null
-      );
+      const active = row.kind === "file" ? slice.tabs.find((tab3) => tab3.kind === "file" && tab3.path === entry.path && tab3.id === slice.activeId) !== void 0 : false;
+      return import_react4.default.createElement(TreeRow, {
+        key: row.key,
+        entry,
+        depth: row.depth,
+        top: top2,
+        open: row.kind === "dir" ? row.open : void 0,
+        selected,
+        statusKind: kind,
+        ignored: ignoredFile,
+        excluded: excludedEntry,
+        dropTarget: dropTarget === entry.path,
+        active,
+        editing,
+        renameValue: editing ? renaming.value : void 0,
+        relative: row.quick === true ? entry.rel : void 0,
+        quick: row.quick === true,
+        onRowClick,
+        onRowDoubleClick,
+        onContextMenu: openMenu,
+        onDragStart,
+        onDragOver,
+        onDrop,
+        onDragEnd,
+        onToggleDir,
+        onRenameChange: editing ? handleRenameChange : void 0,
+        onRenameKeyDown: editing ? handleRenameKeyDown : void 0,
+        onRenameBlur: editing ? commitRename : void 0
+      });
     })
   );
-  const favorites = state.settings?.favorites ?? [];
-  const favoritesPanel = favoritesOpen && favorites.length > 0 ? import_react4.default.createElement(
-    "div",
-    { className: "iwb-favorites" },
-    favorites.map((path2) => import_react4.default.createElement(
-      "div",
-      {
-        key: path2,
-        className: "iwb-favorite-row",
-        title: path2,
-        onClick: () => {
-          void store.openFile(path2, { rel: path2, preview: false });
-        }
-      },
-      import_react4.default.createElement("span", { className: "iwb-favorite-star" }, "\u2605"),
-      import_react4.default.createElement("span", { className: "iwb-favorite-name" }, baseName(path2)),
-      import_react4.default.createElement("button", {
-        type: "button",
-        className: "iwb-iconbtn iwb-favorite-remove",
-        title: t2("project.removeFavorite"),
-        onClick: (event) => {
-          event.stopPropagation();
-          void store.toggleFavorite([path2]);
-        }
-      }, "\xD7")
-    ))
-  ) : null;
+  const activeTab = (0, import_react4.useMemo)(() => slice.tabs.find((tab3) => tab3.id === slice.activeId), [slice.tabs, slice.activeId]);
+  const canLocate = activeTab !== void 0 && activeTab.kind === "file";
+  const onLocateFile = (0, import_react4.useCallback)(() => {
+    if (activeTab === void 0 || activeTab.kind !== "file") return;
+    store.showTool("project");
+    store.setSelectedPath(activeTab.path);
+  }, [store, activeTab]);
   return import_react4.default.createElement(
     import_react4.default.Fragment,
     null,
@@ -5800,25 +6298,13 @@ function ProjectPanel({ store, state }) {
         {
           type: "button",
           className: "iwb-project-sub-btn",
-          title: `${t2("project.selectProject")} \u2014 ${state.root}`,
+          title: `${t2("project.selectProject")} \u2014 ${slice.root}`,
           onClick: () => store.openProjectPicker()
         },
-        import_react4.default.createElement("span", { className: "iwb-project-sub-name" }, baseName(state.root) || t2("project.empty")),
+        import_react4.default.createElement("span", { className: "iwb-project-sub-name" }, baseName(slice.root) || t2("project.empty")),
         import_react4.default.createElement(ChevronDown, { size: 11 })
       ),
       import_react4.default.createElement("span", { className: "iwb-spacer" }),
-      import_react4.default.createElement("button", {
-        type: "button",
-        className: `iwb-iconbtn ${favoritesOpen ? "iwb-on" : ""}`,
-        title: t2("project.favorites"),
-        onClick: () => setFavoritesOpen(!favoritesOpen)
-      }, "\u2605"),
-      import_react4.default.createElement("button", {
-        type: "button",
-        className: "iwb-iconbtn",
-        title: `${t2("search.title")} (${shortcutFor("findInFiles")})`,
-        onClick: () => store.openSearchTab()
-      }, import_react4.default.createElement("span", { style: { fontSize: 16, lineHeight: 1 } }, "\u2315")),
       import_react4.default.createElement("button", {
         type: "button",
         className: `iwb-iconbtn ${filterOpen ? "iwb-on" : ""}`,
@@ -5831,8 +6317,16 @@ function ProjectPanel({ store, state }) {
       import_react4.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
+        title: t2("project.locateFile"),
+        "aria-label": t2("project.locateFile"),
+        disabled: !canLocate,
+        onClick: onLocateFile
+      }, import_react4.default.createElement("span", { style: { fontSize: 15, lineHeight: 1 } }, "\u2316")),
+      import_react4.default.createElement("button", {
+        type: "button",
+        className: "iwb-iconbtn",
         title: t2("project.newFile"),
-        onClick: () => beginNew(state.root, false)
+        onClick: () => beginNew(slice.root, false)
       }, "+"),
       import_react4.default.createElement("button", {
         type: "button",
@@ -5843,8 +6337,7 @@ function ProjectPanel({ store, state }) {
         }
       }, import_react4.default.createElement(IconRefresh, { width: 14, height: 14 }))
     ),
-    favoritesPanel,
-    filterOpen || state.filter !== "" ? import_react4.default.createElement(
+    filterOpen || slice.filter !== "" ? import_react4.default.createElement(
       "div",
       { className: "iwb-filter" },
       import_react4.default.createElement(
@@ -5867,7 +6360,7 @@ function ProjectPanel({ store, state }) {
       import_react4.default.createElement("input", {
         autoFocus: true,
         placeholder: filterMode === "tree" ? t2("project.filter") : t2("project.filterFiles"),
-        value: state.filter,
+        value: slice.filter,
         onChange: (event) => store.setFilter(event.target.value),
         onKeyDown: (event) => {
           if (event.key === "Escape") {
@@ -5877,9 +6370,9 @@ function ProjectPanel({ store, state }) {
         }
       })
     ) : null,
-    filterMode === "tree" && state.filter.trim() !== "" ? import_react4.default.createElement("div", { className: "iwb-filter-hint" }, t2("project.filterTreeHint")) : null,
-    filterMode === "files" && state.filter.trim() !== "" && state.fileIndexLoading === true ? import_react4.default.createElement("div", { className: "iwb-filter-hint" }, t2("project.filterIndexing")) : null,
-    filterMode === "files" && state.filter.trim() !== "" && state.fileIndexError !== null ? import_react4.default.createElement("div", { className: "iwb-filter-hint iwb-error-text" }, t2("project.filterError")) : null,
+    filterMode === "tree" && slice.filter.trim() !== "" ? import_react4.default.createElement("div", { className: "iwb-filter-hint" }, t2("project.filterTreeHint")) : null,
+    filterMode === "files" && slice.filter.trim() !== "" && slice.fileIndexLoading === true ? import_react4.default.createElement("div", { className: "iwb-filter-hint" }, t2("project.filterIndexing")) : null,
+    filterMode === "files" && slice.filter.trim() !== "" && slice.fileIndexError !== null ? import_react4.default.createElement("div", { className: "iwb-filter-hint iwb-error-text" }, t2("project.filterError")) : null,
     import_react4.default.createElement("div", {
       className: "iwb-panel-body iwb-tree",
       ref: scrollRef,
@@ -5889,7 +6382,7 @@ function ProjectPanel({ store, state }) {
       onDragOver: (event) => onDragOver(event, null),
       onDrop: (event) => onDrop(event, null),
       onContextMenu: (event) => {
-        if (event.target === event.currentTarget) openMenu(event, { entry: void 0 });
+        if (event.target === event.currentTarget) openMenu(event, void 0);
       }
     }, rootRow),
     menu !== null ? import_react4.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
@@ -5980,6 +6473,18 @@ function ProjectPanel({ store, state }) {
 
 // src/client/CommitPanel.jsx
 var import_react5 = __toESM(require("react"), 1);
+function commitSlice(state) {
+  return {
+    commit: state.commit,
+    entries: state.status.entries,
+    isRepo: state.status.isRepo,
+    branch: state.status.branch,
+    detached: state.status.detached,
+    oid: state.status.oid,
+    settings: state.settings,
+    workspaceRoot: state.workspaceRoot
+  };
+}
 function LineStats({ stats }) {
   if (stats === void 0 || stats === null) return null;
   if (stats.binary === true) return import_react5.default.createElement("span", { className: "iwb-file-stat" }, "bin");
@@ -5990,8 +6495,7 @@ function LineStats({ stats }) {
     import_react5.default.createElement("span", { className: "iwb-deletions" }, `-${stats.deletions}`)
   );
 }
-function FileRow({ store, state, entry, checked, onOpen, onMenu }) {
-  const selected = state.commit.selectedPath === entry.path;
+function FileRow({ store, selected, entry, checked, onOpen, onMenu }) {
   const name2 = entry.path.split(/[\\/]/).pop();
   const parent = dirName(entry.path);
   const stats = entry.staged ? entry.stagedLines : entry.unstagedLines;
@@ -6047,7 +6551,7 @@ function GroupHeader({ store, title, entries, checkedPaths }) {
     import_react5.default.createElement("span", { className: "iwb-count" }, entries.length)
   );
 }
-function DirectorySection({ store, state, dir, entries, checkedPaths, onOpen, onMenu }) {
+function DirectorySection({ store, dir, entries, checkedPaths, selectedPath, onOpen, onMenu }) {
   return import_react5.default.createElement(
     "div",
     { className: "iwb-dir-section" },
@@ -6055,7 +6559,7 @@ function DirectorySection({ store, state, dir, entries, checkedPaths, onOpen, on
     entries.map((entry) => import_react5.default.createElement(FileRow, {
       key: entry.path,
       store,
-      state,
+      selected: selectedPath === entry.path,
       entry,
       checked: checkedPaths.has(entry.path),
       onOpen,
@@ -6065,13 +6569,14 @@ function DirectorySection({ store, state, dir, entries, checkedPaths, onOpen, on
 }
 function CommitPanel({ store, state }) {
   const t2 = store.t;
+  const slice = useStoreSlice(store, commitSlice, shallowEqual);
   const groups = store.commitGroups;
-  const commit = state.commit;
+  const commit = slice.commit;
   const checkedPaths = store.checkedCommitPaths;
   const changelists = store.changelists;
-  const groupByDir = state.settings?.commit?.groupByDirectory === true;
+  const groupByDir = slice.settings?.commit?.groupByDirectory === true;
   const textareaRef = (0, import_react5.useRef)(null);
-  const initial = state.status.oid === void 0;
+  const initial = slice.oid === void 0;
   const [menu, setMenu] = (0, import_react5.useState)(null);
   const [dialog, setDialog] = (0, import_react5.useState)(null);
   const history2 = (0, import_react5.useMemo)(() => commit.messages.map((message) => ({
@@ -6090,7 +6595,7 @@ function CommitPanel({ store, state }) {
     }
   }, [commit.focusTick]);
   const canCommit = commit.committing !== true && (checkedPaths.size > 0 || commit.amend === true);
-  const commitSettings = state.settings?.commit ?? {};
+  const commitSettings = slice.settings?.commit ?? {};
   const taskDefs = [
     ["tests", t2("commit.taskTests"), commitSettings.testCommand],
     ["optimize", t2("commit.taskOptimize"), commitSettings.optimizeImportsCommand],
@@ -6108,7 +6613,7 @@ function CommitPanel({ store, state }) {
     setMenu({ x: event.clientX, y: event.clientY, entry });
   };
   const rollback = () => {
-    const selected = store.changedEntries.filter((entry) => entry.path === state.commit.selectedPath);
+    const selected = store.changedEntries.filter((entry) => entry.path === commit.selectedPath);
     const entries = selected.length > 0 ? selected : store.changedEntries.filter((entry) => checkedPaths.has(entry.path));
     if (entries.length === 0) return;
     store.askConfirm(
@@ -6127,7 +6632,7 @@ ${entries.length}`,
     const patchEntry = { path: entry.path, untracked: entry.untracked === true };
     const items = [
       { key: "show", text: t2("commit.showDiff"), action: () => openChange(entry) },
-      { key: "jump", text: t2("commit.jumpToSource"), shortcut: store.state.settings?.shortcuts?.jumpToSource ?? "F4", action: () => store.jumpToSource(entry.path) },
+      { key: "jump", text: t2("commit.jumpToSource"), shortcut: slice.settings?.shortcuts?.jumpToSource ?? "F4", action: () => store.jumpToSource(entry.path) },
       null,
       {
         key: "changelist",
@@ -6149,14 +6654,14 @@ ${entries.length}`,
       { key: "revert", text: t2("commit.revert"), danger: true, action: () => store.revertChange(patchEntry) }
     ];
     return items;
-  }, [menu, customLists.join("|"), t2, state.settings?.shortcuts]);
+  }, [menu, customLists.join("|"), t2, slice.settings?.shortcuts]);
   const renderEntries = (entries) => {
     if (entries.length === 0) return null;
     if (!groupByDir) {
       return entries.map((entry) => import_react5.default.createElement(FileRow, {
         key: entry.path,
         store,
-        state,
+        selected: commit.selectedPath === entry.path,
         entry,
         checked: checkedPaths.has(entry.path),
         onOpen: openChange,
@@ -6166,10 +6671,10 @@ ${entries.length}`,
     return groupByDirectory(entries).map((section) => import_react5.default.createElement(DirectorySection, {
       key: section.dir,
       store,
-      state,
       dir: section.dir,
       entries: section.entries,
       checkedPaths,
+      selectedPath: commit.selectedPath,
       onOpen: openChange,
       onMenu: openMenuFor
     }));
@@ -6189,7 +6694,7 @@ ${entries.length}`,
       "div",
       { className: "iwb-panel-header" },
       import_react5.default.createElement("span", { className: "iwb-panel-title" }, t2("commit.title")),
-      state.status.isRepo === true ? import_react5.default.createElement("span", { className: "iwb-panel-sub" }, state.status.detached === true ? t2("git.detached") : state.status.branch ?? "") : import_react5.default.createElement("span", { className: "iwb-panel-sub" }, t2("welcome.noRepo")),
+      slice.isRepo === true ? import_react5.default.createElement("span", { className: "iwb-panel-sub" }, slice.detached === true ? t2("git.detached") : slice.branch ?? "") : import_react5.default.createElement("span", { className: "iwb-panel-sub" }, t2("welcome.noRepo")),
       import_react5.default.createElement("span", { className: "iwb-spacer" }),
       import_react5.default.createElement("button", {
         type: "button",
@@ -6209,7 +6714,7 @@ ${entries.length}`,
         }
       }, import_react5.default.createElement(IconRefresh, { width: 14, height: 14 }))
     ),
-    state.status.isRepo !== true ? import_react5.default.createElement(
+    slice.isRepo !== true ? import_react5.default.createElement(
       "div",
       { className: "iwb-commit-hint" },
       import_react5.default.createElement("span", null, t2("project.noRepoHint")),
@@ -6224,7 +6729,7 @@ ${entries.length}`,
       { className: "iwb-commit-message" },
       import_react5.default.createElement("textarea", {
         ref: textareaRef,
-        placeholder: state.settings?.git?.commitTemplate || t2("commit.messagePlaceholder"),
+        placeholder: slice.settings?.git?.commitTemplate || t2("commit.messagePlaceholder"),
         value: commit.message,
         spellCheck: false,
         onChange: (event) => store.setCommitMessage(event.target.value),
@@ -6285,7 +6790,7 @@ ${entries.length}`,
       taskDefs.length > 0 ? import_react5.default.createElement(
         "div",
         { className: "iwb-commit-tasks" },
-        taskDefs.map(([key, label, command2]) => import_react5.default.createElement(
+        taskDefs.map(([key, label3, command2]) => import_react5.default.createElement(
           "label",
           {
             key,
@@ -6297,7 +6802,7 @@ ${entries.length}`,
             checked: commit.tasks?.[key] === true,
             onChange: (event) => store.setCommitTask(key, event.target.checked)
           }),
-          label
+          label3
         ))
       ) : null,
       commit.error !== null && commit.error !== void 0 ? import_react5.default.createElement("div", { className: "iwb-error-box", style: { margin: "8px 0 0" } }, commit.error) : null
@@ -6350,7 +6855,7 @@ ${entries.length}`,
         type: "button",
         className: "iwb-textbtn iwb-small iwb-danger",
         title: t2("commit.rollback"),
-        disabled: checkedPaths.size === 0 && state.commit.selectedPath === "",
+        disabled: checkedPaths.size === 0 && commit.selectedPath === "",
         onClick: rollback
       }, t2("commit.rollback"))
     ),
@@ -6546,6 +7051,37 @@ function gitLayout({ mainWidth = 0, configuredWidth = DRAWER_DEFAULT, drawerOpen
 var ROW_HEIGHT2 = 24;
 var CELL = 14;
 var GRAPH_MAX = 8;
+var TREE_DIR_INDENT = 5;
+var TREE_FILE_INDENT = 20;
+var TREE_INDENT_STEP = 12;
+function label(t2, key, fallback2) {
+  const value = t2(key);
+  return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
+}
+function gitRepoCandidates(slice) {
+  const list = Array.isArray(slice.gitRepos) ? slice.gitRepos : [];
+  if (list.length > 0) return list;
+  return (slice.projects ?? []).filter((project) => project.isRepo === true).map((project) => ({ path: project.path, name: project.name ?? project.path }));
+}
+function gitSlice(state) {
+  return {
+    git: state.git,
+    branch: state.status.branch,
+    detached: state.status.detached,
+    isRepo: state.status.isRepo,
+    drawerWidth: state.layout.gitDrawerWidth,
+    projects: state.projects,
+    gitRepoRoot: state.gitRepoRoot,
+    gitRepos: state.gitRepos
+  };
+}
+function repoSlice(state) {
+  return {
+    gitRepos: state.gitRepos,
+    gitRepoRoot: state.gitRepoRoot,
+    projects: state.projects
+  };
+}
 function GraphCell({ row, width, height, offset }) {
   const geometry = rowGeometry(row);
   const primaryX = 7 + row.primary * CELL;
@@ -6661,25 +7197,144 @@ function diffFiles(diff) {
   }
   return output;
 }
-function InlinePatch({ text }) {
+function buildChangedFileTree(files) {
+  const root = { name: "", path: "", depth: 0, dirs: /* @__PURE__ */ new Map(), files: [] };
+  for (const group of groupByDirectory(files)) {
+    const segments = group.dir === "" ? [] : group.dir.split("/").filter((segment) => segment !== "");
+    let node = root;
+    let prefix = "";
+    for (const segment of segments) {
+      prefix = prefix === "" ? segment : `${prefix}/${segment}`;
+      let child = node.dirs.get(segment);
+      if (child === void 0) {
+        child = { name: segment, path: prefix, depth: node.depth + 1, dirs: /* @__PURE__ */ new Map(), files: [] };
+        node.dirs.set(segment, child);
+      }
+      node = child;
+    }
+    node.files.push(...group.entries);
+  }
+  return root;
+}
+function defaultCollapsedDirs(root) {
+  const collapsed = /* @__PURE__ */ new Set();
+  const walk = (node) => {
+    for (const dir of node.dirs.values()) {
+      if (dir.depth >= 2) collapsed.add(dir.path);
+      walk(dir);
+    }
+  };
+  walk(root);
+  return collapsed;
+}
+function sortedChildren(node) {
+  const children = [];
+  for (const dir of node.dirs.values()) children.push({ kind: "dir", name: dir.name, node: dir });
+  for (const file of node.files) {
+    children.push({ kind: "file", name: file.path.split("/").pop() ?? file.path, file });
+  }
+  children.sort((left, right) => left.name.localeCompare(right.name));
+  return children;
+}
+function firstLeafOf(node) {
+  for (const child of sortedChildren(node)) {
+    if (child.kind === "file") return child.file.path;
+    const found = firstLeafOf(child.node);
+    if (found !== "") return found;
+  }
+  return "";
+}
+function fileTreeRows(node, options) {
+  const rows = [];
+  for (const [index, child] of sortedChildren(node).entries()) {
+    if (child.kind === "dir") {
+      const dir = child.node;
+      const expanded = !options.collapsed.has(dir.path);
+      rows.push(import_react6.default.createElement(
+        "button",
+        {
+          key: `dir:${dir.path}`,
+          type: "button",
+          className: "iwb-git-tree-dir",
+          title: dir.path,
+          "aria-expanded": expanded,
+          style: { paddingLeft: `${TREE_DIR_INDENT + options.depth * TREE_INDENT_STEP}px` },
+          onClick: () => options.onToggleDir(dir.path)
+        },
+        import_react6.default.createElement("span", { className: "iwb-git-tree-caret" }, expanded ? "\u25BE" : "\u25B8"),
+        import_react6.default.createElement("span", { className: "iwb-git-tree-dir-name" }, dir.name)
+      ));
+      if (expanded) rows.push(...fileTreeRows(dir, { ...options, depth: options.depth + 1 }));
+      continue;
+    }
+    const file = child.file;
+    rows.push(import_react6.default.createElement(
+      "button",
+      {
+        key: `file:${file.path}:${index}`,
+        type: "button",
+        className: `iwb-git-drawer-file iwb-git-tree-file${options.selectedPath === file.path ? " iwb-selected" : ""}`,
+        title: file.path,
+        style: { paddingLeft: `${TREE_FILE_INDENT + options.depth * TREE_INDENT_STEP}px` },
+        onClick: () => options.onSelectFile(file.path),
+        onDoubleClick: () => options.onOpenFile(file.path)
+      },
+      import_react6.default.createElement("span", { className: `iwb-git-file-status iwb-status-${file.status}` }, file.status),
+      import_react6.default.createElement("span", { className: "iwb-git-file-name" }, child.name),
+      import_react6.default.createElement("span", { className: "iwb-additions" }, `+${file.additions}`),
+      import_react6.default.createElement("span", { className: "iwb-deletions" }, `-${file.deletions}`)
+    ));
+  }
+  return rows;
+}
+function ChangedFileTree({ store, hash: hash3, files }) {
+  const tree = (0, import_react6.useMemo)(() => buildChangedFileTree(files), [files]);
+  const [toggles, setToggles] = (0, import_react6.useState)(() => /* @__PURE__ */ new Map());
+  const [selectedPath, setSelectedPath] = (0, import_react6.useState)("");
+  const collapsed = (0, import_react6.useMemo)(() => {
+    const dirs = defaultCollapsedDirs(tree);
+    for (const [path2, isCollapsed] of toggles) {
+      if (isCollapsed) dirs.add(path2);
+      else dirs.delete(path2);
+    }
+    return dirs;
+  }, [tree, toggles]);
+  (0, import_react6.useEffect)(() => {
+    setSelectedPath("");
+  }, [hash3]);
+  const toggleDir = (0, import_react6.useCallback)((path2) => {
+    setToggles((previous) => {
+      const next = new Map(previous);
+      next.set(path2, !collapsed.has(path2));
+      return next;
+    });
+  }, [collapsed]);
+  const openFile = (0, import_react6.useCallback)((path2) => {
+    void store.openCommitFile(hash3, path2);
+  }, [store, hash3]);
+  const selected = selectedPath === "" ? firstLeafOf(tree) : selectedPath;
   return import_react6.default.createElement(
     "div",
-    { className: "iwb-git-inline-diff" },
-    String(text ?? "").split("\n").map((line, index) => import_react6.default.createElement("div", {
-      key: index,
-      className: `iwb-git-inline-line ${line.startsWith("+") && !line.startsWith("+++") ? "iwb-add" : ""} ${line.startsWith("-") && !line.startsWith("---") ? "iwb-del" : ""} ${line.startsWith("@@") ? "iwb-hunk" : ""}`
-    }, line === "" ? "\xA0" : line))
+    { className: "iwb-git-drawer-files iwb-git-tree" },
+    fileTreeRows(tree, {
+      collapsed,
+      selectedPath: selected,
+      depth: 0,
+      onToggleDir: toggleDir,
+      onSelectFile: setSelectedPath,
+      onOpenFile: openFile
+    })
   );
 }
-function BranchPopover({ store, state, x, y, onClose }) {
+function BranchPopover({ store, branches, currentBranch, x, y, onClose }) {
   const t2 = store.t;
   const [query, setQuery] = (0, import_react6.useState)("");
   const [index, setIndex] = (0, import_react6.useState)(0);
   const inputRef = (0, import_react6.useRef)(null);
   const names = (0, import_react6.useMemo)(() => {
     const value = query.trim().toLowerCase();
-    return state.git.branches.filter((name2) => value === "" || name2.toLowerCase().includes(value));
-  }, [query, state.git.branches]);
+    return branches.filter((name2) => value === "" || name2.toLowerCase().includes(value));
+  }, [query, branches]);
   (0, import_react6.useEffect)(() => {
     inputRef.current?.focus();
   }, []);
@@ -6732,24 +7387,98 @@ function BranchPopover({ store, state, x, y, onClose }) {
           onMouseEnter: () => setIndex(position),
           onClick: () => choose(name2)
         },
-        import_react6.default.createElement("span", { className: "iwb-branch-check" }, name2 === state.status.branch ? "\u2713" : ""),
+        import_react6.default.createElement("span", { className: "iwb-branch-check" }, name2 === currentBranch ? "\u2713" : ""),
         import_react6.default.createElement("span", { className: "iwb-branch-name" }, name2)
       ))
     )
   );
 }
-function CommitDrawer({ store, state, narrow, width, onResizeStart, onClose }) {
+function repoRows(repos, options) {
+  return repos.map((repo, position) => import_react6.default.createElement(
+    "button",
+    {
+      key: repo.path,
+      type: "button",
+      className: `iwb-branch-row ${position === options.index ? "iwb-selected" : ""}`,
+      title: repo.path,
+      onMouseEnter: () => options.onHover?.(position),
+      onClick: () => options.onChoose(repo.path)
+    },
+    import_react6.default.createElement("span", { className: "iwb-branch-check" }, repo.path === options.current ? "\u2713" : ""),
+    import_react6.default.createElement("span", { className: "iwb-branch-name" }, repo.name)
+  ));
+}
+function RepoPopover({ store, x, y, onClose }) {
   const t2 = store.t;
-  const git = state.git;
-  const [selectedFile, setSelectedFile] = (0, import_react6.useState)("");
+  const slice = useStoreSlice(store, repoSlice, shallowEqual);
+  const [query, setQuery] = (0, import_react6.useState)("");
+  const [index, setIndex] = (0, import_react6.useState)(0);
+  const inputRef = (0, import_react6.useRef)(null);
+  const repos = (0, import_react6.useMemo)(() => gitRepoCandidates(slice), [slice]);
+  const names = (0, import_react6.useMemo)(() => {
+    const value = query.trim().toLowerCase();
+    return repos.filter((repo) => value === "" || String(repo.name).toLowerCase().includes(value) || String(repo.path).toLowerCase().includes(value));
+  }, [query, repos]);
+  (0, import_react6.useEffect)(() => {
+    inputRef.current?.focus();
+  }, []);
+  (0, import_react6.useEffect)(() => {
+    setIndex(0);
+  }, [query]);
+  const choose = (path2) => {
+    onClose();
+    store.setGitRepoRoot(path2);
+  };
+  return import_react6.default.createElement(
+    "div",
+    {
+      className: "iwb-branch-popover iwb-repo-popover",
+      style: { left: `${x}px`, top: `${y}px` },
+      onMouseDown: (event) => event.stopPropagation()
+    },
+    import_react6.default.createElement("input", {
+      ref: inputRef,
+      className: "iwb-input",
+      style: { width: "100%" },
+      placeholder: label(t2, "git.searchRepo", "Search repository"),
+      value: query,
+      onChange: (event) => setQuery(event.target.value),
+      onKeyDown: (event) => {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setIndex((value) => Math.min(names.length - 1, value + 1));
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setIndex((value) => Math.max(0, value - 1));
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          if (names[index] !== void 0) choose(names[index].path);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+        }
+      }
+    }),
+    import_react6.default.createElement(
+      "div",
+      { className: "iwb-branch-list" },
+      names.length === 0 ? import_react6.default.createElement("div", { className: "iwb-quick-empty" }, t2("quickOpen.empty")) : repoRows(names, {
+        current: slice.gitRepoRoot ?? "",
+        index,
+        onHover: (position) => setIndex(position),
+        onChoose: choose
+      })
+    )
+  );
+}
+function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
+  const t2 = store.t;
   const detail = git.detail;
   const closeRef = (0, import_react6.useRef)(null);
   const files = (0, import_react6.useMemo)(() => diffFiles(detail?.diff), [detail?.diff]);
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
-  const selected = files.find((file) => file.path === selectedFile) ?? files[0];
   (0, import_react6.useEffect)(() => {
-    setSelectedFile("");
     closeRef.current?.focus();
   }, [detail?.hash]);
   const copy = async (text) => {
@@ -6827,51 +7556,29 @@ function CommitDrawer({ store, state, narrow, width, onResizeStart, onClose }) {
           import_react6.default.createElement("span", { className: "iwb-additions" }, ` +${additions}`),
           import_react6.default.createElement("span", { className: "iwb-deletions" }, ` -${deletions}`)
         ),
-        files.length === 0 ? import_react6.default.createElement("div", { className: "iwb-git-detail-dim" }, t2("git.noFiles")) : import_react6.default.createElement(
-          import_react6.default.Fragment,
-          null,
-          import_react6.default.createElement(
-            "div",
-            { className: "iwb-git-drawer-files" },
-            files.map((file) => import_react6.default.createElement(
-              "button",
-              {
-                key: file.path,
-                type: "button",
-                className: `iwb-git-drawer-file ${selected?.path === file.path ? "iwb-selected" : ""}`,
-                title: file.path,
-                onClick: () => setSelectedFile(file.path),
-                onDoubleClick: () => {
-                  void store.openCommitFile(detail.hash, file.path);
-                }
-              },
-              import_react6.default.createElement("span", { className: `iwb-git-file-status iwb-status-${file.status}` }, file.status),
-              import_react6.default.createElement("span", { className: "iwb-git-file-name" }, file.path.split("/").pop()),
-              import_react6.default.createElement("span", { className: "iwb-git-file-dir" }, file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""),
-              import_react6.default.createElement("span", { className: "iwb-additions" }, `+${file.additions}`),
-              import_react6.default.createElement("span", { className: "iwb-deletions" }, `-${file.deletions}`)
-            ))
-          ),
-          selected !== void 0 ? import_react6.default.createElement(
-            "div",
-            { className: "iwb-git-drawer-inline" },
-            import_react6.default.createElement("div", { className: "iwb-git-drawer-section-title" }, selected.path),
-            import_react6.default.createElement(InlinePatch, { text: selected.patch })
-          ) : null
-        )
+        files.length === 0 ? import_react6.default.createElement("div", { className: "iwb-git-detail-dim" }, t2("git.noFiles")) : import_react6.default.createElement(ChangedFileTree, { store, hash: detail.hash, files })
       )
     )
   );
 }
 function GitPanel({ store, state }) {
   const t2 = store.t;
-  const git = state.git;
-  const repoProjects = (state.projects ?? []).filter((project) => project.isRepo === true && project.path !== state.root);
+  const slice = useStoreSlice(store, gitSlice, shallowEqual);
+  const git = slice.git;
   const [scrollTop, setScrollTop] = (0, import_react6.useState)(0);
   const [viewport, setViewport] = (0, import_react6.useState)(300);
   const [menu, setMenu] = (0, import_react6.useState)(null);
   const [mainWidth, setMainWidth] = (0, import_react6.useState)(0);
   const [branchMenu, setBranchMenu] = (0, import_react6.useState)(null);
+  const [repoMenu, setRepoMenu] = (0, import_react6.useState)(null);
+  const repoRoot = slice.gitRepoRoot ?? "";
+  const repoName = (0, import_react6.useMemo)(() => {
+    const match = gitRepoCandidates(slice).find((repo) => repo.path === repoRoot);
+    if (match !== void 0) return match.name;
+    if (repoRoot === "") return "";
+    const parts = repoRoot.split(/[\\/]/);
+    return parts[parts.length - 1] ?? repoRoot;
+  }, [slice, repoRoot]);
   const scrollRef = (0, import_react6.useRef)(null);
   const mainRef = (0, import_react6.useRef)(null);
   const queryTimer = (0, import_react6.useRef)(null);
@@ -6904,7 +7611,7 @@ function GitPanel({ store, state }) {
   const drawerOpen = git.detail !== null || git.detailLoading === true;
   const geometry = gitLayout({
     mainWidth,
-    configuredWidth: state.layout.gitDrawerWidth ?? 420,
+    configuredWidth: slice.drawerWidth ?? 420,
     drawerOpen
   });
   const drawerNarrow = geometry.drawerNarrow;
@@ -7005,14 +7712,15 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
     ];
   }, [menu, t2]);
   (0, import_react6.useEffect)(() => {
-    if (branchMenu === null) return void 0;
+    if (branchMenu === null && repoMenu === null) return void 0;
     const onDown = (event) => {
-      if (event.target instanceof Element && event.target.closest(".iwb-branch-popover, .iwb-branch-switch") !== null) return;
+      if (event.target instanceof Element && event.target.closest(".iwb-branch-popover, .iwb-branch-switch, .iwb-repo-switch") !== null) return;
       setBranchMenu(null);
+      setRepoMenu(null);
     };
     window.addEventListener("mousedown", onDown, true);
     return () => window.removeEventListener("mousedown", onDown, true);
-  }, [branchMenu]);
+  }, [branchMenu, repoMenu]);
   const startDrawerResize = (event) => {
     event.preventDefault();
     const startX = event.clientX;
@@ -7044,6 +7752,20 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
         "button",
         {
           type: "button",
+          className: "iwb-branch-switch iwb-repo-switch",
+          title: repoRoot === "" ? label(t2, "git.pickRepoHint", "Choose a repository in the Terminal/Git header.") : repoRoot,
+          onClick: (event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            setRepoMenu({ x: rect.left, y: rect.bottom + 4 });
+          }
+        },
+        import_react6.default.createElement("span", { className: "iwb-repo-name" }, repoName === "" ? label(t2, "git.pickRepo", "Choose repository") : repoName),
+        import_react6.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
+      ),
+      import_react6.default.createElement(
+        "button",
+        {
+          type: "button",
           className: "iwb-branch-switch",
           title: t2("git.switchBranchTitle"),
           onClick: (event) => {
@@ -7052,7 +7774,7 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
           }
         },
         import_react6.default.createElement(IconBranch, { width: 13, height: 13 }),
-        import_react6.default.createElement("span", null, state.status.detached === true ? t2("git.detached") : state.status.branch ?? "\u2014"),
+        import_react6.default.createElement("span", null, slice.detached === true ? t2("git.detached") : slice.branch ?? "\u2014"),
         import_react6.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
       ),
       (git.compare ?? []).length > 0 ? import_react6.default.createElement(
@@ -7075,7 +7797,7 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
         type: "button",
         className: `iwb-textbtn iwb-small ${git.filters.branch === "" ? "iwb-primary" : ""}`,
         title: t2("git.branchFilter"),
-        onClick: () => store.setGitFilters({ branch: git.filters.branch === "" ? state.status.branch ?? "" : "" })
+        onClick: () => store.setGitFilters({ branch: git.filters.branch === "" ? slice.branch ?? "" : "" })
       }, git.filters.branch === "" ? t2("git.allBranches") : t2("git.currentBranchOnly")),
       import_react6.default.createElement(
         "select",
@@ -7163,14 +7885,29 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
             import_react6.default.createElement(
               "div",
               null,
-              state.status.isRepo === true ? git.error ?? t2("git.noCommits") : t2("project.noRepoHint")
+              slice.isRepo === true ? git.error ?? t2("git.noCommits") : t2("project.noRepoHint")
             ),
-            state.status.isRepo !== true ? import_react6.default.createElement("button", {
-              type: "button",
-              className: "iwb-textbtn iwb-primary iwb-small",
-              style: { marginTop: 10 },
-              onClick: () => store.openProjectPicker()
-            }, repoProjects.length > 0 ? t2("project.chooseRepo") : t2("project.selectProject")) : git.error !== null && git.error !== void 0 ? import_react6.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-small", style: { marginTop: 10 }, onClick: () => {
+            slice.isRepo !== true ? import_react6.default.createElement(
+              "div",
+              { className: "iwb-git-no-repo" },
+              import_react6.default.createElement(
+                "div",
+                { className: "iwb-git-detail-dim" },
+                label(t2, "git.pickRepoHint", "Choose a repository in the Terminal/Git header.")
+              ),
+              gitRepoCandidates(slice).length > 0 ? import_react6.default.createElement("button", {
+                type: "button",
+                className: "iwb-textbtn iwb-primary iwb-small",
+                onClick: (event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setRepoMenu({ x: rect.left, y: rect.bottom + 4 });
+                }
+              }, t2("project.chooseRepo")) : import_react6.default.createElement(
+                "div",
+                { className: "iwb-git-detail-dim" },
+                label(t2, "git.noRepoCandidate", "No Git repository candidate was found in this workspace.")
+              )
+            ) : git.error !== null && git.error !== void 0 ? import_react6.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-small", style: { marginTop: 10 }, onClick: () => {
               void store.loadLog(true);
             } }, t2("common.retry")) : null
           ) : import_react6.default.createElement(
@@ -7226,7 +7963,7 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
       ),
       drawerOpen ? import_react6.default.createElement(CommitDrawer, {
         store,
-        state,
+        git,
         narrow: drawerNarrow,
         width: drawerWidth,
         onResizeStart: startDrawerResize,
@@ -7236,10 +7973,17 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
     menu !== null ? import_react6.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
     branchMenu !== null ? import_react6.default.createElement(BranchPopover, {
       store,
-      state,
+      branches: git.branches,
+      currentBranch: slice.branch,
       x: branchMenu.x,
       y: branchMenu.y,
       onClose: () => setBranchMenu(null)
+    }) : null,
+    repoMenu !== null ? import_react6.default.createElement(RepoPopover, {
+      store,
+      x: repoMenu.x,
+      y: repoMenu.y,
+      onClose: () => setRepoMenu(null)
     }) : null
   );
 }
@@ -16386,6 +17130,9 @@ var o = class {
 };
 
 // src/client/TerminalPanel.jsx
+function terminalSlice(state) {
+  return { terminal: state.terminal };
+}
 function token(root, name2, fallback2) {
   const element = root?.current ?? document.querySelector(".iwb-root");
   if (element === null) return fallback2;
@@ -16393,7 +17140,7 @@ function token(root, name2, fallback2) {
   return value === "" ? fallback2 : value;
 }
 var MIN_FIT_WIDTH = 120;
-function TerminalView({ store, state, session, active, visible }) {
+function TerminalView({ store, session, active, visible }) {
   const t2 = store.t;
   const hostRef = (0, import_react7.useRef)(null);
   const termRef = (0, import_react7.useRef)(null);
@@ -16407,7 +17154,7 @@ function TerminalView({ store, state, session, active, visible }) {
     rootRef.current = document.querySelector(".iwb-root");
     const terminal = new Dl({
       cursorBlink: true,
-      fontSize: state.settings?.terminal?.fontSize ?? 13,
+      fontSize: store.state.settings?.terminal?.fontSize ?? 13,
       fontFamily: '"JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, monospace',
       allowProposedApi: true,
       theme: {
@@ -16480,7 +17227,7 @@ function TerminalView({ store, state, session, active, visible }) {
     }
     const connect = () => {
       const url = wsUrl("ide-workbench/ws/terminal");
-      url.searchParams.set("root", state.root);
+      url.searchParams.set("root", store.state.root);
       if (session.cwd !== void 0 && session.cwd !== "") url.searchParams.set("cwd", session.cwd);
       if (session.shell !== void 0 && session.shell !== "") url.searchParams.set("shell", session.shell);
       url.searchParams.set("cols", String(terminal.cols || 80));
@@ -16626,8 +17373,9 @@ ${error}`)
 }
 function TerminalPanel({ store, state, visible = true }) {
   const t2 = store.t;
-  const sessions = state.terminal.sessions;
-  const activeKey = state.terminal.activeKey ?? sessions[0]?.key ?? null;
+  const slice = useStoreSlice(store, terminalSlice, shallowEqual);
+  const sessions = slice.terminal.sessions;
+  const activeKey = slice.terminal.activeKey ?? sessions[0]?.key ?? null;
   const [renaming, setRenaming] = (0, import_react7.useState)(null);
   const [renameValue, setRenameValue] = (0, import_react7.useState)("");
   const commitRename = () => {
@@ -16690,7 +17438,7 @@ function TerminalPanel({ store, state, visible = true }) {
         className: "iwb-iconbtn",
         title: t2("terminal.atFile"),
         onClick: () => {
-          const active = state.tabs.find((tab3) => tab3.id === state.activeId);
+          const active = store.state.tabs.find((tab3) => tab3.id === store.state.activeId);
           if (active?.kind === "file") store.addTerminal({ cwd: dirName(active.path) });
           else store.addTerminal();
         }
@@ -16714,7 +17462,6 @@ function TerminalPanel({ store, state, visible = true }) {
       ) : sessions.map((session) => import_react7.default.createElement(TerminalView, {
         key: session.key,
         store,
-        state,
         session,
         active: session.key === activeKey,
         visible
@@ -38542,10 +39289,10 @@ function toSet(chars) {
 }
 function prefixMatch(options) {
   let first = /* @__PURE__ */ Object.create(null), rest = /* @__PURE__ */ Object.create(null);
-  for (let { label } of options) {
-    first[label[0]] = true;
-    for (let i2 = 1; i2 < label.length; i2++)
-      rest[label[i2]] = true;
+  for (let { label: label3 } of options) {
+    first[label3[0]] = true;
+    for (let i2 = 1; i2 < label3.length; i2++)
+      rest[label3[i2]] = true;
   }
   let source = toSet(first) + toSet(rest) + "*$";
   return [new RegExp("^" + source), new RegExp(source)];
@@ -40683,10 +41430,10 @@ function finishLink(cx, content2, type, start, startPos) {
       content2.push(elt(Type.LinkMark, pos, endPos));
     }
   } else if (next == 91) {
-    let label = parseLinkLabel(text, startPos - cx.offset, cx.offset, false);
-    if (label) {
-      content2.push(label);
-      endPos = label.to;
+    let label3 = parseLinkLabel(text, startPos - cx.offset, cx.offset, false);
+    if (label3) {
+      content2.push(label3);
+      endPos = label3.to;
     }
   }
   return elt(type, start, endPos, content2);
@@ -42657,7 +43404,7 @@ var atRules = /* @__PURE__ */ [
   "@starting-style",
   "@supports",
   "@view-transition"
-].map((label) => ({ type: "keyword", label }));
+].map((label3) => ({ type: "keyword", label: label3 }));
 var identifier2 = /^(\w[\w-]*|-\w[\w-]*|)$/;
 var variable = /^-(-[\w-]*)?$/;
 function isVarArg(node, doc2) {
@@ -45254,10 +46001,10 @@ var CompletionLevel = class _CompletionLevel {
     }
   }
 };
-function nameCompletion(label, type, idQuote, idCaseInsensitive) {
-  if (new RegExp("^[a-z_][a-z_\\d]*$", idCaseInsensitive ? "i" : "").test(label))
-    return { label, type };
-  return { label, type, apply: idQuote + label + getClosingQuote(idQuote) };
+function nameCompletion(label3, type, idQuote, idCaseInsensitive) {
+  if (new RegExp("^[a-z_][a-z_\\d]*$", idCaseInsensitive ? "i" : "").test(label3))
+    return { label: label3, type };
+  return { label: label3, type, apply: idQuote + label3 + getClosingQuote(idQuote) };
 }
 function getClosingQuote(openingQuote) {
   return openingQuote === "[" ? "]" : openingQuote;
@@ -45399,8 +46146,8 @@ var SQLDialect = class _SQLDialect {
     return new _SQLDialect(d, language2, spec);
   }
 };
-function defaultKeyword(label, type) {
-  return { label, type, boost: -1 };
+function defaultKeyword(label3, type) {
+  return { label: label3, type, boost: -1 };
 }
 function keywordCompletionSource(dialect2, upperCase = false, build) {
   return completeKeywords(dialect2.dialect.words, upperCase, build || defaultKeyword);
@@ -47589,13 +48336,13 @@ function DomFindBar({ containerRef, t: t2, onClose }) {
     paint([], -1);
     onClose?.();
   };
-  const flag = (on2, label, title, onClick) => import_react9.default.createElement("button", {
+  const flag = (on2, label3, title, onClick) => import_react9.default.createElement("button", {
     type: "button",
     className: `iwb-find-flag ${on2 ? "iwb-on" : ""}`,
     title,
     "aria-pressed": on2,
     onClick
-  }, label);
+  }, label3);
   return import_react9.default.createElement(
     "div",
     {
@@ -48225,13 +48972,13 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
     const result = editor?.replaceAll(replacement, query, options);
     if ((result?.count ?? 0) > 0) apply2(query);
   };
-  const flag = (on2, label, title, onClick) => import_react11.default.createElement("button", {
+  const flag = (on2, label3, title, onClick) => import_react11.default.createElement("button", {
     type: "button",
     className: `iwb-find-flag ${on2 ? "iwb-on" : ""}`,
     title,
     "aria-pressed": on2,
     onClick
-  }, label);
+  }, label3);
   return import_react11.default.createElement(
     "div",
     {
@@ -48358,11 +49105,15 @@ function diffSource(tab3) {
   }
   return { text: payload.diff ?? "", staged: tab3.staged === true, stageable, path: tab3.rel };
 }
-function DiffView({ store, state, tab: tab3 }) {
+function diffSlice(state) {
+  return { commitMode: state.commit?.mode };
+}
+function DiffView({ store, tab: tab3 }) {
   const t2 = store.t;
+  const slice = useStoreSlice(store, diffSlice, shallowEqual);
   const source = (0, import_react12.useMemo)(() => diffSource(tab3), [tab3]);
   const parsed = (0, import_react12.useMemo)(() => parseUnifiedDiff(source.text), [source.text]);
-  const mode = tab3.kind === "commit" ? "unified" : state.commit.mode ?? "side";
+  const mode = tab3.kind === "commit" ? "unified" : slice.commitMode ?? "side";
   const [selection, setSelection] = (0, import_react12.useState)(() => /* @__PURE__ */ new Set());
   const [scrollTop, setScrollTop] = (0, import_react12.useState)(0);
   const [viewport, setViewport] = (0, import_react12.useState)(400);
@@ -48406,8 +49157,8 @@ function DiffView({ store, state, tab: tab3 }) {
   const rows = (0, import_react12.useMemo)(() => {
     const output = [];
     for (const file of files) {
-      const label = file.newPath !== "" ? file.newPath : file.oldPath;
-      output.push({ kind: "file", text: label, additions: file.additions, deletions: file.deletions });
+      const label3 = file.newPath !== "" ? file.newPath : file.oldPath;
+      output.push({ kind: "file", text: label3, additions: file.additions, deletions: file.deletions });
       if (file.isBinary) {
         output.push({ kind: "binary", text: t2("common.binary") });
         continue;
@@ -48561,7 +49312,7 @@ ${row.right?.text ?? ""}`;
   const onGutterEnter = (index) => {
     if (selecting.current) addIndex(index);
   };
-  const applySelection = async (indexes, label) => {
+  const applySelection = async (indexes, label3) => {
     if (!Array.isArray(indexes) || indexes.length === 0) {
       store.toast("info", t2("commit.noChanges"));
       return;
@@ -48577,7 +49328,7 @@ ${row.right?.text ?? ""}`;
     try {
       await store.stagePatch(patch, source.staged ? "unstage" : "stage");
       setSelection(/* @__PURE__ */ new Set());
-      store.toast("success", label ?? (source.staged ? t2("commit.unstageSelection") : t2("commit.stageSelection")));
+      store.toast("success", label3 ?? (source.staged ? t2("commit.unstageSelection") : t2("commit.stageSelection")));
     } finally {
       setApplying(false);
     }
@@ -48774,18 +49525,21 @@ ${row.right?.text ?? ""}`;
 
 // src/client/SearchView.jsx
 var import_react13 = __toESM(require("react"), 1);
-function Flag({ on: on2, label, title, onClick }) {
+function Flag({ on: on2, label: label3, title, onClick }) {
   return import_react13.default.createElement("button", {
     type: "button",
     className: `iwb-find-flag ${on2 ? "iwb-on" : ""}`,
     title,
     "aria-pressed": on2,
     onClick
-  }, label);
+  }, label3);
 }
-function SearchView({ store, state }) {
+function searchSlice(state) {
+  return { search: state.search };
+}
+function SearchView({ store }) {
   const t2 = store.t;
-  const search2 = state.search;
+  const { search: search2 } = useStoreSlice(store, searchSlice, shallowEqual);
   const [query, setQuery] = (0, import_react13.useState)(search2.query);
   const [caseSensitive, setCaseSensitive] = (0, import_react13.useState)(search2.caseSensitive);
   const [wholeWord, setWholeWord] = (0, import_react13.useState)(search2.wholeWord);
@@ -48916,16 +49670,30 @@ function SearchView({ store, state }) {
 }
 
 // src/client/EditorArea.jsx
-function Welcome({ store, state }) {
+function selectEditorSlice(state) {
+  const tabs = state.tabs ?? [];
+  const active = tabs.find((tab3) => tab3.id === state.activeId);
+  return {
+    tabs,
+    activeId: state.activeId,
+    status: active === void 0 ? state.status : null,
+    fontSize: state.settings?.editor?.fontSize ?? 13,
+    shortcuts: state.settings?.shortcuts,
+    root: state.root,
+    projects: state.projects,
+    confirm: state.confirm
+  };
+}
+function Welcome({ store, slice }) {
   const t2 = store.t;
-  const branch = state.status.branch;
-  const repoProjects = (state.projects ?? []).filter((project) => project.isRepo === true && project.path !== state.root);
+  const branch = slice.status?.branch;
+  const repoProjects = (slice.projects ?? []).filter((project) => project.isRepo === true && project.path !== slice.root);
   const Shortcut = ({ shortcut, children }) => import_react14.default.createElement(Kbd, null, shortcut);
   const actions = [
-    { key: "project", icon: "project", title: t2("welcome.project"), shortcut: state.settings?.shortcuts?.project ?? "Alt+1", onClick: () => store.showTool("project") },
-    { key: "commit", icon: "commit", title: t2("welcome.commit"), shortcut: state.settings?.shortcuts?.commit ?? "Alt+0", onClick: () => store.showTool("commit") },
-    { key: "git", icon: "git", title: t2("welcome.git"), shortcut: state.settings?.shortcuts?.git ?? "Alt+9", onClick: () => store.showTool("git") },
-    { key: "terminal", icon: "terminal", title: t2("welcome.terminal"), shortcut: state.settings?.shortcuts?.terminal ?? "Alt+F12", onClick: () => store.showTool("terminal") }
+    { key: "project", icon: "project", title: t2("welcome.project"), shortcut: slice.shortcuts?.project ?? "Alt+1", onClick: () => store.showTool("project") },
+    { key: "commit", icon: "commit", title: t2("welcome.commit"), shortcut: slice.shortcuts?.commit ?? "Alt+0", onClick: () => store.showTool("commit") },
+    { key: "git", icon: "git", title: t2("welcome.git"), shortcut: slice.shortcuts?.git ?? "Alt+9", onClick: () => store.showTool("git") },
+    { key: "terminal", icon: "terminal", title: t2("welcome.terminal"), shortcut: slice.shortcuts?.terminal ?? "Alt+F12", onClick: () => store.showTool("terminal") }
   ];
   return import_react14.default.createElement(
     "div",
@@ -48954,10 +49722,10 @@ function Welcome({ store, state }) {
       import_react14.default.createElement(
         "div",
         { className: "iwb-welcome-meta" },
-        state.status.isRepo === true ? import_react14.default.createElement("span", null, `${t2("welcome.branch")}: ${state.status.detached === true ? t2("git.detached") : branch ?? "HEAD"}`) : import_react14.default.createElement("span", null, t2("welcome.noRepo")),
-        import_react14.default.createElement("span", null, state.root)
+        slice.status?.isRepo === true ? import_react14.default.createElement("span", null, `${t2("welcome.branch")}: ${slice.status.detached === true ? t2("git.detached") : branch ?? "HEAD"}`) : import_react14.default.createElement("span", null, t2("welcome.noRepo")),
+        import_react14.default.createElement("span", null, slice.root)
       ),
-      state.status.isRepo !== true && repoProjects.length > 0 ? import_react14.default.createElement(
+      slice.status?.isRepo !== true && repoProjects.length > 0 ? import_react14.default.createElement(
         "div",
         { className: "iwb-welcome-hint" },
         import_react14.default.createElement("span", null, t2("project.noRepoHint")),
@@ -48970,7 +49738,7 @@ function Welcome({ store, state }) {
     )
   );
 }
-function FilePreview({ store, state, tab: tab3, onEditorReady, onFindRequest, onFindInFiles, previewFind, onPreviewFindRequest, onClosePreviewFind }) {
+function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, onFindInFiles, previewFind, onPreviewFindRequest, onClosePreviewFind }) {
   const t2 = store.t;
   const scrollTimer = (0, import_react14.useRef)(null);
   (0, import_react14.useEffect)(() => () => {
@@ -49015,7 +49783,7 @@ function FilePreview({ store, state, tab: tab3, onEditorReady, onFindRequest, on
       key: `${tab3.id}:${tab3.resetToken ?? 0}`,
       value: tab3.draft ?? saved,
       path: tab3.path,
-      fontSize: state.settings?.editor?.fontSize ?? 13,
+      fontSize: slice.fontSize,
       resetToken: tab3.resetToken ?? 0,
       revealLine: tab3.revealLine,
       readOnly: false,
@@ -49057,7 +49825,7 @@ function FilePreview({ store, state, tab: tab3, onEditorReady, onFindRequest, on
     key: `${tab3.id}:readonly:${tab3.resetToken ?? 0}`,
     value: text,
     path: tab3.path,
-    fontSize: state.settings?.editor?.fontSize ?? 13,
+    fontSize: slice.fontSize,
     resetToken: tab3.resetToken ?? 0,
     revealLine: tab3.revealLine,
     readOnly: true,
@@ -49069,18 +49837,18 @@ function FilePreview({ store, state, tab: tab3, onEditorReady, onFindRequest, on
     chatLabels: { send: t2("chat.sendToChat"), copy: t2("common.copy") }
   });
 }
-function TabBar({ store, state }) {
+function TabBar({ store, slice }) {
   const t2 = store.t;
   const [menu, setMenu] = (0, import_react14.useState)(null);
-  const activeIndex = state.tabs.findIndex((tab3) => tab3.id === state.activeId);
+  const activeIndex = slice.tabs.findIndex((tab3) => tab3.id === slice.activeId);
   return import_react14.default.createElement(
     "div",
     { className: "iwb-tabbar" },
-    state.tabs.map((tab3) => import_react14.default.createElement(
+    slice.tabs.map((tab3) => import_react14.default.createElement(
       "div",
       {
         key: tab3.id,
-        className: `iwb-tab ${tab3.id === state.activeId ? "iwb-active" : ""} ${tab3.preview ? "iwb-preview" : ""} ${tab3.dirty ? "iwb-dirty" : ""}`,
+        className: `iwb-tab ${tab3.id === slice.activeId ? "iwb-active" : ""} ${tab3.preview ? "iwb-preview" : ""} ${tab3.dirty ? "iwb-dirty" : ""}`,
         title: tab3.path,
         onClick: () => store.activateTab(tab3.id),
         onDoubleClick: () => {
@@ -49110,11 +49878,11 @@ function TabBar({ store, state }) {
     import_react14.default.createElement(
       "div",
       { className: "iwb-tabbar-actions" },
-      activeIndex >= 0 && state.tabs[activeIndex]?.kind === "file" && state.tabs[activeIndex]?.preview ? import_react14.default.createElement("button", {
+      activeIndex >= 0 && slice.tabs[activeIndex]?.kind === "file" && slice.tabs[activeIndex]?.preview ? import_react14.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("common.pinTab"),
-        onClick: () => store.pinTab(state.tabs[activeIndex].id)
+        onClick: () => store.pinTab(slice.tabs[activeIndex].id)
       }, import_react14.default.createElement(IconPin, { width: 14, height: 14 })) : null
     ),
     menu !== null ? import_react14.default.createElement(ContextMenu, {
@@ -49158,7 +49926,7 @@ function TabBar({ store, state }) {
     }) : null
   );
 }
-function EditorToolbar({ store, state, tab: tab3 }) {
+function EditorToolbar({ store, tab: tab3 }) {
   const t2 = store.t;
   const [diffMenu, setDiffMenu] = (0, import_react14.useState)(null);
   if (tab3.kind === "diff") {
@@ -49232,6 +50000,9 @@ function EditorToolbar({ store, state, tab: tab3 }) {
     );
   }
   const segments = tab3.rel.split(/[\\/]/);
+  const fileSegment = segments[segments.length - 1];
+  const directories = segments.slice(0, -1);
+  const middle = directories.slice(1);
   const payload = tab3.payload;
   const isText2 = payload?.kind === "text" && payload?.truncated !== true;
   const markdown2 = isMarkdownPath(tab3.path);
@@ -49245,33 +50016,18 @@ function EditorToolbar({ store, state, tab: tab3 }) {
     import_react14.default.createElement(
       "div",
       { className: "iwb-breadcrumb", title: tab3.path },
-      segments.slice(0, -1).map((segment, index) => import_react14.default.createElement(
+      directories.length === 0 ? null : import_react14.default.createElement("span", null, directories[0]),
+      middle.length === 0 ? null : import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
+      middle.map((segment, index) => import_react14.default.createElement(
         import_react14.default.Fragment,
         { key: index },
-        import_react14.default.createElement("span", null, segment),
-        import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A")
+        import_react14.default.createElement("span", { className: "iwb-crumb-mid" }, segment),
+        index < middle.length - 1 ? import_react14.default.createElement("span", { className: "iwb-sep iwb-crumb-mid" }, "\u203A") : null
       )),
-      import_react14.default.createElement("b", null, segments[segments.length - 1]),
-      dirty ? import_react14.default.createElement("span", { className: "iwb-toolbar-dirty", title: t2("editor.dirty") }, t2("editor.dirty")) : null,
-      tab3.conflict !== null && tab3.conflict !== void 0 ? import_react14.default.createElement(
-        "span",
-        { className: "iwb-conflict-chip", title: tab3.conflict.message ?? "" },
-        t2("editor.externalChanged"),
-        import_react14.default.createElement("button", {
-          type: "button",
-          className: "iwb-textbtn iwb-small",
-          onClick: () => {
-            void store.reloadTab(tab3.id);
-          }
-        }, t2("editor.reloadFromDisk")),
-        import_react14.default.createElement("button", {
-          type: "button",
-          className: "iwb-textbtn iwb-small",
-          onClick: () => {
-            void store.saveTab(tab3.id, { force: true });
-          }
-        }, t2("editor.overwriteDisk"))
-      ) : null
+      middle.length > 0 ? import_react14.default.createElement("span", { className: "iwb-crumb-more" }, "\u2026") : null,
+      directories.length === 0 ? null : import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
+      import_react14.default.createElement("b", null, fileSegment),
+      dirty ? import_react14.default.createElement("span", { className: "iwb-toolbar-dirty", title: t2("editor.dirty") }, t2("editor.dirty")) : null
     ),
     import_react14.default.createElement("div", { className: "iwb-spacer" }),
     payload?.truncated === true ? import_react14.default.createElement("span", { style: { color: "var(--iwb-warn)" } }, t2("editor.truncated")) : null,
@@ -49378,11 +50134,92 @@ function HtmlPreviewActions({ store, tab: tab3 }) {
     }, import_react14.default.createElement(IconChrome, { width: 15, height: 15 }))
   );
 }
-function EditorArea({ store, state }) {
-  const active = state.tabs.find((tab3) => tab3.id === state.activeId);
+function buildConflictDialog(store, tab3) {
+  if (tab3 === null || tab3 === void 0) return null;
+  if (tab3.conflict === null || tab3.conflict === void 0) return null;
+  const t2 = store.t;
+  return {
+    title: t2("editor.conflictTitle"),
+    body: tab3.conflict.message ?? t2("editor.conflictBody"),
+    actions: [
+      { key: "cancel", label: t2("common.cancel"), action: () => {
+      } },
+      {
+        key: "reload",
+        label: t2("editor.reloadFromDisk"),
+        action: () => {
+          void store.reloadTab(tab3.id);
+        }
+      },
+      {
+        key: "overwrite",
+        label: t2("editor.overwriteDisk"),
+        primary: true,
+        action: () => {
+          void store.saveTab(tab3.id, { force: true });
+        }
+      }
+    ]
+  };
+}
+function createEditorKeyHandler(store, options) {
+  const { textTab, previewTab, findOpenRef, previewFindRef, editorApi, setFindOpen, setPreviewFind } = options;
+  return (event) => {
+    if (store.state.active !== true) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest(".iwb-search")) return;
+    const mod = event.ctrlKey || event.metaKey;
+    const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
+    if (mod && (event.shiftKey && !event.altKey && key === "r" || event.altKey && !event.shiftKey && key === "f")) {
+      event.preventDefault();
+      event.stopPropagation();
+      store.openSearchTab();
+      return;
+    }
+    if (mod && !event.altKey && !event.shiftKey && key === "f" && textTab) {
+      event.preventDefault();
+      event.stopPropagation();
+      setFindOpen(true);
+      return;
+    }
+    if (mod && !event.altKey && !event.shiftKey && key === "f" && previewTab) {
+      event.preventDefault();
+      event.stopPropagation();
+      setPreviewFind(true);
+      return;
+    }
+    if ((event.key === "F3" || mod && key === "g") && textTab) {
+      event.preventDefault();
+      event.stopPropagation();
+      setFindOpen(true);
+      return;
+    }
+    if (event.key === "F3" && !mod && previewTab) {
+      event.preventDefault();
+      event.stopPropagation();
+      setPreviewFind(true);
+      return;
+    }
+    if (event.key === "Escape" && findOpenRef.current) {
+      event.preventDefault();
+      findOpenRef.current = false;
+      editorApi?.clear();
+      setFindOpen(false);
+    }
+    if (event.key === "Escape" && previewFindRef.current) {
+      event.preventDefault();
+      previewFindRef.current = false;
+      setPreviewFind(false);
+    }
+  };
+}
+function EditorArea({ store, state: _state }) {
+  const slice = useStoreSlice(store, selectEditorSlice, shallowEqual);
+  const active = slice.tabs.find((tab3) => tab3.id === slice.activeId);
   const [findOpen, setFindOpen] = (0, import_react14.useState)(false);
   const [previewFind, setPreviewFind] = (0, import_react14.useState)(false);
   const [editorApi, setEditorApi] = (0, import_react14.useState)(null);
+  const [dismissedTab, setDismissedTab] = (0, import_react14.useState)(null);
   const findOpenRef = (0, import_react14.useRef)(false);
   findOpenRef.current = findOpen;
   const previewFindRef = (0, import_react14.useRef)(false);
@@ -49395,54 +50232,15 @@ function EditorArea({ store, state }) {
     setEditorApi(null);
   }, [active?.id]);
   (0, import_react14.useEffect)(() => {
-    const onKeyDown = (event) => {
-      if (store.state.active !== true) return;
-      const target = event.target;
-      if (target instanceof HTMLElement && target.closest(".iwb-search")) return;
-      const mod = event.ctrlKey || event.metaKey;
-      const key = event.key.toLowerCase();
-      if (mod && (event.shiftKey && !event.altKey || event.altKey && !event.shiftKey) && key === "f") {
-        event.preventDefault();
-        event.stopPropagation();
-        store.openSearchTab();
-        return;
-      }
-      if (mod && !event.altKey && !event.shiftKey && key === "f" && textTab) {
-        event.preventDefault();
-        event.stopPropagation();
-        setFindOpen(true);
-        return;
-      }
-      if (mod && !event.altKey && !event.shiftKey && key === "f" && previewTab) {
-        event.preventDefault();
-        event.stopPropagation();
-        setPreviewFind(true);
-        return;
-      }
-      if ((event.key === "F3" || mod && key === "g") && textTab) {
-        event.preventDefault();
-        event.stopPropagation();
-        setFindOpen(true);
-        return;
-      }
-      if (event.key === "F3" && !mod && previewTab) {
-        event.preventDefault();
-        event.stopPropagation();
-        setPreviewFind(true);
-        return;
-      }
-      if (event.key === "Escape" && findOpenRef.current) {
-        event.preventDefault();
-        findOpenRef.current = false;
-        editorApi?.clear();
-        setFindOpen(false);
-      }
-      if (event.key === "Escape" && previewFindRef.current) {
-        event.preventDefault();
-        previewFindRef.current = false;
-        setPreviewFind(false);
-      }
-    };
+    const onKeyDown = createEditorKeyHandler(store, {
+      textTab,
+      previewTab,
+      findOpenRef,
+      previewFindRef,
+      editorApi,
+      setFindOpen,
+      setPreviewFind
+    });
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [store, textTab, previewTab, editorApi]);
@@ -49469,25 +50267,38 @@ function EditorArea({ store, state }) {
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [store]);
+  const conflictTab = (0, import_react14.useMemo)(() => {
+    if (active?.conflict === null || active?.conflict === void 0) return null;
+    return { id: active.id, conflict: { message: active.conflict.message ?? null } };
+  }, [active?.id, active?.conflict?.message]);
+  const conflictDialog = (0, import_react14.useMemo)(() => {
+    if (conflictTab === null || dismissedTab === conflictTab.id) return null;
+    if (slice.confirm !== null && slice.confirm !== void 0) return null;
+    return buildConflictDialog(store, conflictTab);
+  }, [conflictTab, dismissedTab, slice.confirm, store]);
+  const closeConflict = (0, import_react14.useCallback)(() => setDismissedTab(conflictTab?.id ?? null), [conflictTab?.id]);
+  (0, import_react14.useEffect)(() => {
+    if (conflictTab === null) setDismissedTab(null);
+  }, [conflictTab]);
   if (active === void 0) {
     return import_react14.default.createElement(
       "div",
       { className: "iwb-editor" },
-      import_react14.default.createElement(TabBar, { store, state }),
-      import_react14.default.createElement(Welcome, { store, state })
+      import_react14.default.createElement(TabBar, { store, slice }),
+      import_react14.default.createElement(Welcome, { store, slice })
     );
   }
   if (active.kind === "search") {
     return import_react14.default.createElement(
       "div",
       { className: "iwb-editor" },
-      import_react14.default.createElement(TabBar, { store, state }),
-      import_react14.default.createElement(SearchView, { store, state })
+      import_react14.default.createElement(TabBar, { store, slice }),
+      import_react14.default.createElement(SearchView, { store })
     );
   }
   const content2 = active.kind === "file" ? import_react14.default.createElement(FilePreview, {
     store,
-    state,
+    slice,
     tab: active,
     previewFind,
     onPreviewFindRequest: () => setPreviewFind(true),
@@ -49495,12 +50306,12 @@ function EditorArea({ store, state }) {
     onEditorReady: setEditorApi,
     onFindRequest: () => setFindOpen(true),
     onFindInFiles: () => store.openSearchTab()
-  }) : active.loading === true ? import_react14.default.createElement("div", { className: "iwb-editor-empty" }, store.t("common.loading")) : active.error !== null && active.error !== void 0 ? import_react14.default.createElement("div", { className: "iwb-editor-empty" }, import_react14.default.createElement("div", { className: "iwb-error-box" }, active.error)) : import_react14.default.createElement(DiffView, { store, state, tab: active });
+  }) : active.loading === true ? import_react14.default.createElement("div", { className: "iwb-editor-empty" }, store.t("common.loading")) : active.error !== null && active.error !== void 0 ? import_react14.default.createElement("div", { className: "iwb-editor-empty" }, import_react14.default.createElement("div", { className: "iwb-error-box" }, active.error)) : import_react14.default.createElement(DiffView, { store, tab: active });
   return import_react14.default.createElement(
     "div",
     { className: "iwb-editor" },
-    import_react14.default.createElement(TabBar, { store, state }),
-    import_react14.default.createElement(EditorToolbar, { store, state, tab: active }),
+    import_react14.default.createElement(TabBar, { store, slice }),
+    import_react14.default.createElement(EditorToolbar, { store, tab: active }),
     findOpen === true && textTab && editorApi !== null ? import_react14.default.createElement(FindBar, {
       store,
       editor: editorApi,
@@ -49508,7 +50319,12 @@ function EditorArea({ store, state }) {
       onClose: () => setFindOpen(false)
     }) : null,
     content2,
-    import_react14.default.createElement(HtmlPreviewActions, { store, tab: active })
+    import_react14.default.createElement(HtmlPreviewActions, { store, tab: active }),
+    conflictDialog !== null ? import_react14.default.createElement(ConfirmModal, {
+      dialog: conflictDialog,
+      onClose: closeConflict,
+      scope: "editor"
+    }) : null
   );
 }
 
@@ -49534,14 +50350,14 @@ function Group({ title, description, children }) {
     import_react15.default.createElement("div", { className: "iwb-settings-rows" }, children)
   );
 }
-function Row({ label, hint, children }) {
+function Row({ label: label3, hint, children }) {
   return import_react15.default.createElement(
     "div",
     { className: "iwb-settings-row" },
     import_react15.default.createElement(
       "div",
       { className: "iwb-settings-label" },
-      import_react15.default.createElement("div", { className: "iwb-settings-title" }, label),
+      import_react15.default.createElement("div", { className: "iwb-settings-title" }, label3),
       hint !== void 0 ? import_react15.default.createElement("div", { className: "iwb-settings-hint" }, hint) : null
     ),
     import_react15.default.createElement("div", { className: "iwb-settings-control" }, children)
@@ -49964,7 +50780,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
               terminal: "Alt+F12",
               focusCommit: "Ctrl+K",
               push: "Ctrl+Shift+K",
-              findInFiles: "Ctrl+Shift+F",
+              findInFiles: "Ctrl+Shift+R",
               findInFilesAlt: "Ctrl+Alt+F",
               openCommitDetail: "Ctrl+Alt+D",
               quickOpen: "Ctrl+Shift+N"
@@ -50102,6 +50918,15 @@ var STACK_WIDTH = 560;
 var LEFT_PANE_RATIO = 42;
 
 // src/client/Workbench.jsx
+function label2(t2, key, fallback2) {
+  const value = t2(key);
+  return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
+}
+var MemoEditorArea = import_react17.default.memo(EditorArea);
+var MemoProjectPanel = import_react17.default.memo(ProjectPanel);
+var MemoCommitPanel = import_react17.default.memo(CommitPanel);
+var MemoGitPanel = import_react17.default.memo(GitPanel);
+var MemoTerminalPanel = import_react17.default.memo(TerminalPanel);
 function TopBar({ store, state, fullscreen, onOpenSettings }) {
   const t2 = store.t;
   const branch = state.status.branch;
@@ -50154,12 +50979,6 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       "aria-pressed": fullscreen,
       onClick: (event) => store.toggleFullscreen(event.currentTarget)
     }, "\u26F6"),
-    import_react17.default.createElement("button", {
-      type: "button",
-      className: "iwb-iconbtn",
-      title: `${t2("search.title")} (${state.settings?.shortcuts?.findInFiles ?? "Ctrl+Shift+F"})`,
-      onClick: () => store.openSearchTab()
-    }, import_react17.default.createElement(IconSearch, { width: 15, height: 15 })),
     import_react17.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn",
@@ -50242,6 +51061,77 @@ function Stripe({ store, state }) {
     )
   );
 }
+function RepoSwitch({ store, state }) {
+  const t2 = store.t;
+  const [anchor, setAnchor] = (0, import_react17.useState)(null);
+  const [placement, setPlacement] = (0, import_react17.useState)(null);
+  const holderRef = (0, import_react17.useRef)(null);
+  const current = typeof state.gitRepoRoot === "string" ? state.gitRepoRoot : "";
+  const enabled = state.layout.bottom === "git";
+  const name2 = current === "" ? "" : baseName(current) || current;
+  (0, import_react17.useEffect)(() => {
+    if (anchor === null) return void 0;
+    const onDown = (event) => {
+      if (event.target instanceof Element && event.target.closest(".iwb-branch-popover, .iwb-branch-switch") !== null) return;
+      setAnchor(null);
+    };
+    window.addEventListener("mousedown", onDown, true);
+    return () => window.removeEventListener("mousedown", onDown, true);
+  }, [anchor]);
+  (0, import_react17.useEffect)(() => {
+    if (anchor === null) return void 0;
+    const holder = holderRef.current;
+    if (holder === null) return void 0;
+    const popover = holder.querySelector(".iwb-branch-popover");
+    if (popover === null) return void 0;
+    const height = popover.getBoundingClientRect().height;
+    if (!(height > 0)) return void 0;
+    const below = anchor.bottom + 4;
+    const top2 = below + height + 8 <= window.innerHeight ? below : Math.max(8, anchor.top - height - 4);
+    setPlacement({ top: top2 });
+    return void 0;
+  }, [anchor]);
+  return import_react17.default.createElement(
+    import_react17.default.Fragment,
+    null,
+    import_react17.default.createElement(
+      "button",
+      {
+        type: "button",
+        className: "iwb-branch-switch",
+        disabled: !enabled,
+        title: !enabled ? label2(t2, "git.switchRepoDisabled", "Only the Git window can switch repositories") : current === "" ? label2(t2, "git.pickRepoHint", "Pick a repository in the Terminal/Git header") : current,
+        style: {
+          opacity: enabled ? 1 : 0.55,
+          cursor: enabled ? "pointer" : "default",
+          alignSelf: "center"
+        },
+        onClick: (event) => {
+          if (!enabled) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          const left = Math.max(6, Math.min(rect.left, window.innerWidth - 268));
+          setPlacement(null);
+          setAnchor({ left, top: rect.top, bottom: rect.bottom });
+        }
+      },
+      import_react17.default.createElement("span", null, name2 === "" ? label2(t2, "git.pickRepo", "Choose repository") : name2),
+      import_react17.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
+    ),
+    anchor !== null ? import_react17.default.createElement(
+      "div",
+      {
+        ref: holderRef,
+        style: { width: 0, height: 0, opacity: placement === null ? 0 : 1 }
+      },
+      import_react17.default.createElement(RepoPopover, {
+        store,
+        x: anchor.left,
+        y: placement?.top ?? anchor.bottom + 4,
+        onClose: () => setAnchor(null)
+      })
+    ) : null
+  );
+}
 function BottomTabs({ store, state }) {
   const t2 = store.t;
   const tool = state.layout.bottom;
@@ -50265,6 +51155,7 @@ function BottomTabs({ store, state }) {
       className: `iwb-bottom-tab ${tool === "git" ? "iwb-on" : ""}`,
       onClick: () => store.showTool("git")
     }, import_react17.default.createElement(IconGit, { width: 13, height: 13 }), t2("git.title")),
+    import_react17.default.createElement(RepoSwitch, { store, state }),
     import_react17.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn iwb-bottom-close",
@@ -50559,7 +51450,7 @@ function Workbench({ store, visible = true, fullscreen = false }) {
         ref: leftRef,
         style: { "--iwb-left-width": `${state.layout.leftWidth}px` }
       },
-      state.layout.left === "project" ? import_react17.default.createElement(ProjectPanel, { store, state }) : import_react17.default.createElement(CommitPanel, { store, state }),
+      state.layout.left === "project" ? import_react17.default.createElement(MemoProjectPanel, { store }) : import_react17.default.createElement(MemoCommitPanel, { store }),
       import_react17.default.createElement("div", { className: "iwb-left-resizer", onPointerDown: startLeftResize })
     );
   }
@@ -50580,10 +51471,10 @@ function Workbench({ store, visible = true, fullscreen = false }) {
     import_react17.default.createElement(
       "div",
       { className: "iwb-bottom-body" },
-      bottom === "git" ? import_react17.default.createElement(GitPanel, { store, state }) : null,
+      bottom === "git" ? import_react17.default.createElement(MemoGitPanel, { store }) : null,
       terminalKeep ? import_react17.default.createElement("div", {
         className: bottom === "terminal" ? "iwb-bottom-content" : "iwb-term-hidden"
-      }, import_react17.default.createElement(TerminalPanel, { store, state, visible: bottom === "terminal" })) : bottom === "terminal" ? import_react17.default.createElement(TerminalPanel, { store, state, visible: true }) : null
+      }, import_react17.default.createElement(MemoTerminalPanel, { store, visible: bottom === "terminal" })) : bottom === "terminal" ? import_react17.default.createElement(MemoTerminalPanel, { store, visible: true }) : null
     )
   ) : null;
   return import_react17.default.createElement(
@@ -50598,10 +51489,12 @@ function Workbench({ store, visible = true, fullscreen = false }) {
       import_react17.default.createElement(
         "div",
         { className: "iwb-center" },
-        import_react17.default.createElement(EditorArea, { store, state }),
-        bottomNode
+        import_react17.default.createElement(MemoEditorArea, { store })
       )
     ),
+    // The Terminal/Git dock spans the whole workbench width: it is a sibling
+    // of the body, so the left dock shrinks above it instead of squeezing it.
+    bottomNode,
     import_react17.default.createElement(StatusBar, { store, state }),
     state.phase === "booting" ? import_react17.default.createElement("div", { className: "iwb-empty", style: { position: "absolute", inset: 0, background: "var(--iwb-bg)" } }, store.t("common.loading")) : null,
     state.fatal !== null && state.fatal !== void 0 ? import_react17.default.createElement(
@@ -50829,10 +51722,23 @@ var CSS2 = `
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;
+  /* Own container so the breadcrumb can collapse on a narrow *document* pane,
+     not only on a narrow window. */
+  container-type: inline-size; container-name: iwb-editor-toolbar;
 }
-.iwb-breadcrumb { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+/* One line, always: a squeezed segment must clip, never wrap inside the
+   30px toolbar. */
+.iwb-breadcrumb { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.iwb-breadcrumb > * { flex-shrink: 0; }
 .iwb-breadcrumb .iwb-sep { opacity: .5; }
 .iwb-breadcrumb b { color: var(--iwb-fg); font-weight: 600; }
+/* The middle segments collapse into one ellipsis; the file name always stays
+   visible and the full path stays in the element title. */
+.iwb-breadcrumb .iwb-crumb-more { display: none; color: var(--iwb-muted); }
+@container iwb-editor-toolbar (max-width: 520px) {
+  .iwb-breadcrumb .iwb-crumb-mid { display: none; }
+  .iwb-breadcrumb .iwb-crumb-more { display: inline-flex; }
+}
 .iwb-editor-toolbar .iwb-spacer { flex: 1; }
 .iwb-seg {
   display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 6px; overflow: hidden; background: var(--iwb-panel);
@@ -50912,6 +51818,9 @@ var CSS2 = `
   color: var(--iwb-muted); font-size: 10.5px; font-family: var(--iwb-mono); white-space: nowrap;
 }
 
+/* The bottom dock is a direct child of .iwb-root, so it spans the whole
+   workbench width. Its content keeps a 44px left gutter so it never slides
+   under the tool-window stripe. */
 .iwb-bottom {
   position: relative; flex: 0 0 auto; display: flex; flex-direction: column; min-height: 90px;
   border-top: 1px solid var(--iwb-border); background: var(--iwb-panel);
@@ -50921,7 +51830,7 @@ var CSS2 = `
 }
 .iwb-bottom-resizer:hover { background: rgba(76, 154, 255, .22); }
 .iwb-bottom-tabs {
-  height: 30px; flex: 0 0 30px; display: flex; align-items: stretch; gap: 2px; padding: 0 8px;
+  height: 30px; flex: 0 0 30px; display: flex; align-items: stretch; gap: 2px; padding: 0 8px 0 44px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
 }
 .iwb-bottom-tab {
@@ -50931,7 +51840,7 @@ var CSS2 = `
 .iwb-bottom-tab:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .07); }
 .iwb-bottom-tab.iwb-on { color: var(--iwb-fg); border-bottom-color: var(--iwb-accent); }
 .iwb-bottom-tab .iwb-badge { position: static; margin-left: 2px; }
-.iwb-bottom-body { flex: 1; min-height: 0; display: flex; }
+.iwb-bottom-body { flex: 1; min-height: 0; display: flex; padding-left: 44px; }
 .iwb-bottom-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .iwb-bottom-hidden { min-height: 0 !important; border-top: 0 !important; overflow: hidden; }
 .iwb-bottom-hidden .iwb-bottom-body { display: none; }
@@ -50957,6 +51866,12 @@ var CSS2 = `
 .iwb-tree:focus { outline: none; }
 .iwb-tree:focus-visible { outline: 1px solid rgba(76, 154, 255, .35); outline-offset: -1px; }
 .iwb-tree-twisty { width: 16px; flex: 0 0 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--iwb-muted); }
+/* Only a directory twisty is a control; a file row keeps an empty spacer, so
+   the pointer is limited to the rows that can actually be toggled. */
+.iwb-tree-twisty.iwb-tree-twisty-click,
+.iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty { cursor: pointer; border-radius: 3px; }
+.iwb-tree-twisty.iwb-tree-twisty-click:hover,
+.iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .16); }
 .iwb-tree-name { overflow: hidden; text-overflow: ellipsis; }
 .iwb-tree-name.iwb-dir { font-weight: 500; }
 .iwb-tree-row.iwb-git-untracked .iwb-tree-name { color: var(--iwb-git-untracked); }
@@ -51035,12 +51950,6 @@ var CSS2 = `
 .iwb-menu .iwb-menu-sep { height: 1px; margin: 4px 2px; background: var(--iwb-border); }
 .iwb-menu .iwb-menu-label { padding: 5px 8px; color: var(--iwb-muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
 
-.iwb-favorites { max-height: 160px; overflow: auto; border-bottom: 1px solid var(--iwb-border); padding: 4px 6px; }
-.iwb-favorite-row { display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 4px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-.iwb-favorite-row:hover { background: rgba(127, 127, 127, .1); }
-.iwb-favorite-star { color: var(--iwb-warn); }
-.iwb-favorite-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-.iwb-favorite-remove { width: 18px; height: 18px; opacity: .6; }
 .iwb-field { display: flex; flex-direction: column; gap: 5px; margin: 10px 0; font-size: 12px; color: var(--iwb-muted); }
 .iwb-field input, .iwb-field select {
   height: 30px; padding: 0 9px; border-radius: 6px; border: 1px solid var(--iwb-border);
@@ -51207,7 +52116,6 @@ var CSS2 = `
 }
 .iwb-git-file:hover { background: rgba(127, 127, 127, .14); }
 .iwb-git-file-name { font-family: var(--iwb-mono); }
-.iwb-git-file-dir { color: var(--iwb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .iwb-term { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .iwb-term-tabs { display: flex; align-items: center; gap: 2px; padding: 3px 6px; border-bottom: 1px solid var(--iwb-border); overflow-x: auto; }
@@ -51413,10 +52321,17 @@ var CSS2 = `
 .iwb-dom-findbar { position: absolute; top: 0; left: 0; right: 0; z-index: 14; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
 ::highlight(iwb-dom-find) { background-color: rgba(215, 162, 74, .38); }
 ::highlight(iwb-dom-find-active) { background-color: rgba(76, 154, 255, .55); color: inherit; }
-.iwb-conflict-chip {
-  display: inline-flex; align-items: center; gap: 4px; color: var(--iwb-warn); font-size: 11px;
-  padding: 0 4px; border: 1px solid rgba(215,162,74,.45); border-radius: 5px;
+/* Editor-owned dialogs center on the *document* window, not on the whole
+   workbench root: the backdrop is scoped to the editor pane so the top bar
+   and the status bar stay untouched. */
+.iwb-editor-scoped-backdrop {
+  position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .45); padding: 0 12px;
 }
+.iwb-editor-scoped-backdrop .iwb-modal { width: min(440px, 100%); }
+.iwb-editor-scoped-backdrop .iwb-modal h2,
+.iwb-editor-scoped-backdrop .iwb-modal p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iwb-editor-scoped-backdrop .iwb-modal-actions { flex-wrap: wrap; }
 
 .iwb-search { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; z-index: 8; pointer-events: auto; }
 .iwb-search * { pointer-events: auto; }
@@ -51538,20 +52453,28 @@ var CSS2 = `
 .iwb-git-drawer-file:hover { background: rgba(127,127,127,.12); }
 .iwb-git-drawer-file.iwb-selected { background: rgba(76,154,255,.16); }
 .iwb-git-drawer-file .iwb-git-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iwb-git-drawer-file .iwb-git-file-dir { color: var(--iwb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-git-drawer-file .iwb-additions, .iwb-git-drawer-file .iwb-deletions { margin-left: 0; font-size: 10px; }
+/* Changed files render as a collapsible directory tree. */
+.iwb-git-tree { display: flex; flex-direction: column; gap: 1px; }
+.iwb-git-tree-dir {
+  display: flex; align-items: center; gap: 5px; width: 100%; min-height: 23px; padding: 0 5px;
+  border-radius: 4px; text-align: left; font-size: 11.5px;
+}
+.iwb-git-tree-dir:hover { background: rgba(127,127,127,.12); }
+.iwb-git-tree-caret { width: 10px; flex: 0 0 10px; color: var(--iwb-muted); font-size: 9px; text-align: center; }
+.iwb-git-tree-dir-name {
+  font-family: var(--iwb-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.iwb-git-tree-file { padding-left: 20px; }
+/* The Git panel's own repository switcher, mirroring the branch switch. */
+.iwb-repo-switch { max-width: 190px; }
+.iwb-repo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iwb-git-no-repo {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 26px 20px; color: var(--iwb-muted); text-align: center; font-size: 12px;
+}
 .iwb-git-file-status { width: 13px; flex: 0 0 13px; text-align: center; font-family: var(--iwb-mono); font-size: 10px; color: var(--iwb-muted); }
 .iwb-status-A { color: var(--iwb-add); } .iwb-status-D { color: var(--iwb-del); } .iwb-status-R { color: var(--iwb-warn); }
-.iwb-git-drawer-inline { margin-top: 8px; border-top: 1px solid var(--iwb-border); }
-.iwb-git-inline-diff {
-  max-height: 320px; overflow: auto; border: 1px solid var(--iwb-border); border-radius: 5px;
-  background: var(--iwb-bg); font-family: var(--iwb-mono); font-size: 11px; line-height: 17px;
-  user-select: text; padding: 4px 0;
-}
-.iwb-git-inline-line { white-space: pre; padding: 0 8px; }
-.iwb-git-inline-line.iwb-add { background: rgba(79,180,119,.12); }
-.iwb-git-inline-line.iwb-del { background: rgba(226,104,111,.12); }
-.iwb-git-inline-line.iwb-hunk { color: var(--iwb-accent); background: rgba(76,154,255,.08); }
 
 /* Read-only code / diff must be copyable despite the root user-select:none. */
 .iwb-code, .iwb-diff-text, .iwb-diff-side-cell, .iwb-diff-row { user-select: text; }
@@ -51584,7 +52507,11 @@ var CSS2 = `
   .iwb-left { width: 100% !important; min-width: 0; max-width: none; flex: 0 1 38%; min-height: 120px; border-right: 0; border-bottom: 1px solid var(--iwb-border); }
   .iwb-left-resizer { display: none; }
   .iwb-center { min-height: 140px; }
-  .iwb-bottom { max-height: 65%; min-height: 100px; }
+  /* Stacked: the stripe is a horizontal bar, so the dock needs no left gutter.
+     The percentage basis is the root height now, not the editor column. */
+  .iwb-bottom { max-height: 60%; min-height: 100px; }
+  .iwb-bottom-tabs { padding-left: 8px; }
+  .iwb-bottom-body { padding-left: 0; }
 }
 `;
 
@@ -51665,12 +52592,12 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
     void begin(false);
   }, [begin]);
   const path2 = view.absolute !== "" ? view.absolute : address;
-  const button = (key, label, extra, onClick) => import_react18.default.createElement("button", {
+  const button = (key, label3, extra, onClick) => import_react18.default.createElement("button", {
     key,
     type: "button",
     className: `iwb-textbtn ${extra}`.trim(),
     onClick
-  }, store.t(label));
+  }, store.t(label3));
   const card = (title, body, actions) => import_react18.default.createElement(
     "div",
     { className: "iwb-empty iwb-link-prompt" },
@@ -51777,13 +52704,44 @@ function apply(ctx) {
   };
   const Styles = () => import_react18.default.createElement("style", { "data-dsh-ide-workbench": "" }, `${xterm_default}
 ${CSS2}`);
-  const stores = /* @__PURE__ */ new Map();
+  let sessionSnapshot = null;
+  let sessionSnapshotValid = false;
+  const readSessionSnapshot = () => {
+    if (!sessionSnapshotValid) {
+      const sessions = ctx?.sessions ?? ctx?.get?.("sessions");
+      sessionSnapshot = sessions?.list?.getSnapshot?.() ?? null;
+      sessionSnapshotValid = true;
+    }
+    return sessionSnapshot;
+  };
+  const invalidateSessionSnapshot = () => {
+    sessionSnapshotValid = false;
+  };
+  const cachedSessionsCtx = {
+    get sessions() {
+      return { list: { getSnapshot: () => readSessionSnapshot() } };
+    }
+  };
+  const cwdOf = (sessionId) => sessionCwdOf(cachedSessionsCtx, sessionId);
+  const scopeKeyOf = (sessionId) => workspaceScopeKey(cachedSessionsCtx, sessionId);
+  const isMountedSession = (sessionId) => {
+    if (typeof sessionId !== "string" || sessionId === "") return false;
+    if (ctx.sidebarRight?.mounted?.getSnapshot?.() === sessionId) return true;
+    const inventory = ctx.sidebarRight?.openTabs?.getSnapshot?.();
+    if (!Array.isArray(inventory)) return false;
+    return inventory.some((tab3) => tab3?.kind === PANEL_ID && tab3?.sessionId === sessionId);
+  };
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === "function";
+  const stores = new StoreCache({ limit: 3, isMounted: isMountedSession });
   const getStore = (sessionId) => {
     const id2 = typeof sessionId === "string" ? sessionId : "";
-    const key = hasMounted ? workspaceScopeKey(ctx, id2) : `session:${id2}`;
-    if (!stores.has(key)) stores.set(key, new WorkbenchStore(ctx, t2, sessionCwdOf(ctx, id2)));
-    return stores.get(key);
+    const key = hasMounted ? scopeKeyOf(id2) : `session:${id2}`;
+    const existing = stores.get(key);
+    if (existing !== void 0) {
+      stores.claim(key, id2);
+      return existing;
+    }
+    return stores.set(key, new WorkbenchStore(ctx, t2, cwdOf(id2)), id2);
   };
   const activeStore = () => {
     const sessionId = ctx.sidebarRight.mounted?.getSnapshot();
@@ -51889,8 +52847,8 @@ ${CSS2}`);
       const parsed = parseFileAddress(address);
       if (parsed === void 0) return false;
       const mountedSession = ctx.sidebarRight?.mounted?.getSnapshot();
-      const current = sessionCwdOf(ctx, mountedSession);
-      const linkCwd = parsed.scope === "session" ? sessionCwdOf(ctx, parsed.sessionId) : "";
+      const current = cwdOf(mountedSession);
+      const linkCwd = parsed.scope === "session" ? cwdOf(parsed.sessionId) : "";
       if (current !== "" && linkCwd !== "" && !sameScopePath(current, linkCwd)) return false;
       const workspace = current || linkCwd;
       if (workspace === "") return true;
@@ -51965,7 +52923,9 @@ ${CSS2}`);
       const previous = lastMounted;
       lastMounted = next;
       if (typeof next !== "string" || next === "" || next === previous) return;
-      if (!shouldContinueIde(ctx, previous, next, ideVisibleSession)) return;
+      const continueIde = shouldContinueIde(cachedSessionsCtx, previous, next, ideVisibleSession);
+      invalidateSessionSnapshot();
+      if (!continueIde) return;
       requestOpen(next);
     };
     const unsubscribeMounted = mounted.subscribe(onMounted);
@@ -51977,6 +52937,14 @@ ${CSS2}`);
       clearPending();
     };
   }, "dsh-ide-workbench: workspace continuity");
+  ctx.effect(() => {
+    const sessionList = ctx.sessions?.list;
+    if (typeof sessionList?.subscribe !== "function") return () => {
+    };
+    return sessionList.subscribe(() => {
+      invalidateSessionSnapshot();
+    });
+  }, "dsh-ide-workbench: session scope cache");
   ctx.effect(() => ctx.slots.inject("settings.section", () => ctx.slots.register({
     name: "settings.section",
     id: PANEL_ID,
@@ -51998,7 +52966,7 @@ ${CSS2}`);
       const inWorkbench = target instanceof Element && target.closest(".iwb-root") !== null;
       const inTerminal = isTerminalTarget(event.target);
       if (store?.state.active === true && inWorkbench) {
-        if (matchesShortcut(shortcuts.findInFiles ?? "Ctrl+Shift+F", event) || matchesShortcut(shortcuts.findInFilesAlt ?? "Ctrl+Alt+F", event)) {
+        if (matchesShortcut(shortcuts.findInFiles ?? "Ctrl+Shift+R", event) || matchesShortcut(shortcuts.findInFilesAlt ?? "Ctrl+Alt+F", event)) {
           event.preventDefault();
           event.stopPropagation();
           store.openSearchTab();
@@ -52077,11 +53045,12 @@ ${CSS2}`);
     return () => document.removeEventListener("keydown", onKeyDown, true);
   }, "dsh-ide-workbench: shortcuts");
   ctx.effect(() => () => {
-    for (const store of [...stores.values(), settingsStore]) {
-      store.deactivate();
+    for (const store of stores.stores.values()) {
       for (const unsubscribe of store.unsubscribers.splice(0)) unsubscribe();
     }
     stores.clear();
+    settingsStore.deactivate();
+    for (const unsubscribe of settingsStore.unsubscribers.splice(0)) unsubscribe();
   }, "dsh-ide-workbench: store teardown");
 }
 

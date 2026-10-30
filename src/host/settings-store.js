@@ -87,8 +87,6 @@ export const DEFAULT_SETTINGS = {
     floating: {},
     split: {},
   },
-  /** Starred paths (JetBrains Favorites). */
-  favorites: [],
   /** Changelists per workspace root (client-side grouping only). */
   changelists: {},
   /** Local-history retention policy. */
@@ -104,8 +102,8 @@ export const DEFAULT_SETTINGS = {
     push: 'Ctrl+Shift+K',
     synchronize: 'Ctrl+Alt+Y',
     compare: 'Ctrl+D',
-    findInFiles: 'Ctrl+Shift+F',
-    /** Fallback because some Electron shells reserve Ctrl+Shift+F. */
+    findInFiles: 'Ctrl+Shift+R',
+    /** Fallback because some Electron shells swallow Ctrl+Shift+… combos. */
     findInFilesAlt: 'Ctrl+Alt+F',
     openCommitDetail: 'Ctrl+Alt+D',
     quickOpen: 'Ctrl+Shift+N',
@@ -114,7 +112,6 @@ export const DEFAULT_SETTINGS = {
     duplicate: 'F5',
     move: 'F6',
     delete: 'Delete',
-    favorite: 'Alt+Shift+F',
     hideAll: 'Ctrl+Shift+F12',
     searchEverywhere: 'Ctrl+Shift+A',
     revertCommit: 'Ctrl+Alt+Z',
@@ -157,6 +154,23 @@ export function deepMerge(base, patch) {
 }
 
 /**
+ * Rewrite the shortcut combos that PRD-v4 moved.
+ *
+ * The global find moved to `Ctrl+Shift+R`; a document written before that
+ * still carries the old combo, and keeping it would make `Ctrl+Shift+F` open
+ * the global view again — the one thing the change must prevent. Only the
+ * exact legacy combo is rewritten, so a shortcut the user picked themselves
+ * is never touched, and nothing else in the document is migrated.
+ * @param {any} value the merged settings document
+ * @returns {any} the same document, migrated in place
+ */
+export function migrateLegacyShortcuts(value) {
+  if (!isPlainObject(value) || !isPlainObject(value.shortcuts)) return value
+  if (value.shortcuts.findInFiles === 'Ctrl+Shift+F') value.shortcuts.findInFiles = 'Ctrl+Shift+R'
+  return value
+}
+
+/**
  * One settings document for the lifetime of the plugin fiber.
  */
 export class SettingsStore {
@@ -181,6 +195,7 @@ export class SettingsStore {
         await copyFile(settingsFile(), `${settingsFile()}.v${parsed.version ?? 1}.bak.json`).catch(() => {})
       }
       this.value = deepMerge(DEFAULT_SETTINGS, isPlainObject(parsed) ? { ...parsed, version: SETTINGS_VERSION } : {})
+      migrateLegacyShortcuts(this.value)
       for (const ide of ['idea', 'webstorm', 'vscode']) {
         if (!isPlainObject(this.value[ide]) || typeof this.value[ide].path !== 'string' || this.value[ide].path.includes('\0')) {
           this.value[ide] = { ...DEFAULT_SETTINGS[ide] }

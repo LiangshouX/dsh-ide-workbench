@@ -93,3 +93,62 @@ cd dsh-ide-toolwindows && npm test
 - 实机：Project 选中模型/双击打开/多选/文件操作/拖拽/右键菜单（快捷键列）、IDEA 着色与目录递归上色、忽略文件、品牌图标；Commit 两组勾选与 index 一致、变更列表、按目录分组、Change View、提交前任务；Git 详情底部面板、文件列表与单文件提交 diff、路径历史、双提交 Compare、未变更块折叠、单词级高亮；布局点击开合（Project/Commit 互斥）、收起全部、全屏、状态栏行列与编码。
 - 移入 V3：Local History、分支 Compare、Cherry-pick、Create Branch/Tag、Annotate、Floating/Split。
 
+---
+
+## PRD-v4 验收记录（2026-10-30）
+
+> 对应规格：`docs/PRD-v4.md`；对应进展：`docs/PRD-v4-实施进展.md`。
+> 本轮**未做实机走查**（未在 DSH 里实际操作），下面的「自动化」列给出可复现的用例位置，
+> 「实机」列留给下一轮补做。
+
+### 自动化（289 项全部通过，连续 4 次全绿）
+
+```sh
+cd dsh-ide-workbench && npm test
+# 289 pass / 0 fail / 0 skipped
+npm run build   # dist/client.js 已更新
+```
+
+| 验收点 | 结果 | 自动化用例 |
+|---|---|---|
+| 切到**热**工作区 **0** 个 git 子进程 | ✅ | `tests/perf-notify.test.mjs` |
+| 单次轮询 **1** 个 git 子进程（Commit 窗口可见时 3） | ✅ | `tests/perf-notify.test.mjs` + `src/host/git.js` 的 `subprocesses` 计数 |
+| 连续 50 次等值 `set()` → **0** 次通知 | ✅ | `tests/perf-notify.test.mjs` |
+| 开 10 个工作区后常驻 store **≤ 3**；共享工作区的第二个会话仍挂载时不淘汰 | ✅ | `tests/perf-notify.test.mjs` |
+| 500 条目目录列举 **0** 次 `lstat` | ✅ | `tests/perf-notify.test.mjs` |
+| 冷工作区进入：**0** 次未聚焦标签读盘、**1** 次目录列表请求 | ✅ | `tests/perf-cold-workspace.test.mjs` |
+| 6 个面板 + 2 个视图迁移到 slice 订阅，无关字段变化不再触发重渲染 | ✅ | `tests/perf-slice-{project,editor,git}.test.mjs`（含「`state` prop 一读即抛」的 Proxy 守卫） |
+| 文件树 flatten 的 memo 依赖正确（展开/折叠/筛选/状态色四种变化都刷新） | ✅ | `tests/tree-twisty.test.mjs` |
+| 目录箭头单击展开/折叠，**不**触发行选中；双击仍有效 | ✅ | `tests/tree-twisty.test.mjs` |
+| 【文件定位】按钮：仅文件标签可点，展开并滚动到该文件 | ✅ | `tests/tree-twisty.test.mjs` |
+| 收藏夹彻底移除（按钮 / 右键项 / 快捷键 / 状态），旧配置静默加载 | ✅ | `tests/tree-twisty.test.mjs` + `src/client/host/settings-store.js` 源码守卫 |
+| `Ctrl+Shift+R` 打开全局查找；`Ctrl+Shift+F` **不**触发；裸 `Ctrl+F` 仍是文件内查找 | ✅ | `tests/shortcuts.test.mjs` |
+| 外部修改 → 文档区**居中弹窗**（无 chip），两个操作都可用 | ✅ | `tests/editor-conflict.test.mjs` |
+| 面包屑单行不折行，中间段折叠为 `…`，完整路径在 `title` | ✅ | `tests/editor-conflict.test.mjs` + `src/client/styles.js` 契约 |
+| 底部栏通栏（`bottomNode` 是 `.iwb-root` 的直接子节点，不在 `.iwb-center` 内） | ✅ | `tests/editor-conflict.test.mjs` |
+| 勾选未版本控制文件**不写 index**（`git diff --cached` 为空、字母仍 `U`） | ✅ | `tests/commit-staging.test.mjs`（**真实 git**） |
+| 点提交时先 Add 再一起提交；Add 失败 → 提交中断 + index 回滚 | ✅ | `tests/commit-staging.test.mjs`（**真实 git**） |
+| 勾选**已跟踪**的改动仍会立即暂存，并进入提交 | ✅ | `tests/git-panel.test.mjs`（**真实 git**） |
+| 切项目/切工作区后不残留旧的勾选与分组 | ✅ | `tests/commit-staging.test.mjs` |
+| Git 面板的仓库自治：切仓库不动文件树与标签页，git 调用换根 | ✅ | `tests/git-repo-scope.test.mjs` + `tests/git-panel.test.mjs` |
+| Commit 抽屉：删除冗余预览、变更文件成树且可折叠、rename 取 `b/` 侧路径 | ✅ | `tests/git-panel.test.mjs` |
+| 聊天 File link 的相对路径可打开；工作区外相对路径被拒（0 次 stat 探测） | ✅ | `tests/file-link-store.test.mjs` + `tests/file-address.test.mjs` |
+| 绝对路径形态无回归；POSIX 工作区内绝对路径不被改写 | ✅ | `tests/file-link-store.test.mjs` |
+
+### 实机（待补）
+
+- [ ] 底部栏通栏的视觉效果、终端输入与滚动（§10.4 布局）
+- [ ] 窄屏（≤560）上下排布与 320px 面包屑（§10.4 内容区）
+- [ ] 文档区居中弹窗的观感与窄屏不换行（§10.4 内容区）
+- [ ] 【文件定位】滚动到文件中部（§10.4 Project）
+- [ ] 10 个工作区后的内存曲线（§10.4 性能）
+
+### 本轮新增的已知限制
+
+- **另一个仓库的文件不能在编辑器里打开**：编辑器读写围栏是项目根，GIT-01 不允许放宽它；
+  「跳到源文件」遇到这类文件会提示而不是打开（见 `docs/PRD-v4-实施进展.md` §6）。
+- **一次轮询在操作系统层面是 2 个 git 进程**（`rev-parse` + `status`）：PRD §1.2 PERF-06 的基线口径
+  只统计 `status()` 内部的 3 个，宿主 `repoEnv()` 的那次 `rev-parse` 不在其内（见 §3.1 注 1）。
+- **恢复出的展开目录是后台逐个加载**，不是严格等到用户展开才加载（见 §3.1 注 3）。
+- `BottomTabs`（底部栏组标题）仍随 Workbench 一起重渲染（它是 dock chrome，代价很小）。
+

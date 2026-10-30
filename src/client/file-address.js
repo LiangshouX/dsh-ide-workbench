@@ -123,6 +123,146 @@ export function resolveFileAddress(parsed, cwd) {
   return normalizeFilePath(`${cwd.replace(/[\\/]+$/, '')}/${path}`, cwd)
 }
 
+/**
+ * The maximum number of fallback candidates one ambiguous link may try.
+ * A bounded list keeps the stat probes of PRD-v4 §7.8 risk 5 finite.
+ */
+const MAX_LINK_CANDIDATES = 3
+
+/** Whether one path is a drive-letter absolute path (`C:/…` or `C:\…`). */
+function isDriveAbsolutePath(path) {
+  return /^[A-Za-z]:[\\/]/.test(path)
+}
+
+/** Whether one path is a UNC path (`\\server\share`). */
+function isUncPath(path) {
+  return path.startsWith('\\\\')
+}
+
+/**
+ * One path in comparison form: `/` separators, no repeated or trailing
+ * separator, Windows paths folded to lower case.
+ *
+ * Mirrors `normalizeScopePath` in `workspace-scope.js`; it is repeated here
+ * so this module keeps its dependency-free, standalone grammar.
+ * @param {unknown} path
+ * @returns {string}
+ */
+function comparablePath(path) {
+  if (typeof path !== 'string' || path === '') return ''
+  const slashed = path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/+$/, '')
+  const windows = /^[A-Za-z]:\//.test(slashed) || slashed.startsWith('//')
+  return windows ? slashed.toLowerCase() : slashed
+}
+
+/**
+ * Whether one path lives inside one root.
+ * @param {unknown} root the containing directory
+ * @param {unknown} path the candidate file or directory
+ * @returns {boolean} false when either path is empty
+ */
+function isWithinRoot(root, path) {
+  const parent = comparablePath(root)
+  if (parent === '') return false
+  const candidate = comparablePath(path)
+  return candidate === parent || candidate.startsWith(`${parent}/`)
+}
+
+/**
+ * Whether one link path needs the relative fallback.
+ *
+ * A path with exactly one leading slash is ambiguous: on Windows it is a
+ * relative path with a redundant slash (every real absolute path there
+ * carries a drive letter or a UNC prefix), but on POSIX it may still be a
+ * genuine absolute path. The predicate therefore reports the shape alone
+ * unless a workspace root is given: with one, a path that already lands
+ * inside the workspace is never ambiguous, so the absolute interpretation
+ * wins there (PRD-v4 §7.8 risk 2).
+ *
+ * @param {string} path the link path
+ * @param {string} [workspaceRoot] the DSH workspace root, when known
+ * @returns {boolean}
+ */
+export function isAmbiguousLinkPath(path, workspaceRoot) {
+  if (typeof path !== 'string' || path === '') return false
+  if (isDriveAbsolutePath(path) || isUncPath(path)) return false
+  const slashed = path.replace(/\\/g, '/')
+  if (!slashed.startsWith('/') || slashed.startsWith('//')) return false
+  if (typeof workspaceRoot === 'string' && workspaceRoot !== '') {
+    return !isWithinRoot(workspaceRoot, slashed)
+  }
+  return true
+}
+
+/**
+ * The fallback candidates for one chat file link, each split into the base
+ * it was built from and the path relative to that base.
+ *
+ * The host's file routes take `{ root, path }` (the root is canonicalized,
+ * the path is resolved inside it), so the caller needs the pair and not
+ * only the joined string.
+ *
+ * @param {string} path the link path, either separator
+ * @param {string[]} bases the candidate bases, most specific first
+ * @returns {{ base: string, rel: string, absolute: string }[]} at most 3 entries
+ */
+export function relativeLinkCandidateEntries(path, bases) {
+  if (typeof path !== 'string' || path === '') return []
+  if (isDriveAbsolutePath(path) || isUncPath(path)) return []
+  const slashed = path.replace(/\\/g, '/')
+  if (slashed.startsWith('//')) return []
+  // One leading slash is a redundant slash in front of a relative path; a
+  // plain relative path is used as it is.
+  const rel = slashed.startsWith('/') ? slashed.slice(1) : slashed
+  if (rel === '') return []
+  const list = Array.isArray(bases) ? bases : []
+  const entries = []
+  const seen = new Set()
+  for (const base of list) {
+    if (typeof base !== 'string' || base === '') continue
+    const trimmed = base.replace(/[\\/]+$/, '')
+    if (trimmed === '') continue
+    // Normalizing resolves `.`/`..`, so a path that escapes its base shows
+    // up as a candidate outside that base instead of one that only looks
+    // contained.
+    const absolute = normalizeFilePath(`${trimmed}/${rel}`, trimmed)
+    const key = comparablePath(absolute)
+    if (seen.has(key)) continue
+    seen.add(key)
+    entries.push({ base: trimmed, rel, absolute })
+    if (entries.length >= MAX_LINK_CANDIDATES) break
+  }
+  return entries
+}
+
+/**
+ * The fallback candidates for one chat file link.
+ *
+ * A chat link may address a file relative to one of the workspace bases
+ * without saying which one. This resolver is pure: it classifies the link
+ * path and joins the bases in the given order, so the caller can try the
+ * candidates one by one and keep the first that exists on disk.
+ *
+ * Rules (PRD-v4 §7.6.1):
+ * - a drive-letter absolute path (`C:/…`) or a UNC path (`\\server\share`)
+ *   is unambiguous → no candidates;
+ * - a path with exactly one leading slash is a relative path with a
+ *   redundant slash → the base is joined with the path as it is;
+ * - any other relative path is joined to the base with one `/`.
+ *
+ * The candidates are normalized, so the caller can fence them with
+ * `isPathWithin` without a second normalization pass. The absolute
+ * interpretation is not part of this list: on POSIX it must be tried first
+ * and only dropped when it lands outside the workspace.
+ *
+ * @param {string} path the link path, either separator
+ * @param {string[]} bases the candidate bases, most specific first
+ * @returns {string[]} at most 3 distinct candidate paths
+ */
+export function relativeLinkCandidates(path, bases) {
+  return relativeLinkCandidateEntries(path, bases).map(entry => entry.absolute)
+}
+
 /** Office/PDF/archive/binary formats the IDE should leave to the sidebar. */
 const NON_IDE_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',

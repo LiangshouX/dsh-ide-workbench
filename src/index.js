@@ -262,9 +262,13 @@ export function apply(ctx) {
     // ── git ──────────────────────────────────────────────────────────────
     'git.status': async (payload) => {
       const env = await repoEnv(payload)
-      // Always list ignored entries: the client hides them by default and can
-      // toggle them without a second status round-trip.
-      const snapshot = await gitStatus(env, { ignored: true })
+      const current = await settings.get()
+      // Ignored entries are only listed when the user enabled that setting,
+      // and the per-file line counts are only computed for the Commit window.
+      const snapshot = await gitStatus(env, {
+        ignored: current.project.showIgnored === true,
+        numstat: payload?.numstat === true,
+      })
       return {
         ...snapshot,
         root: env.workspaceRoot,
