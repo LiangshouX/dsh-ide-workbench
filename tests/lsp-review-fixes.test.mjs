@@ -21,7 +21,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Worker } from 'node:worker_threads'
-import { FrameDecoder } from '../src/host/lsp-frame.js'
+import { FrameDecoder, encodeFrame } from '../src/host/lsp-frame.js'
 import { samePath } from '../src/host/workspace.js'
 import { rootKey } from '../src/host/lsp.js'
 import { makeManager, makeSink, sleep, decodeChunks } from './lsp-fixtures.mjs'
@@ -124,7 +124,7 @@ test('one slow request does not kill the language server', async () => {
   assert.notEqual(status.state, 'crashed')
 })
 
-test('the timeout counter is reset when the server answers again', async () => {
+test('three unanswered requests kill the language server', async () => {
   const { manager, spawned } = makeManager({ lsp: { requestTimeoutMs: 40 } })
   const root = rootOf('n2-reset')
   await manager.start({ root })
@@ -135,7 +135,6 @@ test('the timeout counter is reset when the server answers again', async () => {
   await sleep(150)
   assert.equal(spawned.length, 1, 'the first stall was counted once')
 
-  // The server answers: the counter starts at zero again.
   manager.relayToServer(root, JSON.stringify({
     jsonrpc: '2.0', id: 2, method: 'textDocument/definition', params: {},
   }))
@@ -148,6 +147,35 @@ test('the timeout counter is reset when the server answers again', async () => {
   }))
   await sleep(200)
   assert.equal(spawned.length, 2, 'the third stalled request restarts the server')
+})
+
+test('the timeout counter is reset when the server answers again', async () => {
+  // The reset is a second half of the timeout semantics: only *consecutive*
+  // unanswered requests may kill the server. Three slow requests that are
+  // each answered in between must leave the server alone - and this test has
+  // to make the server answer, or the reset never runs.
+  const { manager, spawned, workers } = makeManager({ lsp: { requestTimeoutMs: 40 } })
+  const root = rootOf('n2-counter-reset')
+  await manager.start({ root })
+
+  for (let round = 1; round <= 3; round += 1) {
+    manager.relayToServer(root, JSON.stringify({
+      jsonrpc: '2.0', id: round, method: 'textDocument/definition', params: {},
+    }))
+    await sleep(150)
+    // The server answers the request - through the worker, the way a real
+    // server's stdout reaches the manager.
+    workers[0].postMessage({
+      type: 'stdout',
+      data: encodeFrame(JSON.stringify({ jsonrpc: '2.0', id: round, result: null })),
+    })
+    await sleep(30)
+  }
+
+  assert.equal(spawned.length, 1, 'the server answered every request and was never killed')
+  const status = await manager.status({ root })
+  assert.notEqual(status.state, 'degraded', 'the session is not degraded')
+  assert.notEqual(status.state, 'crashed')
 })
 
 test('the timeout message does not claim a streak of timeouts', async () => {
@@ -402,4 +430,114 @@ test('the registry reports a language that is turned off as disabled', async () 
     !registry.missing.some(entry => entry.languageId === 'typescript'),
     'the language is not listed as missing either',
   )
+})
+
+// ── M1: the cancel is idempotent in every state (PRD §2.4) ─────────────────
+
+test('cancelling a degraded session answers instead of failing', async () => {
+  // The client polls the status every two seconds: it can still show
+  // "building" while the host has already degraded the session (a crash or
+  // not enough memory). Clicking the cancel button in that window must not
+  // be an error.
+  const { manager, spawned } = makeManager({
+    lsp: { servers: { typescript: { command: 'no-such-language-server-xyz' } } },
+  })
+  const root = rootOf('m1-degraded')
+  await manager.start({ root, languageId: 'typescript' })
+
+  const before = await manager.status({ root })
+  assert.equal(before.state, 'degraded', 'the session is degraded')
+
+  const result = await manager.cancelIndex({ root })
+  assert.deepEqual(result, { state: 'cancelled' }, 'the cancel answers with the same result')
+  assert.equal(spawned.length, 0, 'the degraded session had no process to kill')
+})
+
+test('two concurrent cancels kill the process once and both answer', async () => {
+  // The first cancel waits for the process to die; a second click in that
+  // window must not be an illegal state change - and it must not answer
+  // before the process is really gone (PRD §2.4: "取消返回时，进程树中
+  // 不得再有该语言服务器").
+  const { manager, handle } = makeManager({ terminateDelayMs: 300 })
+  const root = rootOf('m1-concurrent')
+  await manager.start({ root })
+
+  const first = manager.cancelIndex({ root })
+  await sleep(50)
+  let exitedWhenSecondReturned = null
+  const second = manager.cancelIndex({ root }).then(() => {
+    exitedWhenSecondReturned = handle().exited
+  })
+
+  assert.deepEqual(await first, { state: 'cancelled' })
+  await second
+  assert.deepEqual(await first, { state: 'cancelled' })
+  assert.equal(handle().terminateCalls, 1, 'the process is killed exactly once')
+  assert.equal(
+    exitedWhenSecondReturned,
+    true,
+    'the second cancel only answers when the process is gone',
+  )
+})
+
+test('a cancel that arrives while the server starts leaves no process behind', async () => {
+  // The cancel waits for a process that does not exist yet - the process
+  // that is started a moment later must not survive it (PRD §2.4: no
+  // language server is left behind after a cancel).
+  const { manager, spawned, handle } = makeManager({ spawnDelayMs: 120 })
+  const root = rootOf('m1-start-race')
+  manager.attachSink(root, makeSink())
+
+  const starting = manager.start({ root })
+  await sleep(40)
+  const result = await manager.cancelIndex({ root })
+  assert.deepEqual(result, { state: 'cancelled' })
+
+  // The start must not drag the cancelled session back into a build.
+  await starting
+  await sleep(200)
+  assert.equal(spawned.length, 1, 'the process was started')
+  assert.equal(handle().terminateCalls, 1, 'and it was stopped right away')
+  assert.equal((await manager.status({ root })).state, 'cancelled')
+})
+
+test('a notification whose text contains a handshake is not a handshake', async () => {
+  // The host recognizes the handshake without parsing the payload. A
+  // notification that *contains* a handshake must not be mistaken for one -
+  // and the real handshake has to be the first thing the server sees (the
+  // review's robustness note).
+  const { manager, handle } = makeManager()
+  const root = rootOf('m1-fake-handshake')
+  manager.attachSink(root, makeSink())
+
+  // A didChange whose *text* contains a whole initialize request.
+  const withText = JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'textDocument/didChange',
+    params: {
+      textDocument: { uri: 'file:///workspace/app.ts', languageId: 'typescript', version: 1 },
+      contentChanges: [{ text: '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' }],
+    },
+  })
+  // A didChange that carries an object with a "method" key of its own.
+  const withNestedMethod = JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'textDocument/didChange',
+    params: {
+      textDocument: { uri: 'file:///workspace/other.ts', languageId: 'typescript', version: 1 },
+      contentChanges: [{ text: 'x' }],
+      extra: { method: 'initialize', params: {} },
+    },
+  })
+  assert.equal(manager.relayToServer(root, withText), false, 'there is no server yet')
+  manager.relayToServer(root, withNestedMethod)
+  manager.relayToServer(root, initializeText())
+
+  await manager.start({ root })
+
+  const frames = decodeChunks(handle().stdinChunks)
+  assert.equal(frames.length, 3, 'every payload reaches the server')
+  assert.match(frames[0], /"method":"initialize"/, 'the real handshake comes first')
+  assert.match(frames[1], /textDocument\/didChange/)
+  assert.match(frames[2], /textDocument\/didChange/)
 })

@@ -168,6 +168,16 @@ const PROGRESS = {
 /** How many stderr lines are kept per language server for the settings page. */
 const MAX_STDERR_LINES = 200
 /**
+ * The states in which a language server may still be cancelled.
+ *
+ * A cancel is a no-op for every other state: the session is not building
+ * anything, so there is nothing to stop. The state machine stays strict -
+ * `degraded` and `failed` have no edge to `cancelling`, and a cancel must
+ * not invent one (PRD §2.4 wants the cancel to be idempotent, not to change
+ * the state machine).
+ */
+const CANCELLABLE_STATES = ['starting', 'building', 'ready', 'restarting']
+/**
  * How many client payloads may wait for a language server.
  *
  * The browser connects its socket long before the server exists, so its
@@ -187,13 +197,19 @@ const SHELL_METACHARACTERS = /[&|;<>$`"'*?()\r\n\t]/
  * handshake may not be dropped by the bounded queue of the payloads that
  * arrived before the language server existed (see `#holdFor`).
  *
- * The test is the same cheap structural one the worker uses: it looks at the
- * text, not at a parsed object, so no payload is ever decoded here.
+ * The test looks at the **first** `"method"` of the payload: a notification
+ * whose *text* happens to contain the string `"method": "initialize"` still
+ * has its own method first, so it is not mistaken for a handshake.
+ *
+ * The check is a structural one on the text, not a parse: no payload is
+ * decoded here.
  * @param {unknown} text
  * @returns {boolean}
  */
 function isInitializeRequest(text) {
-  return typeof text === 'string' && /"method"\s*:\s*"initialize"/.test(text)
+  if (typeof text !== 'string') return false
+  const match = /"method"\s*:\s*"([^"]*)"/.exec(text)
+  return match !== null && match[1] === 'initialize'
 }
 
 /**
@@ -599,6 +615,18 @@ export class LspManager {
    * documents → notify the clients. Repeated calls are answered with the same
    * result and never kill a second time. The editor state of the user (tabs,
    * drafts, cursor) is never touched here: that state lives in the client.
+   *
+   * The cancel is **idempotent** (PRD §2.4): it never throws, whatever the
+   * state of the session is.
+   *
+   *   - A session that is not building anything (`idle`, `cancelled`,
+   *     `crashed`, `degraded`, `failed`) has nothing to stop: the answer is
+   *     the same and no process is killed. A session that was *degraded* -
+   *     the server crashed or the machine had not enough memory - used to
+   *     be an illegal state change here.
+   *   - A cancel that is already running is not repeated: the second call
+   *     waits for the first one and answers with the same result, so the
+   *     process is killed exactly once.
    * @param {{ root: string }} payload
    * @returns {Promise<{ state: 'cancelled' }>}
    */
@@ -607,7 +635,34 @@ export class LspManager {
     const entry = this.#peek(target)
     const session = entry?.session ?? null
     if (session === null) return { state: 'cancelled' }
-    if (session.state === 'cancelled' || session.state === 'idle') return { state: 'cancelled' }
+    // A cancel that is already running is not repeated: the second call
+    // waits for the first one and answers with the same result.
+    if (session.cancelPromise !== null) {
+      await session.cancelPromise.catch(() => {})
+      return { state: 'cancelled' }
+    }
+    // A session that is not building anything has nothing to cancel.
+    if (!CANCELLABLE_STATES.includes(session.state)) return { state: 'cancelled' }
+    const running = this.#cancelSession(entry, session)
+    session.cancelPromise = running
+    try {
+      await running
+    } finally {
+      if (session.cancelPromise === running) session.cancelPromise = null
+    }
+    return { state: 'cancelled' }
+  }
+
+  /**
+   * The atomic cancel itself (PRD §2.4).
+   *
+   * The whole sequence runs in one critical section: mark the session
+   * `cancelling`, terminate the process, mark it `cancelled`, close the open
+   * documents and notify the clients.
+   * @param {object} entry the root entry
+   * @param {object} session the session
+   */
+  async #cancelSession(entry, session) {
     this.#transition(session, 'cancelling', 'cancelling')
     session.intentionalExit = true
     this.#writeDidClose(entry, session)
@@ -621,7 +676,6 @@ export class LspManager {
       this.#notify(entry, { type: 'didClose', uri })
     }
     this.#notify(entry, { type: 'cancelled', root: entry.root })
-    return { state: 'cancelled' }
   }
 
   /**
@@ -1081,6 +1135,14 @@ export class LspManager {
       timeoutStallAt: 0,
       exited: false,
       intentionalExit: false,
+      /**
+       * The cancel that is currently running, if any.
+       *
+       * A second cancel waits for it instead of starting a second one: the
+       * operation is atomic and the process is killed exactly once
+       * (PRD §2.4).
+       */
+      cancelPromise: null,
       lastActivityAt: this.#now(),
       lastClientActivityAt: 0,
       lastServerActivityAt: 0,
@@ -1129,9 +1191,16 @@ export class LspManager {
     try {
       await this.#spawn(entry, session, resolution)
     } catch (error) {
+      // The session may have been cancelled while the process was starting:
+      // the cancel owns the state now, the failure does not overwrite it.
+      if (session.state !== 'starting') return session
       this.#transition(session, 'failed', `the language server could not be started: ${messageOf(error)}`)
       return session
     }
+    // The session may have left the "starting" state while the process was
+    // starting - a cancel does exactly that. The session keeps its state and
+    // is not dragged back into a build it has left.
+    if (session.state !== 'starting') return session
     this.#transition(session, 'building', 'building the program')
     session.startedAt = this.#now()
     session.lastActivityAt = this.#now()
@@ -1221,6 +1290,18 @@ export class LspManager {
     // swallow the death of the new one (a server that dies silently after a
     // restart would go unnoticed).
     session.exited = false
+
+    // The session may have been cancelled while the process was starting: the
+    // cancel waits for a process that does not exist yet and gives up. The
+    // process that was just started is not wanted any more - it is stopped
+    // right away, so a cancel never leaves a language server behind
+    // (PRD §2.4: "取消后无残留语言服务器进程").
+    if (session.state !== 'starting' && session.state !== 'restarting') {
+      session.intentionalExit = true
+      try { handle.terminate() } catch { /* it is already gone */ }
+      session.handle = null
+      return
+    }
 
     // The handshake and the payloads that arrived while there was no server
     // are written *after* the process exists.

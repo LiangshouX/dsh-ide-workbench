@@ -27,9 +27,13 @@ export function sleep(ms = 0) {
  * `stdin` records everything the manager writes, `stdout`/`stderr` are real
  * streams the test can push into, and `done` resolves when the fake process
  * "exits".
+ * @param {object} [options]
+ * @param {number} [options.terminateDelayMs] how long the process takes to
+ *   die after `terminate()` - the window in which a second cancel arrives
+ *   while the first one is still running
  * @returns {object} the fake handle
  */
-export function makeFakeHandle() {
+export function makeFakeHandle(options = {}) {
   const stdout = new PassThrough()
   const stderr = new PassThrough()
   const stdinChunks = []
@@ -40,6 +44,7 @@ export function makeFakeHandle() {
     },
   })
   let resolveDone
+  let exited = false
   const done = new Promise((resolve) => { resolveDone = resolve })
   let terminateCalls = 0
   const handle = {
@@ -49,13 +54,21 @@ export function makeFakeHandle() {
     done,
     stdinChunks,
     get terminateCalls() { return terminateCalls },
+    /** Whether the fake process is gone. */
+    get exited() { return exited },
     terminate() {
       terminateCalls += 1
-      resolveDone({ exitCode: null, signal: 'SIGTERM' })
+      const finish = () => { exited = true; resolveDone({ exitCode: null, signal: 'SIGTERM' }) }
+      if (Number.isFinite(options.terminateDelayMs) && options.terminateDelayMs > 0) {
+        // The timer is not unref'd: the test waits for the process to die.
+        setTimeout(finish, options.terminateDelayMs)
+      } else {
+        finish()
+      }
     },
     waitForExit() { return done.then(() => true) },
     /** Make the fake process exit with one code. */
-    exit(code, signal = null) { resolveDone({ exitCode: code, signal }) },
+    exit(code, signal = null) { exited = true; resolveDone({ exitCode: code, signal }) },
   }
   return handle
 }
@@ -200,6 +213,8 @@ export function decodeChunks(chunks) {
  * @param {number} [options.timeoutLimit]
  * @param {number} [options.spawnDelayMs] how long the fake process takes to
  *   start (the window in which the session may change its state)
+ * @param {number} [options.terminateDelayMs] how long the fake process takes
+ *   to die after `terminate()`
  * @returns {object} the manager and the recorded calls
  */
 export function makeManager(options = {}) {
@@ -223,7 +238,7 @@ export function makeManager(options = {}) {
     },
     spawnServer: async (spec) => {
       if (spawnDelayMs > 0) await sleep(spawnDelayMs)
-      const handle = makeFakeHandle()
+      const handle = makeFakeHandle({ terminateDelayMs: options.terminateDelayMs })
       spawned.push({ spec, handle })
       return handle
     },
