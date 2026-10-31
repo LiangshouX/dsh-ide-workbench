@@ -5487,6 +5487,17 @@ function flatten(state, filter, showIgnored, ignored, mode = "tree") {
 function flattenInputs(state, showIgnored, ignored, mode) {
   return [state.dirs, state.expanded, state.root, state.filter, state.gitRepoRoot, showIgnored, ignored, mode];
 }
+function revealRow(element, index) {
+  if (element.clientHeight === 0) return;
+  const top2 = index * ROW_HEIGHT;
+  const bottom = top2 + ROW_HEIGHT;
+  const viewTop = element.scrollTop;
+  const viewBottom = viewTop + element.clientHeight;
+  if (top2 - ROW_HEIGHT < viewTop) element.scrollTop = Math.max(0, top2 - ROW_HEIGHT);
+  else if (bottom + ROW_HEIGHT > viewBottom) {
+    element.scrollTop = Math.max(0, bottom + ROW_HEIGHT - element.clientHeight);
+  }
+}
 function templateContent(templateId, name2) {
   const stem = name2.replace(/\.[^.]+$/, "") || name2;
   const pascal = stem.replace(/(^|[-_.\s]+)([a-zA-Z0-9])/g, (_2, __, ch) => ch.toUpperCase()).replace(/[^a-zA-Z0-9]/g, "");
@@ -5658,6 +5669,7 @@ function ProjectPanel({ store, state: _state }) {
   const [menu, setMenu] = (0, import_react5.useState)(null);
   const [scrollTop, setScrollTop] = (0, import_react5.useState)(0);
   const [viewport, setViewport] = (0, import_react5.useState)(600);
+  const [locateTick, setLocateTick] = (0, import_react5.useState)(0);
   const [renaming, setRenaming] = (0, import_react5.useState)(null);
   const [dialog, setDialog] = (0, import_react5.useState)(null);
   const [dropTarget, setDropTarget] = (0, import_react5.useState)(null);
@@ -5710,16 +5722,15 @@ function ProjectPanel({ store, state: _state }) {
     if (scrollRef.current !== null) scrollRef.current.scrollTop = 0;
     setScrollTop(0);
   }, [slice.root]);
+  const selectedIndex = (0, import_react5.useMemo)(
+    () => rows.findIndex((row) => row.entry?.path === slice.selectedPath),
+    [rows, slice.selectedPath]
+  );
   (0, import_react5.useEffect)(() => {
-    if (slice.selectedPath === "" || scrollRef.current === null) return;
-    const index = rows.findIndex((row) => row.entry?.path === slice.selectedPath);
-    if (index < 0) return;
-    const top2 = index * ROW_HEIGHT;
     const element = scrollRef.current;
-    if (top2 < element.scrollTop || top2 > element.scrollTop + element.clientHeight - ROW_HEIGHT * 2) {
-      element.scrollTop = Math.max(0, top2 - element.clientHeight / 2);
-    }
-  }, [slice.selectedPath, rows]);
+    if (element === null || selectedIndex < 0) return;
+    revealRow(element, selectedIndex);
+  }, [selectedIndex, locateTick]);
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 6);
   const end = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + 6);
   const visible = rows.slice(start, end);
@@ -6136,6 +6147,7 @@ function ProjectPanel({ store, state: _state }) {
     if (activeTab === void 0 || activeTab.kind !== "file") return;
     store.showTool("project");
     store.setSelectedPath(activeTab.path);
+    setLocateTick((tick) => tick + 1);
   }, [store, activeTab]);
   return import_react5.default.createElement(
     import_react5.default.Fragment,

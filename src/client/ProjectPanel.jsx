@@ -224,6 +224,28 @@ export function flattenInputs(state, showIgnored, ignored, mode) {
   return [state.dirs, state.expanded, state.root, state.filter, state.gitRepoRoot, showIgnored, ignored, mode]
 }
 
+/**
+ * Scroll a tree row into view with the smallest movement that shows it.
+ *
+ * The row list is windowed at a fixed row height, so a row's box is known
+ * without measuring it. Scrolling only as far as needed leaves the tree where
+ * the user left it; centering the row would move the whole list under them.
+ *
+ * @param {HTMLElement} element the scrolling container
+ * @param {number} index the row's index in the full row list
+ */
+export function revealRow(element, index) {
+  if (element.clientHeight === 0) return
+  const top = index * ROW_HEIGHT
+  const bottom = top + ROW_HEIGHT
+  const viewTop = element.scrollTop
+  const viewBottom = viewTop + element.clientHeight
+  if (top - ROW_HEIGHT < viewTop) element.scrollTop = Math.max(0, top - ROW_HEIGHT)
+  else if (bottom + ROW_HEIGHT > viewBottom) {
+    element.scrollTop = Math.max(0, bottom + ROW_HEIGHT - element.clientHeight)
+  }
+}
+
 /** Starter content for the New File templates. */
 function templateContent(templateId, name) {
   const stem = name.replace(/\.[^.]+$/, '') || name
@@ -404,6 +426,9 @@ export function ProjectPanel({ store, state: _state }) {
   const [menu, setMenu] = useState(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewport, setViewport] = useState(600)
+  // Locate File asks for the active file even when it is already the selected
+  // one, so the reveal needs a trigger of its own.
+  const [locateTick, setLocateTick] = useState(0)
   const [renaming, setRenaming] = useState(null)
   const [dialog, setDialog] = useState(null)
   const [dropTarget, setDropTarget] = useState(null)
@@ -475,19 +500,23 @@ export function ProjectPanel({ store, state: _state }) {
   }, [slice.root])
 
   // Reverse locate: reveal the selected path after any navigation source.
-  // The trigger is "the target path is in the rows", not "the row count
-  // changed": `setSelectedPath` loads the parent directories asynchronously, so
-  // the row only shows up one notification later (PRD TREE-02 risk 1).
+  //
+  // The trigger is the selected row's INDEX, not the row list itself. The
+  // git status poll rebuilds the rows every two seconds, and re-deriving the
+  // reveal from that made the tree jump back to the selected file whenever
+  // the user scrolled away from it. The index moves when the selection
+  // changes, when the row shows up one notification later (its parents load
+  // asynchronously, PRD TREE-02 risk 1), and when Locate File asks for the
+  // row that is already selected.
+  const selectedIndex = useMemo(
+    () => rows.findIndex(row => row.entry?.path === slice.selectedPath),
+    [rows, slice.selectedPath],
+  )
   useEffect(() => {
-    if (slice.selectedPath === '' || scrollRef.current === null) return
-    const index = rows.findIndex(row => row.entry?.path === slice.selectedPath)
-    if (index < 0) return
-    const top = index * ROW_HEIGHT
     const element = scrollRef.current
-    if (top < element.scrollTop || top > element.scrollTop + element.clientHeight - ROW_HEIGHT * 2) {
-      element.scrollTop = Math.max(0, top - element.clientHeight / 2)
-    }
-  }, [slice.selectedPath, rows])
+    if (element === null || selectedIndex < 0) return
+    revealRow(element, selectedIndex)
+  }, [selectedIndex, locateTick])
 
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 6)
   const end = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + 6)
@@ -876,6 +905,9 @@ export function ProjectPanel({ store, state: _state }) {
     // The tab path is already absolute; `setSelectedPath` expands the parent
     // folders and loads them asynchronously.
     store.setSelectedPath(activeTab.path)
+    // The selection may not change (the active file is usually the selected
+    // one), so the reveal is requested explicitly.
+    setLocateTick(tick => tick + 1)
   }, [store, activeTab])
 
   return React.createElement(React.Fragment, null,
