@@ -19,8 +19,9 @@
 | **D5** | 插件装上后起不来：`TypeError: Invalid effect` | 高 | ✅ 已修 | `tests/plugin-mount.test.mjs` |
 | **D6** | `tests/perf-cold-workspace.test.mjs:123` 偶发失败 | 低 | ✅ 已修（定时器泄漏） | 全量 `npm test` 连跑 |
 | **D7** | 重启后的语言服务器**静默死亡不被察觉** | 中 | ✅ 已修 | `tests/lsp-handshake.test.mjs` 第 4 例 |
+| **D8** | 已索引的仓库**永远显示「正在更新索引…」** | 中 | ✅ 已修 | `tests/lsp-status-progress.test.mjs` |
 
-**当前测试数：512 项 / 512 通过 / 0 失败**（基线 329 + 本轮 183）。
+**当前测试数：516 项 / 516 通过 / 0 失败**（基线 329 + 本轮 187）。
 
 ---
 
@@ -228,9 +229,57 @@ ctx.effect(() => {
 
 ---
 
-## 8. 交接清单
+## 8. D8 —— 已索引的仓库永远显示「正在更新索引…」
 
-### 8.1 已完成
+### 8.1 现象
+
+仓库明明已经建过索引，状态栏却一直停在橙色的「正在更新索引…」，看起来卡死。
+
+### 8.2 根因 —— 陈旧的 `progress`
+
+`store.refreshLspStatus()` 把**上一份快照**摊到下一份上：
+
+```js
+const next = { ...this.state.lsp, state: status.state, ... }
+if (next.state === 'building') {
+  next.progress = index.progress     // 只在 building 时更新
+}
+```
+
+`progress` / `startedAt` / `cancellable` 只在 `building` 分支里**赋值**，从不清空。
+状态变 `ready` 之后，这三个值仍然带着上一次构建的残留；而状态栏的 `ready` 分支是：
+
+```js
+return progress === ''
+  ? { key: 'ready', text: '语义分析：就绪' }
+  : { key: 'updating', text: '正在更新索引…' }   // ← 被残留值命中
+```
+
+于是「就绪」永远显示成「正在更新索引…」。
+
+### 8.3 修复
+
+| 位置 | 改动 |
+|---|---|
+| `src/client/store.js` | `state !== 'building'` 时把 `progress` / `startedAt` / `cancellable` 清空（`''` / `0` / `false`）。 |
+| `src/client/Workbench.jsx` | `ready` 分支**不再看** `progress`，永远显示「就绪」。增量更新发生在语言服务器内部、它不上报任何东西，所以根本没有「更新中」这个状态可以显示 —— 之前的实现是在拿一个过去的构建值冒充它。 |
+
+两处都要改：`tests/lsp-status-progress.test.mjs` 验证过，**只改 store** 或**只改视图**时用例都会失败。
+
+### 8.4 验证
+
+```powershell
+node --test tests/lsp-status-progress.test.mjs     # 4 个用例
+```
+
+覆盖：构建中 → `progress` 有值、`cancellable` 为真；变 `ready` → 三个值全部清空；
+`ready` 即使带着残留 `progress` 也显示「就绪」；`building` 仍然显示「索引中…」。
+
+---
+
+## 9. 交接清单
+
+#### 9.1 已完成
 
 - [x] D1 崩溃（结构性的三层修复 + 复现脚本）
 - [x] D2 索引中卡死（握手缓冲 + 握手缓存 + worker 去重）
@@ -240,7 +289,7 @@ ctx.effect(() => {
 - [x] D6 测试抖动
 - [x] D7 重启后静默死亡
 
-### 8.2 接手者要做
+#### 9.2 接手者要做
 
 1. **重装并实测**：插件是 `link:` 安装（profile 的 `package.json` 里指向工作目录），
    改完代码后 `plugin_manager set_bundle dsh-ide-workbench enabled=false` 再 `true`，
@@ -254,7 +303,7 @@ ctx.effect(() => {
    - 空闲 10 分钟 → 进程退出、内存回落。
 3. **跑全量**：`npm test`（512 项）+ `npm run build`。
 
-### 8.3 复现脚本（在 `docs/bench/`，不进 npm 包）
+#### 9.3 复现脚本（在 `docs/bench/`，不进 npm 包）
 
 | 脚本 | 作用 |
 |---|---|
@@ -262,7 +311,7 @@ ctx.effect(() => {
 | `node docs\bench\repro-order.mjs` | 复现并验证 D2（浏览器真实顺序：先连 socket、后启动服务器） |
 | `node docs\bench\crash-recovery.mjs` | 复现并验证 D1（语言服务器崩溃 → 宿主必须活着） |
 
-### 8.4 新增的回归测试
+#### 9.4 新增的回归测试
 
 | 文件 | 用例 | 覆盖 |
 |---|---|---|
@@ -270,7 +319,7 @@ ctx.effect(() => {
 | `tests/lsp-error-toast.test.mjs` | 6 | 错误走 toast 而不是库的面板、toast 文案带 message+detail、store 没有 toast / toast 抛错时回落到库、只重定向一次 |
 | `tests/plugin-mount.test.mjs` | 4 | 插件能挂上路由与 WS、每个 effect 都交回 Cordis 接受的 disposer |
 
-### 8.5 交接时容易踩的坑
+#### 9.5 交接时容易踩的坑
 
 - **`ctx.subprocess.spawn()` 是同步的**，返回句柄而不是 Promise。写假件时别写成 `async`，
   否则 `handle.done` 变成 undefined，会被误判成「进程以 code null 退出」。
