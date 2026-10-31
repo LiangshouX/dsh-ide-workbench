@@ -71,6 +71,20 @@ git clone https://github.com/LiangshouX/dsh-ide-workbench.git
 dsh plugin --profile web add ./dsh-ide-workbench
 ```
 
+### 方式四：Release 离线包（不联网也能装）
+
+每个 [Release](https://github.com/LiangshouX/dsh-ide-workbench/releases) 都附了一个
+自带 `node_modules` 的 npm 构建包（`dsh-ide-workbench-<版本>.tgz`），运行时依赖
+已经打进去，装的时候不需要访问 npm registry：
+
+```sh
+# 把 <版本> 换成 Release 的 tag（如 v0.5.0）
+dsh plugin --profile web add https://github.com/LiangshouX/dsh-ide-workbench/releases/download/v0.5.0/dsh-ide-workbench-0.5.0.tgz
+```
+
+Release 页同时提供变更说明（取自 [CHANGELOG.md](CHANGELOG.md)）与源码包
+（GitHub 自动附带）。
+
 ### 安装后
 
 - 入口有三处：会话头部按钮、新建会话行、左侧栏底部动作。

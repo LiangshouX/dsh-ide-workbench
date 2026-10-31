@@ -71,6 +71,21 @@ git clone https://github.com/LiangshouX/dsh-ide-workbench.git
 dsh plugin --profile web add ./dsh-ide-workbench
 ```
 
+### Option 4: The offline Release bundle (installs without a registry)
+
+Every [Release](https://github.com/LiangshouX/dsh-ide-workbench/releases) ships an npm
+build bundle with `node_modules` already inside
+(`dsh-ide-workbench-<version>.tgz`), so installing it never touches the npm
+registry:
+
+```sh
+# Replace <version> with the release tag (e.g. v0.5.0)
+dsh plugin --profile web add https://github.com/LiangshouX/dsh-ide-workbench/releases/download/v0.5.0/dsh-ide-workbench-0.5.0.tgz
+```
+
+The release page also carries the changelog (taken from
+[CHANGELOG.md](CHANGELOG.md)) and the source archives (attached by GitHub).
+
 ### After installation
 
 - Three entry points: the session-header button, the new-session row and the sidebar footer action.

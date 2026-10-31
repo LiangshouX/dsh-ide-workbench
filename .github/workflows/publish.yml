@@ -3,13 +3,13 @@ name: Publish
 # 自动发布需在 npm 包页面一次性配置 Trusted Publisher：
 #   Settings → Trusted Publisher → GitHub Actions
 #   owner: LiangshouX / repo: dsh-ide-workbench / workflow: publish.yml / environment: 留空
-# 详见 https://docs.npmjs.com/trusted-publishers
+#   详见 https://docs.npmjs.com/trusted-publishers
 on:
   push:
     tags: ['v*']
 permissions:
-  contents: read
-  id-token: write        # OIDC 换取 npm 短期凭证所必需
+  contents: write         # 创建 GitHub Release 所必需（源码包由 tag 自动附带）
+  id-token: write         # OIDC 换取 npm 短期凭证所必需
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -34,3 +34,46 @@ jobs:
             exit 1
           fi
       - run: npm publish --access public
+      # 离线分发包：把运行时依赖（ws）一起打进 tarball，DSH 可以不联网直接安装。
+      # package.json 的 bundleDependencies 让 npm 把 node_modules/ws 收进包里 ——
+      # 也就是说 npm 上的这个包本身也是自包含的，两处是同一份内容。
+      - name: Pack the offline bundle (with node_modules)
+        run: |
+          mkdir -p artifacts
+          npm pack --pack-destination artifacts
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ASSET=$(ls artifacts/*.tgz | head -n 1)
+          ASSET_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$(basename "$ASSET")"
+          # 变更说明优先取 CHANGELOG.md 里这一版的小节；没有就退回 GitHub 按提交
+          # 生成的说明。两边都拿不到时给一段占位说明，不能让发布整个失败。
+          BODY="$(awk -v want="$VERSION" '
+            /^## / { inside = ($0 ~ ("^## " want "([^0-9]|$)")); next }
+            inside { print }
+          ' CHANGELOG.md)"
+          if [ -z "$(printf "%s" "$BODY" | tr -d "[:space:]")" ]; then
+            BODY="$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$GITHUB_REF_NAME" --jq .body 2>/dev/null || true)"
+          fi
+          if [ -z "$(printf "%s" "$BODY" | tr -d "[:space:]")" ]; then
+            BODY="见本次发布的提交记录。"
+          fi
+          {
+            printf "%s\n" "$BODY"
+            printf "\n---\n\n"
+            printf "### 安装\n\n"
+            printf '```bash\n'
+            printf "# 离线包（自带 node_modules，不联网也能装）\n"
+            printf 'dsh plugin --profile web add %s\n' "$ASSET_URL"
+            printf "\n"
+            printf "# 或从 npm 装（同一个自包含 tarball）\n"
+            printf 'dsh plugin --profile web add dsh-ide-workbench@%s\n' "$VERSION"
+            printf '```\n'
+          } > artifacts/notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            --title "dsh-ide-workbench $GITHUB_REF_NAME" \
+            --notes-file artifacts/notes.md \
+            "$ASSET"
