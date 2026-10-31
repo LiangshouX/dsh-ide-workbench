@@ -52013,6 +52013,12 @@ var CSS2 = `
 .iwb-term-pane.iwb-hidden { visibility: hidden; pointer-events: none; }
 .iwb-term-host { width: 100%; height: 100%; }
 .iwb-term-host .xterm { height: 100%; }
+/* xterm's viewport is absolutely positioned over the whole terminal and ships a
+   hard-coded black background, while the screen inside it is only
+   rows * cellHeight tall \u2014 the leftover strip at the bottom of the pane showed
+   that black instead of the terminal background. The terminal's own background
+   is --iwb-bg, so the viewport must let it through. */
+.iwb-term-host .xterm-viewport { background-color: transparent; }
 .iwb-term-error { padding: 16px; color: var(--iwb-error); font-size: 12px; white-space: pre-wrap; user-select: text; }
 
 /*
