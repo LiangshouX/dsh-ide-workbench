@@ -25,10 +25,10 @@
  * collide with the workbench shortcuts (PRD §0.2 #6).
  */
 import React, { useEffect, useRef, useState } from 'react'
-import { EditorState, Compartment } from '@codemirror/state'
+import { EditorState, Compartment, StateEffect, StateField } from '@codemirror/state'
 import {
   EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter,
-  drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightSpecialChars,
+  drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightSpecialChars, Decoration,
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import {
@@ -162,32 +162,9 @@ const THEME = EditorView.theme({
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--iwb-accent)' },
   '&.cm-focused': { outline: 'none' },
   '.cm-panels': { backgroundColor: 'var(--iwb-panel)', color: 'var(--iwb-fg)' },
-  '.cm-tooltip': { backgroundColor: 'var(--iwb-overlay)', border: '1px solid var(--iwb-border-strong)' },
-  // The completion popup of COMP-01. The icons are plain CSS characters, so
-  // the plugin does not carry an SVG sprite for them.
-  '.cm-tooltip-autocomplete': {
-    backgroundColor: 'var(--iwb-overlay)',
-    border: '1px solid var(--iwb-border-strong)',
-    borderRadius: '4px',
-    overflow: 'hidden',
-  },
-  '.cm-tooltip-autocomplete ul': {
-    fontFamily: 'var(--iwb-mono)',
-    fontSize: '12px',
-    maxHeight: '18em',
-    margin: '0',
-    padding: '0',
-  },
-  '.cm-tooltip-autocomplete li': { padding: '2px 6px', lineHeight: '1.5' },
-  '.cm-tooltip-autocomplete li[aria-selected]': {
-    backgroundColor: 'rgba(76,154,255,.28)',
-    color: 'var(--iwb-fg)',
-  },
-  '.cm-completionIcon': { width: '1.2em', opacity: '.75', color: 'var(--iwb-muted)' },
-  '.cm-completionIcon::after': { content: '\\25CF' },
-  '.cm-completionLabel': { color: 'var(--iwb-fg)' },
-  '.cm-completionDetail': { color: 'var(--iwb-muted)', fontStyle: 'italic', marginLeft: '6px' },
-  '.cm-completionMatchedText': { color: 'var(--iwb-accent)', textDecoration: 'none', fontWeight: 'bold' },
+  // The tooltips (completion, hover, signature) are themed in styles.js: one
+  // stylesheet owns them, so the library's own light/dark rules cannot win a
+  // precedence fight against a second set of rules here.
 }, { dark: true })
 
 function selectionOf(view, match) {
@@ -283,6 +260,20 @@ export function editorKeymapRest() {
  * @returns {string | null} the identifier, or `null`
  */
 export function identifierAt(state, pos) {
+  const range = identifierRangeAt(state, pos)
+  return range === null ? null : state.doc.sliceString(range.from, range.to)
+}
+
+/**
+ * The range of the identifier at one position.
+ *
+ * The Ctrl+hover hint needs the range, not only the text: the decoration is
+ * put on exactly the word that a Ctrl+click would jump to.
+ * @param {any} state the editor state
+ * @param {number} pos the document offset
+ * @returns {{from: number, to: number} | null} the range, or `null`
+ */
+export function identifierRangeAt(state, pos) {
   if (state === null || state === undefined) return null
   if (!Number.isInteger(pos) || pos < 0 || pos > state.doc.length) return null
   let node = null
@@ -293,8 +284,8 @@ export function identifierAt(state, pos) {
   }
   for (let depth = 0; node !== null && node !== undefined && depth < 3; depth += 1) {
     if (IDENTIFIER_NODE_NAMES.has(node.name)) {
-      const text = state.doc.sliceString(node.from, node.to)
-      return text === '' ? null : text
+      if (node.to <= node.from) return null
+      return { from: node.from, to: node.to }
     }
     node = node.parent
   }
@@ -366,6 +357,86 @@ export function handleCtrlClick(event, view, options = {}) {
 }
 
 /**
+ * The mark of the symbol a Ctrl+click would jump to.
+ *
+ * JetBrains highlights the target *before* the click: holding the modifier
+ * turns the identifier under the pointer blue and underlines it. The same
+ * promise is made here, so the click has a visible target.
+ */
+const ctrlHoverMark = Decoration.mark({ class: 'iwb-ctrl-hover-symbol' })
+
+/** Replaces the highlighted range while the modifier is held. */
+export const setCtrlHover = StateEffect.define()
+
+/**
+ * The range of the symbol under the pointer, while Ctrl is held.
+ *
+ * A state field (and not a plugin-local value) so the decoration survives a
+ * document edit and is mapped through it.
+ */
+export const ctrlHoverField = StateField.define({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    let next = value.map(transaction.changes)
+    for (const effect of transaction.effects) {
+      if (!effect.is(setCtrlHover)) continue
+      const range = effect.value
+      next = range === null
+        ? Decoration.none
+        : Decoration.set([ctrlHoverMark.range(range.from, range.to)])
+    }
+    return next
+  },
+  provide: field => EditorView.decorations.from(field),
+})
+
+/**
+ * The range currently highlighted by the Ctrl+hover hint.
+ * @param {any} state the editor state
+ * @returns {{from: number, to: number} | null}
+ */
+export function currentCtrlHover(state) {
+  const value = state.field(ctrlHoverField, false)
+  if (value === undefined || value === null || value.size === 0) return null
+  const first = value.iter()
+  return { from: first.from, to: first.to }
+}
+
+/**
+ * Highlight (or clear) the symbol the modifier points at.
+ *
+ * The dispatch only happens when the range really changes: a pointer that
+ * moves inside one word must not push a transaction per pixel.
+ * @param {any} view the editor
+ * @param {{from: number, to: number} | null} range the wanted range
+ */
+function highlightCtrlHover(view, range) {
+  if (view === null || view === undefined) return
+  const current = currentCtrlHover(view.state)
+  const same = (current === null && range === null)
+    || (current !== null && range !== null && current.from === range.from && current.to === range.to)
+  if (same) return
+  try {
+    view.dispatch({ effects: setCtrlHover.of(range) })
+  } catch {
+    /* the editor may already be gone */
+  }
+}
+
+/**
+ * The range the modifier points at, with the current pointer position.
+ * @param {any} view the editor
+ * @param {{x: number, y: number} | null} pointer the last known pointer
+ * @returns {{from: number, to: number} | null}
+ */
+function ctrlHoverRangeAt(view, pointer) {
+  if (pointer === null) return null
+  const pos = view.posAtCoords({ x: pointer.x, y: pointer.y })
+  if (typeof pos !== 'number') return null
+  return identifierRangeAt(view.state, pos)
+}
+
+/**
  * The position of one line and column inside a document.
  *
  * The column is 1-based, like the column the status bar shows.
@@ -405,6 +476,8 @@ export function CodeEditor({
   const viewRef = useRef(null)
   const pathRef = useRef(path)
   const lspClientRef = useRef(null)
+  /** The last pointer position over the editor, for the Ctrl+hover hint. */
+  const pointerRef = useRef(null)
   const [menu, setMenu] = useState(null)
   const [lspVersion, setLspVersion] = useState(() => lspSessionVersion())
   const onSendToChatRef = useRef(onSendToChat)
@@ -490,9 +563,23 @@ export function CodeEditor({
       ...(Array.isArray(language) ? language : [language]),
       // The semantic extensions come after the language, the server needs to
       // know the language of the document.
-      lspCompartment.of([...lspExtensions(), ...lspPluginExtension(path)]),      // Ctrl+click to go to a definition (NAV-01).
+      lspCompartment.of([...lspExtensions(), ...lspPluginExtension(path)]),
+      // Ctrl+click to go to a definition (NAV-01), and the hint that says
+      // where that click would land (the modifier turns the symbol blue and
+      // underlines it, like JetBrains does).
+      ctrlHoverField,
       EditorView.domEventHandlers({
         mousedown: (event, view) => handleCtrlClick(event, view),
+        mousemove: (event, view) => {
+          pointerRef.current = { x: event.clientX, y: event.clientY }
+          highlightCtrlHover(view, (event.ctrlKey || event.metaKey) ? ctrlHoverRangeAt(view, pointerRef.current) : null)
+          return false
+        },
+        mouseleave: (event, view) => {
+          pointerRef.current = null
+          highlightCtrlHover(view, null)
+          return false
+        },
       }),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onChangeRef.current?.(update.state.doc.toString())
@@ -634,6 +721,39 @@ export function CodeEditor({
     if (position === null) return
     view.dispatch({ selection: { anchor: position }, scrollIntoView: true })
   }, [revealLine, revealColumn])
+
+  // Holding the modifier has to light the symbol up *before* the click, and
+  // releasing it has to take the hint away again. The pointer may already rest
+  // on a symbol when the key goes down, and it may move before the key comes
+  // up - so the pointer position is remembered and reused.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const isModifier = event => event.key === 'Control' || event.key === 'Meta'
+    const onKeyDown = (event) => {
+      if (!isModifier(event)) return
+      const view = viewRef.current
+      if (view === null) return
+      highlightCtrlHover(view, ctrlHoverRangeAt(view, pointerRef.current))
+    }
+    const onKeyUp = (event) => {
+      if (!isModifier(event)) return
+      const view = viewRef.current
+      if (view === null) return
+      highlightCtrlHover(view, null)
+    }
+    const onBlur = () => {
+      const view = viewRef.current
+      if (view !== null) highlightCtrlHover(view, null)
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    window.addEventListener('keyup', onKeyUp, true)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('keyup', onKeyUp, true)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [])
 
   const sendSelection = () => {
     const current = menu

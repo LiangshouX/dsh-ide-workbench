@@ -55109,33 +55109,10 @@ var THEME = EditorView.theme({
   ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "rgba(76,154,255,.45)", outline: "1px solid var(--iwb-accent)" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--iwb-accent)" },
   "&.cm-focused": { outline: "none" },
-  ".cm-panels": { backgroundColor: "var(--iwb-panel)", color: "var(--iwb-fg)" },
-  ".cm-tooltip": { backgroundColor: "var(--iwb-overlay)", border: "1px solid var(--iwb-border-strong)" },
-  // The completion popup of COMP-01. The icons are plain CSS characters, so
-  // the plugin does not carry an SVG sprite for them.
-  ".cm-tooltip-autocomplete": {
-    backgroundColor: "var(--iwb-overlay)",
-    border: "1px solid var(--iwb-border-strong)",
-    borderRadius: "4px",
-    overflow: "hidden"
-  },
-  ".cm-tooltip-autocomplete ul": {
-    fontFamily: "var(--iwb-mono)",
-    fontSize: "12px",
-    maxHeight: "18em",
-    margin: "0",
-    padding: "0"
-  },
-  ".cm-tooltip-autocomplete li": { padding: "2px 6px", lineHeight: "1.5" },
-  ".cm-tooltip-autocomplete li[aria-selected]": {
-    backgroundColor: "rgba(76,154,255,.28)",
-    color: "var(--iwb-fg)"
-  },
-  ".cm-completionIcon": { width: "1.2em", opacity: ".75", color: "var(--iwb-muted)" },
-  ".cm-completionIcon::after": { content: "\\25CF" },
-  ".cm-completionLabel": { color: "var(--iwb-fg)" },
-  ".cm-completionDetail": { color: "var(--iwb-muted)", fontStyle: "italic", marginLeft: "6px" },
-  ".cm-completionMatchedText": { color: "var(--iwb-accent)", textDecoration: "none", fontWeight: "bold" }
+  ".cm-panels": { backgroundColor: "var(--iwb-panel)", color: "var(--iwb-fg)" }
+  // The tooltips (completion, hover, signature) are themed in styles.js: one
+  // stylesheet owns them, so the library's own light/dark rules cannot win a
+  // precedence fight against a second set of rules here.
 }, { dark: true });
 function selectionOf(view, match) {
   return { anchor: match.from, head: match.to };
@@ -55185,6 +55162,10 @@ function editorKeymapRest() {
   ];
 }
 function identifierAt(state, pos) {
+  const range = identifierRangeAt(state, pos);
+  return range === null ? null : state.doc.sliceString(range.from, range.to);
+}
+function identifierRangeAt(state, pos) {
   if (state === null || state === void 0) return null;
   if (!Number.isInteger(pos) || pos < 0 || pos > state.doc.length) return null;
   let node = null;
@@ -55195,8 +55176,8 @@ function identifierAt(state, pos) {
   }
   for (let depth = 0; node !== null && node !== void 0 && depth < 3; depth += 1) {
     if (IDENTIFIER_NODE_NAMES.has(node.name)) {
-      const text = state.doc.sliceString(node.from, node.to);
-      return text === "" ? null : text;
+      if (node.to <= node.from) return null;
+      return { from: node.from, to: node.to };
     }
     node = node.parent;
   }
@@ -55235,6 +55216,43 @@ function handleCtrlClick(event, view, options2 = {}) {
   trigger(view);
   return true;
 }
+var ctrlHoverMark = Decoration.mark({ class: "iwb-ctrl-hover-symbol" });
+var setCtrlHover = StateEffect.define();
+var ctrlHoverField = StateField.define({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    let next = value.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (!effect.is(setCtrlHover)) continue;
+      const range = effect.value;
+      next = range === null ? Decoration.none : Decoration.set([ctrlHoverMark.range(range.from, range.to)]);
+    }
+    return next;
+  },
+  provide: (field) => EditorView.decorations.from(field)
+});
+function currentCtrlHover(state) {
+  const value = state.field(ctrlHoverField, false);
+  if (value === void 0 || value === null || value.size === 0) return null;
+  const first = value.iter();
+  return { from: first.from, to: first.to };
+}
+function highlightCtrlHover(view, range) {
+  if (view === null || view === void 0) return;
+  const current = currentCtrlHover(view.state);
+  const same = current === null && range === null || current !== null && range !== null && current.from === range.from && current.to === range.to;
+  if (same) return;
+  try {
+    view.dispatch({ effects: setCtrlHover.of(range) });
+  } catch {
+  }
+}
+function ctrlHoverRangeAt(view, pointer) {
+  if (pointer === null) return null;
+  const pos = view.posAtCoords({ x: pointer.x, y: pointer.y });
+  if (typeof pos !== "number") return null;
+  return identifierRangeAt(view.state, pos);
+}
 function revealPosition(state, line, column) {
   if (!Number.isInteger(line) || line <= 0) return null;
   const doc2 = state.doc;
@@ -55265,6 +55283,7 @@ function CodeEditor({
   const viewRef = (0, import_react9.useRef)(null);
   const pathRef = (0, import_react9.useRef)(path2);
   const lspClientRef = (0, import_react9.useRef)(null);
+  const pointerRef = (0, import_react9.useRef)(null);
   const [menu, setMenu] = (0, import_react9.useState)(null);
   const [lspVersion, setLspVersion] = (0, import_react9.useState)(() => lspSessionVersion());
   const onSendToChatRef = (0, import_react9.useRef)(onSendToChat);
@@ -55343,9 +55362,22 @@ function CodeEditor({
       // The semantic extensions come after the language, the server needs to
       // know the language of the document.
       lspCompartment.of([...lspExtensions(), ...lspPluginExtension(path2)]),
-      // Ctrl+click to go to a definition (NAV-01).
+      // Ctrl+click to go to a definition (NAV-01), and the hint that says
+      // where that click would land (the modifier turns the symbol blue and
+      // underlines it, like JetBrains does).
+      ctrlHoverField,
       EditorView.domEventHandlers({
-        mousedown: (event, view2) => handleCtrlClick(event, view2)
+        mousedown: (event, view2) => handleCtrlClick(event, view2),
+        mousemove: (event, view2) => {
+          pointerRef.current = { x: event.clientX, y: event.clientY };
+          highlightCtrlHover(view2, event.ctrlKey || event.metaKey ? ctrlHoverRangeAt(view2, pointerRef.current) : null);
+          return false;
+        },
+        mouseleave: (event, view2) => {
+          pointerRef.current = null;
+          highlightCtrlHover(view2, null);
+          return false;
+        }
       }),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
@@ -55478,6 +55510,34 @@ function CodeEditor({
     if (position === null) return;
     view.dispatch({ selection: { anchor: position }, scrollIntoView: true });
   }, [revealLine, revealColumn]);
+  (0, import_react9.useEffect)(() => {
+    if (typeof window === "undefined") return void 0;
+    const isModifier = (event) => event.key === "Control" || event.key === "Meta";
+    const onKeyDown = (event) => {
+      if (!isModifier(event)) return;
+      const view = viewRef.current;
+      if (view === null) return;
+      highlightCtrlHover(view, ctrlHoverRangeAt(view, pointerRef.current));
+    };
+    const onKeyUp = (event) => {
+      if (!isModifier(event)) return;
+      const view = viewRef.current;
+      if (view === null) return;
+      highlightCtrlHover(view, null);
+    };
+    const onBlur = () => {
+      const view = viewRef.current;
+      if (view !== null) highlightCtrlHover(view, null);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
   const sendSelection = () => {
     const current = menu;
     if (current === null) return;
@@ -60270,40 +60330,159 @@ var CSS2 = `
 .iwb-diff-row .iwb-diff-num, .iwb-diff-row .iwb-diff-sign, .iwb-diff-row .iwb-diff-gutter { user-select: none; }
 
 /* \u2500\u2500 CodeMirror language intelligence (PRD-v5) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-/* The completion popup and the reference panel come from the editor library;
-   they only need the workbench tokens so they do not look foreign. */
-.iwb-codemirror .cm-tooltip-autocomplete {
-  background: var(--iwb-overlay); border: 1px solid var(--iwb-border-strong);
-  border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); overflow: hidden;
+/* The completion popup, the hover card and the reference panel come from the
+   editor library. Its own theme is written for a light page and uses the
+   &light / &dark variants of the editor, so it fought the workbench tokens
+   and the text ended up unreadable. Every colour of these widgets is set
+   here instead - one stylesheet owns them - and !important keeps the library
+   from winning a specificity game. */
+.iwb-codemirror .cm-tooltip {
+  background: var(--iwb-overlay) !important;
+  color: var(--iwb-fg) !important;
+  border: 1px solid var(--iwb-border-strong) !important;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
 }
-.iwb-codemirror .cm-tooltip-autocomplete > ul { font-family: var(--iwb-mono); font-size: 12px; max-height: 240px; }
-.iwb-codemirror .cm-tooltip-autocomplete > ul > li { padding: 2px 8px; }
-.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--iwb-accent); color: #fff; }
-.iwb-codemirror .cm-completionIcon { font-style: normal; opacity: .8; }
-.iwb-codemirror .cm-completionLabel { color: var(--iwb-fg); }
-.iwb-codemirror .cm-completionDetail { color: var(--iwb-muted); font-style: italic; }
-.iwb-codemirror .cm-completionMatchedText { text-decoration: underline; }
-.iwb-codemirror .cm-lsp-hover, .iwb-codemirror .cm-lsp-signature {
-  background: var(--iwb-overlay); border: 1px solid var(--iwb-border-strong);
-  border-radius: 6px; padding: 6px 9px; max-width: 460px; font-size: 12px; color: var(--iwb-fg);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .35);
+.iwb-codemirror .cm-tooltip * { color: inherit; }
+
+/* \u2500\u2500 completion popup (COMP-01 / COMP-02) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.iwb-codemirror .cm-tooltip.cm-tooltip-autocomplete {
+  background: var(--iwb-overlay) !important;
+  border: 1px solid var(--iwb-border-strong) !important;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
 }
-.iwb-codemirror .cm-lsp-hover code, .iwb-codemirror .cm-lsp-signature code {
-  font-family: var(--iwb-mono); background: var(--iwb-panel-2); border-radius: 3px; padding: 0 3px;
+.iwb-codemirror .cm-tooltip-autocomplete > ul {
+  font-family: var(--iwb-mono);
+  font-size: 12px;
+  max-height: 240px;
+  min-width: 220px;
+  background: transparent;
 }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li {
+  padding: 3px 9px;
+  line-height: 1.5;
+  color: var(--iwb-fg) !important;
+  border-radius: 4px;
+  margin: 1px 3px;
+}
+/* The selected row is a solid accent bar with white text: readable on both a
+   light and a dark workbench, and impossible to confuse with the others. */
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--iwb-accent) !important;
+  color: #fff !important;
+}
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] * { color: #fff !important; }
+.iwb-codemirror .cm-tooltip-autocomplete-disabled > ul > li[aria-selected] {
+  background: var(--iwb-muted) !important;
+  color: var(--iwb-bg) !important;
+}
+.iwb-codemirror .cm-completionIcon { width: 1.2em; font-style: normal; opacity: .9; }
+.iwb-codemirror .cm-completionIcon::after { content: '\\25CF'; }
+.iwb-codemirror .cm-completionLabel { color: inherit !important; }
+.iwb-codemirror .cm-completionDetail { color: var(--iwb-muted) !important; font-style: italic; margin-left: 6px; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail { color: rgba(255, 255, 255, .82) !important; }
+.iwb-codemirror .cm-completionMatchedText { color: inherit !important; text-decoration: none; font-weight: 700; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionMatchedText { text-decoration: underline; }
+.iwb-codemirror .cm-tooltip.cm-completionInfo {
+  background: var(--iwb-overlay) !important;
+  color: var(--iwb-fg) !important;
+  border: 1px solid var(--iwb-border-strong) !important;
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 12px;
+  max-width: 32em;
+}
+.iwb-codemirror .cm-tooltip.cm-completionInfo * { color: inherit; }
+
+/* \u2500\u2500 hover card and signature help (NAV-04) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* The library wraps these in .cm-lsp-hover-tooltip and
+   .cm-lsp-signature-tooltip; the -documentation class is only the inner
+   block. Styling .cm-lsp-hover - as the first version did - matched nothing
+   at all, which is why the card kept the library's colours. */
+.iwb-codemirror .cm-tooltip.cm-lsp-hover-tooltip,
+.iwb-codemirror .cm-tooltip.cm-lsp-signature-tooltip {
+  background: var(--iwb-overlay) !important;
+  color: var(--iwb-fg) !important;
+  border: 1px solid var(--iwb-border-strong) !important;
+  border-radius: 6px;
+  padding: 7px 10px;
+  max-width: 34em;
+  font-size: 12px;
+  line-height: 1.55;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
+}
+.iwb-codemirror .cm-lsp-documentation { color: inherit; padding: 0; }
+.iwb-codemirror .cm-lsp-documentation p,
+.iwb-codemirror .cm-lsp-documentation ul,
+.iwb-codemirror .cm-lsp-documentation ol { color: var(--iwb-fg) !important; margin: 3px 0; }
+.iwb-codemirror .cm-lsp-documentation li { color: var(--iwb-fg) !important; }
+.iwb-codemirror .cm-lsp-documentation a { color: var(--iwb-accent) !important; text-decoration: underline; }
+.iwb-codemirror .cm-lsp-documentation strong { color: var(--iwb-fg) !important; font-weight: 700; }
+.iwb-codemirror .cm-lsp-documentation h1,
+.iwb-codemirror .cm-lsp-documentation h2,
+.iwb-codemirror .cm-lsp-documentation h3,
+.iwb-codemirror .cm-lsp-documentation h4 { color: var(--iwb-fg) !important; font-size: 12.5px; margin: 6px 0 3px; }
+/* JSDoc and signatures are rendered as highlighted code. The token colours
+   are made for a dark surface, so the block gets one in both modes: readable
+   everywhere, and it reads as "this is code". */
+.iwb-codemirror .cm-lsp-documentation pre,
+.iwb-codemirror .cm-lsp-documentation code,
+.iwb-codemirror .cm-lsp-signature {
+  font-family: var(--iwb-mono);
+  background: #1b1e24 !important;
+  color: #d8dce3 !important;
+  border-radius: 4px;
+}
+.iwb-codemirror .cm-lsp-documentation pre {
+  padding: 6px 8px;
+  margin: 4px 0;
+  overflow: auto;
+  max-height: 18em;
+  white-space: pre-wrap;
+}
+.iwb-codemirror .cm-lsp-documentation code { padding: 0 4px; }
+.iwb-codemirror .cm-lsp-signature { padding: 4px 7px; }
+.iwb-codemirror .cm-lsp-active-parameter { color: #7fb8ff !important; font-weight: 700; }
+.iwb-codemirror .cm-lsp-signature-num { color: var(--iwb-muted) !important; }
+
+/* \u2500\u2500 reference panel (NAV-02) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .iwb-codemirror .cm-lsp-references-panel {
-  background: var(--iwb-panel); border: 1px solid var(--iwb-border-strong);
-  border-radius: 6px; max-height: 260px; overflow: auto; font-size: 12px;
+  background: var(--iwb-overlay) !important;
+  color: var(--iwb-fg) !important;
+  border: 1px solid var(--iwb-border-strong);
+  border-radius: 6px;
+  max-height: 260px;
+  overflow: auto;
+  font-size: 12px;
 }
 .iwb-codemirror .cm-lsp-references-panel ul { list-style: none; margin: 0; padding: 0; }
-.iwb-codemirror .cm-lsp-references-panel li { padding: 2px 8px; cursor: pointer; color: var(--iwb-fg); }
-.iwb-codemirror .cm-lsp-references-panel li[aria-selected] { background: var(--iwb-accent); color: #fff; }
-.iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-name { color: var(--iwb-accent); }
-.iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-file { color: var(--iwb-muted); }
+.iwb-codemirror .cm-lsp-references-panel li { padding: 2px 8px; cursor: pointer; color: var(--iwb-fg) !important; }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] { background: var(--iwb-accent) !important; color: #fff !important; }
+.iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-name { color: var(--iwb-accent) !important; }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-name { color: #fff !important; }
+.iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-file { color: var(--iwb-muted) !important; }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-file { color: rgba(255, 255, 255, .82) !important; }
 .iwb-codemirror .cm-lsp-diagnostic-error { border-left: 3px solid var(--iwb-error); }
 .iwb-codemirror .cm-lsp-diagnostic-warning { border-left: 3px solid var(--iwb-warn); }
 .iwb-codemirror .cm-lsp-diagnostic-info { border-left: 3px solid var(--iwb-accent); }
 .iwb-codemirror .cm-lsp-diagnostic-hint { border-left: 3px solid var(--iwb-muted); }
+
+/* \u2500\u2500 the Ctrl+hover jump hint (NAV-01) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* JetBrains promises the target before the click: holding the modifier turns
+   the identifier under the pointer blue and underlines it. The rule has to
+   beat the syntax-highlight colours of the token inside the mark, so the
+   colour is forced on the mark and on its children. */
+.iwb-codemirror .iwb-ctrl-hover-symbol,
+.iwb-codemirror .iwb-ctrl-hover-symbol * {
+  color: var(--iwb-accent) !important;
+  text-decoration: underline !important;
+  text-decoration-color: var(--iwb-accent) !important;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+}
 
 /* \u2500\u2500 text-match marker for the conservative Find Usages (NAV-03) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .iwb-search-textmatch-note {
