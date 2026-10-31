@@ -50951,7 +50951,7 @@ function RepoSwitch({ store, state }) {
   (0, import_react18.useEffect)(() => {
     if (anchor === null) return void 0;
     const onDown = (event) => {
-      if (event.target instanceof Element && event.target.closest(".iwb-branch-popover, .iwb-branch-switch") !== null) return;
+      if (event.target instanceof Element && event.target.closest(".iwb-branch-popover, .iwb-branch-switch, .iwb-repo-switch") !== null) return;
       setAnchor(null);
     };
     window.addEventListener("mousedown", onDown, true);
@@ -50977,14 +50977,12 @@ function RepoSwitch({ store, state }) {
       "button",
       {
         type: "button",
-        className: "iwb-branch-switch",
+        // The base class keeps the Git panel's switcher look; the dock modifier
+        // gives this one its own room, so the tab label and the repository name
+        // do not run together.
+        className: "iwb-branch-switch iwb-dock-repo",
         disabled: !enabled,
         title: !enabled ? label2(t2, "git.switchRepoDisabled", "Only the Git window can switch repositories") : current === "" ? label2(t2, "git.pickRepoHint", "Pick a repository in the Terminal/Git header") : current,
-        style: {
-          opacity: enabled ? 1 : 0.55,
-          cursor: enabled ? "pointer" : "default",
-          alignSelf: "center"
-        },
         onClick: (event) => {
           if (!enabled) return;
           const rect = event.currentTarget.getBoundingClientRect();
@@ -50993,7 +50991,8 @@ function RepoSwitch({ store, state }) {
           setAnchor({ left, top: rect.top, bottom: rect.bottom });
         }
       },
-      import_react18.default.createElement("span", null, name2 === "" ? label2(t2, "git.pickRepo", "Choose repository") : name2),
+      import_react18.default.createElement("span", { className: "iwb-dock-repo-dot" }),
+      import_react18.default.createElement("span", { className: "iwb-repo-name" }, name2 === "" ? label2(t2, "git.pickRepo", "Choose repository") : name2),
       import_react18.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
     ),
     anchor !== null ? import_react18.default.createElement(
@@ -51730,6 +51729,23 @@ var CSS2 = `
 .iwb-bottom-tab:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .07); }
 .iwb-bottom-tab.iwb-on { color: var(--iwb-fg); border-bottom-color: var(--iwb-accent); }
 .iwb-bottom-tab .iwb-badge { position: static; margin-left: 2px; }
+/* The repository picker in the Terminal/Git dock header. It is a chip of its
+   own rather than more tab label: the tab names the WINDOW, the chip names
+   the REPOSITORY that window works on, and running them together as one
+   crowded label made the two hard to tell apart. Scoped under the dock tabs
+   so the Git panel's own switcher keeps its look. */
+.iwb-bottom-tabs .iwb-dock-repo {
+  align-self: center; gap: 7px; height: 22px; max-width: 260px; margin-left: 14px;
+  padding: 0 11px; border-radius: 11px;
+  background: rgba(127, 127, 127, .07); color: var(--iwb-fg);
+}
+.iwb-bottom-tabs .iwb-dock-repo:hover:not(:disabled) {
+  border-color: var(--iwb-border-strong); background: rgba(127, 127, 127, .14);
+}
+.iwb-bottom-tabs .iwb-dock-repo:disabled { opacity: .5; cursor: default; }
+.iwb-bottom-tabs .iwb-dock-repo-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--iwb-accent);
+}
 .iwb-bottom-body { flex: 1; min-height: 0; display: flex; padding-left: 44px; }
 .iwb-bottom-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .iwb-bottom-hidden { min-height: 0 !important; border-top: 0 !important; overflow: hidden; }

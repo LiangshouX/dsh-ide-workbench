@@ -332,6 +332,23 @@ export const CSS = `
 .iwb-bottom-tab:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .07); }
 .iwb-bottom-tab.iwb-on { color: var(--iwb-fg); border-bottom-color: var(--iwb-accent); }
 .iwb-bottom-tab .iwb-badge { position: static; margin-left: 2px; }
+/* The repository picker in the Terminal/Git dock header. It is a chip of its
+   own rather than more tab label: the tab names the WINDOW, the chip names
+   the REPOSITORY that window works on, and running them together as one
+   crowded label made the two hard to tell apart. Scoped under the dock tabs
+   so the Git panel's own switcher keeps its look. */
+.iwb-bottom-tabs .iwb-dock-repo {
+  align-self: center; gap: 7px; height: 22px; max-width: 260px; margin-left: 14px;
+  padding: 0 11px; border-radius: 11px;
+  background: rgba(127, 127, 127, .07); color: var(--iwb-fg);
+}
+.iwb-bottom-tabs .iwb-dock-repo:hover:not(:disabled) {
+  border-color: var(--iwb-border-strong); background: rgba(127, 127, 127, .14);
+}
+.iwb-bottom-tabs .iwb-dock-repo:disabled { opacity: .5; cursor: default; }
+.iwb-bottom-tabs .iwb-dock-repo-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--iwb-accent);
+}
 .iwb-bottom-body { flex: 1; min-height: 0; display: flex; padding-left: 44px; }
 .iwb-bottom-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .iwb-bottom-hidden { min-height: 0 !important; border-top: 0 !important; overflow: hidden; }

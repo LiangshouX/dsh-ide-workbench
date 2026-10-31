@@ -161,7 +161,7 @@ function RepoSwitch({ store, state }) {
   useEffect(() => {
     if (anchor === null) return undefined
     const onDown = (event) => {
-      if (event.target instanceof Element && event.target.closest('.iwb-branch-popover, .iwb-branch-switch') !== null) return
+      if (event.target instanceof Element && event.target.closest('.iwb-branch-popover, .iwb-branch-switch, .iwb-repo-switch') !== null) return
       setAnchor(null)
     }
     window.addEventListener('mousedown', onDown, true)
@@ -189,16 +189,14 @@ function RepoSwitch({ store, state }) {
   return React.createElement(React.Fragment, null,
     React.createElement('button', {
       type: 'button',
-      className: 'iwb-branch-switch',
+      // The base class keeps the Git panel's switcher look; the dock modifier
+      // gives this one its own room, so the tab label and the repository name
+      // do not run together.
+      className: 'iwb-branch-switch iwb-dock-repo',
       disabled: !enabled,
       title: !enabled
         ? label(t, 'git.switchRepoDisabled', 'Only the Git window can switch repositories')
         : (current === '' ? label(t, 'git.pickRepoHint', 'Pick a repository in the Terminal/Git header') : current),
-      style: {
-        opacity: enabled ? 1 : 0.55,
-        cursor: enabled ? 'pointer' : 'default',
-        alignSelf: 'center',
-      },
       onClick: event => {
         if (!enabled) return
         const rect = event.currentTarget.getBoundingClientRect()
@@ -207,7 +205,8 @@ function RepoSwitch({ store, state }) {
         setAnchor({ left, top: rect.top, bottom: rect.bottom })
       },
     },
-      React.createElement('span', null, name === '' ? label(t, 'git.pickRepo', 'Choose repository') : name),
+      React.createElement('span', { className: 'iwb-dock-repo-dot' }),
+      React.createElement('span', { className: 'iwb-repo-name' }, name === '' ? label(t, 'git.pickRepo', 'Choose repository') : name),
       React.createElement('span', { className: 'iwb-branch-caret' }, '▾'),
     ),
     anchor !== null
