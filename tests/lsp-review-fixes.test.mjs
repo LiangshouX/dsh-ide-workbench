@@ -461,11 +461,32 @@ test('the handshake survives a queue of waiting payloads', async () => {
 test('a live state is found for the same folder in another spelling', () => {
   const root = rootOf('n6-path')
   const key = rootKey(root)
-  const native = root.replace(/\//g, '\\')
+  // The manager keys its live states by a normalized path, while the client
+  // hands it the native path of the folder it opened. The two have to name
+  // the same folder - otherwise the live state of a folder is never found
+  // again.
   assert.equal(
-    samePath(key, native),
+    samePath(key, root),
     true,
     'the normalized key of the manager matches the native path of the client',
+  )
+  if (process.platform !== 'win32') {
+    // The other platforms compare the paths exactly: a folder has one
+    // spelling there, and the key of the manager IS that spelling.
+    assert.equal(key, root, 'the key of the manager is the native path')
+    return
+  }
+  // Windows accepts both separators and ignores the case, so one folder
+  // really has several spellings there.
+  assert.equal(
+    samePath(key, root.replace(/\\/g, '/')),
+    true,
+    'the slashed spelling of the folder',
+  )
+  assert.equal(
+    samePath(key, root.toUpperCase()),
+    true,
+    'the other case of the folder',
   )
 })
 
