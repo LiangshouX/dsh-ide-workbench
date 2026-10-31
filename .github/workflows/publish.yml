@@ -24,7 +24,34 @@ jobs:
           node-version: 22
       - run: npm install -g npm@latest   # OIDC 需要 npm >= 11.5.1
       - run: npm ci
-      - run: npm test
+      # The output of the tests goes into a file: the step below reports the
+      # names of the failing tests without opening the log.
+      - name: Test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test-output.log
+      # A failing test is invisible in the summary of a run otherwise: the log
+      # has to be opened and scrolled. The names of the failing tests go into
+      # the summary of the run AND into an annotation, so that they can be read
+      # without the log (and without a browser).
+      - name: Report the failing tests
+        if: failure()
+        run: |
+          {
+            echo "### The tests that failed"
+            echo '```'
+            grep -E '^not ok ' test-output.log | head -40 || echo '(no "not ok" line in the output)'
+            echo '```'
+            echo
+            echo "<details><summary>The last 40 lines of the output</summary>"
+            echo
+            echo '```'
+            tail -40 test-output.log
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+          names=$(grep -E '^not ok ' test-output.log | sed -E 's/^not ok [0-9]+ - //' | head -20 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/\n/%0A/g' | tr '\n' ',')
+          echo "::error title=The tests failed::$names"
       - run: npm run build               # dist/client.js 必须在发布前重建
       - name: Check tag matches package.json version
         run: |
