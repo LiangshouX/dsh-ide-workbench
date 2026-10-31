@@ -397,7 +397,7 @@ var en = {
   "settings.lspTimeoutGroup": "Timeouts and exit",
   "settings.lspIdleTimeoutShort": "Exit after this idle time",
   "settings.lspRequestTimeoutShort": "The limit of one request",
-  "settings.lspMemoryNow": "Free memory now: {free} MB \xB7 {language} is expected to need {need} MB ({state}) \xB7 conservative floor {floor} MB",
+  "settings.lspMemoryNow": "Free memory now: {free} MB \xB7 {language} is expected to need {need} MB ({state}) \xB7 the server does not start below {threshold} MB \xB7 hard floor {floor} MB",
   "settings.lspMemoryNowNoProject": "Free memory now: {free} MB \xB7 no project is open, so there is no estimate yet",
   "settings.lspMemoryState.ok": "can start",
   "settings.lspMemoryState.tight": "tight",
@@ -638,6 +638,7 @@ var en = {
   "commit.push": "Push",
   "commit.pushHint": "Push the commits this branch is ahead of to its upstream",
   "commit.pushNoUpstream": "This branch has no upstream yet",
+  "commit.statusTruncated": "Too many changes - only the first {count} files are shown",
   "commit.pushing": "Pushing\u2026",
   "commit.entryIsDirectory": "This entry is a directory and has no diff.",
   "git.aheadTitle": "Ahead of {upstream} by {count} commits",
@@ -896,8 +897,11 @@ var en = {
   "nav.noUsages": "No usages found",
   "nav.semanticUnavailable": "The language server does not support finding usages.",
   "lsp.lowMemory": "Not enough free memory (needs {need} MB, {free} MB available)",
-  "lsp.lowMemoryHint": "Close other programs, or lower the memory limit in the settings.",
-  "lsp.crashedToast": "The language server exited. Memory exhaustion is the most common cause \u2014 lower the memory limit, disable that language, or continue in the basic mode.",
+  "lsp.lowMemoryHint": "Close the other programs, or use the basic mode for this language.",
+  "lsp.crashedToast": "The language server exited.",
+  "lsp.crashedTimeout": "A request took too long. The limit of a single request can be raised in the settings.",
+  "lsp.crashedMemory": "The machine ran out of memory. Close other programs, or use the basic mode for this language.",
+  "lsp.crashedGeneric": "The details are in the diagnostics panel.",
   "lsp.outsideProject": "That file is outside the workspace and cannot be opened.",
   "lsp.serverMissing": "No language server was found for {language}. Install it and make sure it is on PATH.",
   "lsp.degraded": "Semantic analysis is unavailable; the basic mode is used instead."
@@ -969,7 +973,7 @@ var zh = {
   "settings.lspTimeoutGroup": "\u8D85\u65F6\u4E0E\u9000\u51FA",
   "settings.lspIdleTimeoutShort": "\u65E0\u6D3B\u52A8\u540E\u81EA\u52A8\u9000\u51FA",
   "settings.lspRequestTimeoutShort": "\u5355\u6B21\u8BF7\u6C42\u7684\u4E0A\u9650",
-  "settings.lspMemoryNow": "\u5F53\u524D\u53EF\u7528\u5185\u5B58 {free} MB \xB7 {language} \u9884\u8BA1\u9700\u8981 {need} MB\uFF08{state}\uFF09\xB7 \u4FDD\u5B88\u4E0B\u9650 {floor} MB",
+  "settings.lspMemoryNow": "\u5F53\u524D\u53EF\u7528\u5185\u5B58 {free} MB \xB7 {language} \u9884\u8BA1\u9700\u8981 {need} MB\uFF08{state}\uFF09\xB7 \u4F4E\u4E8E {threshold} MB \u4E0D\u542F\u52A8 \xB7 \u786C\u4E0B\u9650 {floor} MB",
   "settings.lspMemoryNowNoProject": "\u5F53\u524D\u53EF\u7528\u5185\u5B58 {free} MB \xB7 \u5C1A\u672A\u6253\u5F00\u9879\u76EE\uFF0C\u6682\u65E0\u5185\u5B58\u4F30\u7B97",
   "settings.lspMemoryState.ok": "\u53EF\u542F\u52A8",
   "settings.lspMemoryState.tight": "\u5185\u5B58\u7D27\u5F20",
@@ -1210,6 +1214,7 @@ var zh = {
   "commit.push": "\u63A8\u9001",
   "commit.pushHint": "\u628A\u672C\u5206\u652F\u9886\u5148\u7684\u63D0\u4EA4\u63A8\u9001\u5230\u4E0A\u6E38",
   "commit.pushNoUpstream": "\u5F53\u524D\u5206\u652F\u6CA1\u6709\u4E0A\u6E38\uFF0C\u8BF7\u5148\u8BBE\u7F6E",
+  "commit.statusTruncated": "\u6539\u52A8\u592A\u591A\uFF0C\u53EA\u663E\u793A\u524D {count} \u4E2A\u6587\u4EF6",
   "commit.pushing": "\u63A8\u9001\u4E2D\u2026",
   "commit.entryIsDirectory": "\u8BE5\u6761\u76EE\u662F\u76EE\u5F55\uFF0C\u65E0\u6CD5\u663E\u793A\u5DEE\u5F02\u3002",
   "git.aheadTitle": "\u9886\u5148 {upstream} {count} \u4E2A\u63D0\u4EA4",
@@ -1467,8 +1472,11 @@ var zh = {
   "nav.noUsages": "\u672A\u627E\u5230\u5F15\u7528",
   "nav.semanticUnavailable": "\u8BE5\u8BED\u8A00\u670D\u52A1\u5668\u4E0D\u652F\u6301\u67E5\u627E\u5F15\u7528\u3002",
   "lsp.lowMemory": "\u7CFB\u7EDF\u53EF\u7528\u5185\u5B58\u4E0D\u8DB3\uFF08\u9700\u8981 {need} MB\uFF0C\u53EF\u7528 {free} MB\uFF09",
-  "lsp.lowMemoryHint": "\u8BF7\u5173\u95ED\u5176\u5B83\u7A0B\u5E8F\uFF0C\u6216\u5728\u8BBE\u7F6E\u91CC\u8C03\u4F4E\u5185\u5B58\u4E0A\u9650\u3002",
-  "lsp.crashedToast": "\u8BED\u8A00\u670D\u52A1\u5668\u5DF2\u9000\u51FA\u3002\u6700\u5E38\u89C1\u7684\u539F\u56E0\u662F\u5185\u5B58\u4E0D\u8DB3\u2014\u2014\u8BF7\u964D\u4F4E\u5185\u5B58\u4E0A\u9650\u3001\u5173\u95ED\u8BE5\u8BED\u8A00\uFF0C\u6216\u6539\u7528\u4FDD\u5B88\u7248\u3002",
+  "lsp.lowMemoryHint": "\u8BF7\u5173\u95ED\u5176\u5B83\u7A0B\u5E8F\uFF0C\u6216\u5BF9\u8BE5\u8BED\u8A00\u6539\u7528\u4FDD\u5B88\u7248\u3002",
+  "lsp.crashedToast": "\u8BED\u8A00\u670D\u52A1\u5668\u5DF2\u9000\u51FA\u3002",
+  "lsp.crashedTimeout": "\u67D0\u4E2A\u8BF7\u6C42\u8017\u65F6\u8FC7\u957F\u3002\u53EF\u5728\u8BBE\u7F6E\u91CC\u8C03\u9AD8\u300C\u5355\u6B21\u8BF7\u6C42\u7684\u4E0A\u9650\u300D\u3002",
+  "lsp.crashedMemory": "\u673A\u5668\u53EF\u7528\u5185\u5B58\u4E0D\u8DB3\u3002\u8BF7\u5173\u95ED\u5176\u5B83\u7A0B\u5E8F\uFF0C\u6216\u5BF9\u8BE5\u8BED\u8A00\u6539\u7528\u4FDD\u5B88\u7248\u3002",
+  "lsp.crashedGeneric": "\u8BE6\u60C5\u89C1\u8BCA\u65AD\u9762\u677F\u3002",
   "lsp.outsideProject": "\u8BE5\u6587\u4EF6\u5728\u5DE5\u4F5C\u533A\u4E4B\u5916\uFF0C\u65E0\u6CD5\u6253\u5F00\u3002",
   "lsp.serverMissing": "\u672A\u627E\u5230 {language} \u7684\u8BED\u8A00\u670D\u52A1\u5668\u3002\u8BF7\u5B89\u88C5\u5B83\u5E76\u786E\u4FDD\u5B83\u5728 PATH \u4E2D\u3002",
   "lsp.degraded": "\u8BED\u4E49\u5206\u6790\u4E0D\u53EF\u7528\uFF0C\u5DF2\u6539\u7528\u4FDD\u5B88\u7248\u3002"
@@ -2325,6 +2333,12 @@ function initialState() {
     localeTick: 0
   };
 }
+function crashAdviceFor(detail, t2) {
+  const text = typeof detail === "string" ? detail.toLowerCase() : "";
+  if (text.includes("timeout")) return t2("lsp.crashedTimeout");
+  if (text.includes("memory") || text.includes("out of memory")) return t2("lsp.crashedMemory");
+  return t2("lsp.crashedGeneric");
+}
 var WorkbenchStore = class {
   /**
    * @param {any} ctx client cordis context
@@ -2485,9 +2499,9 @@ var WorkbenchStore = class {
     this.set({ [key]: { ...this.state[key], ...patch } });
   }
   /** Show a transient toast. */
-  toast(kind, text, detail) {
+  toast(kind, text, detail, action) {
     const id2 = nextId("toast");
-    this.set({ toast: { id: id2, kind, text, detail: detail ?? "" } });
+    this.set({ toast: { id: id2, kind, text, detail: detail ?? "", action: action ?? null } });
     if (this.toastTimer !== null) clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => {
       this.toastTimer = null;
@@ -3029,14 +3043,18 @@ var WorkbenchStore = class {
     if (lsp.enabled === false) return "conservative";
     if ((lsp.indexOnOpen ?? "ask") === "never") return "conservative";
     const resources = await this.#lspResources(project.path);
-    if (resources !== null && resources.tight === true && this.#memoryWarned(project.path) === false) {
+    const decision = resources === null ? "ok" : resources.decision ?? (resources.tight === true ? "tight" : resources.canIndex === false ? "low" : "ok");
+    const answered = this.#memoryAnswer(project.path);
+    if (decision === "tight" && answered === "") {
       const choice = await this.#askMemoryDecision(project, resources);
-      this.#rememberMemoryWarning(project.path);
+      this.#rememberMemoryAnswer(project.path, choice === "start" ? "accepted" : "conservative");
       if (choice === "conservative") return "conservative";
       return "build-forced";
     }
-    if (resources !== null && resources.canIndex === false) {
-      const need = Math.round(resources.needMB ?? (resources.thresholdBytes ?? resources.memoryLimitBytes ?? 0) / (1024 * 1024));
+    if (decision === "tight" && answered === "accepted") return "build-forced";
+    if (decision === "tight" && answered === "conservative") return "conservative";
+    if (decision === "low") {
+      const need = Math.round((resources.thresholdBytes ?? 0) / (1024 * 1024));
       const free = Math.round((resources.freeBytes ?? 0) / (1024 * 1024));
       this.toast("error", this.#tpl("lsp.lowMemory", { need, free }), this.t("lsp.lowMemoryHint"));
       return "conservative";
@@ -3047,25 +3065,34 @@ var WorkbenchStore = class {
     return this.#askIndexDecision(project, resources);
   }
   /**
-   * Whether the user was already warned about the memory of one project.
+   * What the user answered the last time this project was tight.
+   *
+   * The answer is a decision, not a question: 'accepted' (the user wants the
+   * language server even though the memory is tight) or 'conservative' (the
+   * user wants the basic mode). An empty string means the user was never
+   * asked.
    * @param {string} root the project root
-   * @returns {boolean} true when the warning must not be shown again
+   * @returns {string} 'accepted', 'conservative' or ''
    */
-  #memoryWarned(root) {
+  #memoryAnswer(root) {
     const warned2 = this.state.settings?.lsp?.memoryWarnedRoots;
-    if (warned2 === null || warned2 === void 0 || typeof warned2 !== "object") return false;
-    return Object.keys(warned2).some((key) => sameScopePath(key, root));
+    if (warned2 === null || warned2 === void 0 || typeof warned2 !== "object") return "";
+    const key = Object.keys(warned2).find((entry) => sameScopePath(entry, root));
+    if (key === void 0) return "";
+    const answer = warned2[key];
+    return answer === "accepted" || answer === "conservative" ? answer : "";
   }
   /**
-   * Remember that the user answered the memory warning for one project.
+   * Remember what the user answered for one project.
    *
    * The answer is written to the settings, so it survives a restart of the
    * workbench. A failure is not fatal: the user is asked again next time.
    * @param {string} root the project root
+   * @param {'accepted'|'conservative'} answer the answer of the user
    */
-  #rememberMemoryWarning(root) {
+  #rememberMemoryAnswer(root, answer) {
     const warned2 = this.state.settings?.lsp?.memoryWarnedRoots;
-    const next = { ...warned2 !== null && typeof warned2 === "object" ? warned2 : {}, [root]: true };
+    const next = { ...warned2 !== null && typeof warned2 === "object" ? warned2 : {}, [root]: answer };
     this.set({ settings: { ...this.state.settings, lsp: { ...this.state.settings.lsp, memoryWarnedRoots: next } } });
     void call2("settings.update", { patch: { lsp: { memoryWarnedRoots: next } } }).catch(() => {
     });
@@ -3537,7 +3564,7 @@ var WorkbenchStore = class {
     const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled || memoryChanged;
     if (changed) this.set({ lsp: next });
     if (next.state === "crashed" && previous !== "crashed") {
-      this.toast("error", this.t("lsp.crashedToast"));
+      this.toast("error", this.t("lsp.crashedToast"), this.#crashAdvice(next.detail ?? ""));
     }
     if (next.languageId !== "" && !this.lspServersChecked.has(next.languageId)) {
       this.lspServersChecked.add(next.languageId);
@@ -3557,6 +3584,15 @@ var WorkbenchStore = class {
     } catch {
       return null;
     }
+  }
+  /**
+   * The advice for a crashed language server.
+   *
+   * @param {string} detail the reason the host reported
+   * @returns {string} the advice
+   */
+  #crashAdvice(detail) {
+    return crashAdviceFor(detail, (key) => this.t(key));
   }
   /**
    * The language-server registry (PRD-v5 §3.1).
@@ -3888,7 +3924,7 @@ var WorkbenchStore = class {
     if (hits.length === 0) return;
     this.searchIndex = (this.searchIndex + (delta >= 0 ? 1 : -1) + hits.length) % hits.length;
     const hit = hits[this.searchIndex];
-    this.openSearchResult(hit.path, hit.line);
+    this.openSearchResult(hit.path, hit.line, hit.column);
   }
   /**
    * The hits of the current search, flattened over the files.
@@ -3926,11 +3962,18 @@ var WorkbenchStore = class {
     return files[index] ?? null;
   }
   /** Open one Find in Files hit at its line. */
-  openSearchResult(rel, line) {
+  openSearchResult(rel, line, column) {
     if (typeof rel !== "string" || rel === "") return;
     const absolute = this.#absoluteOf(rel);
     this.closeSearchPopup();
-    this.openFile(absolute, { rel, preview: false, line: Number.isInteger(line) ? line : 1 });
+    this.openFile(absolute, {
+      rel,
+      preview: false,
+      line: Number.isInteger(line) ? line : 1,
+      // The host sends the column of the hit, so the cursor lands on the
+      // word and not at the start of the line.
+      column: Number.isInteger(column) ? column : void 0
+    });
   }
   /**
    * Open the Find in Files popup.
@@ -3938,11 +3981,22 @@ var WorkbenchStore = class {
    * The results used to live in a tab of the editor area, which took a tab
    * away from the code the user was working on. The popup floats above the
    * editor instead (PRD-v5 supplement, FIND-01).
+   *
+   * The query and the flags are reset: the two entries (Find in Files and
+   * the text version of Find Usages) share one data slice, and a plain
+   * project-wide search must not inherit the identifier of a usage search
+   * (and must not fire a search with it).
    * @param {string} [query] the query to run right away
    */
   openSearchPopup(query = "") {
     this.set({ searchPopup: { open: true, index: 0, generation: (this.state.searchPopup?.generation ?? 0) + 1 } });
-    this.patch("search", { textMatch: false });
+    this.patch("search", {
+      textMatch: false,
+      query: "",
+      caseSensitive: false,
+      wholeWord: false,
+      regexp: false
+    });
     if (typeof query === "string" && query !== "") void this.runSearch(query);
   }
   /** Close the Find in Files popup. */
@@ -5184,7 +5238,14 @@ ${outcome.output ?? ""}`.trim();
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       if (/no upstream branch|set-upstream|does not appear to be a git repository/i.test(text)) {
-        this.toast("error", this.t("commit.pushNoUpstream"), this.#pushUpstreamHint());
+        const command2 = this.#pushUpstreamHint();
+        this.toast("error", this.t("commit.pushNoUpstream"), command2, {
+          label: this.t("common.copy"),
+          copy: command2,
+          onDone: (ok) => {
+            if (ok) this.toast("success", this.t("common.copied"));
+          }
+        });
       } else {
         this.toast("error", options2.afterCommit === true ? this.t("commit.pushFailed") : this.t("commit.failed"), text);
       }
@@ -6200,6 +6261,7 @@ function ConfirmModal({ dialog, onClose, scope = null }) {
 }
 function Toast({ toast }) {
   if (toast === null || toast === void 0) return null;
+  const action = toast.action ?? null;
   return import_react4.default.createElement(
     "div",
     { className: `iwb-toast iwb-${toast.kind}` },
@@ -6207,7 +6269,25 @@ function Toast({ toast }) {
       "div",
       { className: "iwb-toast-text" },
       import_react4.default.createElement("div", null, toast.text),
-      toast.detail !== "" && toast.detail !== void 0 ? import_react4.default.createElement("div", { className: "iwb-toast-detail" }, toast.detail) : null
+      toast.detail !== "" && toast.detail !== void 0 ? import_react4.default.createElement("div", { className: "iwb-toast-detail" }, toast.detail) : null,
+      // An action of the toast: a button that copies a command the user has
+      // to type into a terminal.
+      action !== null && typeof action.copy === "string" && action.copy !== "" ? import_react4.default.createElement("button", {
+        type: "button",
+        className: "iwb-textbtn iwb-small iwb-toast-action",
+        onClick: () => {
+          const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : null;
+          const written = clipboard === null ? Promise.reject(new Error("no clipboard")) : clipboard.writeText(action.copy);
+          written.then(
+            () => {
+              action.onDone?.(true);
+            },
+            () => {
+              action.onDone?.(false);
+            }
+          );
+        }
+      }, action.label ?? "Copy") : null
     )
   );
 }
@@ -7358,6 +7438,13 @@ function ProjectPanel({ store, state: _state }) {
 
 // src/client/CommitPanel.jsx
 var import_react6 = __toESM(require("react"), 1);
+function interpolate(text, values2) {
+  let out = typeof text === "string" ? text : "";
+  for (const [name2, value] of Object.entries(values2)) {
+    out = out.replaceAll(`{${name2}}`, String(value));
+  }
+  return out;
+}
 function commitSlice(state) {
   return {
     commit: state.commit,
@@ -7368,6 +7455,8 @@ function commitSlice(state) {
     oid: state.status.oid,
     ahead: state.status.ahead,
     upstream: state.status.upstream,
+    statusTruncated: state.status.truncated === true,
+    statusLimit: state.status.entryLimit,
     settings: state.settings,
     workspaceRoot: state.workspaceRoot
   };
@@ -7482,9 +7571,8 @@ function CommitPanel({ store, state }) {
     }
   }, [commit.focusTick]);
   const canCommit = commit.committing !== true && (checkedPaths.size > 0 || commit.amend === true);
-  const ahead = typeof slice.ahead === "number" ? slice.ahead : 0;
   const hasUpstream = typeof slice.upstream === "string" && slice.upstream !== "";
-  const canPush = commit.pushing !== true && ahead > 0;
+  const canPush = commit.pushing !== true && slice.isRepo !== false;
   const pushHint = hasUpstream ? t2("commit.pushHint") : t2("commit.pushNoUpstream");
   const commitSettings = slice.settings?.commit ?? {};
   const taskDefs = [
@@ -7779,6 +7867,14 @@ ${entries.length}`,
         groups.unversioned.length === 0 ? import_react6.default.createElement("div", { className: "iwb-group-empty" }, t2("commit.noUnversioned")) : renderEntries(groups.unversioned)
       )
     ),
+    // The host cuts the file list short when the repository has more entries
+    // than the status accepts. The user has to know that the list above is
+    // not the whole truth (R17).
+    slice.statusTruncated ? import_react6.default.createElement(
+      "div",
+      { className: "iwb-commit-hint" },
+      interpolate(t2("commit.statusTruncated"), { count: slice.statusLimit ?? 0 })
+    ) : null,
     menu !== null ? import_react6.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
     dialog !== null ? import_react6.default.createElement(
       "div",
@@ -55301,6 +55397,8 @@ var unsubscribeStore = null;
 var sessionKey = null;
 var sessionRoot = "";
 var reportErrorRedirected = false;
+var handshakeTimer = null;
+var handshakeRetries = 0;
 var mappingRedirected = false;
 var health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null };
 function redirectErrorsToToast() {
@@ -55572,19 +55670,54 @@ function startLsp() {
     }
   });
   currentClient.connect(currentTransport);
+  watchHandshake(currentClient);
   bumpVersion();
+}
+var MAX_HANDSHAKE_RETRIES = 3;
+function watchHandshake(client) {
+  const handshake = client?.initializing;
+  if (handshake === null || handshake === void 0 || typeof handshake.then !== "function") return;
+  handshake.then(
+    () => {
+      handshakeRetries = 0;
+    },
+    (error) => {
+      console.warn("[lsp] the handshake failed:", error instanceof Error ? error.message : error);
+      scheduleHandshakeRetry();
+    }
+  );
+}
+function scheduleHandshakeRetry() {
+  if (handshakeTimer !== null) return;
+  if (handshakeRetries >= MAX_HANDSHAKE_RETRIES) {
+    console.warn("[lsp] the handshake keeps failing; reload the page to try again");
+    return;
+  }
+  handshakeRetries += 1;
+  handshakeTimer = setTimeout(() => {
+    handshakeTimer = null;
+    if (currentClient === null) return;
+    reinitializeLsp();
+  }, 2e3);
+  handshakeTimer.unref?.();
 }
 function reinitializeLsp() {
   if (currentClient === null || currentTransport === null) return;
   try {
     currentClient.disconnect();
     currentClient.connect(currentTransport);
+    watchHandshake(currentClient);
     resetLspHealth();
   } catch (error) {
     console.warn("[lsp] the handshake could not be repeated:", error instanceof Error ? error.message : error);
   }
 }
 function stopLsp() {
+  if (handshakeTimer !== null) {
+    clearTimeout(handshakeTimer);
+    handshakeTimer = null;
+  }
+  handshakeRetries = 0;
   if (currentClient !== null) {
     try {
       currentClient.disconnect();
@@ -55628,7 +55761,10 @@ function refreshLsp() {
     resetLspHealth();
   }
   if (wanted) {
-    if (hadClient) stopLsp();
+    if (hadClient) {
+      if (previousRoot !== "" && previousRoot !== root) shutdownHostLsp(previousRoot);
+      stopLsp();
+    }
     startLsp(store);
   } else if (hadClient) {
     shutdownHostLsp(previousRoot);
@@ -57679,7 +57815,7 @@ ${row.right?.text ?? ""}`;
 
 // src/client/SearchView.jsx
 var import_react14 = __toESM(require("react"), 1);
-function interpolate(text, values2) {
+function interpolate2(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -57797,7 +57933,7 @@ function SearchView({ store }) {
     import_react14.default.createElement(
       "div",
       { className: "iwb-search-meta" },
-      search2.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2.error !== null ? search2.error : search2.textMatch === true ? totals.matches === 0 ? t2("nav.noUsages") : interpolate(t2("nav.usagesCount"), { count: totals.matches }) : `${totals.matches} ${t2("search.resultCount")} \xB7 ${totals.files} \xB7 ${search2.tookMs} ${t2("search.took")}`,
+      search2.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2.error !== null ? search2.error : search2.textMatch === true ? totals.matches === 0 ? t2("nav.noUsages") : interpolate2(t2("nav.usagesCount"), { count: totals.matches }) : `${totals.matches} ${t2("search.resultCount")} \xB7 ${totals.files} \xB7 ${search2.tookMs} ${t2("search.took")}`,
       search2.truncated === true ? import_react14.default.createElement("span", { className: "iwb-search-warn" }, t2("search.truncated")) : null
     ),
     // The text version of Find Usages is a fallback, not a semantic result:
@@ -58570,6 +58706,54 @@ function EditorArea({ store, state: _state }) {
 
 // src/client/SettingsPanel.jsx
 var import_react16 = __toESM(require("react"), 1);
+
+// src/host/settings-defaults.js
+var DEFAULT_LSP_SETTINGS = {
+  /** Master switch. false = never start a language server. */
+  enabled: true,
+  /** 'ask' = ask; 'always' = always index; 'never' = never index. */
+  indexOnOpen: "ask",
+  /** Memory ceiling handed to the language server (MB). */
+  memoryLimitMB: 2048,
+  /**
+   * Conservative fallback floor (MB): the free memory that is required when
+   * no estimate of the language is known. It is not a gate for a language
+   * that has an estimate (PRD §4.4).
+   */
+  freeMemoryThresholdMB: 512,
+  /** Factor between the estimate of a language server and the memory it needs. */
+  memoryHeadroom: 1.5,
+  /** Free memory below which no language server starts at all (MB). */
+  memoryHardFloorMB: 256,
+  /** Idle time after which the language server exits (ms). */
+  idleTimeoutMs: 6e5,
+  /** LSP request timeout (ms). Must stay >= 30000: the client library's own
+   * default is 3000, which silently times out on large projects. */
+  requestTimeoutMs: 3e4,
+  /** How long an index may run before the cancel button appears (ms). */
+  cancelAfterMs: 6e4,
+  /** Whether an idle language server may exit on its own. */
+  autoExit: true,
+  /** Whether a crashed language server is restarted once. */
+  autoRestart: true,
+  /**
+   * Per-language overrides: { [languageId]: { enabled, command, args } }.
+   *
+   * `enabled: false` switches one language off: its server is never
+   * started and the language stays in the conservative mode. `command` and
+   * `args` replace the registered ones; `memoryLimitMB` lowers the
+   * ceiling of one language; `memoryBaselineMB` replaces the estimate the
+   * free memory is compared with.
+   */
+  servers: {},
+  /** Project roots that completed a first build: { [absPath]: { at, languageId } }. */
+  indexedRoots: {},
+  /** Project roots the user has already been warned about on a tight memory
+   * budget: { [absPath]: true }. The same project is not asked twice. */
+  memoryWarnedRoots: {}
+};
+
+// src/client/SettingsPanel.jsx
 var SHORTCUT_FIELDS = [
   ["project", "projectShortcut"],
   ["commit", "commitShortcut"],
@@ -58607,7 +58791,7 @@ function Row({ label: label3, hint, children }) {
     import_react16.default.createElement("div", { className: "iwb-settings-control" }, children)
   );
 }
-function interpolate2(text, values2) {
+function interpolate3(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -58621,6 +58805,33 @@ function SubGroup({ title, children }) {
     import_react16.default.createElement("div", { className: "iwb-settings-subgroup-title" }, title),
     import_react16.default.createElement("div", { className: "iwb-settings-fields" }, children)
   );
+}
+function resetPatch() {
+  return {
+    git: { path: "", colors: true, commitTemplate: "" },
+    idea: { path: "" },
+    webstorm: { path: "" },
+    vscode: { path: "" },
+    terminal: { shell: "auto", copyOnSelect: false, fontSize: 13 },
+    project: { alwaysSelectOpened: true, showHidden: true, showIgnored: false, singleClickOpen: false },
+    commit: { groupByDirectory: false },
+    delete: { useRecycleBin: true },
+    editor: { fontSize: 13, highlight: true, openMode: "auto", editableMaxBytes: 1 << 20, markdownPreview: true },
+    links: { chatFiles: "ide" },
+    lsp: { ...DEFAULT_LSP_SETTINGS, servers: null, indexedRoots: null, memoryWarnedRoots: null },
+    shortcuts: {
+      project: "Alt+1",
+      commit: "Alt+0",
+      git: "Alt+9",
+      terminal: "Alt+F12",
+      focusCommit: "Ctrl+K",
+      push: "Ctrl+Shift+K",
+      findInFiles: "Ctrl+Shift+R",
+      findInFilesAlt: "Ctrl+Alt+F",
+      openCommitDetail: "Ctrl+Alt+D",
+      quickOpen: "Ctrl+Shift+N"
+    }
+  };
 }
 function Field({ label: label3, hint, title, children }) {
   return import_react16.default.createElement(
@@ -59119,7 +59330,9 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
             min: 3e4,
             max: 6e5,
             step: 1e3,
-            value: draft.lsp?.requestTimeoutMs ?? 3e4,
+            // The runtime raises anything below 30000 to 30000, so the field
+            // shows the value that is actually in effect.
+            value: Math.max(3e4, draft.lsp?.requestTimeoutMs ?? 3e4),
             onChange: (event) => update({ lsp: { requestTimeoutMs: Math.max(3e4, Number(event.target.value) || 3e4) } })
           })
         )
@@ -59172,13 +59385,14 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
       lspResources !== null ? import_react16.default.createElement(
         "div",
         { className: "iwb-settings-hint" },
-        typeof lspResources.languageId === "string" && lspResources.languageId !== "" ? interpolate2(t2("settings.lspMemoryNow"), {
+        typeof lspResources.languageId === "string" && lspResources.languageId !== "" ? interpolate3(t2("settings.lspMemoryNow"), {
           free: Math.round((lspResources.freeBytes ?? 0) / (1024 * 1024)),
           need: Math.round(lspResources.needMB ?? 0),
+          threshold: Math.round((lspResources.thresholdBytes ?? 0) / (1024 * 1024)),
           floor: Math.round(lspResources.hardFloorMB ?? 256),
           language: lspResources.languageId,
           state: lspResources.tight === true ? t2("settings.lspMemoryState.tight") : lspResources.canIndex === false ? t2("settings.lspMemoryState.low") : t2("settings.lspMemoryState.ok")
-        }) : interpolate2(t2("settings.lspMemoryNowNoProject"), {
+        }) : interpolate3(t2("settings.lspMemoryNowNoProject"), {
           free: Math.round((lspResources.freeBytes ?? 0) / (1024 * 1024))
         })
       ) : null
@@ -59225,7 +59439,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
       runningServers > 0 ? import_react16.default.createElement(
         "div",
         { className: "iwb-settings-hint" },
-        interpolate2(t2("settings.lspServerRunning"), { count: runningServers })
+        interpolate3(t2("settings.lspServerRunning"), { count: runningServers })
       ) : null
     ) : null,
     import_react16.default.createElement(
@@ -59253,30 +59467,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
         type: "button",
         className: "iwb-textbtn iwb-small iwb-settings-reset",
         onClick: () => {
-          const reset = {
-            git: { path: "", colors: true, commitTemplate: "" },
-            idea: { path: "" },
-            webstorm: { path: "" },
-            vscode: { path: "" },
-            terminal: { shell: "auto", copyOnSelect: false, fontSize: 13 },
-            project: { alwaysSelectOpened: true, showHidden: true, showIgnored: false, singleClickOpen: false },
-            commit: { groupByDirectory: false },
-            delete: { useRecycleBin: true },
-            editor: { fontSize: 13, highlight: true, openMode: "auto", editableMaxBytes: 1 << 20, markdownPreview: true },
-            links: { chatFiles: "ide" },
-            shortcuts: {
-              project: "Alt+1",
-              commit: "Alt+0",
-              git: "Alt+9",
-              terminal: "Alt+F12",
-              focusCommit: "Ctrl+K",
-              push: "Ctrl+Shift+K",
-              findInFiles: "Ctrl+Shift+R",
-              findInFilesAlt: "Ctrl+Alt+F",
-              openCommitDetail: "Ctrl+Alt+D",
-              quickOpen: "Ctrl+Shift+N"
-            }
-          };
+          const reset = resetPatch();
           setDraft({ ...draft, ...reset });
           commit(reset);
         }
@@ -59406,7 +59597,7 @@ function QuickOpen({ store, state }) {
 
 // src/client/SearchPopup.jsx
 var import_react18 = __toESM(require("react"), 1);
-function interpolate3(text, values2) {
+function interpolate4(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -59427,10 +59618,12 @@ function SearchPopup({ store, state }) {
   const popup = state.searchPopup ?? { open: false, index: 0 };
   const inputRef = (0, import_react18.useRef)(null);
   const timer = (0, import_react18.useRef)(null);
+  const generation = popup.generation ?? 0;
   const [query, setQuery] = (0, import_react18.useState)(search2.query ?? "");
   const [caseSensitive, setCaseSensitive] = (0, import_react18.useState)(search2.caseSensitive === true);
   const [wholeWord, setWholeWord] = (0, import_react18.useState)(search2.wholeWord === true);
   const [regexp, setRegexp] = (0, import_react18.useState)(search2.regexp === true);
+  const [seeded, setSeeded] = (0, import_react18.useState)(false);
   const files = (0, import_react18.useMemo)(() => (search2.results ?? []).filter((file) => (file.matches ?? []).length > 0), [search2.results]);
   const totals = (0, import_react18.useMemo)(() => {
     let matches = 0;
@@ -59444,7 +59637,17 @@ function SearchPopup({ store, state }) {
     inputRef.current?.select();
   }, [popup.open]);
   (0, import_react18.useEffect)(() => {
+    if (popup.open !== true) return;
+    const live = store.state?.search ?? search2;
+    setQuery(live.query ?? "");
+    setCaseSensitive(live.caseSensitive === true);
+    setWholeWord(live.wholeWord === true);
+    setRegexp(live.regexp === true);
+    setSeeded(true);
+  }, [generation, popup.open]);
+  (0, import_react18.useEffect)(() => {
     if (popup.open !== true) return void 0;
+    if (seeded !== true) return void 0;
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       timer.current = null;
@@ -59453,31 +59656,49 @@ function SearchPopup({ store, state }) {
     return () => {
       if (timer.current !== null) clearTimeout(timer.current);
     };
-  }, [query, caseSensitive, wholeWord, regexp, popup.open]);
+  }, [query, caseSensitive, wholeWord, regexp, seeded, popup.open]);
   if (popup.open !== true) return null;
-  const openHit = (path2, line) => {
+  const openHit = (path2, line, column) => {
     if (typeof path2 !== "string" || path2 === "") return;
-    store.openSearchResult(path2, line);
+    store.openSearchResult(path2, line, column);
   };
-  const onKeyDown = (event) => {
+  const handleKey = (event) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
       store.moveSearchSelection(1);
-    } else if (event.key === "ArrowUp") {
+      return true;
+    }
+    if (event.key === "ArrowUp") {
       event.preventDefault();
       store.moveSearchSelection(-1);
-    } else if (event.key === "Enter") {
+      return true;
+    }
+    if (event.key === "Enter") {
       event.preventDefault();
       const first = selected?.matches?.[0];
-      if (selected !== null && first !== void 0) openHit(selected.path, first.line);
+      if (selected !== null && first !== void 0) openHit(selected.path, first.line, first.column);
       else void store.runSearch(query, { caseSensitive, wholeWord, regexp });
-    } else if (event.key === "Escape") {
+      return true;
+    }
+    if (event.key === "Escape") {
       event.preventDefault();
       store.closeSearchPopup();
-    } else if (event.key === "F8") {
+      return true;
+    }
+    if (event.key === "F8") {
       event.preventDefault();
       store.moveSearchSelection(event.shiftKey ? -1 : 1);
+      return true;
     }
+    return false;
+  };
+  const onContainerKeyDown = (event) => {
+    if (handleKey(event) !== true) return;
+    event.stopPropagation();
+  };
+  const onInputKeyDown = (event) => {
+    if (handleKey(event) !== true) return;
+    event.stopPropagation();
   };
   const flag = (on2, label3, title, onClick) => import_react18.default.createElement("button", {
     type: "button",
@@ -59490,6 +59711,10 @@ function SearchPopup({ store, state }) {
     "div",
     {
       className: "iwb-quick-backdrop iwb-search-popup-backdrop",
+      // The container takes the keys, so they work wherever the focus is -
+      // a click on a file row moves the focus out of the input (R13).
+      tabIndex: -1,
+      onKeyDown: onContainerKeyDown,
       onMouseDown: (event) => {
         if (event.target === event.currentTarget) store.closeSearchPopup();
       }
@@ -59513,7 +59738,7 @@ function SearchPopup({ store, state }) {
           placeholder: t2("search.placeholder"),
           spellCheck: false,
           onChange: (event) => setQuery(event.target.value),
-          onKeyDown
+          onKeyDown: onInputKeyDown
         }),
         flag(caseSensitive, "Aa", t2("search.caseSensitive"), () => setCaseSensitive((value) => !value)),
         flag(wholeWord, "W", t2("search.wholeWord"), () => setWholeWord((value) => !value)),
@@ -59529,7 +59754,7 @@ function SearchPopup({ store, state }) {
       import_react18.default.createElement(
         "div",
         { className: "iwb-search-popup-meta" },
-        search2.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2.error !== null ? search2.error : interpolate3(t2("search.popup.matches"), { count: totals.matches, files: totals.files }),
+        search2.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2.error !== null ? search2.error : interpolate4(t2("search.popup.matches"), { count: totals.matches, files: totals.files }),
         search2.truncated === true ? import_react18.default.createElement("span", { className: "iwb-search-warn" }, t2("search.truncated")) : null,
         // The text version of Find Usages is a fallback, not a semantic
         // result: every hit is labelled, so the user knows what the list
@@ -59552,7 +59777,7 @@ function SearchPopup({ store, state }) {
             // A double click opens the file at its first hit.
             onDoubleClick: () => {
               const first = file.matches?.[0];
-              if (first !== void 0) openHit(file.path, first.line);
+              if (first !== void 0) openHit(file.path, first.line, first.column);
             }
           },
           import_react18.default.createElement(FileTypeIcon, { path: file.path, size: 14 }),
@@ -59561,7 +59786,7 @@ function SearchPopup({ store, state }) {
           import_react18.default.createElement(
             "span",
             { className: "iwb-search-popup-file-count" },
-            interpolate3(t2("search.popup.matchCount"), { count: (file.matches ?? []).length })
+            interpolate4(t2("search.popup.matchCount"), { count: (file.matches ?? []).length })
           )
         ))
       ),
@@ -59583,7 +59808,7 @@ function SearchPopup({ store, state }) {
               {
                 key: `${selected.path}:${match.line}:${match.column}:${index}`,
                 className: "iwb-search-popup-block",
-                onDoubleClick: () => openHit(selected.path, match.line)
+                onDoubleClick: () => openHit(selected.path, match.line, match.column)
               },
               import_react18.default.createElement(
                 "div",
@@ -59631,7 +59856,7 @@ function label2(t2, key, fallback2) {
   const value = t2(key);
   return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
 }
-function interpolate4(text, values2) {
+function interpolate5(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -59686,7 +59911,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       ahead > 0 ? import_react19.default.createElement("button", {
         type: "button",
         className: "iwb-ahead iwb-ahead-btn",
-        title: interpolate4(t2("git.aheadTitle"), { upstream: upstream === "" ? t2("common.branch") : upstream, count: ahead }),
+        title: interpolate5(t2("git.aheadTitle"), { upstream: upstream === "" ? t2("common.branch") : upstream, count: ahead }),
         onClick: (event) => {
           event.stopPropagation();
           setPushMenu({ x: event.clientX, y: event.clientY + 8 });
@@ -59695,7 +59920,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       behind > 0 ? import_react19.default.createElement("button", {
         type: "button",
         className: "iwb-behind iwb-ahead-btn",
-        title: interpolate4(t2("git.behindTitle"), { count: behind }),
+        title: interpolate5(t2("git.behindTitle"), { count: behind }),
         onClick: (event) => {
           event.stopPropagation();
           setPushMenu({ x: event.clientX, y: event.clientY + 8 });
@@ -59757,12 +59982,12 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       y: pushMenu.y,
       onClose: () => setPushMenu(null),
       items: [
-        { label: interpolate4(t2("git.aheadTitle"), { upstream: upstream === "" ? t2("common.branch") : upstream, count: ahead }) },
+        { label: interpolate5(t2("git.aheadTitle"), { upstream: upstream === "" ? t2("common.branch") : upstream, count: ahead }) },
         { key: "push", text: t2("git.aheadPush"), disabled: ahead === 0, action: () => {
           void store.push();
         } },
         { key: "history", text: t2("git.aheadHistory"), action: () => store.showTool("git") },
-        ...behind > 0 ? [{ key: "behind", text: interpolate4(t2("git.behindTitle"), { count: behind }), disabled: true }] : []
+        ...behind > 0 ? [{ key: "behind", text: interpolate5(t2("git.behindTitle"), { count: behind }), disabled: true }] : []
       ]
     }) : null
   );
@@ -59934,10 +60159,10 @@ function lspStatusView(store, state) {
     return {
       ...base2,
       key: "missing",
-      text: interpolate4(t2("lsp.status.missing"), { language: missingOnly.languageId }),
+      text: interpolate5(t2("lsp.status.missing"), { language: missingOnly.languageId }),
       tone: "idle",
       action: "settings",
-      title: interpolate4(t2("lsp.serverMissing"), { language: missingOnly.languageId })
+      title: interpolate5(t2("lsp.serverMissing"), { language: missingOnly.languageId })
     };
   }
   const failures = Number.isFinite(lsp.consecutiveFailures) ? lsp.consecutiveFailures : 0;
@@ -59957,7 +60182,7 @@ function lspStatusView(store, state) {
       };
     case "ready":
       if (failures >= LSP_UNSTABLE_FAILURES || timeouts >= LSP_UNSTABLE_TIMEOUTS) {
-        const text = timeouts >= LSP_UNSTABLE_TIMEOUTS ? interpolate4(t2("lsp.status.unstableTimeout"), { count: timeouts }) : interpolate4(t2("lsp.status.unstable"), { count: failures });
+        const text = timeouts >= LSP_UNSTABLE_TIMEOUTS ? interpolate5(t2("lsp.status.unstableTimeout"), { count: timeouts }) : interpolate5(t2("lsp.status.unstable"), { count: failures });
         return { ...base2, key: "unstable", text, tone: "warn", action: "diagnostics" };
       }
       return { ...base2, key: "ready", text: t2("lsp.status.ready"), tone: "ok" };
@@ -60259,9 +60484,9 @@ function IndexDecisionModal({ store, state }) {
   const isRepo = decision.isRepo === true;
   const language2 = typeof decision.language === "string" ? languageLabel(decision.language) : "";
   const needMB = Number.isFinite(decision.needMB) ? decision.needMB : 0;
-  const time = interpolate4(t2(buildTimeKey(needMB)), {});
-  const title = interpolate4(t2("index.decision.title"), { name: name2 });
-  const body = language2 === "" ? interpolate4(t2("index.decision.bodyUnknown"), { time }) : interpolate4(t2("index.decision.body"), { language: language2, time });
+  const time = interpolate5(t2(buildTimeKey(needMB)), {});
+  const title = interpolate5(t2("index.decision.title"), { name: name2 });
+  const body = language2 === "" ? interpolate5(t2("index.decision.bodyUnknown"), { time }) : interpolate5(t2("index.decision.body"), { language: language2, time });
   return import_react19.default.createElement(
     "div",
     {
@@ -60349,10 +60574,10 @@ function MemoryDecisionModal({ store, state }) {
   }, [decision, store]);
   if (decision === null || decision === void 0) return null;
   const language2 = typeof decision.language === "string" ? languageLabel(decision.language) : "";
-  const body = language2 === "" ? interpolate4(t2("lsp.memoryWarn.bodyUnknown"), {
+  const body = language2 === "" ? interpolate5(t2("lsp.memoryWarn.bodyUnknown"), {
     free: decision.freeMB ?? 0,
     need: decision.needMB ?? 0
-  }) : interpolate4(t2("lsp.memoryWarn.body"), {
+  }) : interpolate5(t2("lsp.memoryWarn.body"), {
     free: decision.freeMB ?? 0,
     need: decision.needMB ?? 0,
     language: language2
@@ -60764,19 +60989,33 @@ var CSS2 = `
      white text is unreadable. */
   --iwb-on-accent: var(--dsw-alias-label-on-brand, #0d1117);
   --iwb-shadow: var(--dsw-alias-shadow-1, rgba(0, 0, 0, .32));
-  /* The syntax palette. The host has no syntax aliases yet, so the
-     fallbacks carry it: mid tones that read on a light *and* on a dark code
-     layer - never the old fixed dark palette. */
-  --iwb-syn-comment: var(--dsw-alias-label-secondary, #6b7482);
-  --iwb-syn-string: var(--dsw-alias-code-string, #2a8359);
-  --iwb-syn-keyword: var(--dsw-alias-code-keyword, #9455b5);
-  --iwb-syn-type: var(--dsw-alias-code-type, #12838d);
-  --iwb-syn-number: var(--dsw-alias-code-number, #a1651c);
-  --iwb-syn-function: var(--dsw-alias-code-function, #2a6cbd);
-  --iwb-syn-property: var(--dsw-alias-code-property, #4a63b8);
-  --iwb-syn-tag: var(--dsw-alias-code-tag, #bb404f);
-  --iwb-syn-heading: var(--dsw-alias-code-heading, #1e70e2);
-  --iwb-syn-invalid: var(--dsw-alias-code-invalid, #bb352c);
+  /* \u2500\u2500 the syntax palette (THEME-03) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+     The host has no syntax aliases, and no single colour can serve both of
+     its themes: a colour that clears 4.5:1 on white needs a relative
+     luminance of 0.183 or less, while the dark code layer #232830 needs
+     0.269 or more. A fixed palette therefore cannot follow the host - it
+     can only be right in one of the two themes, and it is the wrong one in
+     the other (that is what the last round of this palette did).
+     So the palette is theme-relative: every token is its own hue mixed with
+     the theme's text colour, in oklab. The mix only scales the chroma of
+     the hue, so a string still reads as green and a keyword as violet,
+     while the lightness comes from the host - and that is what makes one
+     token readable on a light theme and on a dark one. Nothing switches on
+     prefers-color-scheme, and nothing waits for the host.
+     52% hue / 48% theme text is the largest share of the hue that keeps
+     every token at 5:1 or better on white, on the editor background and on
+     the code layer; tests/styles-theme.test.mjs does the oklab maths and
+     checks all three surfaces. */
+  --iwb-syn-comment: color-mix(in oklab, #6b7482 52%, var(--iwb-fg) 48%);
+  --iwb-syn-string: color-mix(in oklab, #2a8359 52%, var(--iwb-fg) 48%);
+  --iwb-syn-keyword: color-mix(in oklab, #9455b5 52%, var(--iwb-fg) 48%);
+  --iwb-syn-type: color-mix(in oklab, #12838d 52%, var(--iwb-fg) 48%);
+  --iwb-syn-number: color-mix(in oklab, #a1651c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-function: color-mix(in oklab, #2a6cbd 52%, var(--iwb-fg) 48%);
+  --iwb-syn-property: color-mix(in oklab, #4a63b8 52%, var(--iwb-fg) 48%);
+  --iwb-syn-tag: color-mix(in oklab, #bb404f 52%, var(--iwb-fg) 48%);
+  --iwb-syn-heading: color-mix(in oklab, #1e70e2 52%, var(--iwb-fg) 48%);
+  --iwb-syn-invalid: color-mix(in oklab, #bb352c 52%, var(--iwb-fg) 48%);
   --iwb-sidebar: var(--dsw-specific-sidebar-fill, #181b21);
   --iwb-mod: #4c9aff;
   --iwb-add: #4fb477;
@@ -61624,6 +61863,7 @@ var CSS2 = `
 .iwb-toast.iwb-success { border-color: rgba(79, 180, 119, .55); }
 .iwb-toast-text { min-width: 0; }
 .iwb-toast-detail { color: var(--iwb-muted); font-size: 11px; margin-top: 3px; white-space: pre-wrap; word-break: break-word; user-select: text; }
+.iwb-toast-action { margin-top: 8px; align-self: flex-start; }
 .iwb-root-picker { display: flex; flex-direction: column; gap: 8px; }
 .iwb-root-list { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow: auto; }
 .iwb-root-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--iwb-border); text-align: left; }

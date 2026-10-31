@@ -10,6 +10,7 @@ import { Workbench } from '../src/client/Workbench.jsx'
 import { EditorArea } from '../src/client/EditorArea.jsx'
 import { DiffView } from '../src/client/DiffView.jsx'
 import { SettingsForm } from '../src/client/SettingsPanel.jsx'
+export { resetPatch } from '../src/client/SettingsPanel.jsx'
 import { MarkdownView } from '../src/client/MarkdownView.jsx'
 export { apply as applyClient, inject as clientInject } from '../src/client/index.jsx'
 

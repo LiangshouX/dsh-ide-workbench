@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import {
   DEFAULT_SETTINGS, SETTINGS_VERSION, SettingsStore, migrateLspSettings, settingsFile,
 } from '../src/host/settings-store.js'
+import { DEFAULT_LSP_SETTINGS } from '../src/host/settings-defaults.js'
 
 /** A throwaway profile directory with one settings document in it. */
 async function withProfile(document, run) {
@@ -54,6 +55,13 @@ test('the LSP request timeout never falls below the library default of 3000 ms',
   // silently fails under that value, so the default has to be higher.
   assert.ok(DEFAULT_SETTINGS.lsp.requestTimeoutMs >= 30000)
   assert.equal(DEFAULT_SETTINGS.lsp.requestTimeoutMs, 30000)
+})
+
+test('the defaults of the shared module are the ones of the settings document', () => {
+  // The client reads the defaults from the shared module (the "reset to
+  // defaults" button of the settings page needs them), the host writes them
+  // into the document. The two must not drift apart.
+  assert.deepEqual(DEFAULT_LSP_SETTINGS, DEFAULT_SETTINGS.lsp)
 })
 
 test('the four navigation shortcuts have the documented defaults', () => {

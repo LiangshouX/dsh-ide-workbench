@@ -115,6 +115,35 @@ test('commit and git windows render their rows and graph', async () => {
   assert.match(html, /commit\.title/)
 })
 
+test('the push button stays clickable when the branch has no upstream', async () => {
+  const mod = await loadModule()
+  const html = mod.renderCommitAndGit()
+  // Git prints no "# branch.ab" without an upstream, so `ahead` is undefined.
+  // A disabled button dispatches no mouse event at all: its tooltip never
+  // shows and the "set an upstream" message of the store is unreachable from
+  // the UI (R16).
+  const button = /<button[^>]*title="commit\.pushNoUpstream"[^>]*>/.exec(html)
+  assert.ok(button !== null, 'the push button explains the missing upstream')
+  assert.doesNotMatch(button[0], /disabled/, 'the push button must stay clickable')
+})
+
+test('the reset of the settings puts the semantic analysis back to its defaults', async () => {
+  const mod = await loadModule()
+  const patch = mod.resetPatch()
+  // The reset used to leave the whole `lsp` section alone (R10).
+  assert.equal(patch.lsp.enabled, true)
+  assert.equal(patch.lsp.indexOnOpen, 'ask')
+  assert.equal(patch.lsp.memoryLimitMB, 2048)
+  assert.equal(patch.lsp.freeMemoryThresholdMB, 512)
+  assert.equal(patch.lsp.memoryHeadroom, 1.5)
+  assert.equal(patch.lsp.memoryHardFloorMB, 256)
+  assert.equal(patch.lsp.requestTimeoutMs, 30000)
+  // The host merges a patch into the document: an empty object would keep
+  // the old entries, so the maps are replaced.
+  assert.equal(patch.lsp.servers, null)
+  assert.equal(patch.lsp.memoryWarnedRoots, null)
+})
+
 test('a preview tab renders italic and a code surface', async () => {
   const mod = await loadModule()
   const html = mod.renderCode()

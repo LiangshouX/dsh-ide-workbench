@@ -90,7 +90,7 @@ function methodOf(parsed) {
  * @param {number | null} memoryLimitMB the ceiling in megabytes
  * @returns {string} the payload to forward
  */
-function withMemoryLimit(text, memoryLimitMB) {
+export function withMemoryLimit(text, memoryLimitMB) {
   if (memoryLimitMB === null) return text
   if (!/"method"\s*:\s*"initialize"/.test(text)) return text
   let parsed
@@ -118,6 +118,45 @@ function idOf(parsed) {
   const id = parsed.id
   if (typeof id === 'number' || typeof id === 'string') return id
   return null
+}
+
+/**
+ * The id of a payload that asks the server something.
+ *
+ * A JSON-RPC request carries a method AND an id; a notification carries only
+ * a method and a response carries only an id. The host has to tell the two
+ * apart: a notification is never answered, so it must never be counted as an
+ * unanswered request (a language server that is busy building its program
+ * does not answer notifications - that is normal, and counting it as a
+ * timeout killed the server every ninety seconds of typing).
+ * @param {string} text the payload
+ * @returns {number | string | null} the id of the request
+ */
+export function requestIdOf(text) {
+  // The cheap test keeps the parse off the path of the ordinary traffic: a
+  // payload without an id cannot be a request.
+  if (!text.includes('"id"')) return null
+  const parsed = Handshake.parse(text)
+  if (parsed === null) return null
+  if (methodOf(parsed) === null) return null
+  return idOf(parsed)
+}
+
+/**
+ * The id a payload answers.
+ *
+ * A response carries an id and no method. A request *from* the server (it
+ * asks the client things too) carries a method, and it is not an answer to
+ * anything the client asked.
+ * @param {string} text the payload
+ * @returns {number | string | null} the id that is answered
+ */
+export function answeredIdOf(text) {
+  if (!text.includes('"id"')) return null
+  const parsed = Handshake.parse(text)
+  if (parsed === null) return null
+  if (methodOf(parsed) !== null) return null
+  return idOf(parsed)
 }
 
 /**
@@ -305,6 +344,11 @@ function run(options) {
     if (message.type === 'stdout') {
       for (const payload of decoder.push(toBuffer(message.data))) {
         handshake.noteServerPayload(payload)
+        // The host counts the requests the server did not answer. It cannot
+        // know which payloads are requests and which are responses - only
+        // this thread may parse them - so the ids are reported here.
+        const answered = answeredIdOf(payload)
+        if (answered !== null) parentPort.postMessage({ type: 'answered', id: answered })
         parentPort.postMessage({ type: 'message', text: payload })
         // A client that asked for a handshake twice is waiting for the second
         // answer; it comes from the cached capabilities.
@@ -331,8 +375,16 @@ function run(options) {
         const answer = handshake.answerFor(text)
         if (answer !== null) {
           parentPort.postMessage({ type: 'message', text: answer })
+          // The host is waiting for an answer to that request: the cache
+          // answered it, so the request is not outstanding any more.
+          const answered = requestIdOf(text)
+          if (answered !== null) parentPort.postMessage({ type: 'answered', id: answered })
           return
         }
+        // A request the server has to answer. The host counts the ones that
+        // never get an answer - a notification is not one of them.
+        const request = requestIdOf(text)
+        if (request !== null) parentPort.postMessage({ type: 'request', id: request })
       }
       const payload = message.origin === 'host' ? text : withMemoryLimit(text, injectMemoryLimit ? memoryLimitMB : null)
       if (message.origin !== 'host' && handshake.isInitialize(payload)) {

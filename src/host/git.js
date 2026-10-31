@@ -139,12 +139,35 @@ export async function repoRootOf(env) {
 }
 
 /**
+ * How many status entries one snapshot accepts.
+ *
+ * `git status --untracked-files=all` lists every untracked file, and the
+ * client polls the status every two seconds. A repository with a huge
+ * untracked tree (a build output, a `node_modules`) would therefore make
+ * every tick build - and ship - a list of hundreds of thousands of entries.
+ * The limit is high enough for a normal repository (a few ten thousands of
+ * changed files is already extreme) and low enough to keep one snapshot
+ * bounded (PRD-v5 supplement §11 risk #1).
+ */
+export const MAX_STATUS_ENTRIES = 20_000
+
+/**
  * Parse `git status --porcelain=v2 --branch -z`.
+ *
+ * The records are read one at a time instead of splitting the whole output
+ * into an array: a huge untracked tree would otherwise make the parser build
+ * an array of hundreds of thousands of strings before it even looks at the
+ * first entry. The scan stops at `limit` entries and says so (`truncated`),
+ * so the client can tell the user that the list is incomplete.
+ * @param {string} buffer the NUL separated status output
+ * @param {{ limit?: number }} [options] the entry limit
  * @returns {{ branch: string|undefined, detached: boolean, oid: string|undefined,
  *   upstream: string|undefined, ahead: number|undefined, behind: number|undefined,
- *   entries: Array<{ path: string, xy: string, untracked: boolean, conflict: boolean }> }}
+ *   entries: Array<{ path: string, xy: string, untracked: boolean, conflict: boolean }>,
+ *   truncated: boolean }}
  */
-export function parseStatusV2(buffer) {
+export function parseStatusV2(buffer, options = {}) {
+  const limit = Number.isInteger(options.limit) && options.limit > 0 ? options.limit : MAX_STATUS_ENTRIES
   const result = {
     branch: undefined,
     detached: false,
@@ -153,10 +176,35 @@ export function parseStatusV2(buffer) {
     ahead: undefined,
     behind: undefined,
     entries: [],
+    /** True when the entry list hit the limit and the rest was dropped. */
+    truncated: false,
   }
-  const records = buffer.split('\0')
-  for (let index = 0; index < records.length; index += 1) {
-    const record = records[index]
+  /**
+   * Add one entry to the result.
+   * @param {{ path: string, xy: string, untracked: boolean, conflict: boolean }} entry
+   * @returns {boolean} false when the limit is reached (the scan stops)
+   */
+  const push = (entry) => {
+    if (result.entries.length >= limit) {
+      result.truncated = true
+      return false
+    }
+    result.entries.push(entry)
+    return true
+  }
+  let cursor = 0
+  while (cursor < buffer.length) {
+    const end = buffer.indexOf('\0', cursor)
+    let record
+    if (end < 0) {
+      // A last record without its NUL terminator: git always writes one,
+      // but a cut-off output must not lose its last line.
+      record = buffer.slice(cursor)
+      cursor = buffer.length
+    } else {
+      record = buffer.slice(cursor, end)
+      cursor = end + 1
+    }
     if (record === '') continue
     if (record.startsWith('# branch.oid ')) {
       const value = record.slice('# branch.oid '.length)
@@ -186,7 +234,7 @@ export function parseStatusV2(buffer) {
       const xy = record.slice(2, 4)
       const fields = record.slice(2).split(' ')
       const path = fields.slice(7).join(' ')
-      if (path !== '') result.entries.push({ path, xy, untracked: false, conflict: false })
+      if (path !== '' && !push({ path, xy, untracked: false, conflict: false })) return result
       continue
     }
     if (record.startsWith('2 ')) {
@@ -194,8 +242,12 @@ export function parseStatusV2(buffer) {
       const xy = record.slice(2, 4)
       const fields = record.slice(2).split(' ')
       const path = fields.slice(8).join(' ')
-      index += 1 // skip the original path record
-      if (path !== '') result.entries.push({ path, xy, untracked: false, conflict: false })
+      // The original path of the rename is the next record: it must be
+      // skipped, or a file whose name starts with "? " would be read as an
+      // untracked entry.
+      const originalEnd = buffer.indexOf('\0', cursor)
+      cursor = originalEnd < 0 ? buffer.length : originalEnd + 1
+      if (path !== '' && !push({ path, xy, untracked: false, conflict: false })) return result
       continue
     }
     if (record.startsWith('u ')) {
@@ -203,16 +255,16 @@ export function parseStatusV2(buffer) {
       const xy = record.slice(2, 4)
       const fields = record.slice(2).split(' ')
       const path = fields.slice(9).join(' ')
-      if (path !== '') result.entries.push({ path, xy, untracked: false, conflict: true })
+      if (path !== '' && !push({ path, xy, untracked: false, conflict: true })) return result
       continue
     }
     if (record.startsWith('? ')) {
-      result.entries.push({ path: record.slice(2), xy: '??', untracked: true, conflict: false })
+      if (!push({ path: record.slice(2), xy: '??', untracked: true, conflict: false })) return result
       continue
     }
     if (record.startsWith('! ')) {
       // `--ignored=matching` lists ignored paths here, not as untracked.
-      result.entries.push({ path: record.slice(2), xy: '!!', untracked: false, conflict: false, ignored: true })
+      if (!push({ path: record.slice(2), xy: '!!', untracked: false, conflict: false, ignored: true })) return result
     }
   }
   return result
@@ -248,8 +300,11 @@ export function parseNumstat(output) {
  * calls that add the per-file line counts are only made when the Commit
  * window asks for them, and `--ignored=matching` (which walks the whole
  * worktree) is only passed when the user enabled the ignored-file listing.
+ * The entry list is bounded: a repository with a huge untracked tree would
+ * otherwise make every poll tick build a list of hundreds of thousands of
+ * entries (PRD-v5 supplement §11 risk #1).
  * @param {{ gitPath?: string, root: string, repoRoot?: string | null }} env
- * @param {{ ignored?: boolean, numstat?: boolean }} [options]
+ * @param {{ ignored?: boolean, numstat?: boolean, limit?: number }} [options]
  */
 export async function status(env, options = {}) {
   /** The git processes this snapshot spawned (PRD §1.3 counter). */
@@ -266,8 +321,9 @@ export async function status(env, options = {}) {
     subprocesses += 1
     root = await repoRootOf(env)
   }
+  const limit = Number.isInteger(options.limit) && options.limit > 0 ? options.limit : MAX_STATUS_ENTRIES
   if (root === null) {
-    return { isRepo: false, entries: [], root: null, subprocesses }
+    return { isRepo: false, entries: [], root: null, truncated: false, entryLimit: limit, subprocesses }
   }
   const repo = { ...env, root }
   // `--untracked-files=all` lists every untracked file on its own; the default
@@ -276,7 +332,7 @@ export async function status(env, options = {}) {
   const args = ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all']
   if (options.ignored === true) args.push('--ignored=matching')
   const statusResult = await run(repo, args)
-  const parsed = parseStatusV2(statusResult.stdout)
+  const parsed = parseStatusV2(statusResult.stdout, { limit })
   let unstagedNumstat = new Map()
   let stagedNumstat = new Map()
   if (options.numstat !== false) {
@@ -314,6 +370,10 @@ export async function status(env, options = {}) {
     ahead: parsed.ahead,
     behind: parsed.behind,
     entries,
+    /** True when the repository had more entries than the parser accepts. */
+    truncated: parsed.truncated === true,
+    /** The entry limit the parser applied. */
+    entryLimit: limit,
     subprocesses,
   }
 }

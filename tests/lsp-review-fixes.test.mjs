@@ -107,6 +107,28 @@ test('a handshake that arrives while the server runs reaches the stdin too', asy
 
 // ── N2: the watchdog counts requests, not ticks ────────────────────────────
 
+test('a notification is not an unanswered request', async () => {
+  const { manager, spawned } = makeManager({ lsp: { requestTimeoutMs: 40 } })
+  const root = rootOf('n2-notification')
+  await manager.start({ root })
+
+  // A notification is never answered - that is normal in LSP. A language
+  // server that is busy building its program may stay silent for minutes,
+  // and it must not be killed for that. The watchdog used to count the
+  // silence of the server, so a `didChange` followed by a quiet half minute
+  // was enough to kill it - three times over, and every ninety seconds of
+  // typing was enough.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', method: 'textDocument/didChange', params: {},
+  }))
+  await sleep(400)
+
+  assert.equal(manager.stateOf(root).timeouts, 0, 'a notification is not a timeout')
+  assert.equal(spawned.length, 1, 'the server is still the one process')
+  const status = await manager.status({ root })
+  assert.notEqual(status.state, 'crashed')
+})
+
 test('one slow request does not kill the language server', async () => {
   const { manager, spawned } = makeManager({ lsp: { requestTimeoutMs: 40 } })
   const root = rootOf('n2-slow')

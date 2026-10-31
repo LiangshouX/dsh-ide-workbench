@@ -76,3 +76,24 @@ test('the host lists every untracked file even when the config folds directories
     .sort()
   assert.deepEqual(untracked, ['new dir/one.js', 'new dir/two.js'])
 })
+
+test('the status snapshot says that it cut the file list short', async (t) => {
+  try {
+    execFileSync('git', ['--version'], { stdio: 'ignore' })
+  } catch {
+    t.skip('git is not installed')
+    return
+  }
+  const root = await temp(t)
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
+  git('init', '-q', '-b', 'main')
+  for (let index = 0; index < 5; index += 1) {
+    await writeFile(join(root, `file-${index}.txt`), 'x\n')
+  }
+  const snapshot = await status({ root, gitPath: '' }, { ignored: false, numstat: false, limit: 3 })
+  // The client has to be able to say that the list above is not the whole
+  // truth, so the snapshot carries the flag and the limit that was applied.
+  assert.equal(snapshot.entries.length, 3)
+  assert.equal(snapshot.truncated, true)
+  assert.equal(snapshot.entryLimit, 3)
+})

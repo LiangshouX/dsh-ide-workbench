@@ -9,7 +9,7 @@
  */
 import { PassThrough, Writable } from 'node:stream'
 import { encodeFrame, FrameDecoder } from '../src/host/lsp-frame.js'
-import { Handshake } from '../src/host/lsp-worker.js'
+import { Handshake, answeredIdOf, requestIdOf, withMemoryLimit } from '../src/host/lsp-worker.js'
 import { DEFAULT_LSP_SETTINGS, LspManager } from '../src/host/lsp.js'
 
 /**
@@ -171,6 +171,10 @@ export function makeFakeWorker(workerData = {}) {
         const bytes = Buffer.isBuffer(message.data) ? message.data : Buffer.from(message.data)
         for (const text of decoder.push(bytes)) {
           handshake.noteServerPayload(text)
+          // The real worker reports which id the payload answers, so the
+          // host knows that a request is not outstanding any more.
+          const answered = answeredIdOf(text)
+          if (answered !== null) worker.emit('message', { type: 'answered', id: answered })
           worker.emit('message', { type: 'message', text })
           for (const answer of handshake.takePendingAnswers()) {
             worker.emit('message', { type: 'message', text: answer })
@@ -195,16 +199,26 @@ export function makeFakeWorker(workerData = {}) {
           const answer = handshake.answerFor(text)
           if (answer !== null) {
             worker.emit('message', { type: 'message', text: answer })
+            const answered = requestIdOf(text)
+            if (answered !== null) worker.emit('message', { type: 'answered', id: answered })
             return
           }
+          // A request the server has to answer: the host counts the ones that
+          // never get one. A notification is not a request.
+          const request = requestIdOf(text)
+          if (request !== null) worker.emit('message', { type: 'request', id: request })
         }
-        if (message.origin !== 'host' && handshake.isInitialize(text)) {
+        // The real worker injects the memory ceiling into the handshake, so
+        // the fake one has to do the same - otherwise the ceiling of the
+        // language server could not be asserted at all.
+        const limit = worker.workerData?.injectMemoryLimit === true ? worker.workerData.memoryLimitMB : null
+        const payload = message.origin === 'host' ? text : withMemoryLimit(text, limit ?? null)
+        if (message.origin !== 'host' && handshake.isInitialize(payload)) {
           // A second handshake is absorbed: the server is initialized once.
-          if (!handshake.noteForwarded(text)) return
-          worker.emit('message', { type: 'handshake', text })
+          if (!handshake.noteForwarded(payload)) return
+          worker.emit('message', { type: 'handshake', text: payload })
         }
-        worker.emit('message', { type: 'stdin', data: encodeFrame(text) })
-      }
+        worker.emit('message', { type: 'stdin', data: encodeFrame(payload) })      }
     },
     terminate() { worker.terminated = true },
   }

@@ -35,6 +35,7 @@ import { constants as osConstants, freemem, setPriority, totalmem } from 'node:o
 import { dirname, join, resolve as resolvePath } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { ApiError } from './wire.js'
+import { DEFAULT_LSP_SETTINGS } from './settings-defaults.js'
 
 /**
  * The language registry (PRD §3.2).
@@ -144,32 +145,14 @@ export const MEMORY_SOFT_FACTOR = 2.0
  */
 export const MEMORY_HARD_FLOOR_MB = 256
 
-/** The defaults of the `lsp` settings section (PRD §6.1). */
-export const DEFAULT_LSP_SETTINGS = {
-  enabled: true,
-  indexOnOpen: 'ask',
-  memoryLimitMB: 2048,
-  /**
-   * The conservative fallback floor: the free memory that is required when
-   * no estimate of the language is known (PRD §4.4). Once a language has a
-   * baseline, this value is not a gate any more.
-   */
-  freeMemoryThresholdMB: 512,
-  /** The factor between the estimate of a server and the free memory it needs. */
-  memoryHeadroom: MEMORY_HEADROOM,
-  /** The free memory below which no language server starts at all (MB). */
-  memoryHardFloorMB: MEMORY_HARD_FLOOR_MB,
-  idleTimeoutMs: 600_000,
-  requestTimeoutMs: 30_000,
-  cancelAfterMs: 60_000,
-  autoExit: true,
-  autoRestart: true,
-  servers: {},
-  indexedRoots: {},
-  /** Project roots the user has already been warned about on a tight memory
-   * budget: { [absPath]: true }. */
-  memoryWarnedRoots: {},
-}
+/**
+ * The defaults of the `lsp` settings section (PRD §6.1).
+ *
+ * The numbers live in `settings-defaults.js`: the client needs them too (the
+ * "reset to defaults" button of the settings page), and a second copy would
+ * drift away from the document the host writes.
+ */
+export { DEFAULT_LSP_SETTINGS }
 
 /**
  * The npm package that ships each bundled language server.
@@ -1004,7 +987,6 @@ export class LspManager {
       return false
     }
     session.worker.postMessage({ type: 'send', text, origin: 'client' })
-    session.lastClientActivityAt = this.#now()
     this.#touch(entry, session)
     return true
   }
@@ -1198,6 +1180,11 @@ export class LspManager {
     const softThresholdBytes = needMB * MEMORY_SOFT_FACTOR * 1024 * 1024
     const hardFloorBytes = hardFloorMB * 1024 * 1024
     const freeBytes = memory.freeBytes
+    // The authoritative answer of the host: what may happen with this
+    // snapshot. The client renders it instead of judging the numbers again -
+    // two sides that judge the same snapshot differently give the user two
+    // different answers.
+    const decision = freeBytes < hardFloorBytes ? 'low' : (freeBytes < softThresholdBytes ? 'tight' : 'ok')
     return {
       totalBytes: memory.totalBytes,
       freeBytes,
@@ -1212,6 +1199,9 @@ export class LspManager {
       // factor: the user decides there, the host does not start on its own.
       tight: freeBytes >= hardFloorBytes && freeBytes < softThresholdBytes,
       belowHardFloor: freeBytes < hardFloorBytes,
+      // 'ok' = the server may start, 'tight' = the user has to decide,
+      // 'low' = the machine cannot afford it.
+      decision,
       languageId: typeof languageId === 'string' ? languageId : null,
       softThresholdBytes,
     }
@@ -1262,9 +1252,26 @@ export class LspManager {
     const invalid = validateServerCommand(command)
     if (invalid !== null) throw new ApiError('bad-request', invalid)
     const args = Array.isArray(override.args) ? override.args.map(String) : registryEntry.args
-    const memoryLimitMB = Number.isFinite(override.memoryLimitMB)
+    // The ceiling of the language server.
+    //
+    // Three values play here: the per-language override of the settings, the
+    // global limit of the settings and the built-in default of the language.
+    // The global limit is a CAP over every language server - that is what
+    // the setting says - and the per-language override replaces it for that
+    // language (so one language may be given more than the global limit).
+    //
+    // Without the global limit in this chain the setting was a dead
+    // control: the value the user saw in the settings page never reached
+    // the server, and the only ceiling in effect was the built-in one.
+    const languageLimitMB = Number.isFinite(override.memoryLimitMB)
       ? override.memoryLimitMB
       : registryEntry.memoryLimitMB
+    const globalLimitMB = Number.isFinite(lsp.memoryLimitMB) && lsp.memoryLimitMB > 0
+      ? lsp.memoryLimitMB
+      : languageLimitMB
+    const memoryLimitMB = Number.isFinite(override.memoryLimitMB)
+      ? override.memoryLimitMB
+      : Math.min(languageLimitMB, globalLimitMB)
     // A language that is switched off in the settings is never started.
     const turnedOff = override.enabled === false
 
@@ -1303,13 +1310,19 @@ export class LspManager {
       restarts: 0,
       timeouts: 0,
       /**
-       * The client activity a timeout was counted for.
+       * The requests the client sent and the server has not answered yet.
        *
-       * The watchdog runs every second; without this marker one slow
-       * request would be counted three times in three seconds and the
-       * server would be killed for a single request that took too long.
+       * The key is the JSON-RPC id, the value the moment the request went
+       * out. Only the worker knows which payload is a request and which is a
+       * notification, so it reports both (`request` and `answered`).
+       *
+       * The watchdog counts the entries that ran into their deadline. A
+       * notification is not in this map - a language server never answers
+       * one - so a server that is busy building its program is not killed for
+       * staying silent.
+       * @type {Map<number|string, number>}
        */
-      timeoutStallAt: 0,
+      pendingRequests: new Map(),
       exited: false,
       intentionalExit: false,
       /**
@@ -1321,8 +1334,6 @@ export class LspManager {
        */
       cancelPromise: null,
       lastActivityAt: this.#now(),
-      lastClientActivityAt: 0,
-      lastServerActivityAt: 0,
       idleTimer: null,
       watchdogTimer: null,
       readyTimer: null,
@@ -1580,15 +1591,33 @@ export class LspManager {
   #onWorkerMessage(entry, session, message) {
     if (message === null || typeof message !== 'object') return
     if (message.type === 'message') {
-      session.lastServerActivityAt = this.#now()
-      // The server answers again: the requests that ran into their deadline
-      // are history. The counter is the number of unanswered requests, not a
-      // total of every timeout the session ever had.
+      // The server speaks again. The requests that ran into their deadline
+      // are history as soon as it answers one of them - the counter is the
+      // number of the requests that are still unanswered, not a total of
+      // every timeout the session ever had.
       session.timeouts = 0
-      session.timeoutStallAt = 0
       this.#broadcast(entry, message.text)
       this.#scheduleReady(entry, session)
       this.#touch(entry, session)
+      return
+    }
+    if (message.type === 'request') {
+      // A request of the client that the server has to answer. The id comes
+      // from the worker: only that thread may parse the payloads.
+      const id = message.id
+      if (typeof id === 'number' || typeof id === 'string') {
+        session.pendingRequests.set(id, this.#now())
+      }
+      return
+    }
+    if (message.type === 'answered') {
+      // The server answered a request (or the worker answered it from the
+      // handshake cache). The request is not outstanding any more.
+      const id = message.id
+      if (typeof id === 'number' || typeof id === 'string') {
+        session.pendingRequests.delete(id)
+        session.timeouts = 0
+      }
       return
     }
     if (message.type === 'stdin') {
@@ -1910,12 +1939,15 @@ export class LspManager {
   /**
    * Count one unanswered request.
    *
-   * The watchdog runs every second, and the condition below stays true until
-   * the server answers - a counter that was raised on every tick would kill
-   * the server after three ticks, which is three *seconds* and not three
-   * requests. One stall is therefore counted once: the marker
-   * `timeoutStallAt` remembers the client activity the timeout was counted
-   * for, and a new request moves that marker.
+   * The watchdog counts the **requests** the server did not answer, not the
+   * time it stayed silent. A notification (`textDocument/didChange` and the
+   * like) is never answered - that is normal - so a server that is busy
+   * building its program must not be killed for it. The pending requests are
+   * tracked by their id: the worker reports which payload was a request and
+   * which payload answered one.
+   *
+   * One request is counted once: it is dropped from the pending list when it
+   * is counted, so the next tick does not count it again.
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {number} timeout the request timeout
@@ -1924,12 +1956,16 @@ export class LspManager {
     try {
       if (entry.session !== session) return
       if (session.state !== 'ready' && session.state !== 'building') return
-      if (session.lastClientActivityAt === 0) return
-      if (session.lastServerActivityAt >= session.lastClientActivityAt) return
-      if (this.#now() - session.lastClientActivityAt < timeout) return
-      // The stall was already counted: the server is still silent about the
-      // same request.
-      if (session.timeoutStallAt === session.lastClientActivityAt) return
+      const now = this.#now()
+      let oldest = null
+      for (const [id, sentAt] of session.pendingRequests) {
+        if (now - sentAt < timeout) continue
+        if (oldest === null || sentAt < oldest.sentAt) oldest = { id, sentAt }
+      }
+      // Nothing is outstanding: the server may be silent for ever, that is
+      // not a timeout.
+      if (oldest === null) return
+      session.pendingRequests.delete(oldest.id)
       this.#noteTimeout(entry, session, 'the language server stopped responding')
     } catch (error) {
       // The watchdog runs in an interval: a throw here is an uncaught
@@ -1942,7 +1978,7 @@ export class LspManager {
    * Count one request timeout and crash the server when there were too many.
    *
    * The counter is the number of requests that ran into their deadline, and
-   * it is reset as soon as the server answers again (see
+   * it is reset as soon as the server answers one of them (see
    * `#onWorkerMessage`). The message says "request timeouts" and not
    * "consecutive request timeouts": the counter is not a streak of ticks.
    * @param {object} entry the root entry
@@ -1950,7 +1986,6 @@ export class LspManager {
    * @param {string} reason the reason of the timeout
    */
   #noteTimeout(entry, session, reason) {
-    session.timeoutStallAt = session.lastClientActivityAt
     session.timeouts += 1
     if (session.timeouts < this.#timeoutLimit) return
     this.#safely(this.#onCrash(entry, session, `${session.timeouts} request timeouts`), 'the crash handler')
@@ -1969,7 +2004,7 @@ export class LspManager {
       return
     }
     if (state === 'restarting') {
-      this.#transition(session, 'degraded', `the language server could not be restarted (${reason}). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
+      this.#transition(session, 'degraded', `the language server could not be restarted (${reason})`)
       return
     }
     const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
@@ -1978,7 +2013,11 @@ export class LspManager {
     // new ones, and a session that stays crashed must not keep a watchdog
     // alive.
     this.#teardownSession(session)
-    const detail = `The language server exited unexpectedly (${reason}). A common cause is not enough memory. You can lower the memory limit in the settings, turn this language off, or use the conservative mode.`
+    // The detail is the FACT and not an advice: the reason is known here,
+    // but what the user should do about it depends on the reason - and a
+    // server that died of a timeout has nothing to do with the memory. The
+    // client picks the advice.
+    const detail = `The language server exited unexpectedly (${reason}).`
     this.#notify(entry, { type: 'crash', root: entry.root, detail })
     if (lsp.autoRestart === false) {
       this.#transition(session, 'degraded', detail)

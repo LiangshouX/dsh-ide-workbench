@@ -326,6 +326,25 @@ function initialState() {
   }
 }
 
+/**
+ * The advice for a crashed language server.
+ *
+ * The host sends the FACT (why the server died); what the user can do about
+ * it depends on the reason. A timeout is a timeout - the single-request
+ * limit is the setting to raise - and the memory is only the answer when
+ * the machine really ran out of it. A toast that blames the memory sends
+ * the user to a setting that cannot help.
+ * @param {string} detail the reason the host reported
+ * @param {(key: string) => string} t the translation helper
+ * @returns {string} the advice
+ */
+export function crashAdviceFor(detail, t) {
+  const text = typeof detail === 'string' ? detail.toLowerCase() : ''
+  if (text.includes('timeout')) return t('lsp.crashedTimeout')
+  if (text.includes('memory') || text.includes('out of memory')) return t('lsp.crashedMemory')
+  return t('lsp.crashedGeneric')
+}
+
 export class WorkbenchStore {
   /**
    * @param {any} ctx client cordis context
@@ -506,9 +525,9 @@ export class WorkbenchStore {
   }
 
   /** Show a transient toast. */
-  toast(kind, text, detail) {
+  toast(kind, text, detail, action) {
     const id = nextId('toast')
-    this.set({ toast: { id, kind, text, detail: detail ?? '' } })
+    this.set({ toast: { id, kind, text, detail: detail ?? '', action: action ?? null } })
     if (this.toastTimer !== null) clearTimeout(this.toastTimer)
     this.toastTimer = setTimeout(() => {
       this.toastTimer = null
@@ -1126,20 +1145,37 @@ export class WorkbenchStore {
     // The old model had a single gate of 2 GB, so a YAML project on a
     // machine with 300 MB free could never start its server.
     const resources = await this.#lspResources(project.path)
-    // The "tight" band comes first: in the window between the hard floor and
-    // the estimate the host refuses to start without a forced start, and the
-    // user has to decide. The hard-floor band (below the floor) is the only
-    // one that degrades right away.
-    if (resources !== null && resources.tight === true && this.#memoryWarned(project.path) === false) {
+    // The host judges the snapshot and sends its answer with it. The client
+    // renders that answer instead of judging the numbers a second time - two
+    // sides that judge the same snapshot differently give the user two
+    // different answers.
+    const decision = resources === null
+      ? 'ok'
+      : (resources.decision ?? (resources.tight === true ? 'tight' : (resources.canIndex === false ? 'low' : 'ok')))
+    // What the user answered the last time this project was tight.
+    const answered = this.#memoryAnswer(project.path)
+    if (decision === 'tight' && answered === '') {
       const choice = await this.#askMemoryDecision(project, resources)
-      // The answer is remembered either way: the same project must not ask
-      // again, but the user may change their mind in the settings.
-      this.#rememberMemoryWarning(project.path)
+      // The answer is remembered: the same project is not asked again, and
+      // the next time the same answer applies (the user said "start anyway"
+      // or the user said "the basic mode" - both are a decision, not a
+      // question).
+      this.#rememberMemoryAnswer(project.path, choice === 'start' ? 'accepted' : 'conservative')
       if (choice === 'conservative') return 'conservative'
       return 'build-forced'
     }
-    if (resources !== null && resources.canIndex === false) {
-      const need = Math.round(resources.needMB ?? ((resources.thresholdBytes ?? resources.memoryLimitBytes ?? 0) / (1024 * 1024)))
+    // The user already answered for this project: the answer is applied
+    // without asking again. An "accepted" starts the server (the memory is
+    // still tight, so the start is forced); a "conservative" keeps the basic
+    // mode - and says so, instead of letting the host refuse the start of
+    // the index dialog later.
+    if (decision === 'tight' && answered === 'accepted') return 'build-forced'
+    if (decision === 'tight' && answered === 'conservative') return 'conservative'
+    if (decision === 'low') {
+      // The threshold is the number the machine has to reach, not the
+      // estimate of the language: "needs 96 MB, 200 MB available" reads
+      // like a mistake, because the real gate is the hard floor.
+      const need = Math.round((resources.thresholdBytes ?? 0) / (1024 * 1024))
       const free = Math.round((resources.freeBytes ?? 0) / (1024 * 1024))
       this.toast('error', this.#tpl('lsp.lowMemory', { need, free }), this.t('lsp.lowMemoryHint'))
       return 'conservative'
@@ -1154,26 +1190,35 @@ export class WorkbenchStore {
   }
 
   /**
-   * Whether the user was already warned about the memory of one project.
+   * What the user answered the last time this project was tight.
+   *
+   * The answer is a decision, not a question: 'accepted' (the user wants the
+   * language server even though the memory is tight) or 'conservative' (the
+   * user wants the basic mode). An empty string means the user was never
+   * asked.
    * @param {string} root the project root
-   * @returns {boolean} true when the warning must not be shown again
+   * @returns {string} 'accepted', 'conservative' or ''
    */
-  #memoryWarned(root) {
+  #memoryAnswer(root) {
     const warned = this.state.settings?.lsp?.memoryWarnedRoots
-    if (warned === null || warned === undefined || typeof warned !== 'object') return false
-    return Object.keys(warned).some(key => sameScopePath(key, root))
+    if (warned === null || warned === undefined || typeof warned !== 'object') return ''
+    const key = Object.keys(warned).find(entry => sameScopePath(entry, root))
+    if (key === undefined) return ''
+    const answer = warned[key]
+    return answer === 'accepted' || answer === 'conservative' ? answer : ''
   }
 
   /**
-   * Remember that the user answered the memory warning for one project.
+   * Remember what the user answered for one project.
    *
    * The answer is written to the settings, so it survives a restart of the
    * workbench. A failure is not fatal: the user is asked again next time.
    * @param {string} root the project root
+   * @param {'accepted'|'conservative'} answer the answer of the user
    */
-  #rememberMemoryWarning(root) {
+  #rememberMemoryAnswer(root, answer) {
     const warned = this.state.settings?.lsp?.memoryWarnedRoots
-    const next = { ...(warned !== null && typeof warned === 'object' ? warned : {}), [root]: true }
+    const next = { ...(warned !== null && typeof warned === 'object' ? warned : {}), [root]: answer }
     this.set({ settings: { ...this.state.settings, lsp: { ...this.state.settings.lsp, memoryWarnedRoots: next } } })
     void call('settings.update', { patch: { lsp: { memoryWarnedRoots: next } } }).catch(() => {})
   }
@@ -1729,7 +1774,10 @@ export class WorkbenchStore {
     if (changed) this.set({ lsp: next })
     // The crash is a one-time event: the toast must not repeat on every poll.
     if (next.state === 'crashed' && previous !== 'crashed') {
-      this.toast('error', this.t('lsp.crashedToast'))
+      // The advice follows the reason: a server that died of a timeout has
+      // nothing to do with the memory, and a toast that blames the memory
+      // sends the user to a setting that cannot help.
+      this.toast('error', this.t('lsp.crashedToast'), this.#crashAdvice(next.detail ?? ''))
     }
     // The "not installed" state needs the server registry; it is fetched once
     // per language, not on every poll.
@@ -1752,6 +1800,16 @@ export class WorkbenchStore {
     } catch {
       return null
     }
+  }
+
+  /**
+   * The advice for a crashed language server.
+   *
+   * @param {string} detail the reason the host reported
+   * @returns {string} the advice
+   */
+  #crashAdvice(detail) {
+    return crashAdviceFor(detail, key => this.t(key))
   }
 
   /**
@@ -2129,7 +2187,9 @@ export class WorkbenchStore {
     if (hits.length === 0) return
     this.searchIndex = (this.searchIndex + (delta >= 0 ? 1 : -1) + hits.length) % hits.length
     const hit = hits[this.searchIndex]
-    this.openSearchResult(hit.path, hit.line)
+    // The column travels with the line: the host sends it, so the cursor
+    // lands on the word and not at the start of the line.
+    this.openSearchResult(hit.path, hit.line, hit.column)
   }
 
   /**
@@ -2170,13 +2230,20 @@ export class WorkbenchStore {
   }
 
   /** Open one Find in Files hit at its line. */
-  openSearchResult(rel, line) {
+  openSearchResult(rel, line, column) {
     if (typeof rel !== 'string' || rel === '') return
     const absolute = this.#absoluteOf(rel)
     // The popup is a one-shot tool: opening a hit ends it, so the code the
     // user was working on stays in front.
     this.closeSearchPopup()
-    this.openFile(absolute, { rel, preview: false, line: Number.isInteger(line) ? line : 1 })
+    this.openFile(absolute, {
+      rel,
+      preview: false,
+      line: Number.isInteger(line) ? line : 1,
+      // The host sends the column of the hit, so the cursor lands on the
+      // word and not at the start of the line.
+      column: Number.isInteger(column) ? column : undefined,
+    })
   }
 
   /**
@@ -2185,13 +2252,22 @@ export class WorkbenchStore {
    * The results used to live in a tab of the editor area, which took a tab
    * away from the code the user was working on. The popup floats above the
    * editor instead (PRD-v5 supplement, FIND-01).
+   *
+   * The query and the flags are reset: the two entries (Find in Files and
+   * the text version of Find Usages) share one data slice, and a plain
+   * project-wide search must not inherit the identifier of a usage search
+   * (and must not fire a search with it).
    * @param {string} [query] the query to run right away
    */
   openSearchPopup(query = '') {
     this.set({ searchPopup: { open: true, index: 0, generation: (this.state.searchPopup?.generation ?? 0) + 1 } })
-    // A plain Find in Files run is not a text-match run: the label of the
-    // usages view must not leak into it.
-    this.patch('search', { textMatch: false })
+    this.patch('search', {
+      textMatch: false,
+      query: '',
+      caseSensitive: false,
+      wholeWord: false,
+      regexp: false,
+    })
     if (typeof query === 'string' && query !== '') void this.runSearch(query)
   }
 
@@ -3532,7 +3608,15 @@ export class WorkbenchStore {
       // git message is English and cryptic ("The current branch master has
       // no upstream branch"). The user gets the command to run instead.
       if (/no upstream branch|set-upstream|does not appear to be a git repository/i.test(text)) {
-        this.toast('error', this.t('commit.pushNoUpstream'), this.#pushUpstreamHint())
+        // The command goes with a button that copies it: the user has to
+        // run it in a terminal, and typing it by hand is where mistakes
+        // happen.
+        const command = this.#pushUpstreamHint()
+        this.toast('error', this.t('commit.pushNoUpstream'), command, {
+          label: this.t('common.copy'),
+          copy: command,
+          onDone: (ok) => { if (ok) this.toast('success', this.t('common.copied')) },
+        })
       } else {
         this.toast('error', options.afterCommit === true ? this.t('commit.pushFailed') : this.t('commit.failed'), text)
       }

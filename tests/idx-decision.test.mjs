@@ -15,6 +15,7 @@ import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { WorkbenchStore } from '../src/client/store.js'
+import { en, zh } from '../src/client/i18n.js'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -116,6 +117,10 @@ const CHILD = 'C:\\work\\demo\\api'
  */
 function hostStub(options = {}) {
   const calls = []
+  // The host merges the patch into its document and answers with the whole
+  // document - the store adopts that answer. A stub that answered with an
+  // empty document would wipe the settings of the store.
+  let document = {}
   const original = globalThis.fetch
   globalThis.fetch = async (url, init) => {
     const method = String(url).split('/').pop()
@@ -125,12 +130,17 @@ function hostStub(options = {}) {
     if (method === 'lsp.resources') {
       value = {
         totalBytes: 16 * 1024 * 1024 * 1024,
-        freeBytes: 8 * 1024 * 1024 * 1024,
-        thresholdBytes: 2 * 1024 * 1024 * 1024,
+        freeBytes: 200 * 1024 * 1024,
+        thresholdBytes: 256 * 1024 * 1024,
         memoryLimitBytes: 2 * 1024 * 1024 * 1024,
         canIndex: options.canIndex !== false,
+        // The host judges the snapshot and sends its answer with it.
+        decision: options.decision ?? 'ok',
+        tight: options.decision === 'tight',
+        needMB: options.needMB ?? 384,
+        languageId: options.lspLanguageId ?? 'typescript',
       }
-    } else if (method === 'lsp.start') value = { state: 'starting' }
+    } else if (method === 'lsp.start') value = { state: 'starting', forced: body.force === true }
     else if (method === 'lsp.status') {
       value = {
         enabled: true,
@@ -147,7 +157,10 @@ function hostStub(options = {}) {
     else if (method === 'git.status') value = { isRepo: false, entries: [], detached: false }
     else if (method === 'git.log') value = { commits: [], hasMore: false }
     else if (method === 'fs.tree') value = { entries: [], truncated: false }
-    else if (method === 'settings.update') value = { value: {} }
+    else if (method === 'settings.update') {
+      document = { ...document, ...(body.patch ?? {}) }
+      value = { value: document }
+    }
     else value = { shells: [], names: [], messages: [] }
     return { ok: true, status: 200, async json() { return { ok: true, value } } }
   }
@@ -266,6 +279,127 @@ test('cancelling the index decision keeps the current project', async () => {
   }
 })
 
+// ── the layer of the blocking confirmation (LAYER-01) ──────────────────────
+
+test('the confirmation and the project picker are both on the screen, and the confirmation is usable', async () => {
+  // The layer is what makes the difference - but the BEHAVIOUR is what
+  // matters: while the project picker is open, the warning is rendered with
+  // its actions. A picker that covered it would hide the buttons as well.
+  const mod = await loadModule()
+  const store = fakeStore()
+  store.state = {
+    ...store.state,
+    projectPicker: true,
+    confirm: {
+      title: 'Unsaved changes',
+      body: 'Switching discards the unsaved changes.',
+      actions: [
+        { key: 'cancel', label: 'Cancel', action: () => {} },
+        { key: 'save', label: 'Save and switch', action: () => {} },
+      ],
+    },
+  }
+  const html = renderToStaticMarkup(React.createElement(mod.Workbench, { store }))
+  assert.match(html, /iwb-project-picker/, 'the project picker is rendered')
+  assert.match(html, /iwb-confirm-backdrop/, 'the confirmation is rendered')
+  assert.match(html, /Save and switch/, 'the confirmation can be answered')
+})
+
+// ── the memory decision (R4, R5) ───────────────────────────────────────────
+
+test('a tight budget asks the user before the server starts', async () => {
+  const host = hostStub({ decision: 'tight' })
+  const store = fakeStore()
+  try {
+    const pending = store.selectProject(CHILD)
+    await flush()
+    // The memory question comes first - the host refuses to start on a tight
+    // budget without an explicit "yes".
+    assert.ok(store.state.memoryDecision !== null, 'the user is asked')
+    assert.equal(store.state.memoryDecision.needMB, 384)
+    assert.equal(store.state.memoryDecision.freeMB, 200)
+    store.resolveMemoryDecision('start')
+    await pending
+    // The start is forced: the user said so.
+    const start = host.calls.find(call => call.method === 'lsp.start')
+    assert.ok(start !== undefined, 'the server is started')
+    assert.equal(start.body.force, true, 'the start is forced')
+  } finally {
+    cleanup(store)
+    host.restore()
+  }
+})
+
+test('the answer is remembered, and the same project is not asked twice', async () => {
+  const host = hostStub({ decision: 'tight' })
+  const store = fakeStore()
+  try {
+    const first = store.selectProject(CHILD)
+    await flush()
+    store.resolveMemoryDecision('start')
+    await first
+    // The answer is a decision, not a question: it is written down.
+    assert.equal(store.state.settings.lsp.memoryWarnedRoots[CHILD], 'accepted')
+
+    // The project is left and opened again: the remembered answer applies
+    // and the user is not asked a second time.
+    store.state = { ...store.state, root: ROOT }
+    const second = store.selectProject(CHILD)
+    await flush()
+    assert.equal(store.state.memoryDecision, null, 'the user is not asked again')
+    store.resolveIndexDecision('build')
+    await second
+    const start = host.calls.filter(call => call.method === 'lsp.start')
+    assert.equal(start.length, 2)
+    assert.equal(start[1].body.force, true, 'the remembered answer forces the start')
+  } finally {
+    cleanup(store)
+    host.restore()
+  }
+})
+
+test('a remembered "basic mode" keeps the conservative mode', async () => {
+  const host = hostStub({ decision: 'tight' })
+  const store = fakeStore()
+  try {
+    store.state.settings.lsp.memoryWarnedRoots = { [CHILD]: 'conservative' }
+    const pending = store.selectProject(CHILD)
+    await flush()
+    // The user decided last time: neither question is asked again.
+    assert.equal(store.state.memoryDecision, null, 'the memory is not asked again')
+    assert.equal(store.state.indexDecision, null, 'the index dialog is not shown either')
+    await pending
+    assert.ok(!host.methods().includes('lsp.start'), 'no language server is started')
+    assert.equal(store.state.root, CHILD, 'the project is still switched')
+  } finally {
+    cleanup(store)
+    host.restore()
+  }
+})
+
+test('a machine without enough memory degrades with the threshold, not the estimate', async () => {
+  const host = hostStub({ decision: 'low', canIndex: false })
+  const store = fakeStore()
+  // The real texts: the numbers of the message are the point of the case.
+  store.t = key => (zh[key] ?? en[key] ?? key)
+  try {
+    const pending = store.selectProject(CHILD)
+    await flush()
+    await pending
+    // The toast names the threshold the machine has to reach - the estimate
+    // of the language can be lower than the free memory, and "needs 96 MB,
+    // 200 MB available" reads like a mistake.
+    const toast = store.state.toast
+    assert.ok(toast !== null, 'the user is told')
+    assert.match(toast.text, /256 MB/, 'the threshold is named')
+    assert.match(toast.text, /200 MB/, 'the free memory is named')
+    assert.ok(!host.methods().includes('lsp.start'), 'no language server is started')
+  } finally {
+    cleanup(store)
+    host.restore()
+  }
+})
+
 test('the conservative mode switches the project without a language server', async () => {
   const host = hostStub()
   const store = fakeStore()
@@ -316,7 +450,7 @@ test('the profile settings also mark a folder as indexed', async () => {
 })
 
 test('a machine without enough memory degrades without a question', async () => {
-  const host = hostStub({ canIndex: false })
+  const host = hostStub({ decision: 'low', canIndex: false })
   const store = fakeStore()
   try {
     await store.selectProject(CHILD)

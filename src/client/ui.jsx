@@ -186,11 +186,30 @@ export function ConfirmModal({ dialog, onClose, scope = null }) {
 /** Transient toast pinned above the status bar. */
 export function Toast({ toast }) {
   if (toast === null || toast === undefined) return null
+  const action = toast.action ?? null
   return React.createElement('div', { className: `iwb-toast iwb-${toast.kind}` },
     React.createElement('div', { className: 'iwb-toast-text' },
       React.createElement('div', null, toast.text),
       toast.detail !== '' && toast.detail !== undefined
         ? React.createElement('div', { className: 'iwb-toast-detail' }, toast.detail)
+        : null,
+      // An action of the toast: a button that copies a command the user has
+      // to type into a terminal.
+      action !== null && typeof action.copy === 'string' && action.copy !== ''
+        ? React.createElement('button', {
+            type: 'button',
+            className: 'iwb-textbtn iwb-small iwb-toast-action',
+            onClick: () => {
+              const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : null
+              const written = clipboard === null
+                ? Promise.reject(new Error('no clipboard'))
+                : clipboard.writeText(action.copy)
+              written.then(
+                () => { action.onDone?.(true) },
+                () => { action.onDone?.(false) },
+              )
+            },
+          }, action.label ?? 'Copy')
         : null,
     ),
   )

@@ -15,6 +15,23 @@ import { dirName } from './util.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 
 /**
+ * Fill the `{placeholder}` slots of one text.
+ *
+ * The harness translate function does not interpolate, so the panel completes
+ * the number of the truncated list itself.
+ * @param {string} text
+ * @param {Record<string, string|number>} values
+ * @returns {string}
+ */
+function interpolate(text, values) {
+  let out = typeof text === 'string' ? text : ''
+  for (const [name, value] of Object.entries(values)) {
+    out = out.replaceAll(`{${name}}`, String(value))
+  }
+  return out
+}
+
+/**
  * Fields of the workbench state the Commit panel renders.
  *
  * `entries` is part of the slice even though the groups are read through the
@@ -23,6 +40,8 @@ import { shallowEqual, useStoreSlice } from './hooks.js'
  * the workspace key in the settings.
  * `ahead` / `upstream` drive the Push button: they say whether the branch has
  * commits that are not on its upstream yet.
+ * `statusTruncated` / `statusLimit` say that the host had to cut the file
+ * list short, so the panel can tell the user that the list is incomplete.
  *
  * @param {object} state workbench state
  * @returns {object} the panel's slice
@@ -37,6 +56,8 @@ export function commitSlice(state) {
     oid: state.status.oid,
     ahead: state.status.ahead,
     upstream: state.status.upstream,
+    statusTruncated: state.status.truncated === true,
+    statusLimit: state.status.entryLimit,
     settings: state.settings,
     workspaceRoot: state.workspaceRoot,
   }
@@ -149,9 +170,15 @@ export function CommitPanel({ store, state }) {
   // The Push button is independent of the Commit button: the user pushes the
   // commits that are already made, so it must stay usable when there is
   // nothing left to stage (PUSH-01).
-  const ahead = typeof slice.ahead === 'number' ? slice.ahead : 0
+  //
+  // It also stays clickable when there is nothing to push. A branch without
+  // an upstream has no `# branch.ab` in the porcelain output, so `ahead` is
+  // undefined - and a disabled button dispatches no mouse event at all: its
+  // tooltip never shows and the "this branch has no upstream, run this
+  // command" message of the store is unreachable from the UI (R16). Only a
+  // running push disables the button.
   const hasUpstream = typeof slice.upstream === 'string' && slice.upstream !== ''
-  const canPush = commit.pushing !== true && ahead > 0
+  const canPush = commit.pushing !== true && slice.isRepo !== false
   const pushHint = hasUpstream ? t('commit.pushHint') : t('commit.pushNoUpstream')
   const commitSettings = slice.settings?.commit ?? {}
   const taskDefs = [
@@ -390,6 +417,13 @@ export function CommitPanel({ store, state }) {
           : renderEntries(groups.unversioned),
       ),
     ),
+    // The host cuts the file list short when the repository has more entries
+    // than the status accepts. The user has to know that the list above is
+    // not the whole truth (R17).
+    slice.statusTruncated
+      ? React.createElement('div', { className: 'iwb-commit-hint' },
+          interpolate(t('commit.statusTruncated'), { count: slice.statusLimit ?? 0 }))
+      : null,
     menu !== null ? React.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
     dialog !== null
       ? React.createElement('div', { className: 'iwb-modal-backdrop', onMouseDown: event => { if (event.target === event.currentTarget) setDialog(null) } },

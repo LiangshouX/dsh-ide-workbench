@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ShortcutCapture } from './ui.jsx'
 import { IDE_OPTIONS } from './ide-menu.js'
+import { DEFAULT_LSP_SETTINGS } from '../host/settings-defaults.js'
 
 const SHORTCUT_FIELDS = [
   ['project', 'projectShortcut'],
@@ -77,6 +78,41 @@ function SubGroup({ title, children }) {
     React.createElement('div', { className: 'iwb-settings-subgroup-title' }, title),
     React.createElement('div', { className: 'iwb-settings-fields' }, children),
   )
+}
+
+/**
+ * The patch of the "reset to defaults" button.
+ *
+ * The semantic-analysis section goes back to the defaults of the settings
+ * document, so a reset really resets it: the memory numbers, the request
+ * timeout, the per-language switches and the warned roots used to survive it
+ * (R10).
+ *
+ * The three maps are sent as null on purpose. The host merges a patch into
+ * the document, and an empty object would be merged into the old entries
+ * instead of replacing them - the old switches would survive the reset. A
+ * null replaces the whole map, and the migration of the document turns it
+ * back into an empty map.
+ * @returns {object} the patch the host merges into the document
+ */
+export function resetPatch() {
+  return {
+    git: { path: '', colors: true, commitTemplate: '' },
+    idea: { path: '' },
+    webstorm: { path: '' },
+    vscode: { path: '' },
+    terminal: { shell: 'auto', copyOnSelect: false, fontSize: 13 },
+    project: { alwaysSelectOpened: true, showHidden: true, showIgnored: false, singleClickOpen: false },
+    commit: { groupByDirectory: false },
+    delete: { useRecycleBin: true },
+    editor: { fontSize: 13, highlight: true, openMode: 'auto', editableMaxBytes: 1 << 20, markdownPreview: true },
+    links: { chatFiles: 'ide' },
+    lsp: { ...DEFAULT_LSP_SETTINGS, servers: null, indexedRoots: null, memoryWarnedRoots: null },
+    shortcuts: {
+      project: 'Alt+1', commit: 'Alt+0', git: 'Alt+9', terminal: 'Alt+F12',
+      focusCommit: 'Ctrl+K', push: 'Ctrl+Shift+K', findInFiles: 'Ctrl+Shift+R', findInFilesAlt: 'Ctrl+Alt+F', openCommitDetail: 'Ctrl+Alt+D', quickOpen: 'Ctrl+Shift+N',
+    },
+  }
 }
 
 /**
@@ -507,7 +543,9 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
         React.createElement(Field, { label: t('settings.lspRequestTimeout'), hint: t('settings.lspRequestTimeoutShort'), title: t('settings.lspRequestTimeoutHint') },
           React.createElement('input', {
             type: 'number', min: 30000, max: 600000, step: 1000,
-            value: draft.lsp?.requestTimeoutMs ?? 30000,
+            // The runtime raises anything below 30000 to 30000, so the field
+            // shows the value that is actually in effect.
+            value: Math.max(30000, draft.lsp?.requestTimeoutMs ?? 30000),
             onChange: event => update({ lsp: { requestTimeoutMs: Math.max(30000, Number(event.target.value) || 30000) } }),
           }),
         ),
@@ -555,6 +593,7 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
               ? interpolate(t('settings.lspMemoryNow'), {
                   free: Math.round((lspResources.freeBytes ?? 0) / (1024 * 1024)),
                   need: Math.round(lspResources.needMB ?? 0),
+                  threshold: Math.round((lspResources.thresholdBytes ?? 0) / (1024 * 1024)),
                   floor: Math.round(lspResources.hardFloorMB ?? 256),
                   language: lspResources.languageId,
                   state: lspResources.tight === true
@@ -623,22 +662,7 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
       React.createElement('button', {
         type: 'button', className: 'iwb-textbtn iwb-small iwb-settings-reset',
         onClick: () => {
-          const reset = {
-            git: { path: '', colors: true, commitTemplate: '' },
-            idea: { path: '' },
-            webstorm: { path: '' },
-            vscode: { path: '' },
-            terminal: { shell: 'auto', copyOnSelect: false, fontSize: 13 },
-            project: { alwaysSelectOpened: true, showHidden: true, showIgnored: false, singleClickOpen: false },
-            commit: { groupByDirectory: false },
-            delete: { useRecycleBin: true },
-            editor: { fontSize: 13, highlight: true, openMode: 'auto', editableMaxBytes: 1 << 20, markdownPreview: true },
-            links: { chatFiles: 'ide' },
-            shortcuts: {
-              project: 'Alt+1', commit: 'Alt+0', git: 'Alt+9', terminal: 'Alt+F12',
-              focusCommit: 'Ctrl+K', push: 'Ctrl+Shift+K', findInFiles: 'Ctrl+Shift+R', findInFilesAlt: 'Ctrl+Alt+F', openCommitDetail: 'Ctrl+Alt+D', quickOpen: 'Ctrl+Shift+N',
-            },
-          }
+          const reset = resetPatch()
           setDraft({ ...draft, ...reset })
           commit(reset)
         },

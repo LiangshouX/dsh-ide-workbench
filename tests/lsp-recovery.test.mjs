@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { encodeFrame } from '../src/host/lsp-frame.js'
 import { makeManager, makeSink, sleep } from './lsp-fixtures.mjs'
+import { crashAdviceFor } from '../src/client/store.js'
 
 /** A project root that no other test uses. */
 function rootOf(name) {
@@ -24,8 +25,15 @@ test('a language server that exits with an error is restarted once', async () =>
   assert.equal((await manager.status({ root })).state, 'building')
   const crash = sink.events.find(event => event.type === 'crash')
   assert.ok(crash, 'the crash is reported to the client')
-  assert.match(crash.detail, /memory/i, 'the message says that memory is a common cause')
-  assert.match(crash.detail, /lower the memory limit/i, 'the message says what the user can do')
+  // The detail is the FACT. The host used to add "a common cause is not
+  // enough memory" to every crash - and the most common cause is a request
+  // that took too long, which has nothing to do with the memory. The advice
+  // is picked by the reason (see `crashAdviceFor`).
+  assert.doesNotMatch(crash.detail, /memory/i, 'the crash does not blame the memory')
+  assert.match(crash.detail, /exited unexpectedly/i, 'the detail says what happened')
+  assert.equal(crashAdviceFor('3 request timeouts', key => key), 'lsp.crashedTimeout')
+  assert.equal(crashAdviceFor('the server ran out of memory', key => key), 'lsp.crashedMemory')
+  assert.equal(crashAdviceFor('something else', key => key), 'lsp.crashedGeneric')
 })
 
 test('a language server whose output stream closes is treated as crashed', async () => {
@@ -73,8 +81,8 @@ test('a language server that crashes twice is not started again', async () => {
   assert.equal(spawned.length, 2, 'there is no second automatic restart')
   const status = await manager.status({ root })
   assert.equal(status.state, 'degraded')
-  assert.match(status.detail, /lower the memory limit/i)
-  assert.match(status.detail, /conservative mode/i)
+  // The detail is the fact; the advice follows the reason.
+  assert.match(status.detail, /already used once/i)
 })
 
 test('a crashed language server is not restarted when the memory is not enough', async () => {

@@ -201,9 +201,11 @@ test('the commit slice returns exactly the fields the panel reads', async () => 
   const state = baseState()
   const slice = mod.commitSlice(state)
   // `ahead` and `upstream` came with the Push button: the panel needs to know
-  // whether there is anything to push at all.
+  // whether there is anything to push at all. `statusTruncated` and
+  // `statusLimit` came with the scale guard of the status: the panel has to
+  // say that the file list is incomplete.
   assert.deepEqual(Object.keys(slice).sort(), [
-    'ahead', 'branch', 'commit', 'detached', 'entries', 'isRepo', 'oid', 'settings', 'upstream', 'workspaceRoot',
+    'ahead', 'branch', 'commit', 'detached', 'entries', 'isRepo', 'oid', 'settings', 'statusLimit', 'statusTruncated', 'upstream', 'workspaceRoot',
   ])
   assert.equal(slice.commit, state.commit)
   assert.equal(slice.entries, state.status.entries)
@@ -213,6 +215,8 @@ test('the commit slice returns exactly the fields the panel reads', async () => 
   assert.equal(slice.oid, state.status.oid)
   assert.equal(slice.ahead, state.status.ahead)
   assert.equal(slice.upstream, state.status.upstream)
+  assert.equal(slice.statusTruncated, false)
+  assert.equal(slice.statusLimit, undefined)
   assert.equal(slice.settings, state.settings)
   assert.equal(slice.workspaceRoot, state.workspaceRoot)
 })

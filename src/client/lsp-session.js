@@ -91,6 +91,10 @@ let sessionKey = null
 let sessionRoot = ''
 /** Whether the error reports of the library were redirected already. */
 let reportErrorRedirected = false
+/** The timer of the next handshake retry. */
+let handshakeTimer = null
+/** How many times the handshake was retried in a row. */
+let handshakeRetries = 0
 /** Whether the positions of the workspace mapping were redirected already. */
 let mappingRedirected = false
 /**
@@ -609,7 +613,63 @@ function startLsp() {
     },
   })
   currentClient.connect(currentTransport)
+  watchHandshake(currentClient)
   bumpVersion()
+}
+
+/**
+ * How often a failed handshake is retried before the user has to refresh.
+ *
+ * The retry is the way out of a broken session: a rejected handshake leaves
+ * the client dead for good (every later request rejects with the same
+ * error), and the language server may well be on its way - the host holds
+ * the handshake until the server exists.
+ */
+const MAX_HANDSHAKE_RETRIES = 3
+
+/**
+ * Watch the handshake of the client.
+ *
+ * `LSPClient.connect()` sends the `initialize` request and rejects the
+ * handshake promise when it does not get an answer. A rejected promise is
+ * sticky: every later request rejects with it, so the semantic features
+ * stay dead until the page is reloaded. The library resets the promise in
+ * `disconnect()`, so the way out is to disconnect and connect again - which
+ * is what the retry does.
+ * @param {any} client the LSP client
+ */
+function watchHandshake(client) {
+  const handshake = client?.initializing
+  if (handshake === null || handshake === undefined || typeof handshake.then !== 'function') return
+  handshake.then(
+    () => { handshakeRetries = 0 },
+    (error) => {
+      console.warn('[lsp] the handshake failed:', error instanceof Error ? error.message : error)
+      scheduleHandshakeRetry()
+    },
+  )
+}
+
+/**
+ * Try the handshake again after it failed.
+ *
+ * The language server may need a moment (the host starts it when the
+ * project is opened), and a session that is broken for good is worse than
+ * a few retries.
+ */
+function scheduleHandshakeRetry() {
+  if (handshakeTimer !== null) return
+  if (handshakeRetries >= MAX_HANDSHAKE_RETRIES) {
+    console.warn('[lsp] the handshake keeps failing; reload the page to try again')
+    return
+  }
+  handshakeRetries += 1
+  handshakeTimer = setTimeout(() => {
+    handshakeTimer = null
+    if (currentClient === null) return
+    reinitializeLsp()
+  }, 2000)
+  handshakeTimer.unref?.()
 }
 
 /**
@@ -624,6 +684,9 @@ function reinitializeLsp() {
   try {
     currentClient.disconnect()
     currentClient.connect(currentTransport)
+    // The new handshake has to be watched as well: a session whose handshake
+    // failed has to be able to try again.
+    watchHandshake(currentClient)
     // The socket opened again, so the language server was restarted (the
     // user asked for a new index, or the server died). The failures of the
     // old server say nothing about the new one.
@@ -635,6 +698,11 @@ function reinitializeLsp() {
 
 /** Drop the client and close the socket. */
 function stopLsp() {
+  if (handshakeTimer !== null) {
+    clearTimeout(handshakeTimer)
+    handshakeTimer = null
+  }
+  handshakeRetries = 0
   if (currentClient !== null) {
     try {
       currentClient.disconnect()
@@ -694,7 +762,14 @@ function refreshLsp() {
   if (wanted) {
     // A different project means a different server: the old client is
     // closed first, so its socket cannot outlive the project.
-    if (hadClient) stopLsp()
+    if (hadClient) {
+      // The old language server keeps running on the host until its idle
+      // timeout - ten minutes - and holds its memory all that time. The
+      // project was left, so the server has to go with it (SET-01 asks for
+      // the same when the feature is switched off).
+      if (previousRoot !== '' && previousRoot !== root) shutdownHostLsp(previousRoot)
+      stopLsp()
+    }
     startLsp(store)
   } else if (hadClient) {
     // The feature is off: the language server of the host has to die now

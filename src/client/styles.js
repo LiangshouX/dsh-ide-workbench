@@ -39,19 +39,33 @@ export const CSS = `
      white text is unreadable. */
   --iwb-on-accent: var(--dsw-alias-label-on-brand, #0d1117);
   --iwb-shadow: var(--dsw-alias-shadow-1, rgba(0, 0, 0, .32));
-  /* The syntax palette. The host has no syntax aliases yet, so the
-     fallbacks carry it: mid tones that read on a light *and* on a dark code
-     layer - never the old fixed dark palette. */
-  --iwb-syn-comment: var(--dsw-alias-label-secondary, #6b7482);
-  --iwb-syn-string: var(--dsw-alias-code-string, #2a8359);
-  --iwb-syn-keyword: var(--dsw-alias-code-keyword, #9455b5);
-  --iwb-syn-type: var(--dsw-alias-code-type, #12838d);
-  --iwb-syn-number: var(--dsw-alias-code-number, #a1651c);
-  --iwb-syn-function: var(--dsw-alias-code-function, #2a6cbd);
-  --iwb-syn-property: var(--dsw-alias-code-property, #4a63b8);
-  --iwb-syn-tag: var(--dsw-alias-code-tag, #bb404f);
-  --iwb-syn-heading: var(--dsw-alias-code-heading, #1e70e2);
-  --iwb-syn-invalid: var(--dsw-alias-code-invalid, #bb352c);
+  /* ── the syntax palette (THEME-03) ──────────────────────────────────────
+     The host has no syntax aliases, and no single colour can serve both of
+     its themes: a colour that clears 4.5:1 on white needs a relative
+     luminance of 0.183 or less, while the dark code layer #232830 needs
+     0.269 or more. A fixed palette therefore cannot follow the host - it
+     can only be right in one of the two themes, and it is the wrong one in
+     the other (that is what the last round of this palette did).
+     So the palette is theme-relative: every token is its own hue mixed with
+     the theme's text colour, in oklab. The mix only scales the chroma of
+     the hue, so a string still reads as green and a keyword as violet,
+     while the lightness comes from the host - and that is what makes one
+     token readable on a light theme and on a dark one. Nothing switches on
+     prefers-color-scheme, and nothing waits for the host.
+     52% hue / 48% theme text is the largest share of the hue that keeps
+     every token at 5:1 or better on white, on the editor background and on
+     the code layer; tests/styles-theme.test.mjs does the oklab maths and
+     checks all three surfaces. */
+  --iwb-syn-comment: color-mix(in oklab, #6b7482 52%, var(--iwb-fg) 48%);
+  --iwb-syn-string: color-mix(in oklab, #2a8359 52%, var(--iwb-fg) 48%);
+  --iwb-syn-keyword: color-mix(in oklab, #9455b5 52%, var(--iwb-fg) 48%);
+  --iwb-syn-type: color-mix(in oklab, #12838d 52%, var(--iwb-fg) 48%);
+  --iwb-syn-number: color-mix(in oklab, #a1651c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-function: color-mix(in oklab, #2a6cbd 52%, var(--iwb-fg) 48%);
+  --iwb-syn-property: color-mix(in oklab, #4a63b8 52%, var(--iwb-fg) 48%);
+  --iwb-syn-tag: color-mix(in oklab, #bb404f 52%, var(--iwb-fg) 48%);
+  --iwb-syn-heading: color-mix(in oklab, #1e70e2 52%, var(--iwb-fg) 48%);
+  --iwb-syn-invalid: color-mix(in oklab, #bb352c 52%, var(--iwb-fg) 48%);
   --iwb-sidebar: var(--dsw-specific-sidebar-fill, #181b21);
   --iwb-mod: #4c9aff;
   --iwb-add: #4fb477;
@@ -899,6 +913,7 @@ export const CSS = `
 .iwb-toast.iwb-success { border-color: rgba(79, 180, 119, .55); }
 .iwb-toast-text { min-width: 0; }
 .iwb-toast-detail { color: var(--iwb-muted); font-size: 11px; margin-top: 3px; white-space: pre-wrap; word-break: break-word; user-select: text; }
+.iwb-toast-action { margin-top: 8px; align-self: flex-start; }
 .iwb-root-picker { display: flex; flex-direction: column; gap: 8px; }
 .iwb-root-list { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow: auto; }
 .iwb-root-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--iwb-border); text-align: left; }

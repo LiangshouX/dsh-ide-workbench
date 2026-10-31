@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { makeManager, sleep } from './lsp-fixtures.mjs'
+import { makeManager, sleep, decodeChunks } from './lsp-fixtures.mjs'
 import { DEFAULT_BASELINE_MB, DEFAULT_LSP_SETTINGS, LSP_REGISTRY } from '../src/host/lsp.js'
 import { DEFAULT_SETTINGS, migrateLspSettings } from '../src/host/settings-store.js'
 
@@ -87,6 +87,34 @@ test('the estimate of a language is its baseline times the headroom', async () =
   assert.equal(resources.hardFloorMB, 256)
   assert.equal(resources.canIndex, true)
   assert.equal(resources.tight, false)
+})
+
+test('the global memory limit reaches the language server', async () => {
+  // The setting was a dead control: the value the user saw never reached
+  // the server, so the ceiling was always the built-in one of the language.
+  // The assertion is on the value that is INJECTED into the handshake, not
+  // on the value that was read.
+  const { manager, workers, handle } = makeManager({ lsp: { memoryLimitMB: 1024 } })
+  const root = rootOf('global-limit')
+  await manager.start({ root, languageId: 'typescript' })
+  assert.equal(workers[0].workerData.memoryLimitMB, 1024, 'the worker got the global limit')
+  // The handshake of the browser is what carries the ceiling into the
+  // language server.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'initialize', params: { capabilities: {} },
+  }))
+  const payloads = decodeChunks(handle().stdinChunks)
+  const handshake = payloads.find(text => text.includes('"initialize"'))
+  assert.ok(handshake !== undefined, 'the handshake reached the server')
+  assert.match(handshake, /"maxTsServerMemory":1024/, 'the ceiling is in the handshake')
+})
+
+test('a language may be given more than the global limit', async () => {
+  const { manager, workers } = makeManager({
+    lsp: { memoryLimitMB: 1024, servers: { typescript: { memoryLimitMB: 3072 } } },
+  })
+  await manager.start({ root: rootOf('per-language-limit'), languageId: 'typescript' })
+  assert.equal(workers[0].workerData.memoryLimitMB, 3072, 'the per-language value wins')
 })
 
 test('a yaml project needs a fraction of the memory a typescript project needs', async () => {

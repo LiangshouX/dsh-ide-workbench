@@ -57,6 +57,15 @@ class FakeSocket {
       return
     }
     if (parsed?.method === 'initialize') {
+      // A server that refuses the handshake: the client has to recover from
+      // it, because a rejected handshake promise rejects every later
+      // request as well.
+      if (FakeSocket.failHandshake === true) {
+        this.emit('message', {
+          data: JSON.stringify({ jsonrpc: '2.0', id: parsed.id, error: { code: -1, message: 'the server is not ready' } }),
+        })
+        return
+      }
       this.emit('message', {
         data: JSON.stringify({ jsonrpc: '2.0', id: parsed.id, result: { capabilities: {} } }),
       })
@@ -72,6 +81,8 @@ class FakeSocket {
 FakeSocket.instances = []
 /** The answer of the fake server; `null` means "no answer at all". */
 FakeSocket.answer = () => null
+/** When true the fake server refuses the handshake. */
+FakeSocket.failHandshake = false
 
 /** The WebSocket of the tests, so no socket ever leaves the process. */
 const originalWebSocket = globalThis.WebSocket
