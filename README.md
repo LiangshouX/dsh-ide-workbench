@@ -43,10 +43,10 @@ DSH 的对话很适合“边聊边改”，但真正改代码时还是要在聊�
 ### 方式一：DSH Desktop（推荐）
 
 1. 打开 **设置 → 插件**。
-2. 点 **添加插件**，在包名输入框填入 `dsh-ide-workbench`（可带版本号，如 `dsh-ide-workbench@0.4.1`）。
+2. 点 **添加插件**，在「包名或地址」输入框填入 `dsh-ide-workbench`（可带版本号，如 `dsh-ide-workbench@0.4.1`）；也可以直接粘贴 Release 附件的 `.tgz` 地址（见方式四）。
 3. 安装完成后，在会话头部点 IDE 工作台按钮（或侧栏底部的常驻入口）打开。
 
-> Desktop 的 profile 由 Electron 应用独占管理，`dsh plugin --profile desktop ...` 会被拒绝——桌面端请走插件页安装。
+> Desktop 的 profile 由 Electron 应用独占管理，`dsh plugin --profile desktop ...` 会被拒绝——桌面端请走插件页安装。插件页在宿主进程里执行，装的就是 Desktop 自己那个 profile。
 
 ### 方式二：CLI / npm
 
@@ -84,6 +84,11 @@ dsh plugin --profile web add https://github.com/LiangshouX/dsh-ide-workbench/rel
 
 Release 页同时提供变更说明（取自 [CHANGELOG.md](CHANGELOG.md)）与源码包
 （GitHub 自动附带）。
+
+> 这个 `.tgz` 地址也能直接填进 **设置 → 插件 → 添加插件** 的「包名或地址」输入框
+> ——宿主的安装规格解析器接受以 `.tgz` / `.tar.gz` 结尾的 http(s) 地址。走 npm 名
+> 安装更"干净"：tarball 方式会把一个非 registry 的 URL 记进 lockfile，之后再用
+> 默认 registry 做别的包操作时，pnpm 可能报 `ERR_PNPM_TARBALL_URL_MISMATCH`。
 
 ### 安装后
 

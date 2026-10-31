@@ -43,10 +43,10 @@ DSH conversations are great for "chat and change at the same time", but editing 
 ### Option 1: DSH Desktop (recommended)
 
 1. Open **Settings → Plugins**.
-2. Click **Add plugin** and enter `dsh-ide-workbench` (optionally with a version, e.g. `dsh-ide-workbench@0.4.1`).
+2. Click **Add plugin** and enter `dsh-ide-workbench` (optionally with a version, e.g. `dsh-ide-workbench@0.4.1`). You can also paste the `.tgz` URL of a Release asset (see Option 4).
 3. After installation, open it from the IDE Workbench button in the session header (or the footer entry).
 
-> The Desktop profile is owned exclusively by the Electron app; `dsh plugin --profile desktop ...` is refused. Use the Plugins page on Desktop.
+> The Desktop profile is owned exclusively by the Electron app; `dsh plugin --profile desktop ...` is refused. Use the Plugins page on Desktop — it runs in the Host, so it installs into the Desktop profile itself.
 
 ### Option 2: CLI / npm
 
@@ -85,6 +85,13 @@ dsh plugin --profile web add https://github.com/LiangshouX/dsh-ide-workbench/rel
 
 The release page also carries the changelog (taken from
 [CHANGELOG.md](CHANGELOG.md)) and the source archives (attached by GitHub).
+
+> That `.tgz` URL can also be pasted straight into **Settings → Plugins → Add
+> plugin** — the Host's install-spec parser accepts an http(s) address ending in
+> `.tgz` / `.tar.gz`. Installing by npm name is the cleaner route: a tarball
+> install records a non-registry URL in the lockfile, and a later package
+> operation against the default registry can then fail with
+> `ERR_PNPM_TARBALL_URL_MISMATCH`.
 
 ### After installation
 

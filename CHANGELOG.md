@@ -23,7 +23,8 @@
 ### 发布
 
 - 打 tag 发布时同时创建 GitHub Release：附带变更说明、源码，以及一个自带
-  `node_modules` 的离线 npm 构建包。
+  `node_modules` 的离线 npm 构建包。该 `.tgz` 地址也能直接填进 **设置 → 插件 →
+  添加插件**，装的时候完全不需要访问 npm registry。
 
 ## 0.4.1
 
