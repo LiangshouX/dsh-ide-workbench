@@ -21,9 +21,10 @@ import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { makeManager, sleep } from './lsp-fixtures.mjs'
+import { makeManager, sleep, waitFor } from './lsp-fixtures.mjs'
 import { encodeFrame } from '../src/host/lsp-frame.js'
 import { configureLsp, lspClient, resetLspHealth, shutdownLsp } from '../src/client/lsp-session.js'
+import { WorkbenchStore } from '../src/client/store.js'
 import { SEMANTIC_METHODS } from '../src/host/semantic-methods.js'
 import { BUILD_REQUEST_TIMEOUT_MS } from '../src/host/settings-defaults.js'
 
@@ -265,4 +266,93 @@ test('an answer that is not semantic changes neither side', async () => {
 
   assert.equal(await probeHost(manager, root, 2), 'long', 'the host is still patient')
   assert.equal(await probeClient(), 'long', 'the client is still patient')
+})
+
+/**
+ * Serve the language-server endpoints of a REAL host manager.
+ *
+ * The client transport is the only seam: the host behind it is the
+ * production manager, and the store in front of it is the production store.
+ * @param {any} manager the language server manager
+ * @param {string} root the project root of the manager
+ * @returns {() => void} the restore function
+ */
+function mockHostFetch(manager, root) {
+  const original = globalThis.fetch
+  globalThis.fetch = async (url) => {
+    const method = String(url).split('/ide-workbench/api/')[1]
+    let value = {}
+    if (method === 'lsp.status') value = await manager.status({ root })
+    else if (method === 'lsp.index') value = await manager.index({ root })
+    else if (method === 'lsp.servers') value = await manager.servers({})
+    return { ok: true, status: 200, async json() { return { ok: true, value } } }
+  }
+  return () => { globalThis.fetch = original }
+}
+
+test('a replaced language server puts both sides back on the long budget', async () => {
+  // The whole chain of the restart, without a mock on either side:
+  //
+  //   the host publishes the identity of the process ->
+  //   the store mirrors it ->
+  //   the client sees it and resets its budget.
+  //
+  // Each of those three steps has a case of its own, but the WIRING between
+  // them is what makes the restart work: a break in it (a refactoring that
+  // drops the identity from the merge of the status, a poll of another root)
+  // would leave every single-sided case green while the restart is broken.
+  const { manager, workers, handle } = makeManager({ lsp: { requestTimeoutMs: 40 } })
+  const root = rootOf('replaced')
+  await manager.start({ root })
+
+  // The real store, fed by the real host.
+  const clientRoot = 'C:/work/replaced'
+  const store = new WorkbenchStore({ locale: { subscribe: () => () => {} } }, key => key)
+  store.state = {
+    ...store.state,
+    workspaceRoot: clientRoot,
+    root: clientRoot,
+    phase: 'ready',
+    settings: { editor: {}, shortcuts: {}, lsp: { enabled: true, requestTimeoutMs: 45000 } },
+  }
+  const restore = mockHostFetch(manager, root)
+  try {
+    configureLsp(store)
+    resetLspHealth()
+    const client = lspClient()
+
+    // One semantic request that the server answers: both sides are strict.
+    const pending = client.request('textDocument/definition', params())
+    manager.relayToServer(root, JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'textDocument/definition', params: {},
+    }))
+    await sleep(100)
+    answerHost(workers, 1)
+    const socket = FakeSocket.instances[FakeSocket.instances.length - 1]
+    assert.equal(socket.answerPending('textDocument/definition'), true, 'the client request was answered')
+    await pending
+    await sleep(50)
+    assert.equal(await probeClient(), 'short', 'the client is strict after the answer')
+
+    // The language server crashes and the host starts a new one. The socket
+    // between the browser and the host stays open - only the PROCESS is
+    // replaced - so the identity in the status is the only way the client
+    // learns about it.
+    const before = manager.stateOf(root).processId
+    handle().exit(1)
+    assert.equal(
+      await waitFor(() => manager.stateOf(root).processId !== before, 3000),
+      true,
+      'the host started a new language server process',
+    )
+
+    // The store polls the status - the real store, the real host.
+    await store.refreshLspStatus()
+    assert.equal(store.state.lsp.processId, manager.stateOf(root).processId, 'the store mirrored the identity')
+
+    assert.equal(await probeHost(manager, root, 9), 'long', 'the host is patient again')
+    assert.equal(await probeClient(), 'long', 'the client is patient again')
+  } finally {
+    restore()
+  }
 })
