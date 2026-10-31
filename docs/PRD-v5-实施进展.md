@@ -276,11 +276,16 @@ src/client/ui.jsx          ContextMenu 的 title 透传
 
 ## 7. 未完成的验收（需要真机走查）
 
+> ⚠️ **实机反馈与修复**：用户在真机上发现三个问题 —— 状态卡在「索引中」、`Ctrl+点击` 100% 超时，
+> 以及一次**把 DSH 宿主进程带崩**的致命缺陷。三个都已修复，根因、证据与验证方式见
+> **`docs/PRD-v5-缺陷跟踪.md`**。下面这份清单是修完之后仍需人工确认的部分。
+
 **端到端链路已经用真的 `typescript-language-server` 验证过**（见 §5.2）。
 下面这些是**界面与交互层面**的验收，自动化测试与端到端脚本都覆盖不到，需要人在界面上点一遍：
 
 - 补全弹窗的观感与键位（`Tab` / `Enter` / `Esc`、不吞 `Ctrl+S`）
 - Ctrl+点击只命中标识符、跨文件跳转到列、围栏外拒绝
+- **失败时 toast 出现，且不再有盖住内容区、要手动叉掉的面板**
 - 引用面板的语义引用、命中数上限
 - 索引取消、崩溃恢复、空闲退出的**界面**表现
 - 索引决策弹窗的两级警告文案
@@ -288,4 +293,26 @@ src/client/ui.jsx          ContextMenu 的 title 透传
 - §11 的进程树 RSS 与事件循环漂移的实测数值
 
 逐条清单见 §5.3。
+
+---
+
+## 8. 实机发现的缺陷（已修）
+
+三个实机缺陷的完整分析在 **`docs/PRD-v5-缺陷跟踪.md`**。这里只留结论：
+
+| # | 现象 | 根因 | 修复 |
+|---|---|---|---|
+| **D1** | **DSH 宿主进程崩溃**（`host exited with 1`，整个应用退出） | `#restart()` 在异步路径上把会话迁到 `building`，而 `idle → building` 不是合法迁移 → `assertTransition` 抛错；`void this.#restart(...)` **不接住 rejection** → 未处理的 rejection 被 harness 当成致命加载失败 → 进程死亡 | 所有异步步骤改走 `#safely()`；`#restart()` 之后重新核对状态；进程**代次守卫**；WS 的 upgrade 回调整体 try/catch |
+| **D2** | 状态永远停在「语义分析：索引中…」 | 浏览器**先连 socket、后启动服务器**，那期间的 `initialize` 被 `relayToServer()` **直接丢弃** → 服务器永不初始化 → 永不回答 → 就绪判定永不触发 | 宿主把无会话时到达的载荷**存进 `entry.pending`**，服务器起来后按序重放；`entry.handshake` 让崩溃重启后的新进程也能被初始化 |
+| **D3** | `Ctrl+点击` 100% `Request timed out` | D2 的连带症状：服务器没收到 `initialize`，任何请求都不回答 | 随 D2 一并解决 |
+| **D4** | 错误浮层盖住内容区、要手动叉掉 | 库的 `LSPPlugin.reportError()` 用 `showDialog(..., {top:true})` 开了一个**永不关闭**的编辑器面板 | 改成走工作台的 toast（9 秒自动消失，不挡内容）；store 不可用时才回落到库的原实现 |
+
+复现与验证脚本（都在 `docs/bench/`，不进 npm 包）：
+
+```powershell
+node docs\bench\live-lsp.mjs        # 真语言服务器跑通完整链路
+node docs\bench\repro-order.mjs      # 浏览器真实顺序（先连 socket、后启动服务器）
+node docs\bench\crash-recovery.mjs   # 语言服务器崩溃 → 宿主必须活着
+```
+
 
