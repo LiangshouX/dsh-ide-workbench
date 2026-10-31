@@ -1684,6 +1684,21 @@ export class WorkbenchStore {
       detail: typeof status.detail === 'string' ? status.detail : null,
       indexedRoots: Array.isArray(status.indexedRoots) ? status.indexedRoots : [],
     }
+    // The memory snapshot travels with the status (the host reads it in the
+    // same call), so the numbers are live without a second request. It is
+    // compared in megabytes: the free memory changes in bytes every time,
+    // and a new object on every poll would wake the whole workbench every
+    // two seconds for a number that did not move.
+    const resources = status.resources ?? null
+    const known = this.state.lsp.resources ?? null
+    const memoryChanged = resources === null
+      ? known !== null
+      : (known === null
+        || Math.round(known.freeBytes / (1024 * 1024)) !== Math.round(resources.freeBytes / (1024 * 1024))
+        || known.needMB !== resources.needMB
+        || known.canIndex !== resources.canIndex
+        || known.tight !== resources.tight)
+    if (memoryChanged) next.resources = resources
     // A running build reports its progress through `lsp.index`.
     if (next.state === 'building') {
       const index = await this.#lspIndex(root)
@@ -1710,6 +1725,7 @@ export class WorkbenchStore {
       || current.startedAt !== next.startedAt
       || current.cancellable !== next.cancellable
       || current.enabled !== next.enabled
+      || memoryChanged
     if (changed) this.set({ lsp: next })
     // The crash is a one-time event: the toast must not repeat on every poll.
     if (next.state === 'crashed' && previous !== 'crashed') {

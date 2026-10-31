@@ -578,6 +578,10 @@ function snapshotOf(entry) {
     progress: PROGRESS[state] ?? state,
     memoryLimitMB: session?.memoryLimitMB ?? null,
     stderrLines: session === null ? [] : [...session.stderrLines],
+    // The requests the server did not answer in time. The counter is the
+    // host's own truth about the server; the client counts its own failures
+    // separately.
+    timeouts: session?.timeouts ?? 0,
   }
 }
 
@@ -662,6 +666,16 @@ export class LspManager {
       detail: session?.detail ?? null,
       indexedRoots: Object.keys(lsp.indexedRoots ?? {}),
       stderrLines: session === null ? [] : [...session.stderrLines],
+      // The requests the server did not answer in time.
+      timeouts: session?.timeouts ?? 0,
+      // The memory of the machine and the estimate of the server travel with
+      // the status: the client polls it every two seconds anyway, and a
+      // running server already knows its language, so nothing has to be
+      // read from disk to know the numbers. Without a server there is
+      // nothing to estimate, and the client asks for it separately.
+      resources: session === null
+        ? null
+        : this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp),
     }
   }
 

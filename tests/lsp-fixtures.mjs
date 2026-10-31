@@ -22,6 +22,27 @@ export function sleep(ms = 0) {
 }
 
 /**
+ * Wait until one condition holds.
+ *
+ * A fixed sleep is a race: on a busy machine the watchdog of the language
+ * server may not have run yet when the assertion is made, and the case
+ * fails for a reason that has nothing to do with the behaviour it checks.
+ * The helper waits for the condition and gives up after the timeout.
+ * @param {() => boolean} condition the condition to wait for
+ * @param {number} [timeoutMs] how long to wait at most
+ * @param {number} [stepMs] how long to wait between the tries
+ * @returns {Promise<boolean>} whether the condition held
+ */
+export async function waitFor(condition, timeoutMs = 3000, stepMs = 10) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (condition()) return true
+    await sleep(stepMs)
+  }
+  return condition()
+}
+
+/**
  * One fake subprocess handle.
  *
  * `stdin` records everything the manager writes, `stdout`/`stderr` are real

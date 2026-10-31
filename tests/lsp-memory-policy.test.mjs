@@ -57,6 +57,23 @@ test('the defaults of the lsp section carry the graded thresholds', () => {
   assert.equal(DEFAULT_LSP_SETTINGS.memoryHardFloorMB, 256)
 })
 
+test('the status carries the memory snapshot, so the numbers are live', async () => {
+  const { manager } = makeManager({
+    lsp: { memoryLimitMB: 2048, freeMemoryThresholdMB: 512 },
+    readMemory: freeOf(2850),
+  })
+  const root = rootOf('status-snapshot')
+  // Without a server there is nothing to estimate: the snapshot is empty.
+  const idle = await manager.status({ root })
+  assert.equal(idle.resources, null, 'no server, no estimate')
+  await manager.start({ root, languageId: 'typescript' })
+  const running = await manager.status({ root })
+  assert.ok(running.resources !== null, 'a running server reports its memory')
+  assert.equal(running.resources.needMB, 384, 'TypeScript: 256 MB baseline times 1.5')
+  assert.equal(running.resources.freeBytes, 2850 * MB)
+  assert.equal(running.resources.canIndex, true)
+})
+
 test('the estimate of a language is its baseline times the headroom', async () => {
   const { manager } = makeManager({
     lsp: { memoryLimitMB: 2048 },

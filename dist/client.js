@@ -3517,6 +3517,10 @@ var WorkbenchStore = class {
       detail: typeof status.detail === "string" ? status.detail : null,
       indexedRoots: Array.isArray(status.indexedRoots) ? status.indexedRoots : []
     };
+    const resources = status.resources ?? null;
+    const known = this.state.lsp.resources ?? null;
+    const memoryChanged = resources === null ? known !== null : known === null || Math.round(known.freeBytes / (1024 * 1024)) !== Math.round(resources.freeBytes / (1024 * 1024)) || known.needMB !== resources.needMB || known.canIndex !== resources.canIndex || known.tight !== resources.tight;
+    if (memoryChanged) next.resources = resources;
     if (next.state === "building") {
       const index = await this.#lspIndex(root);
       if (index !== null) {
@@ -3530,7 +3534,7 @@ var WorkbenchStore = class {
       next.cancellable = false;
     }
     const current = this.state.lsp;
-    const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled;
+    const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled || memoryChanged;
     if (changed) this.set({ lsp: next });
     if (next.state === "crashed" && previous !== "crashed") {
       this.toast("error", this.t("lsp.crashedToast"));

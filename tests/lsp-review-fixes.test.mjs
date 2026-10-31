@@ -24,7 +24,7 @@ import { Worker } from 'node:worker_threads'
 import { FrameDecoder, encodeFrame } from '../src/host/lsp-frame.js'
 import { samePath } from '../src/host/workspace.js'
 import { rootKey } from '../src/host/lsp.js'
-import { makeManager, makeSink, sleep, decodeChunks } from './lsp-fixtures.mjs'
+import { makeManager, makeSink, sleep, waitFor, decodeChunks } from './lsp-fixtures.mjs'
 
 /** A project root that no other test uses. */
 function rootOf(name) {
@@ -132,21 +132,23 @@ test('three unanswered requests kill the language server', async () => {
   manager.relayToServer(root, JSON.stringify({
     jsonrpc: '2.0', id: 1, method: 'textDocument/definition', params: {},
   }))
-  await sleep(150)
-  assert.equal(spawned.length, 1, 'the first stall was counted once')
+  // The watchdog counts the stall when its next tick finds the request past
+  // its deadline. The case waits for the counter instead of guessing how
+  // long that takes: a busy machine may delay the tick by a lot.
+  assert.equal(await waitFor(() => manager.stateOf(root).timeouts >= 1), true, 'the first stall was counted')
+  assert.equal(spawned.length, 1, 'one stall does not kill the server')
 
   manager.relayToServer(root, JSON.stringify({
     jsonrpc: '2.0', id: 2, method: 'textDocument/definition', params: {},
   }))
-  await sleep(150)
-  assert.equal(spawned.length, 1, 'the second stall was counted once as well')
+  assert.equal(await waitFor(() => manager.stateOf(root).timeouts >= 2), true, 'the second stall was counted')
+  assert.equal(spawned.length, 1, 'two stalls do not kill the server')
 
   // A third stall: three counted requests are the limit.
   manager.relayToServer(root, JSON.stringify({
     jsonrpc: '2.0', id: 3, method: 'textDocument/definition', params: {},
   }))
-  await sleep(200)
-  assert.equal(spawned.length, 2, 'the third stalled request restarts the server')
+  assert.equal(await waitFor(() => spawned.length === 2), true, 'the third stalled request restarts the server')
 })
 
 test('the timeout counter is reset when the server answers again', async () => {
