@@ -60,51 +60,69 @@ export function registerLspWebSocket(ctx, { manager, fence } = {}) {
   /**
    * Serve one language server socket: attach it to the language server of
    * its project root and relay the payloads in both directions.
+   *
+   * The whole body is guarded: a throw inside the `upgrade` callback would
+   * escape into the HTTP server and take the DSH host process down with it.
    * @param {WebSocket} ws the socket
    * @param {any} req the upgrade request
    */
   const attach = (ws, req) => {
-    const url = new URL(req.url ?? '/', 'http://dsh.internal')
-    const requested = url.searchParams.get('root')
-    if (typeof requested !== 'string' || requested === '' || !isAbsolute(requested)) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'error', message: 'the LSP WebSocket needs an absolute "root" path' }))
-      }
-      ws.close()
-      return
-    }
-    const root = resolvePath(requested)
-    const send = (text) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(text)
-    }
-    const control = (event) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event))
-    }
-    const detach = manager.attachSink(root, { send, control })
-    sockets.add(ws)
-
-    // The relay attaches to an existing session; it never starts one on its
-    // own. The client decides through the API whether a language server is
-    // started (and whether the index is built at all).
-    let snapshot = { state: 'idle' }
     try {
-      snapshot = manager.stateOf?.(root) ?? snapshot
-    } catch { /* the root has no session yet */ }
-    control({ type: 'ready', root, state: snapshot.state ?? 'idle' })
+      const url = new URL(req.url ?? '/', 'http://dsh.internal')
+      const requested = url.searchParams.get('root')
+      if (typeof requested !== 'string' || requested === '' || !isAbsolute(requested)) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'error', message: 'the LSP WebSocket needs an absolute "root" path' }))
+        }
+        ws.close()
+        return
+      }
+      const root = resolvePath(requested)
+      const send = (text) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(text)
+      }
+      const control = (event) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event))
+      }
+      const detach = manager.attachSink(root, { send, control })
+      sockets.add(ws)
 
-    ws.on('message', (raw) => {
-      const text = typeof raw === 'string' ? raw : raw.toString('utf8')
-      if (text.trim() === '') return
-      // A broken client must not take the session down: a payload that is not
-      // JSON is dropped instead of forwarded.
-      if (!looksLikeJson(text)) return
-      manager.relayToServer(root, text)
-    })
-    ws.on('error', () => {})
-    ws.on('close', () => {
-      sockets.delete(ws)
-      detach()
-    })
+      // The relay attaches to an existing session; it never starts one on its
+      // own. The client decides through the API whether a language server is
+      // started (and whether the index is built at all).
+      let snapshot = { state: 'idle' }
+      try {
+        snapshot = manager.stateOf?.(root) ?? snapshot
+      } catch { /* the root has no session yet */ }
+      control({ type: 'ready', root, state: snapshot.state ?? 'idle' })
+
+      ws.on('message', (raw) => {
+        const text = typeof raw === 'string' ? raw : raw.toString('utf8')
+        if (text.trim() === '') return
+        // A broken client must not take the session down: a payload that is
+        // not JSON is dropped instead of forwarded.
+        if (!looksLikeJson(text)) return
+        try {
+          manager.relayToServer(root, text)
+        } catch {
+          /* the root is gone: the client reconnects */
+        }
+      })
+      ws.on('error', () => {})
+      ws.on('close', () => {
+        sockets.delete(ws)
+        detach()
+      })
+    } catch {
+      try {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'error', message: 'the language server relay could not be attached' }))
+        }
+        ws.close()
+      } catch {
+        /* the socket is already gone */
+      }
+    }
   }
 
   const handler = (req, socket, head) => {

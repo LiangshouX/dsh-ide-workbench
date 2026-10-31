@@ -21,7 +21,7 @@
  * 4. **The HTML of a hover is sanitized.** The server's Markdown may contain
  *    arbitrary HTML, so `sanitizeHTML` is part of the client configuration.
  */
-import { LSPClient, hoverTooltips, serverCompletion, signatureHelp } from '@codemirror/lsp-client'
+import { LSPClient, LSPPlugin, hoverTooltips, serverCompletion, signatureHelp } from '@codemirror/lsp-client'
 import { wsUrl } from './api.js'
 import { sanitizeHTML } from './lsp-sanitize.js'
 import { createLspTransport } from './lsp-transport.js'
@@ -57,6 +57,40 @@ const sessionListeners = new Set()
 let unsubscribeStore = null
 /** The last combination of settings and root the session was started for. */
 let sessionKey = null
+/** Whether the error reports of the library were redirected already. */
+let reportErrorRedirected = false
+
+/**
+ * Send the reports of the language server to the workbench toast.
+ *
+ * `LSPPlugin.reportError` opens a dialog panel at the top of the editor and
+ * never closes it: one failed request covers the code until the user clicks
+ * the cross. The workbench already has a transient toast that sits above the
+ * status bar, so the message goes there instead - it stays visible (PRD
+ * §7.1) without covering anything.
+ *
+ * The library is not changed on disk; its prototype is redirected once, when
+ * the first session starts.
+ */
+export function redirectErrorsToToast() {
+  if (reportErrorRedirected) return
+  reportErrorRedirected = true
+  const original = LSPPlugin.prototype.reportError
+  LSPPlugin.prototype.reportError = function reportError(message, err) {
+    const detail = err?.message ?? String(err ?? '')
+    console.warn('[lsp]', message, detail)
+    const store = sessionStore
+    if (store !== null && typeof store.toast === 'function') {
+      try {
+        store.toast('error', `${message}: ${detail}`, '')
+        return
+      } catch {
+        /* the toast is broken: fall through to the library */
+      }
+    }
+    original.call(this, message, err)
+  }
+}
 
 /**
  * Announce that the extensions of the editors changed.
@@ -249,6 +283,7 @@ function startLsp() {
   if (currentClient !== null) return
   const store = sessionStore
   if (store === null || store === undefined) return
+  redirectErrorsToToast()
   const root = typeof store.state?.root === 'string' ? store.state.root : ''
   currentClient = new LSPClient({
     rootUri: fileUriOf(root),

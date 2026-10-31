@@ -54694,6 +54694,25 @@ var editorViews = /* @__PURE__ */ new Map();
 var sessionListeners = /* @__PURE__ */ new Set();
 var unsubscribeStore = null;
 var sessionKey = null;
+var reportErrorRedirected = false;
+function redirectErrorsToToast() {
+  if (reportErrorRedirected) return;
+  reportErrorRedirected = true;
+  const original = LSPPlugin.prototype.reportError;
+  LSPPlugin.prototype.reportError = function reportError(message, err) {
+    const detail = err?.message ?? String(err ?? "");
+    console.warn("[lsp]", message, detail);
+    const store = sessionStore;
+    if (store !== null && typeof store.toast === "function") {
+      try {
+        store.toast("error", `${message}: ${detail}`, "");
+        return;
+      } catch {
+      }
+    }
+    original.call(this, message, err);
+  };
+}
 function bumpVersion() {
   sessionVersion += 1;
   for (const listener of [...sessionListeners]) {
@@ -54807,6 +54826,7 @@ function startLsp() {
   if (currentClient !== null) return;
   const store = sessionStore;
   if (store === null || store === void 0) return;
+  redirectErrorsToToast();
   const root = typeof store.state?.root === "string" ? store.state.root : "";
   currentClient = new LSPClient({
     rootUri: fileUriOf(root),

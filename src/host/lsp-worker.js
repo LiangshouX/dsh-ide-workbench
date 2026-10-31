@@ -181,6 +181,14 @@ export class Handshake {
     this.result = null
     /** The id of the `initialize` request that was forwarded to the server. */
     this.requestId = null
+    /**
+     * The ids of the handshakes that were absorbed instead of forwarded.
+     *
+     * A client may ask for a handshake twice (a reconnect while the server
+     * is still answering the first one). Only the first request reaches the
+     * server; the others are answered from the cache as soon as it is known.
+     */
+    this.duplicates = []
   }
 
   /**
@@ -199,6 +207,10 @@ export class Handshake {
 
   /**
    * Remember a payload that was forwarded to the server.
+   *
+   * Only the *first* handshake is forwarded: a language server is
+   * initialized once per process, and a second `initialize` would be a
+   * protocol violation.
    * @param {string} text the payload
    * @returns {boolean} true when the payload was the `initialize` request
    */
@@ -206,8 +218,27 @@ export class Handshake {
     if (!/"method"\s*:\s*"initialize"/.test(text)) return false
     const parsed = Handshake.parse(text)
     if (parsed === null || methodOf(parsed) !== 'initialize') return false
-    this.requestId = idOf(parsed)
+    const id = idOf(parsed)
+    if (this.requestId !== null) {
+      // A second handshake: remember it, but do not forward it.
+      if (id !== null && !this.duplicates.includes(id)) this.duplicates.push(id)
+      return false
+    }
+    this.requestId = id
     return true
+  }
+
+  /**
+   * The answers for the handshakes that were absorbed.
+   *
+   * They are only available once the server has answered the first one:
+   * the capabilities are what the client is waiting for.
+   * @returns {string[]} the JSON-RPC responses
+   */
+  takePendingAnswers() {
+    if (this.result === null || this.duplicates.length === 0) return []
+    const ids = this.duplicates.splice(0, this.duplicates.length)
+    return ids.map(id => JSON.stringify({ jsonrpc: '2.0', id, result: this.result }))
   }
 
   /**
@@ -261,6 +292,11 @@ function run(options) {
       for (const payload of decoder.push(toBuffer(message.data))) {
         handshake.noteServerPayload(payload)
         parentPort.postMessage({ type: 'message', text: payload })
+        // A client that asked for a handshake twice is waiting for the second
+        // answer; it comes from the cached capabilities.
+        for (const answer of handshake.takePendingAnswers()) {
+          parentPort.postMessage({ type: 'message', text: answer })
+        }
       }
       return
     }
@@ -285,7 +321,12 @@ function run(options) {
         }
       }
       const payload = message.origin === 'host' ? text : withMemoryLimit(text, injectMemoryLimit ? memoryLimitMB : null)
-      if (message.origin !== 'host') handshake.noteForwarded(payload)
+      if (message.origin !== 'host' && handshake.noteForwarded(payload)) {
+        // The host keeps the handshake: a language server that is restarted
+        // after a crash has to be initialized again, and the browser sends its
+        // handshake only once.
+        parentPort.postMessage({ type: 'handshake', text: payload })
+      }
       parentPort.postMessage({ type: 'stdin', data: encodeFrame(payload) })
       return
     }

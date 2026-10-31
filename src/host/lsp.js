@@ -140,7 +140,7 @@ const MEMORY_LIMIT_AWARE = new Set(['typescript-language-server'])
 /** The state machine of one language server (PRD §3.1). */
 const TRANSITIONS = {
   idle: ['starting', 'idle'],
-  starting: ['building', 'failed', 'degraded', 'cancelling', 'idle'],
+  starting: ['building', 'failed', 'degraded', 'cancelling', 'crashed', 'idle'],
   building: ['ready', 'failed', 'degraded', 'cancelling', 'crashed', 'idle'],
   ready: ['crashed', 'degraded', 'cancelling', 'idle'],
   restarting: ['building', 'failed', 'degraded', 'cancelling', 'idle'],
@@ -167,6 +167,14 @@ const PROGRESS = {
 
 /** How many stderr lines are kept per language server for the settings page. */
 const MAX_STDERR_LINES = 200
+/**
+ * How many client payloads may wait for a language server.
+ *
+ * The browser connects its socket long before the server exists, so its
+ * handshake lands here first. The buffer is a safety net, not a queue: a
+ * handful of payloads is plenty.
+ */
+const MAX_PENDING_PAYLOADS = 64
 
 /** Characters that must never appear in a language server command. */
 const SHELL_METACHARACTERS = /[&|;<>$`"'*?()\r\n\t]/
@@ -769,6 +777,16 @@ export class LspManager {
 
   /**
    * Forward one client payload to the language server.
+   *
+   * The browser connects its socket long before the language server exists:
+   * the workbench opens, the client says hello, and the server is only
+   * started when the user picks a project. The handshake that arrives in
+   * between would be lost, and the server would wait for it forever - the
+   * session would stay in "building" and every request would time out.
+   *
+   * So a payload that arrives without a server is *held* and replayed the
+   * moment one starts. The payloads are opaque strings: the main thread
+   * never parses them.
    * @param {string} root the absolute project root
    * @param {string} text one bare JSON-RPC payload
    * @returns {boolean} false when no language server is running
@@ -776,11 +794,39 @@ export class LspManager {
   relayToServer(root, text) {
     const entry = this.#peek(this.#requireRoot(root))
     const session = entry?.session ?? null
-    if (session === null || session.worker === null) return false
+    if (session === null || session.worker === null) {
+      this.#holdFor(entry, text)
+      return false
+    }
     session.worker.postMessage({ type: 'send', text, origin: 'client' })
     session.lastClientActivityAt = this.#now()
     this.#touch(entry, session)
     return true
+  }
+
+  /**
+   * Keep one client payload until a language server can take it.
+   * @param {object | null} entry the root entry
+   * @param {string} text the payload
+   */
+  #holdFor(entry, text) {
+    if (entry === null || entry === undefined) return
+    if (typeof text !== 'string' || text === '') return
+    if (entry.pending.length >= MAX_PENDING_PAYLOADS) entry.pending.shift()
+    entry.pending.push(text)
+  }
+
+  /**
+   * Replay the payloads that arrived before the language server started.
+   * @param {object} entry the root entry
+   * @param {object} session the session
+   */
+  #replayPending(entry, session) {
+    if (entry.pending.length === 0) return
+    const payloads = entry.pending.splice(0, entry.pending.length)
+    for (const text of payloads) {
+      session.worker?.postMessage({ type: 'send', text, origin: 'client' })
+    }
   }
 
   // ── internals ───────────────────────────────────────────────────────────
@@ -809,6 +855,17 @@ export class LspManager {
         session: null,
         sinks: new Set(),
         documents: new Map(),
+        /**
+         * The client payloads that arrived before a language server was
+         * started. The handshake of the browser lands here: the socket is
+         * connected long before the server exists.
+         */
+        pending: [],
+        /**
+         * The handshake of the browser, kept so a language server that is
+         * started later - or restarted after a crash - can be initialized.
+         */
+        handshake: '',
       }
       ROOTS.set(key, entry)
     }
@@ -962,6 +1019,14 @@ export class LspManager {
       watchdogTimer: null,
       readyTimer: null,
       restartTimer: null,
+      /**
+       * Counts the processes this session started.
+       *
+       * A process that was replaced must not report its own death into the
+       * new session: the callbacks of the old process check the generation
+       * they were started with and stop when it moved on.
+       */
+      generation: 0,
     }
     entry.session = session
     this.#transition(session, 'starting', 'starting the language server')
@@ -1022,11 +1087,25 @@ export class LspManager {
 
   /**
    * Start the process and wire its pipes to the frame worker.
+   *
+   * A process that is replaced is terminated first: a language server that
+   * keeps running in the background would hold its memory and would report
+   * its own death into the session that took its place.
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {object} resolution the resolved executable
    */
   async #spawn(entry, session, resolution) {
+    // The process of the previous generation is stopped before the new one
+    // starts, and its callbacks are fenced off by the generation counter.
+    const previous = session.handle
+    session.generation += 1
+    const generation = session.generation
+    if (previous !== null && previous !== undefined) {
+      session.intentionalExit = true
+      try { previous.terminate() } catch { /* it is already gone */ }
+      session.handle = null
+    }
     const worker = this.#createWorker({
       memoryLimitMB: session.memoryLimitMB,
       injectMemoryLimit: session.supportsMemoryLimit,
@@ -1034,8 +1113,17 @@ export class LspManager {
     session.worker = worker
     worker.on?.('message', (message) => { this.#onWorkerMessage(entry, session, message) })
     worker.on?.('error', (error) => {
-      void this.#onCrash(entry, session, `the frame worker failed: ${messageOf(error)}`)
+      this.#safely(this.#onCrash(entry, session, `the frame worker failed: ${messageOf(error)}`), 'the crash handler')
     })
+
+    // The handshake goes first: a language server that was restarted (after
+    // a crash) has to be initialized again before any document may be
+    // announced. The payload is the one the browser sent.
+    if (typeof entry.handshake === 'string' && entry.handshake !== '') {
+      worker.postMessage({ type: 'send', text: entry.handshake, origin: 'client' })
+    }
+    // Then the payloads that arrived while there was no server at all.
+    this.#replayPending(entry, session)
 
     const argv = resolution.scriptPath !== null && resolution.scriptPath !== undefined
       ? [process.execPath, resolution.scriptPath, ...session.args]
@@ -1064,18 +1152,24 @@ export class LspManager {
 
     // The stdout pipe is the frame channel: it carries LSP messages and
     // nothing else. Logs go to stderr, which is collected separately.
+    // Every callback checks the generation: a process that was replaced must
+    // not feed the new worker and must not report its death into the new
+    // session.
+    const current = () => session.generation === generation
     if (handle.stdout) {
       handle.stdout.on('data', (chunk) => {
+        if (!current()) return
         session.worker?.postMessage({ type: 'stdout', data: chunk })
       })
       handle.stdout.on('end', () => {
-        if (session.exited) return
-        void this.#onCrash(entry, session, 'the output stream closed while the process was still running')
+        if (!current() || session.exited) return
+        this.#safely(this.#onCrash(entry, session, 'the output stream closed while the process was still running'), 'the crash handler')
       })
       handle.stdout.on('error', () => {})
     }
     if (handle.stderr) {
       handle.stderr.on('data', (chunk) => {
+        if (!current()) return
         const text = typeof chunk === 'string' ? chunk : String(chunk)
         session.stderrLines.push(text)
         if (session.stderrLines.length > MAX_STDERR_LINES) session.stderrLines.shift()
@@ -1083,7 +1177,8 @@ export class LspManager {
       })
       handle.stderr.on('error', () => {})
     }
-    Promise.resolve(handle.done).then((outcome) => {
+    Promise.resolve(handle.done ?? null).then((outcome) => {
+      if (!current()) return
       session.exited = true
       const code = outcome?.exitCode ?? null
       const signal = outcome?.signal ?? null
@@ -1097,11 +1192,12 @@ export class LspManager {
         this.#stopWorker(session)
         return
       }
-      void this.#onCrash(entry, session, `the process exited with code ${code}${signal === null ? '' : ` (${signal})`}`)
+      this.#safely(this.#onCrash(entry, session, `the process exited with code ${code}${signal === null ? '' : ` (${signal})`}`), 'the crash handler')
     }).catch((error) => {
+      if (!current()) return
       session.exited = true
       if (session.intentionalExit) return
-      void this.#onCrash(entry, session, `the process failed: ${messageOf(error)}`)
+      this.#safely(this.#onCrash(entry, session, `the process failed: ${messageOf(error)}`), 'the crash handler')
     })
 
     // Windows: an indexing language server must not steal the CPU from the
@@ -1137,6 +1233,15 @@ export class LspManager {
     }
     if (message.type === 'document') {
       this.#trackDocument(entry, message)
+      return
+    }
+    if (message.type === 'handshake') {
+      // The browser sends its handshake once. A language server that is
+      // started later - or restarted after a crash - needs it again, so the
+      // host keeps it and replays it to every new process.
+      if (typeof message.text === 'string' && message.text !== '') {
+        entry.handshake = message.text
+      }
       return
     }
   }
@@ -1243,6 +1348,14 @@ export class LspManager {
 
   /**
    * Move one session to another state and tell the clients.
+   *
+   * The transition is strict: an illegal change is a bug and is rejected.
+   * The state machine is the contract the tests hold, and a rejected change
+   * is much easier to find than a silently corrupted one.
+   *
+   * The host must survive it, though: every asynchronous step of the manager
+   * goes through `#safely()`, so a rejected transition is logged and the
+   * process keeps running.
    * @param {object} session the session
    * @param {string} next the wanted state
    * @param {string | null} [detail] the message shown to the user
@@ -1255,6 +1368,21 @@ export class LspManager {
     if (entry !== undefined) {
       this.#notify(entry, { type: 'state', root: entry.root, state: next, detail })
     }
+  }
+
+  /**
+   * Run one asynchronous step without ever letting it reject.
+   *
+   * A plugin that leaks an unhandled rejection kills the DSH host process
+   * (the harness treats it as a fatal load failure), so every asynchronous
+   * step of the manager goes through here.
+   * @param {Promise<any>} promise the step
+   * @param {string} what a short name for the log
+   */
+  #safely(promise, what) {
+    Promise.resolve(promise).catch((error) => {
+      this.#ctx?.logger?.warn?.('lsp: %s failed: %s', what, messageOf(error))
+    })
   }
 
   /**
@@ -1299,7 +1427,7 @@ export class LspManager {
       session.readyTimer = null
       if (session.state !== 'building') return
       this.#transition(session, 'ready', 'ready')
-      void this.#persistIndexed(entry, session)
+      this.#safely(this.#persistIndexed(entry, session), 'saving the indexed roots')
     }, this.#readyDelayMs)
     timer.unref?.()
     session.readyTimer = timer
@@ -1365,7 +1493,7 @@ export class LspManager {
       this.#armIdleTimer(entry, session, timeout - elapsed)
       return
     }
-    void this.#exitIdle(entry, session)
+    this.#safely(this.#exitIdle(entry, session), 'the idle exit')
   }
 
   /**
@@ -1430,7 +1558,7 @@ export class LspManager {
   #noteTimeout(entry, session, reason) {
     session.timeouts += 1
     if (session.timeouts < this.#timeoutLimit) return
-    void this.#onCrash(entry, session, `${session.timeouts} consecutive request timeouts`)
+    this.#safely(this.#onCrash(entry, session, `${session.timeouts} consecutive request timeouts`), 'the crash handler')
   }
 
   /**
@@ -1471,7 +1599,7 @@ export class LspManager {
     }
     session.restarts += 1
     this.#transition(session, 'restarting', 'restarting the language server')
-    const timer = setTimeout(() => { void this.#restart(entry, session) }, this.#restartBackoffMs)
+    const timer = setTimeout(() => { this.#safely(this.#restart(entry, session), 'the restart') }, this.#restartBackoffMs)
     timer.unref?.()
     session.restartTimer = timer
   }
@@ -1496,6 +1624,11 @@ export class LspManager {
       this.#transition(session, 'degraded', `the language server could not be restarted: ${messageOf(error)}`)
       return
     }
+    // The state may have moved on while the process was starting: an idle
+    // exit, a cancel or a shutdown can happen in that window. A restart must
+    // not drag the session back into a build it has left.
+    if (entry.session !== session) return
+    if (session.state !== 'restarting') return
     this.#transition(session, 'building', 'building the program')
     session.startedAt = this.#now()
     session.lastActivityAt = this.#now()
