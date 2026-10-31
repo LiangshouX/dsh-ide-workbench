@@ -280,13 +280,13 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 
 ## 9. D9 —— 悬停卡片 / 补全弹窗看不清，Ctrl+悬浮没有提示
 
-### 10.1 三个现象
+### 9.1 三个现象
 
 1. **悬停卡片（hover）文字几乎看不见**：浅色卡片上是很浅的灰字。
 2. **补全弹窗选中行看不清**：选中那条几乎看不见字。
 3. **Ctrl+悬浮没有任何效果**：能跳转，但按 Ctrl 前后视觉上没区别，用户不知道该点哪里。
 
-### 10.2 根因
+### 9.2 根因
 
 **悬停卡片**：样式写的是 `.cm-lsp-hover`，但库实际渲染的类名是
 **`.cm-lsp-hover-tooltip`**（`@codemirror/lsp-client` 的 `hoverTooltips` 里
@@ -301,7 +301,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 
 **Ctrl+悬浮**：根本没实现，只做了点击。
 
-### 10.3 修复
+### 9.3 修复
 
 | 位置 | 改动 |
 |---|---|
@@ -311,7 +311,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 | `src/client/CodeEditor.jsx` | 新增 Ctrl+悬浮提示：`StateField` 持有一个 `Decoration.mark`（类名 `iwb-ctrl-hover-symbol`），`mousemove` / `mouseleave` / 窗口的 `keydown` / `keyup` / `blur` 一起维护它；装饰会随文档变更 `map` 到新位置，所以打字时也还在那个词上。 |
 | `src/client/styles.js` | `.iwb-ctrl-hover-symbol`：强调色 + 下划线 + `cursor: pointer`，颜色对标记及其子节点都强制，压过 token 的语法色。 |
 
-### 10.4 验证
+### 9.4 验证
 
 ```powershell
 node --test tests/ctrl-hover.test.mjs      # 7 个用例
