@@ -285,7 +285,6 @@ export function lspStatusView(store, state) {
   const language = typeof lsp.languageId === 'string' ? lsp.languageId : ''
   const current = typeof lsp.state === 'string' && lsp.state !== '' ? lsp.state : 'idle'
   const detail = typeof lsp.detail === 'string' ? lsp.detail : ''
-  const progress = typeof lsp.progress === 'string' ? lsp.progress : ''
   const base = { title: t('lsp.statusTitle'), detail, action: null }
   if (settingsLsp.enabled === false || lsp.enabled === false || current === 'disabled') {
     return { ...base, key: 'disabled', text: t('lsp.status.disabled'), tone: 'idle' }
@@ -325,10 +324,12 @@ export function lspStatusView(store, state) {
         tone: 'idle',
       }
     case 'ready':
-      // An incremental update is announced while the server keeps serving.
-      return progress === ''
-        ? { ...base, key: 'ready', text: t('lsp.status.ready'), tone: 'ok' }
-        : { ...base, key: 'updating', text: t('lsp.status.updating'), tone: 'warn' }
+      // "Ready" is ready. An incremental update runs inside the language
+      // server and it reports nothing about it, so there is no state to show
+      // here - the `progress` value belongs to a build and the store clears it
+      // when the build ends. Showing "updating" on a leftover value kept the
+      // status bar at that text forever.
+      return { ...base, key: 'ready', text: t('lsp.status.ready'), tone: 'ok' }
     case 'crashed':
       return { ...base, key: 'crashed', text: t('lsp.status.crashed'), tone: 'error', action: 'crash' }
     case 'cancelled':

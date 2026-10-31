@@ -1455,6 +1455,13 @@ export class WorkbenchStore {
         next.startedAt = Number.isFinite(index.startedAt) ? index.startedAt : 0
         next.cancellable = index.cancellable === true
       }
+    } else {
+      // The build is over: the progress of the last one must not linger. The
+      // spread above carries it over from the previous snapshot, and a stale
+      // value would keep the status bar at "updating the index" forever.
+      next.progress = ''
+      next.startedAt = 0
+      next.cancellable = false
     }
     const current = this.state.lsp
     const changed = current.state !== next.state

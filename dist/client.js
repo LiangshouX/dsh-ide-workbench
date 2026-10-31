@@ -3170,6 +3170,10 @@ var WorkbenchStore = class {
         next.startedAt = Number.isFinite(index.startedAt) ? index.startedAt : 0;
         next.cancellable = index.cancellable === true;
       }
+    } else {
+      next.progress = "";
+      next.startedAt = 0;
+      next.cancellable = false;
     }
     const current = this.state.lsp;
     const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled;
@@ -58724,7 +58728,6 @@ function lspStatusView(store, state) {
   const language2 = typeof lsp.languageId === "string" ? lsp.languageId : "";
   const current = typeof lsp.state === "string" && lsp.state !== "" ? lsp.state : "idle";
   const detail = typeof lsp.detail === "string" ? lsp.detail : "";
-  const progress = typeof lsp.progress === "string" ? lsp.progress : "";
   const base2 = { title: t2("lsp.statusTitle"), detail, action: null };
   if (settingsLsp.enabled === false || lsp.enabled === false || current === "disabled") {
     return { ...base2, key: "disabled", text: t2("lsp.status.disabled"), tone: "idle" };
@@ -58756,7 +58759,7 @@ function lspStatusView(store, state) {
         tone: "idle"
       };
     case "ready":
-      return progress === "" ? { ...base2, key: "ready", text: t2("lsp.status.ready"), tone: "ok" } : { ...base2, key: "updating", text: t2("lsp.status.updating"), tone: "warn" };
+      return { ...base2, key: "ready", text: t2("lsp.status.ready"), tone: "ok" };
     case "crashed":
       return { ...base2, key: "crashed", text: t2("lsp.status.crashed"), tone: "error", action: "crash" };
     case "cancelled":
