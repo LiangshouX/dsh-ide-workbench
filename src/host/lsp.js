@@ -792,8 +792,11 @@ export class LspManager {
    * @returns {boolean} false when no language server is running
    */
   relayToServer(root, text) {
-    const entry = this.#peek(this.#requireRoot(root))
-    const session = entry?.session ?? null
+    // `#entry()` instead of `#peek()`: the entry is created when it is
+    // missing, so a payload that arrives before the relay attached the sink
+    // is held instead of dropped.
+    const entry = this.#entry(this.#requireRoot(root))
+    const session = entry.session ?? null
     if (session === null || session.worker === null) {
       this.#holdFor(entry, text)
       return false
@@ -1149,6 +1152,10 @@ export class LspManager {
     }
     session.handle = handle
     session.intentionalExit = false
+    // The session is alive again: the flag of the process that died must not
+    // swallow the death of the new one (a server that dies silently after a
+    // restart would go unnoticed).
+    session.exited = false
 
     // The stdout pipe is the frame channel: it carries LSP messages and
     // nothing else. Logs go to stderr, which is collected separately.
@@ -1426,7 +1433,14 @@ export class LspManager {
     const timer = setTimeout(() => {
       session.readyTimer = null
       if (session.state !== 'building') return
-      this.#transition(session, 'ready', 'ready')
+      try {
+        this.#transition(session, 'ready', 'ready')
+      } catch (error) {
+        // A timer callback that throws is an *uncaught* exception, and an
+        // uncaught exception in the host ends the DSH process.
+        this.#ctx?.logger?.warn?.('lsp: the server could not be marked ready: %s', messageOf(error))
+        return
+      }
       this.#safely(this.#persistIndexed(entry, session), 'saving the indexed roots')
     }, this.#readyDelayMs)
     timer.unref?.()
@@ -1541,12 +1555,18 @@ export class LspManager {
    * @param {number} timeout the request timeout
    */
   #checkTimeouts(entry, session, timeout) {
-    if (entry.session !== session) return
-    if (session.state !== 'ready' && session.state !== 'building') return
-    if (session.lastClientActivityAt === 0) return
-    if (session.lastServerActivityAt >= session.lastClientActivityAt) return
-    if (this.#now() - session.lastClientActivityAt < timeout) return
-    this.#noteTimeout(entry, session, 'the language server stopped responding')
+    try {
+      if (entry.session !== session) return
+      if (session.state !== 'ready' && session.state !== 'building') return
+      if (session.lastClientActivityAt === 0) return
+      if (session.lastServerActivityAt >= session.lastClientActivityAt) return
+      if (this.#now() - session.lastClientActivityAt < timeout) return
+      this.#noteTimeout(entry, session, 'the language server stopped responding')
+    } catch (error) {
+      // The watchdog runs in an interval: a throw here is an uncaught
+      // exception and would end the DSH host process.
+      this.#ctx?.logger?.warn?.('lsp: the watchdog failed: %s', messageOf(error))
+    }
   }
 
   /**
