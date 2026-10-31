@@ -5,6 +5,8 @@
 > **方法**：读代码 + 实跑验证（`npm test`、`npm run build`、开发方自带的 `docs/bench/*.mjs`、以及本次自建的探针）。**本次检视未修改任何源码**。
 > **检视日期**：2026-10-31。**第二轮交叉复核**：同日，另一位复核者独立回查「缺陷跟踪文档 ↔ 代码 ↔ 实机日志」，结论与第一轮**一致**，新增 **N10–N13**（均为文档级问题，见 §3.3）；两轮均未修改任何源码文件。
 > **第三轮（复核 + 修复）**：同日，**本文档的结论被逐条独立复现并全部修复**，见 **§6**。§1–§5 保留检视当时的原文（行号以当时为准），§6 记录复核结论、订正与修复状态。
+> **第四轮（修复后的独立复核）**：同日，复核 §6 的修复，13/13 成立，新增 **M1 / M2**，见 **§7**。
+> **第五轮（M1 / M2 的复核与修复）**：同日，M1 / M2 全部成立并修复，修复过程中另发现 **M3**（取消时残留进程），见 **§8**。
 
 ---
 
@@ -610,3 +612,295 @@ node docs\bench\crash-recovery.mjs
 - **§3.1 的建议**：报告建议给 `repro-order.mjs` 一个「可注入的 `freeMemoryThresholdMB`」。
   实现上用的是**一次性 profile**（`DSH_PROFILE_DIR`）而不是加参数 ——
   脚本里唯一能改的是插件的设置文档，这样改**不用动生产代码**。
+
+---
+
+## 7. 第四轮：修复后的独立复核（2026-10-31）
+
+> 这一轮的任务：**独立复核 §6 的修复**，不采信 §6 的结论。
+> 结论：**§6 声称的 N1–N13 修复全部成立**（13/13 用自建探针或变异测试独立确认）。
+> 但复核又找出 **2 项新问题**（M1、M2），其中 M1 违反 PRD §2.4 的幂等要求。
+
+### 7.1 复核方法
+
+| 手段 | 说明 |
+|---|---|
+| 读码 | 逐条核对 §6.3 的修复清单与 `3a42238` 的实际改动 |
+| 自建探针 | 在宿主管理器层面独立复现每一项修复（不依赖开发方的新用例） |
+| **变异测试** | 把每一处修复**单独回退**，验证新用例**确实会失败**（§6.4 的表只覆盖了部分修复） |
+| 实跑 | `npm test`、`npm run build`、`docs/bench/repro-order.mjs`、`docs/bench/crash-recovery.mjs` |
+
+### 7.2 逐条复核结论：13/13 成立
+
+| 项 | 复核手段与实测输出 | 结论 |
+|---|---|---|
+| **N1** | 自建探针（**同步**假 worker —— 上一轮丢帧的那个场景）：`暂存的握手到达服务器 stdin : 是 ✓` | ✅ 成立 |
+| **N2** | 一个挂起请求 → 状态停在 `building`（**不再**降级）；三个不同请求 → `3 request timeouts` → `degraded` | ✅ 成立（语义与文案都对） |
+| **N3** | 只统计**常驻 `setInterval`**：`start 后=1 → cancel 后=0 → 3 轮 start/cancel 后=0` | ✅ 成立 |
+| **N4** | 真 worker 实测：`写入服务器 stdin 的帧数 : 1`（第二个 initialize 被吸收） | ✅ 成立 |
+| **N5** | 握手后灌入 **200 条**载荷再启动：`initialize 是否还在 : 是 ✓` | ✅ 成立 |
+| **N6** | `samePath(rootKey(raw), raw) = true` | ✅ 成立 |
+| **N7** | `enabled === false` → 不启动、注册表报 `disabled`、设置页有专门的一行 | ✅ 成立 |
+| **N8** | `package.json` 已删掉 `marked` 的直接声明 | ✅ 成立 |
+| **N9** | `实施进展.md` 现为 544 项 / 2,772,340 字节 / +301 KB —— 与磁盘 `dist/client.js` **逐字节吻合** | ✅ 成立 |
+| **§3.1** | `repro-order.mjs` 现在失败退 1、内存门槛降到 64 MB，**本机完整跑通 D2 场景**：握手被暂存 → 重放 → 23 项能力 → `ready` → 跨文件 definition 有真实答案 | ✅ 成立 |
+| **§3.2** | `tests/lsp-recovery.test.mjs` 新增 4 例，监听 `unhandledRejection` / `uncaughtException` | ✅ 成立 |
+| **N10–N13** | 文档层面的指针、清单、章节号、脚本前提均已同步 | ✅ 成立 |
+
+**变异测试**（把修复单独回退，新用例必须失败）—— 我独立跑了 7 个变异：
+
+```
+KILLED   N1  握手重放移回句柄赋值之前      → the held handshake reaches the stdin…
+KILLED   N2  去掉 timeoutStallAt 守卫      → one slow request does not kill…
+KILLED   N3  cancelIndex 不再 teardown     → a cancelled index leaves no timer behind…
+KILLED   N4  重复握手恢复无条件写 stdin    → the worker writes only one initialize…
+KILLED   N5  握手专用槽位 + 淘汰规则全回退 → the handshake survives a queue of waiting payloads
+KILLED   N6  samePath 恢复只折叠大小写     → a live state is found for the same folder…
+SURVIVED N2b 移除「服务器回答后计数器复位」 → (无失败用例)   ← 见 M2
+```
+
+### 7.3 新发现的问题
+
+### M1 ［中］`cancelIndex` 在 `degraded` / `cancelling` 状态下抛错 —— 违反 PRD §2.4 的幂等要求
+
+**位置**：`src/host/lsp.js:605-620`（守卫）、`:141-152`（`TRANSITIONS`）
+
+```js
+605  async cancelIndex({ root } = {}) {
+     ...
+610    if (session.state === 'cancelled' || session.state === 'idle') return { state: 'cancelled' }
+611    this.#transition(session, 'cancelling', 'cancelling')
+```
+
+守卫只覆盖 `'cancelled'` 与 `'idle'` 两个状态，而 `TRANSITIONS` 里：
+
+```
+148  cancelling: ['cancelled', 'idle'],
+150  failed:     ['starting', 'idle'],
+151  degraded:   ['starting', 'idle'],
+```
+
+`'degraded'`、`'failed'` **没有** `'cancelling'` 这条边 → `assertTransition` 抛错。
+
+**本次实测（两种触发方式）**：
+
+```
+=== 对 degraded 会话调用 cancelIndex ===
+  超时后状态: degraded
+  >> cancelIndex 抛错: illegal language server state transition: degraded → cancelling
+
+=== 并发两次 cancelIndex（真实进程要 800 ms 才死） ===
+  第一次调用进行中，会话状态 = cancelling
+  第一次: ok:{"state":"cancelled"}
+  第二次: throw:illegal language server state transition: cancelling → cancelling
+```
+
+**为什么不幂等**：
+- `'degraded'` 之后调 cancel → 抛错；
+- 第一次取消**还在进行中**（会话处于 `'cancelling'`，要等进程真的死掉，最多 `graceMs + 500` ms）时再调一次 → 也抛错。
+
+而这段代码**自己的注释**写着：
+
+> `cancelling` → terminate the process → `cancelled` → close the open documents → notify the clients.
+> **Repeated calls are answered with the same result and never kill a second time.**
+
+实现与自己的文档矛盾，也与 **PRD §2.4「原子取消」的第 6 条判定（幂等）** 矛盾。
+
+**影响**：API 路由有 try/catch（`src/index.js:541-548` → `writeError`），所以**不会杀死宿主**，但取消会静默失败，客户端拿到一个错误响应。
+
+**可达性**：客户端在**自己的**视图是 `building` 时显示【取消索引】按钮，而宿主每 2 秒才轮询一次状态 → 宿主已经因崩溃/内存降级成 `degraded`、客户端还显示 `building` 的窗口内点这个按钮，就会命中。
+
+> **这一条是既有缺陷，不是本轮引入的**：`4b2b7dc` 与 `162bf6d` 的守卫和 `TRANSITIONS` 完全一样（已逐版本核对）。只是此前没人触发过。
+
+**修复方向**（二选一）：
+1. 守卫放宽为「会话不在 `'starting'`/`'building'`/`'ready'` 之一就直接返回 `{ state: 'cancelled' }`」——取消一个已经降级的会话本来就该是空操作；
+2. 或给 `TRANSITIONS` 的 `degraded` / `failed` / `cancelling` 补上 `'cancelling'` 这条边。
+
+同时建议补一条用例：`cancelIndex` 对 `degraded` 会话、以及两次并发 `cancelIndex`，都应当返回 `{state:'cancelled'}` 而不抛错。
+
+### M2 ［中］「超时计数器在服务器回答后复位」这件事**没有测试覆盖**
+
+**位置**：`src/host/lsp.js:1312-1320`（复位代码）、`tests/lsp-review-fixes.test.mjs:127`（声称覆盖它的用例）
+
+复位代码在 `#onWorkerMessage` 的 `type === 'message'` 分支里：
+
+```js
+if (message.type === 'message') {
+  session.lastServerActivityAt = this.#now()
+  // The server answers again: ... the counter is the number of unanswered requests
+  session.timeouts = 0
+  session.timeoutStallAt = 0
+```
+
+而那条声称覆盖它的用例叫 **「the timeout counter is reset when the server answers again」** —— 但**假服务器从头到尾没有回过任何输出**：用例里只有三次 `manager.relayToServer(...)`（客户端请求），没有一次服务器应答。于是 `#onWorkerMessage` 的 `'message'` 分支**一次都没被执行**，复位代码**一次都没跑到**。
+
+用例之所以通过，靠的是另一条机制：`timeoutStallAt` 标记让**每个新请求**都能重新计一次 —— 那是「按请求计数」，不是「计数器复位」。
+
+**变异验证**（把复位代码整段删掉）：
+
+```
+有复位（当前实现）        : 状态=ready
+复位被移除                : 状态=building      ← 行为确实变了：服务器死了
+此时回归测试失败用例数     : 0                   ← 但没有任何用例发现
+```
+
+即：**这个变异是有意义的（行为改变），却没有任何测试发现它**。
+
+**为什么重要**：复位与「按请求计数」是两件不同的事。
+
+- 只有「按请求计数」：一个会话里累计 3 次慢请求，服务器就被打死 —— 即使这 3 次分散在几小时里、中间服务器一直正常应答。
+- 加上「复位」：只有**连续** 3 次无人应答才会打死服务器。
+
+后者才是 PRD §2.7「连续请求超时计数」想要的语义。现在这个语义**正确**，但**没有用例守着** —— 下一次重构把它删掉，测试依然全绿，而长会话会莫名其妙地开始崩服务器。
+
+**修复方向**：把那条用例改成真的让服务器回答 —— fixture 已经支持，往假 worker 灌一条服务器输出即可：
+
+```js
+workers[0].emit('message', { type: 'message', text: JSON.stringify({ jsonrpc: '2.0', id: 1, result: null }) })
+```
+
+然后断言计数器归零（例如连续三次「慢请求 + 服务器应答」之后服务器仍然活着）。
+
+> 顺带：§6.4 的变异表里列了 N2 的「每请求只记一次」，但**没有列「计数器复位」**这一项 —— 这正是它漏掉的原因。
+
+### 7.4 一处健壮性备注（不单列为缺陷）
+
+`#holdFor()` 用正则 `/"method"\s*:\s*"initialize"/` 在**未解析**的文本上判断是不是握手（主线程不解析载荷，这是刻意的取舍）。若某个 `didChange` 的**文本内容里**恰好含有 `"method": "initialize"`，且它比真正的握手更早到达（客户端首次连接时 `initialize` 总是第一个发出，所以现实里几乎不可能），它会被误放进 `entry.handshake` 槽位，导致服务器收不到真正的握手。
+
+影响面极小（需要用户先在文件里敲出那段文本、再在服务器启动前发通知），worker 那侧的 `isInitialize()` 用的是真正的 JSON 解析，不受影响。若要彻底消除，可在 `#holdFor` 里对 initialize 候选做一次轻量结构校验。
+
+### 7.5 第四轮结论
+
+| 维度 | 结论 |
+|---|---|
+| §6 的修复 | **13/13 全部成立**，且 N1/N2/N3/N4/N5/N6 六项经**变异测试**确认有真实用例守着 |
+| 新发现 | **2 项**（M1 幂等性违反 PRD §2.4、M2 一处未被覆盖的复位语义） |
+| 严重度 | 两项均为**中**，无致命项；M1 影响的是「取消」这一条用户可见的路径 |
+| 文档一致性 | ✅ 三份文档的数字与磁盘完全吻合（544 项 / 2,772,340 字节 / +301 KB） |
+| 验证手段 | ✅ 三个 bench 脚本现在都会失败退出，`repro-order.mjs` 在本机真实跑通 D2 全场景 |
+
+**建议**：M1 与 M2 一起处理 —— M1 改守卫（3 行）+ 补 2 条用例；M2 改 1 条用例的 1 行并补一条断言。总计不到半小时，能把「取消不可靠」和「长会话会误杀服务器」两个尾巴一起收掉。
+
+---
+
+## 8. 第五轮：M1 / M2 的复核与修复（2026-10-31）
+
+> 这一轮的任务：**复核第四轮新发现的 M1 / M2**，并把它们修掉。
+> 结论：**M1、M2 全部成立**（没有误报），已修复。
+> 修复 M1 的过程中又找出**第三项问题（M3）**，一并修掉；
+> §7.4 那条健壮性备注也顺手加固了。
+
+### 8.1 复核方法
+
+| 手段 | 说明 |
+|---|---|
+| 读码 | 核对 §7.3 引用的位置与 PRD §2.4 的原文 |
+| 自建探针 | 在宿主管理器层面独立复现 M1 的两种触发方式、M2 的变异 |
+| **变异测试** | 把每一处修复**单独回退**，验证新用例**确实会失败** |
+| 实跑 | `npm test`、`npm run build`、`docs/bench/repro-order.mjs` |
+
+复核结果：
+
+| 项 | 第四轮的结论 | 第五轮的复核 |
+|---|---|---|
+| **M1** 取消在 `degraded` / 并发时抛错 | 中 | ✅ **成立**，两种触发方式都复现（见下） |
+| **M2** 复位语义没有测试覆盖 | 中 | ✅ **成立**：删掉复位代码后**行为改变**（服务器被打死并重启），而**没有一个用例发现** |
+
+**M1 的复现（自建探针）**：
+
+```
+=== 对 degraded 会话调用 cancelIndex ===
+  超时后状态: degraded
+  >> cancelIndex 抛错: illegal language server state transition: degraded → cancelling
+
+=== 并发两次 cancelIndex（进程要 900 ms 才死） ===
+  第一次调用进行中，会话状态 = cancelling
+  第二次: throw: illegal language server state transition: cancelling → cancelling
+```
+
+**M2 的变异（删掉复位代码）**：
+
+```
+有复位（当前实现）        : 状态=ready，服务器进程数=1
+复位被移除                : 状态=ready，服务器进程数=2   ← 服务器被打死并重启了
+此时回归测试失败用例数     : 0                            ← 但没有任何用例发现
+```
+
+### 8.2 修复过程中发现的第三项问题
+
+### M3 ［中］取消发生在「服务器正在启动」的窗口里 → **残留一个语言服务器进程**
+
+**位置**：`src/host/lsp.js` `#spawn()`（进程起来之后）与 `#startSession()`（`await #spawn()` 之后）
+
+复现（探针，进程启动耗时 120 ms，取消在 40 ms 时到达）：
+
+```text
+the session is starting; the cancel arrives now
+cancelIndex -> {"state":"cancelled"}
+start THREW: illegal language server state transition: cancelled → building
+processes started: 1 | terminate calls: 0     ← 进程起来了，没人停它
+```
+
+两层问题：
+
+1. **残留进程**：取消发生时进程还不存在，`cancelIndex` 等不到它就返回了；
+   进程随后才起来，而**没有人停它** —— 直接违反 PRD §2.4「取消后无残留语言服务器进程」。
+2. **状态机抛错**：`#startSession()` 在 `await #spawn()` 之后无条件迁到 `building`，
+   而会话已经是 `cancelled` → `cancelled → building` 非法 → `start()` 抛错。
+
+这一条**第四轮没有提到**，是修 M1 时顺着取消路径读出来的。
+
+### 8.3 修复清单
+
+| # | 改了什么 | 在哪 | 状态 |
+|---|---|---|---|
+| **M1** | 取消的守卫放宽：只有 `starting` / `building` / `ready` / `restarting` 四个状态才真的取消，其余（`idle`、`cancelled`、`cancelling`、`crashed`、`degraded`、`failed`）一律**空操作**并返回同一个 `{ state: 'cancelled' }` —— 状态机保持严格，不给 `degraded` / `failed` 硬造一条 `cancelling` 边 | `src/host/lsp.js` `cancelIndex()` / `CANCELLABLE_STATES` | ✅ |
+| **M1** | 并发的第二次取消**等待**第一次结束再回答（`session.cancelPromise`）：既不抛错，也**不在进程还活着时就返回**（PRD §2.4「取消返回时，进程树中不得再有该语言服务器」） | `src/host/lsp.js` `cancelIndex()` | ✅ |
+| **M1** | 取消的动作本身拆到 `#cancelSession()`，临界区（标记 `cancelling` → 终止进程 → 标记 `cancelled` → 关闭文档 → 通知客户端）原样保留 | `src/host/lsp.js` | ✅ |
+| **M3** | 进程起来之后若会话已经不在 `starting` / `restarting`（取消在这段窗口里到达），**立刻停掉刚起来的进程** | `src/host/lsp.js` `#spawn()` | ✅ |
+| **M3** | `#startSession()` 在 `await #spawn()` 之后**先核对状态**再迁到 `building`；失败路径同理 | `src/host/lsp.js` `#startSession()` | ✅ |
+| **M2** | 那条声称覆盖复位的用例**改成真的让服务器回答**（通过 worker 灌 stdout），并断言「三次慢请求、每次都有应答 → 服务器不会被打死」；原来那条其实测的是「三次无人应答才打死」，已改名说清 | `tests/lsp-review-fixes.test.mjs` | ✅ |
+| **§7.4** | 握手识别改成看**第一个** `"method"`：一个自带 `method` 键的通知（哪怕它载荷里还嵌着一个 `"method":"initialize"` 对象）不会被误当握手。仍然不解析载荷 | `src/host/lsp.js` `isInitializeRequest()` | ✅ |
+
+### 8.4 新增的回归用例与保真度
+
+新增 5 条用例（`tests/lsp-review-fixes.test.mjs`，共 21 条）：
+
+| 用例 | 守住 |
+|---|---|
+| cancelling a degraded session answers instead of failing | M1 |
+| two concurrent cancels kill the process once and both answer | M1（并发 + 「返回时进程已死」） |
+| a cancel that arrives while the server starts leaves no process behind | M3 |
+| a notification whose text contains a handshake is not a handshake | §7.4 |
+| the timeout counter is reset when the server answers again | M2（**这次真的让服务器回答了**） |
+
+**变异测试**（把每一处修复单独回退，新用例必须失败）：
+
+```
+KILLED   M1a  取消守卫放宽            → cancelling a degraded session answers instead of failing
+KILLED   M1b  并发取消等待第一次      → two concurrent cancels kill the process once and both answer
+KILLED   M1c  取消后停掉刚起的进程    → a cancel that arrives while the server starts leaves no process behind
+KILLED   M1d  building 之前核对状态   → a cancel that arrives while the server starts leaves no process behind
+KILLED   M2   超时计数器复位          → the timeout counter is reset when the server answers again
+KILLED   §7.4 握手识别（第一个 method）→ a notification whose text contains a handshake is not a handshake
+```
+
+> 六个变异，六个都被杀掉 —— 这一轮的每处修复都有用例守着。
+
+### 8.5 修复后的验证
+
+```
+npm test          → 549 / 549 通过 / 0 失败（上一轮 544 + 本轮 5）
+npm run build     →  dist/client.js 2,772,340 字节（2,705.5 KiB，增量 +301 KB ≤ 400 KB ✅）
+node docs\bench\repro-order.mjs → the scenario worked: the handshake was held, replayed and answered.  exit=0
+```
+
+### 8.6 对第四轮的两点订正
+
+- **M2 的实测输出与第四轮贴的略有不同**：第四轮写的是「复位被移除 → 状态=building」，
+  实测是「状态=ready，**服务器进程数=2**」。结论不变（服务器确实被打死并重启了），
+  但**状态字段会骗人** —— 判定要看进程数，不能只看状态。
+- **§7.4 的触发条件比写的窄一点**：JSON 字符串里的引号一定是转义的（`\"method\"`），
+  所以「文本内容里含有 `"method": "initialize"`」其实**不会**命中旧正则；
+  真正会命中的是**载荷里嵌着一个带 `method` 键的对象**。
+  修复按后者做的（看第一个 `"method"`），两种情形都覆盖。
