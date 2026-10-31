@@ -6,4 +6,5 @@ dist/client.dev.js
 .host-icons-tmp/
 .verify/
 .codegraph/
+.idea/
 *.log

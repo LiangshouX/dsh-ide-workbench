@@ -97,6 +97,7 @@ test('a cold workspace lists the root and reads only the focused file', async ()
     assert.ok(other !== undefined, 'the second tab is restored')
     assert.equal(other.content, null)
   } finally {
+    if (store.restoredTimer !== null) clearTimeout(store.restoredTimer)
     store.persist.cancel()
     restore()
   }
@@ -115,6 +116,7 @@ test('an unfocused tab is read when it is focused', async () => {
     assert.equal(readCalls(calls).length, 1)
     assert.equal(readCalls(calls)[0].body.path, `${ROOT}\\b.ts`)
   } finally {
+    if (store.restoredTimer !== null) clearTimeout(store.restoredTimer)
     store.persist.cancel()
     restore()
   }

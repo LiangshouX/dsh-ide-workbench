@@ -657,7 +657,13 @@ export function apply(ctx) {
   // ── Language Server WebSocket ─────────────────────────────────────────
   // A separate path from the terminal socket: the LSP frames are raw JSON
   // and must never share a connection with the PTY byte stream.
-  ctx.effect(() => registerLspWebSocket(ctx, { manager: lsp, fence }), 'dsh-ide-workbench: LSP WebSocket')
+  // The effect has to hand back a disposer function: Cordis rejects an
+  // effect that returns a plain object with "TypeError: Invalid effect",
+  // and the whole plugin then fails to activate.
+  ctx.effect(() => {
+    const relay = registerLspWebSocket(ctx, { manager: lsp, fence })
+    return () => relay.close()
+  }, 'dsh-ide-workbench: LSP WebSocket')
 
   // ── teardown ───────────────────────────────────────────────────────────
   ctx.effect(() => () => {
