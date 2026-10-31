@@ -12,12 +12,15 @@
 
 | # | 缺陷 | 严重度 | 状态 | 验证方式 |
 |---|---|---|---|---|
-| **D1** | **DSH 宿主进程崩溃**（`host exited with 1`，整个应用退出，需禁用插件 + 清设置才能恢复） | **致命** | ✅ 已修 | `docs/bench/crash-recovery.mjs` |
-| **D2** | 状态永远停在「语义分析：索引中…」 | 高 | ✅ 已修 | `docs/bench/repro-order.mjs` |
+| **D1** | **DSH 宿主进程崩溃**（`host exited with 1`，整个应用退出，需禁用插件 + 清设置才能恢复） | **致命** | ✅ 已修 | `docs/bench/crash-recovery.mjs` + `tests/lsp-recovery.test.mjs` |
+| **D2** | 状态永远停在「语义分析：索引中…」 | 高 | ✅ 已修 | `docs/bench/repro-order.mjs` + `tests/lsp-handshake.test.mjs` |
 | **D3** | `Ctrl+点击` 100% 报 `Find definition failed: Request timed out` | 高 | ✅ 已修（D2 的连带症状） | `docs/bench/repro-order.mjs` 第 6 步 |
-| **D4** | 错误浮层盖在内容区上方、要手动叉掉 | 中 | ✅ 已修（改走工作台 toast） | 需人工确认 |
+| **D4** | 错误浮层盖在内容区上方、要手动叉掉 | 中 | ✅ 已修（改走工作台 toast） | `tests/lsp-error-toast.test.mjs` |
 | **D5** | 插件装上后起不来：`TypeError: Invalid effect` | 高 | ✅ 已修 | `tests/plugin-mount.test.mjs` |
 | **D6** | `tests/perf-cold-workspace.test.mjs:123` 偶发失败 | 低 | ✅ 已修（定时器泄漏） | 全量 `npm test` 连跑 |
+| **D7** | 重启后的语言服务器**静默死亡不被察觉** | 中 | ✅ 已修 | `tests/lsp-handshake.test.mjs` 第 4 例 |
+
+**当前测试数：512 项 / 512 通过 / 0 失败**（基线 329 + 本轮 183）。
 
 ---
 
@@ -212,9 +215,22 @@ ctx.effect(() => {
 
 ---
 
-## 7. 交接清单
+## 7. D7 —— 重启后的语言服务器静默死亡不被察觉
 
-### 7.1 已完成
+`session.exited` 在崩溃路径上被置成 `true`，而 `#spawn()` **没有把它清回去**。
+于是重启后的新进程一旦 stdout 结束，`if (!current() || session.exited) return`
+把这次死亡吞掉 —— 服务器悄悄死了，宿主还以为它在跑。
+
+**修复**：`#spawn()` 里 `session.exited = false`。
+
+顺带把 `relayToServer()` 的 `#peek()` 换成 `#entry()`：根目录的条目不存在时
+（socket 还没接上）载荷会被创建出来并暂存，而不是被丢掉。
+
+---
+
+## 8. 交接清单
+
+### 8.1 已完成
 
 - [x] D1 崩溃（结构性的三层修复 + 复现脚本）
 - [x] D2 索引中卡死（握手缓冲 + 握手缓存 + worker 去重）
@@ -222,8 +238,9 @@ ctx.effect(() => {
 - [x] D4 错误浮层（改走 toast）
 - [x] D5 插件不激活
 - [x] D6 测试抖动
+- [x] D7 重启后静默死亡
 
-### 7.2 接手者要做
+### 8.2 接手者要做
 
 1. **重装并实测**：插件是 `link:` 安装（profile 的 `package.json` 里指向工作目录），
    改完代码后 `plugin_manager set_bundle dsh-ide-workbench enabled=false` 再 `true`，
@@ -235,10 +252,9 @@ ctx.effect(() => {
    - 索引超过 60 s 出现【取消索引】，点掉后 ≤ 2 s 变成「已取消（保守版）」且无残留进程；
    - 手动 kill 语言服务器 → 状态栏变红 + toast → 自动重启一次 → 功能恢复；
    - 空闲 10 分钟 → 进程退出、内存回落。
-3. **补测试**：把 D1 的崩溃场景写进 `tests/lsp-recovery.test.mjs`（断言没有未处理的 rejection）。
-4. **跑全量**：`npm test`（基线 497 项）+ `npm run build`。
+3. **跑全量**：`npm test`（512 项）+ `npm run build`。
 
-### 7.3 复现脚本（在 `docs/bench/`，不进 npm 包）
+### 8.3 复现脚本（在 `docs/bench/`，不进 npm 包）
 
 | 脚本 | 作用 |
 |---|---|
@@ -246,11 +262,20 @@ ctx.effect(() => {
 | `node docs\bench\repro-order.mjs` | 复现并验证 D2（浏览器真实顺序：先连 socket、后启动服务器） |
 | `node docs\bench\crash-recovery.mjs` | 复现并验证 D1（语言服务器崩溃 → 宿主必须活着） |
 
-### 7.4 交接时容易踩的坑
+### 8.4 新增的回归测试
+
+| 文件 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/lsp-handshake.test.mjs` | 9 | 握手被暂存而不是丢弃、服务器起来后按序重放、握手被记住（崩溃重启路径）、`Handshake` 只转发一次、重复握手的补答、缓冲上限 64 |
+| `tests/lsp-error-toast.test.mjs` | 6 | 错误走 toast 而不是库的面板、toast 文案带 message+detail、store 没有 toast / toast 抛错时回落到库、只重定向一次 |
+| `tests/plugin-mount.test.mjs` | 4 | 插件能挂上路由与 WS、每个 effect 都交回 Cordis 接受的 disposer |
+
+### 8.5 交接时容易踩的坑
 
 - **`ctx.subprocess.spawn()` 是同步的**，返回句柄而不是 Promise。写假件时别写成 `async`，
   否则 `handle.done` 变成 undefined，会被误判成「进程以 code null 退出」。
 - **宿主里一个未处理的 rejection = 整个 DSH 进程死亡**。插件里的异步步骤一律走 `#safely()`。
+  **定时器回调里的 throw 同样是未捕获异常**，也要包 try/catch。
 - **`ctx.effect()` 的回调只能返回函数或空**，返回对象会让插件不激活。
 - 语言服务器在 Windows 上**不能用 `.cmd` shim 启动**（`spawn EINVAL`）：用的是
   `process.execPath` + 包自己的 JS 入口。
