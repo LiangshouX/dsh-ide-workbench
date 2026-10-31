@@ -17,6 +17,7 @@ import {
 } from './workspace-scope.js'
 import { openInDefaultSidebar } from './file-link.js'
 import { registerChatInput } from './chat-bridge.js'
+import { configureLsp } from './lsp-session.js'
 
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs', 'sessions']
 const PANEL_ID = 'ide-workbench'
@@ -304,6 +305,10 @@ export function apply(ctx) {
     }
     // The eviction is deferred: `getStore` runs while React renders.
     const store = stores.set(key, new WorkbenchStore(ctx, t, cwdOf(id)), id, { evict: false })
+    // The semantic-analysis session belongs to the store: it reads the
+    // language-server status and the drafts from it, and it registers the
+    // text version of Find Usages on it.
+    configureLsp(store)
     scheduleEvict()
     return store
   }

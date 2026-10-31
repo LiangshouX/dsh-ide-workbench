@@ -26,6 +26,23 @@ function label(t, key, fallback) {
   return value === key || value === undefined || value === null || value === '' ? fallback : value
 }
 
+/**
+ * Fill the `{placeholder}` slots of one text.
+ *
+ * The harness translate function does not interpolate, so the code-intelligence
+ * texts are completed here (PRD-v5 §7.1).
+ * @param {string} text
+ * @param {Record<string, string|number>} values
+ * @returns {string}
+ */
+function interpolate(text, values) {
+  let out = typeof text === 'string' ? text : ''
+  for (const [name, value] of Object.entries(values)) {
+    out = out.replaceAll(`{${name}}`, String(value))
+  }
+  return out
+}
+
 /*
  * PERF-02: a panel that subscribes to its own slice does not need the whole
  * state. The memo keeps a Workbench re-render (a toast, a terminal chunk)
@@ -247,7 +264,133 @@ function BottomTabs({ store, state }) {
   )
 }
 
-function StatusBar({ store, state }) {
+/**
+ * The semantic-analysis status of the workbench (PRD-v5 §4.3).
+ *
+ * The host owns the state machine; this only maps it to a label, a tone and
+ * an optional action. The tone picks the colour class of the status item, and
+ * the action says what a click on it does.
+ *
+ * The mapping is exported so the tests can assert the seven states without
+ * mounting the whole workbench.
+ *
+ * @param {{t: (key: string) => string}} store
+ * @param {object} state the workbench snapshot
+ * @returns {{key: string, text: string, tone: 'idle'|'warn'|'ok'|'error', title: string, detail: string, action: string|null}}
+ */
+export function lspStatusView(store, state) {
+  const t = store.t
+  const lsp = state?.lsp ?? {}
+  const settingsLsp = state?.settings?.lsp ?? {}
+  const language = typeof lsp.languageId === 'string' ? lsp.languageId : ''
+  const current = typeof lsp.state === 'string' && lsp.state !== '' ? lsp.state : 'idle'
+  const detail = typeof lsp.detail === 'string' ? lsp.detail : ''
+  const progress = typeof lsp.progress === 'string' ? lsp.progress : ''
+  const base = { title: t('lsp.statusTitle'), detail, action: null }
+  if (settingsLsp.enabled === false || lsp.enabled === false || current === 'disabled') {
+    return { ...base, key: 'disabled', text: t('lsp.status.disabled'), tone: 'idle' }
+  }
+  // A language without a server is a different state than a failing server:
+  // the user has to install something, so the item points at the settings.
+  const missing = (lsp.servers?.missing ?? []).filter(entry => typeof entry?.languageId === 'string')
+  const missingHere = missing.find(entry => entry.languageId === language)
+  // The host reports the language of the running session; without a session
+  // it stays empty, so a single language without a server is used as the
+  // name of the state.
+  const missingOnly = missingHere ?? (missing.length === 1 ? missing[0] : undefined)
+  if (missingOnly !== undefined && current !== 'ready' && current !== 'building' && current !== 'starting') {
+    return {
+      ...base,
+      key: 'missing',
+      text: interpolate(t('lsp.status.missing'), { language: missingOnly.languageId }),
+      tone: 'idle',
+      action: 'settings',
+      title: interpolate(t('lsp.serverMissing'), { language: missingOnly.languageId }),
+    }
+  }
+  switch (current) {
+    case 'starting':
+    case 'restarting':
+      return { ...base, key: current, text: t('lsp.status.starting'), tone: 'idle' }
+    case 'building':
+      return { ...base, key: 'building', text: t('lsp.status.building'), tone: 'warn' }
+    case 'cancelling':
+      // The host owns the transition; the label tells the user the build is
+      // on its way out. `lsp.status.cancelling` is used when the locale table
+      // carries it.
+      return {
+        ...base,
+        key: 'cancelling',
+        text: label(t, 'lsp.status.cancelling', t('lsp.status.cancelled')),
+        tone: 'idle',
+      }
+    case 'ready':
+      // An incremental update is announced while the server keeps serving.
+      return progress === ''
+        ? { ...base, key: 'ready', text: t('lsp.status.ready'), tone: 'ok' }
+        : { ...base, key: 'updating', text: t('lsp.status.updating'), tone: 'warn' }
+    case 'crashed':
+      return { ...base, key: 'crashed', text: t('lsp.status.crashed'), tone: 'error', action: 'crash' }
+    case 'cancelled':
+      return { ...base, key: 'cancelled', text: t('lsp.status.cancelled'), tone: 'idle' }
+    case 'degraded':
+      return { ...base, key: 'degraded', text: t('lsp.status.degraded'), tone: 'idle' }
+    case 'failed':
+      return { ...base, key: 'failed', text: t('lsp.status.degraded'), tone: 'idle' }
+    default:
+      // No server runs: the workbench is in its conservative mode.
+      return { ...base, key: 'idle', text: t('lsp.status.degraded'), tone: 'idle' }
+  }
+}
+
+/**
+ * The semantic-analysis item of the status bar (PRD-v5 §4.3, §7.1).
+ *
+ * The item is always visible: a missing capability has to be visible, not
+ * hidden. The dot carries the state by its colour, and the label folds away
+ * in a narrow pane (risk #25) — the stylesheet owns that part.
+ */
+function LspStatus({ store, state, onOpenSettings }) {
+  const t = store.t
+  const lsp = state.lsp ?? {}
+  const view = lspStatusView(store, state)
+  const cancelAfter = state.settings?.lsp?.cancelAfterMs ?? 60000
+  const startedAt = typeof lsp.startedAt === 'number' ? lsp.startedAt : 0
+  const cancellable = lsp.cancellable === true
+    || (startedAt > 0 && Date.now() - startedAt > cancelAfter)
+  const showCancel = view.key === 'building' && cancellable
+  const tone = view.tone === 'ok' ? ' iwb-lsp-status-ready'
+    : (view.tone === 'warn' ? ' iwb-lsp-status-warn' : (view.tone === 'error' ? ' iwb-lsp-status-error' : ' iwb-lsp-status-muted'))
+  const title = view.detail === '' ? view.title : `${view.title} — ${view.detail}`
+  const onClick = view.action === 'settings'
+    ? () => { onOpenSettings?.() }
+    : (view.action === 'crash' ? () => { store.toast('error', t('lsp.crashedToast'), view.detail) } : undefined)
+  return React.createElement('span', {
+    className: `iwb-status-item iwb-lsp-status${tone}`,
+    title,
+    'data-lsp-state': view.key,
+    style: onClick === undefined ? undefined : { cursor: 'pointer' },
+    onClick,
+  },
+    React.createElement('span', { className: 'iwb-lsp-status-dot' }),
+    React.createElement('span', { className: 'iwb-lsp-status-label' }, view.text),
+    // The cancel button only appears while a build runs longer than the
+    // configured patience (PRD-v5 §2.4).
+    showCancel
+      ? React.createElement('button', {
+          type: 'button',
+          className: 'iwb-lsp-cancel',
+          title: t('lsp.cancelIndex'),
+          onClick: event => {
+            event.stopPropagation()
+            void store.cancelLspIndex()
+          },
+        }, t('lsp.cancelIndex'))
+      : null,
+  )
+}
+
+function StatusBar({ store, state, onOpenSettings }) {
   const t = store.t
   const summary = store.summary()
   const active = state.tabs.find(tab => tab.id === state.activeId)
@@ -277,6 +420,9 @@ function StatusBar({ store, state }) {
     summary.changes > 0
       ? React.createElement('span', { className: 'iwb-status-item', style: { cursor: 'pointer' }, onClick: () => store.showTool('commit') }, `${summary.changes} ${t('status.changes')}`)
       : null,
+    // The semantic-analysis state sits next to the other status items, before
+    // the spacer: it must be visible even when the workbench is idle.
+    React.createElement(LspStatus, { store, state, onOpenSettings }),
     React.createElement('div', { className: 'iwb-spacer' }),
     cursor !== null
       ? React.createElement('span', { className: 'iwb-status-item' }, `${t('editor.line')} ${cursor.line}:${cursor.col}`)
@@ -367,6 +513,11 @@ function ProjectPicker({ store, state }) {
     project.isRepo === true
       ? React.createElement('span', { className: 'iwb-project-repo-badge' }, t('project.gitRepo'))
       : null,
+    // The badge order is fixed: [Git] → [Indexed] → [Current]. The three can
+    // coexist; none of them replaces another (PRD-v5 §2.1).
+    project.indexState === 'indexed'
+      ? React.createElement('span', { className: 'iwb-project-index-badge', title: t('project.indexedHint') }, t('project.indexed'))
+      : null,
     project.path === state.root
       ? React.createElement('span', { className: 'iwb-project-current-badge' }, t('project.current'))
       : null,
@@ -396,6 +547,75 @@ function ProjectPicker({ store, state }) {
         React.createElement('button', {
           type: 'button', className: 'iwb-textbtn', onClick: () => store.closeProjectPicker(),
         }, t('common.cancel')),
+      ),
+    ),
+  )
+}
+
+/**
+ * The index decision dialog (PRD-v5 §2.3).
+ *
+ * It is the only modal of the semantic-analysis flow: it appears before the
+ * language server starts, never while a build runs (PRD-v5 §7.2). `Esc` and a
+ * click on the backdrop are "cancel" — the project stays as it is.
+ */
+function IndexDecisionModal({ store, state }) {
+  const t = store.t
+  const decision = state.indexDecision
+  useEffect(() => {
+    if (decision === null || decision === undefined) return undefined
+    const onKey = (event) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      store.resolveIndexDecision('cancel')
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [decision, store])
+  if (decision === null || decision === undefined) return null
+  const name = typeof decision.name === 'string' ? decision.name : ''
+  const isRoot = decision.isRoot === true
+  const isRepo = decision.isRepo === true
+  const title = interpolate(t('index.decision.title'), { name })
+  return React.createElement('div', {
+    className: 'iwb-modal-backdrop',
+    onMouseDown: event => { if (event.target === event.currentTarget) store.resolveIndexDecision('cancel') },
+  },
+    React.createElement('div', {
+      className: 'iwb-modal iwb-index-decision', role: 'dialog', 'aria-modal': 'true', 'aria-label': title,
+    },
+      React.createElement('h2', null, title),
+      React.createElement('p', null, t('index.decision.body')),
+      // The workspace root carries the extra warning: it usually holds
+      // several independent repositories, and one program over all of them
+      // costs a lot of memory and build time.
+      isRoot
+        ? React.createElement('div', { className: 'iwb-index-decision-warning' },
+            React.createElement('div', { className: 'iwb-index-decision-warning-title' }, t('index.decision.rootTitle')),
+            React.createElement('div', null, isRepo ? t('index.decision.rootRepo') : t('index.decision.rootWarning')),
+          )
+        : null,
+      React.createElement('div', { className: 'iwb-modal-actions' },
+        isRoot
+          ? React.createElement('button', {
+              type: 'button', className: 'iwb-textbtn',
+              onClick: () => store.resolveIndexDecision('build'),
+            }, t('index.decision.buildRoot'))
+          : React.createElement('button', {
+              type: 'button', className: 'iwb-textbtn iwb-primary',
+              onClick: () => store.resolveIndexDecision('build'),
+            }, t('index.decision.build')),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-textbtn',
+          onClick: () => store.resolveIndexDecision('conservative'),
+        }, t('index.decision.conservative')),
+        isRoot
+          ? React.createElement('button', {
+              type: 'button', className: 'iwb-textbtn',
+              onClick: () => store.resolveIndexDecision('cancel'),
+            }, t('index.decision.cancel'))
+          : null,
       ),
     ),
   )
@@ -540,7 +760,7 @@ export function Workbench({ store, visible = true, fullscreen = false }) {
     // The Terminal/Git dock spans the whole workbench width: it is a sibling
     // of the body, so the left dock shrinks above it instead of squeezing it.
     bottomNode,
-    React.createElement(StatusBar, { store, state }),
+    React.createElement(StatusBar, { store, state, onOpenSettings: () => setSettingsOpen(true) }),
     state.phase === 'booting'
       ? React.createElement('div', { className: 'iwb-empty', style: { position: 'absolute', inset: 0, background: 'var(--iwb-bg)' } }, store.t('common.loading'))
       : null,
@@ -560,6 +780,9 @@ export function Workbench({ store, visible = true, fullscreen = false }) {
     React.createElement(Toast, { toast: state.toast }),
     React.createElement(RootPicker, { store, state }),
     React.createElement(ProjectPicker, { store, state }),
+    // The index decision is drawn above the project picker: it is the answer
+    // to the choice the user just made in it.
+    React.createElement(IndexDecisionModal, { store, state }),
     settingsOpen ? React.createElement(SettingsModal, { store, state, onClose: () => setSettingsOpen(false) }) : null,
   )
 }

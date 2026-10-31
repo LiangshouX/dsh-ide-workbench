@@ -153,3 +153,89 @@ npm run build   # dist/client.js 已更新
 - **`Ctrl+Shift+R` 在纯浏览器形态是 Chromium 的硬刷新**，网页无法拦截 → 浏览器形态请用备用键 `Ctrl+Alt+F`；桌面形态不受影响（见 README「已知限制」）。
 - `BottomTabs`（底部栏组标题）仍随 Workbench 一起重渲染（它是 dock chrome，代价很小）。
 
+---
+
+# 验收记录（PRD-v5 — 代码智能）
+
+> 环境：Windows 11 / Node v22 / `dsh-ide-workbench` 基线 commit `dd6dc175f8cf1b6a891cc37f81ac21a3d81839a4`。
+> 规格：`docs/PRD-v5.md`；实施记录与偏差：`docs/PRD-v5-实施进展.md`。
+
+## 自动化测试（493 项全部通过）
+
+```sh
+cd dsh-ide-workbench && npm test
+# 493 pass / 0 fail   （基线 329 + 本轮新增 164）
+```
+
+新增 17 个测试文件、164 个用例：
+
+| 文件 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/settings-lsp.test.mjs` | 12 | schema 2→3 迁移（旧设置不丢、`lsp` 段补齐）、`requestTimeoutMs` ≥ 30000、四个新快捷键的默认值与不冲突、迁移只动 `lsp` 段 |
+| `tests/lsp-registry.test.mjs` | 12 | 语言注册表完整性、`languageIds` 唯一、`memoryLimitMB > 0`、**`typescript` 不得解析到 7.x** |
+| `tests/lsp-resources.test.mjs` | 7 | 内存预检：低于阈值 → `canIndex === false`；阈值取 `max(memoryLimitMB, freeMemoryThresholdMB)` |
+| `tests/lsp-lifecycle.test.mjs` | 13 | 状态机迁移合法、非法迁移被拒、`lsp.start` 幂等（不重复 spawn） |
+| `tests/lsp-cancel-atomic.test.mjs` | 5 | 取消后进程已终止、状态 `cancelled`、已开文档已关闭、重复取消不报错、**编辑器状态未变** |
+| `tests/lsp-recovery.test.mjs` | 7 | 崩溃三信号（exit / EOF / 超时）、自动重启**一次**、二次崩溃 → `degraded`、内存不足**不重启** |
+| `tests/lsp-idle-exit.test.mjs` | 6 | 空闲超阈值 → 进程退出、`indexedRoots` **不清除**、再次 `lsp.start` 能重启 |
+| `tests/lsp-frame.test.mjs` | 11 | `Content-Length` 帧编解码：半包、粘包、UTF-8 多字节、非法头 |
+| `tests/lsp-ws.test.mjs` | 8 | `/ide-workbench/ws/lsp` 中继的端到端行为、围栏、非 JSON 载荷被丢弃 |
+| `tests/lsp-reconnect.test.mjs` | 7 | 断线重连：transport 报告 `reopened`、排队消息冲刷、**第二次 `initialize` 由缓存回答** |
+| `tests/lsp-html-sanitize.test.mjs` | 11 | `sanitizeHTML` 剥离 `<script>` / `<iframe>` / `onerror=` / `javascript:`（含实体与空白变体） |
+| `tests/lsp-workspace.test.mjs` | 14 | 自定义 `Workspace`：`syncFiles` 用 **`tab.draft`** 而非磁盘内容、`displayFile` 走 `store.openFile`、**围栏外返回 `null` 且不读文件**、`closeFile` 触发 `didClose` |
+| `tests/lsp-mapping.test.mjs` | 4 | 请求期间继续编辑，返回位置经 `withMapping` 后仍指向正确符号（用库真实的 `WorkspaceMapping`） |
+| `tests/completion.test.mjs` | 7 | `autocompletion` 已挂载、**`completionKeymap` 在 `defaultKeymap` 之前**（按数组下标断言）、`Esc` 不插入文本、`@codemirror/autocomplete` 在 `devDependencies` |
+| `tests/definition.test.mjs` | 10 | Ctrl+点击只在标识符上触发、命中时 `preventDefault()`、跨文件走 `displayFile`、围栏外不打开 |
+| `tests/find-usages.test.mjs` | 10 | 语义版不可用时置灰并带说明、文本版**始终可用**且每条结果带「文本匹配」标注、`Alt+F7`/`Alt+F8`/`F12`/`Ctrl+Space` 键位 |
+| `tests/idx-decision.test.mjs` | 20 | §2.3 决策矩阵逐行覆盖、根目录 `isRepo` 两版警告、**「取消」不切换项目**、`canIndex === false` 不弹窗、徽标顺序【Git】→【已索引】→【当前】、状态栏七种状态 |
+
+既有测试全部保持全绿：`editor-conflict` / `shortcuts` / `render` / `store-ui` / `store-lifecycle` /
+`projects` / `status-basis` / `perf-*` 均未回归。
+
+## 构建产物
+
+| 项 | 数值 | 预算 |
+|---|---|---|
+| `dist/client.js` | 2,762,422 字节（2,695.8 KiB） | — |
+| 相对基线的增量 | **+284 KB** | ≤ 400 KB ✅ |
+
+## 真机端到端验证（`docs/bench/live-lsp.mjs`）
+
+用**真的** `typescript-language-server` 跑通了完整链路：宿主 `apply()` → `ctx.subprocess.spawn` → worker_thread 帧编解码 →
+`/ide-workbench/ws/lsp` 中继 → `initialize` → 语义请求 → 断线重连。
+
+```text
+lsp.start -> {"state":"building","detail":"building the program"}
+websocket open
+initialize ok - capabilities: textDocumentSync, completionProvider, definitionProvider, referencesProvider,
+  hoverProvider, signatureHelpProvider, documentSymbolProvider, semanticTokensProvider, ...
+lsp.status -> ready | language: typescript | source: bundled
+lsp.index  -> {"state":"ready","progress":"ready","cancellable":false}
+textDocument/definition -> [{"uri":"file:///.../src/client/lsp-uri.js","range":{"start":{"line":1,"character":16},"end":{"line":1,"character":17}}}]
+reconnect initialize -> answered, capabilities: 23
+```
+
+| 验收点 | 结果 |
+|---|---|
+| 打包语言服务器能真的启动（`source: 'bundled'`） | ✅ |
+| `Content-Length` 帧编解码双向都通 | ✅ |
+| `initialize` 握手拿到 23 项能力 | ✅ |
+| 状态机 `building → ready`，`cancellable` 正确 | ✅ |
+| **跨文件跳转定义**返回真实文件里的真实位置 | ✅ |
+| 断线重连的二次握手（宿主用缓存的 capabilities 回答） | ✅ |
+| `lsp.servers` 的 bundled / PATH 探测分流 | ✅ `typescript/javascript/python/yaml` = bundled；`java/go/rust/cpp` = missing（未装） |
+| `lsp.resources` 的内存预检 | ✅ `canIndex: true`，阈值 `max(2048, 2048)` MB |
+
+## 已知限制（本轮）
+
+- **Windows 上不能用 `.cmd` shim 启动打包的语言服务器**（实测 `spawn EINVAL`：Node 不经 shell 无法执行 batch 文件）。
+  落地为 `process.execPath` + 包自己的 JS 入口；`.bat` 启动脚本（如 `jdtls.bat`）在 PATH 探测里会被报成 missing。
+- **决策弹窗在切换项目之前**（§2.3 的「取消 → 不切换项目」只能在先问后切的前提下成立）。
+- **文件链接桥跳过决策弹窗**（那条路径上工作台可能没挂载，弹窗没人答会挂死）。
+- **崩溃态的「点击进日志」改为 tooltip + 重播建议文案**（客户端没有日志视图；stderr 由 `lsp.logs` API 暴露给宿主日志面）。
+- **`tests/perf-cold-workspace.test.mjs:123` 在机器满载时偶发失败**（时序敏感用例，单独跑必绿；与本轮改动无关）。
+- **界面层面的验收还没走完**：补全弹窗观感、Ctrl+点击的手感、引用面板、索引取消 / 崩溃恢复 / 空闲退出的界面表现，
+  逐条清单见 `docs/PRD-v5-实施进展.md` §5.3。
+
+
+

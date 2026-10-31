@@ -365,6 +365,24 @@ export const CSS = `
 .iwb-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--iwb-success); }
 .iwb-status-dot.iwb-busy { background: var(--iwb-warn); }
 
+/* ── semantic analysis status (PRD-v5 §4.3) ───────────────────────────── */
+.iwb-lsp-status { display: inline-flex; align-items: center; gap: 5px; color: var(--iwb-muted); }
+.iwb-lsp-status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.iwb-lsp-status-ready { color: var(--iwb-success); }
+.iwb-lsp-status-warn { color: var(--iwb-warn); }
+.iwb-lsp-status-error { color: var(--iwb-error); }
+.iwb-lsp-status-muted { color: var(--iwb-muted); }
+.iwb-lsp-status-label { white-space: nowrap; }
+.iwb-lsp-cancel {
+  border: 1px solid var(--iwb-border-strong); border-radius: 999px; padding: 0 7px;
+  background: transparent; color: var(--iwb-warn); font-size: 10px; line-height: 15px; cursor: pointer;
+}
+.iwb-lsp-cancel:hover { background: rgba(215, 162, 74, .14); }
+/* A narrow pane only has room for the dot: the label folds away. */
+@container ide-workbench (max-width: 560px) {
+  .iwb-lsp-status-label { display: none; }
+}
+
 .iwb-tree { padding: 4px 0 12px; font-size: 12.5px; }
 .iwb-tree-row {
   display: flex; align-items: center; gap: 5px; height: 22px; padding-right: 8px; white-space: nowrap;
@@ -797,6 +815,7 @@ export const CSS = `
 .iwb-project-choice-text b { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-choice-path { color: var(--iwb-muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-repo-badge { font-size: 9.5px; color: var(--iwb-git-add, #57a86b); border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
+.iwb-project-index-badge { font-size: 9.5px; color: #8b7cf6; border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
 .iwb-project-current-badge { font-size: 9.5px; color: var(--iwb-accent); border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
 .iwb-project-empty { padding: 10px 8px; color: var(--iwb-muted); font-size: 11.5px; }
 .iwb-sidebar-open {
@@ -1002,6 +1021,65 @@ export const CSS = `
 /* Read-only code / diff must be copyable despite the root user-select:none. */
 .iwb-code, .iwb-diff-text, .iwb-diff-side-cell, .iwb-diff-row { user-select: text; }
 .iwb-diff-row .iwb-diff-num, .iwb-diff-row .iwb-diff-sign, .iwb-diff-row .iwb-diff-gutter { user-select: none; }
+
+/* ── CodeMirror language intelligence (PRD-v5) ────────────────────────── */
+/* The completion popup and the reference panel come from the editor library;
+   they only need the workbench tokens so they do not look foreign. */
+.iwb-codemirror .cm-tooltip-autocomplete {
+  background: var(--iwb-overlay); border: 1px solid var(--iwb-border-strong);
+  border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); overflow: hidden;
+}
+.iwb-codemirror .cm-tooltip-autocomplete > ul { font-family: var(--iwb-mono); font-size: 12px; max-height: 240px; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li { padding: 2px 8px; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--iwb-accent); color: #fff; }
+.iwb-codemirror .cm-completionIcon { font-style: normal; opacity: .8; }
+.iwb-codemirror .cm-completionLabel { color: var(--iwb-fg); }
+.iwb-codemirror .cm-completionDetail { color: var(--iwb-muted); font-style: italic; }
+.iwb-codemirror .cm-completionMatchedText { text-decoration: underline; }
+.iwb-codemirror .cm-lsp-hover, .iwb-codemirror .cm-lsp-signature {
+  background: var(--iwb-overlay); border: 1px solid var(--iwb-border-strong);
+  border-radius: 6px; padding: 6px 9px; max-width: 460px; font-size: 12px; color: var(--iwb-fg);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .35);
+}
+.iwb-codemirror .cm-lsp-hover code, .iwb-codemirror .cm-lsp-signature code {
+  font-family: var(--iwb-mono); background: var(--iwb-panel-2); border-radius: 3px; padding: 0 3px;
+}
+.iwb-codemirror .cm-lsp-references-panel {
+  background: var(--iwb-panel); border: 1px solid var(--iwb-border-strong);
+  border-radius: 6px; max-height: 260px; overflow: auto; font-size: 12px;
+}
+.iwb-codemirror .cm-lsp-references-panel ul { list-style: none; margin: 0; padding: 0; }
+.iwb-codemirror .cm-lsp-references-panel li { padding: 2px 8px; cursor: pointer; color: var(--iwb-fg); }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] { background: var(--iwb-accent); color: #fff; }
+.iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-name { color: var(--iwb-accent); }
+.iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-file { color: var(--iwb-muted); }
+.iwb-codemirror .cm-lsp-diagnostic-error { border-left: 3px solid var(--iwb-error); }
+.iwb-codemirror .cm-lsp-diagnostic-warning { border-left: 3px solid var(--iwb-warn); }
+.iwb-codemirror .cm-lsp-diagnostic-info { border-left: 3px solid var(--iwb-accent); }
+.iwb-codemirror .cm-lsp-diagnostic-hint { border-left: 3px solid var(--iwb-muted); }
+
+/* ── text-match marker for the conservative Find Usages (NAV-03) ───────── */
+.iwb-search-textmatch-note {
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 6px;
+  padding: 2px 8px; border-radius: 999px; font-size: 10.5px;
+  color: var(--iwb-warn); border: 1px solid currentColor; background: rgba(215, 162, 74, .08);
+}
+.iwb-search-textmatch {
+  font-size: 9.5px; line-height: 15px; color: var(--iwb-warn);
+  border: 1px solid currentColor; border-radius: 999px; padding: 0 5px; flex: 0 0 auto;
+}
+
+/* ── index decision dialog (PRD-v5 §2.3) ───────────────────────────────── */
+.iwb-index-decision { max-width: 520px; }
+.iwb-index-decision-warning {
+  display: block; margin-top: 10px; padding: 9px 11px;
+  border-left: 3px solid var(--iwb-warn); border-radius: 0 6px 6px 0;
+  background: rgba(215, 162, 74, .1); color: var(--iwb-fg); font-size: 12px; line-height: 1.55;
+}
+.iwb-index-decision-warning-title {
+  display: block; margin-bottom: 3px; color: var(--iwb-warn);
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+}
 
 @container ide-workbench (max-width: 760px) {
   .iwb-topbar { gap: 4px; padding: 0 6px; }

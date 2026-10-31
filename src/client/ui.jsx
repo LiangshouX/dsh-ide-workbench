@@ -75,6 +75,9 @@ export function ContextMenu({ x, y, items, onClose, depth = 0 }) {
       type: 'button',
       className: `iwb-menu-item ${item.danger === true ? 'iwb-menu-danger' : ''}`,
       disabled: item.disabled === true,
+      // A menu item may carry a tooltip: a greyed-out entry has to say *why*
+      // it is greyed out, and the label itself is often too narrow for it.
+      title: item.title,
       'aria-haspopup': hasSubmenu ? 'menu' : undefined,
       'aria-expanded': hasSubmenu ? open : undefined,
       onClick: () => {

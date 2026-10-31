@@ -24,12 +24,14 @@ import { openInIdea, openInIde } from './host/idea.js'
 import { openExternalUrl } from './host/shell.js'
 import {
   canonicalRoot, listDirectory, listProjectCandidates, readFileForPreview, resolveInside,
-  revealInExplorer, runCommand, shellArgv, shellCandidates, terminalEnv, toRelative, writeFileText,
+  revealInExplorer, runCommand, samePath, shellArgv, shellCandidates, terminalEnv, toRelative, writeFileText,
 } from './host/workspace.js'
 import {
   appendIgnore, createEntry, deleteEntries, duplicateEntry, moveEntries, renameEntry,
 } from './host/fileops.js'
 import { listFiles, searchFiles } from './host/search.js'
+import { LspManager, shutdownAll } from './host/lsp.js'
+import { registerLspWebSocket, shutdownLspWebSocket } from './host/lsp-ws.js'
 import {
   ApiError, optionalBoolean, optionalInteger, readJsonBody, requireString, stringArray,
   writeError, writeOk,
@@ -51,6 +53,24 @@ function clamp(value, min, max, fallback) {
 }
 
 /**
+ * The live state of one project root.
+ *
+ * The manager keys its map by the normalized path, so the lookup compares the
+ * paths themselves: on Windows the drive letter and the folder case do not
+ * have to match.
+ * @param {Map<string, string>} live the live states
+ * @param {string} path the absolute path
+ * @returns {string | undefined} the state
+ */
+function liveStateOf(live, path) {
+  if (live === null || live === undefined || typeof live.entries !== 'function') return undefined
+  for (const [key, state] of live.entries()) {
+    if (samePath(key, path)) return state
+  }
+  return undefined
+}
+
+/**
  * Mount the plugin.
  * @param {any} ctx cordis host context
  */
@@ -58,6 +78,22 @@ export function apply(ctx) {
   const settings = new SettingsStore()
   /** Live terminal handles by session id, for the activity endpoint and unload. */
   const terminals = new Map()
+
+  /**
+   * The language server manager (PRD-v5 §3.1).
+   *
+   * It owns the process lifecycle, the state machine and the memory
+   * pre-check; the client only ever reads the state it publishes. The
+   * "indexed roots" fact lives in the settings document, so the badge in the
+   * project picker survives a restart.
+   */
+  const lsp = new LspManager({
+    ctx,
+    getSettings: async () => settings.get(),
+    persistIndexedRoots: async (indexedRoots) => {
+      await settings.update({ lsp: { indexedRoots } })
+    },
+  })
 
   const fence = (req) => ctx.connection.requestRejection(req) === undefined
 
@@ -130,7 +166,21 @@ export function apply(ctx) {
     /** Root + first-level folders that can be selected as the IDE project. */
     'workspace.projects': async (payload) => {
       const root = await canonicalRoot(payload?.root)
-      return listProjectCandidates(root)
+      const current = await settings.get()
+      const indexed = current.lsp?.indexedRoots ?? {}
+      const live = typeof lsp.liveStates === 'function' ? lsp.liveStates() : new Map()
+      const indexStateOf = (path) => {
+        // A folder that once completed a first build stays "indexed": the
+        // badge is a historical fact, not a live connection state.
+        const key = Object.keys(indexed).find(candidate => samePath(candidate, path))
+        if (key !== undefined) {
+          const entry = indexed[key]
+          return { state: 'indexed', at: Number.isFinite(entry?.at) ? entry.at : null }
+        }
+        const state = liveStateOf(live, path)
+        return state === undefined ? null : { state, at: null }
+      }
+      return listProjectCandidates(root, { indexStateOf })
     },
 
     // ── filesystem ───────────────────────────────────────────────────────
@@ -438,6 +488,35 @@ export function apply(ctx) {
       const value = await settings.update(patch)
       return { value }
     },
+
+    // ── semantic analysis (PRD-v5 §3.1) ─────────────────────────────────
+    'lsp.status': async (payload) => lsp.status({
+      root: typeof payload?.root === 'string' ? payload.root : undefined,
+    }),
+
+    'lsp.index': async (payload) => lsp.index({ root: requireString(payload, 'root') }),
+
+    'lsp.start': async (payload) => lsp.start({
+      root: requireString(payload, 'root'),
+      languageId: typeof payload?.languageId === 'string' ? payload.languageId : undefined,
+    }),
+
+    'lsp.cancelIndex': async (payload) => lsp.cancelIndex({ root: requireString(payload, 'root') }),
+
+    'lsp.servers': async () => lsp.servers({}),
+
+    'lsp.resources': async (payload) => lsp.resources({
+      root: typeof payload?.root === 'string' ? payload.root : undefined,
+    }),
+
+    'lsp.shutdown': async (payload) => lsp.shutdown({
+      root: typeof payload?.root === 'string' ? payload.root : undefined,
+    }),
+
+    /** The stderr of the language server, for the status bar's log link. */
+    'lsp.logs': async (payload) => lsp.logs({
+      root: typeof payload?.root === 'string' ? payload.root : undefined,
+    }),
   }
 
   // ── JSON API route ─────────────────────────────────────────────────────
@@ -575,6 +654,11 @@ export function apply(ctx) {
     },
   }), 'dsh-ide-workbench: terminal WebSocket')
 
+  // ── Language Server WebSocket ─────────────────────────────────────────
+  // A separate path from the terminal socket: the LSP frames are raw JSON
+  // and must never share a connection with the PTY byte stream.
+  ctx.effect(() => registerLspWebSocket(ctx, { manager: lsp, fence }), 'dsh-ide-workbench: LSP WebSocket')
+
   // ── teardown ───────────────────────────────────────────────────────────
   ctx.effect(() => () => {
     for (const client of wss.clients) client.close()
@@ -583,6 +667,8 @@ export function apply(ctx) {
       terminals.delete(id)
       void handle.terminate().catch(() => {})
     }
+    shutdownLspWebSocket()
+    shutdownAll()
   }, 'dsh-ide-workbench: teardown')
 
   ctx.effect(() => {

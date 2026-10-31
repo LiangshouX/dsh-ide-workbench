@@ -6,6 +6,22 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { IconSearch } from './icons.jsx'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 
+/**
+ * Fill the `{placeholder}` slots of one text.
+ *
+ * The harness translate function does not interpolate.
+ * @param {string} text
+ * @param {Record<string, string|number>} values
+ * @returns {string}
+ */
+function interpolate(text, values) {
+  let out = typeof text === 'string' ? text : ''
+  for (const [name, value] of Object.entries(values)) {
+    out = out.replaceAll(`{${name}}`, String(value))
+  }
+  return out
+}
+
 function Flag({ on, label, title, onClick }) {
   return React.createElement('button', {
     type: 'button',
@@ -143,9 +159,20 @@ export function SearchView({ store }) {
             ? t('search.empty')
             : (search.error !== null
                 ? search.error
-                : `${totals.matches} ${t('search.resultCount')} · ${totals.files} · ${search.tookMs} ${t('search.took')}`)),
+                : (search.textMatch === true
+                    // The usages view counts its hits with its own wording.
+                    ? (totals.matches === 0
+                        ? t('nav.noUsages')
+                        : interpolate(t('nav.usagesCount'), { count: totals.matches }))
+                    : `${totals.matches} ${t('search.resultCount')} · ${totals.files} · ${search.tookMs} ${t('search.took')}`))),
       search.truncated === true ? React.createElement('span', { className: 'iwb-search-warn' }, t('search.truncated')) : null,
     ),
+    // The text version of Find Usages is a fallback, not a semantic result:
+    // every hit is labelled, so the user knows what the list really is
+    // (PRD-v5 §5.3, §7.1).
+    search.textMatch === true
+      ? React.createElement('div', { className: 'iwb-search-textmatch-note' }, t('nav.textMatch'))
+      : null,
     React.createElement('div', { className: 'iwb-search-results' },
       search.error !== null && query !== ''
         ? React.createElement('div', { className: 'iwb-search-error' }, search.error)
@@ -165,6 +192,9 @@ export function SearchView({ store }) {
                   onClick: () => open(file, match),
                 },
                   React.createElement('span', { className: 'iwb-search-line' }, match.line),
+                  search.textMatch === true
+                    ? React.createElement('span', { className: 'iwb-search-textmatch' }, t('nav.textMatch'))
+                    : null,
                   React.createElement('span', { className: 'iwb-search-preview' }, match.preview),
                 )),
               ))),

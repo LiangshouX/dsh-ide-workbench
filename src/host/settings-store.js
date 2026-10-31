@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path'
 import { ApiError } from './wire.js'
 
 /** The settings schema version this build writes. */
-export const SETTINGS_VERSION = 2
+export const SETTINGS_VERSION = 3
 
 /** Deep defaults; a saved document is merged over this at load time. */
 export const DEFAULT_SETTINGS = {
@@ -93,6 +93,38 @@ export const DEFAULT_SETTINGS = {
   history: { maxPerFile: 100, maxBytes: 209715200, maxDays: 90 },
   delete: { useRecycleBin: true, confirm: true },
   ui: { showStatusBar: true },
+  /**
+   * Semantic analysis (LSP) settings (PRD-v5 §6.1).
+   *
+   * `enabled` is the master switch: with it off no language server is ever
+   * started and the workbench keeps its conservative mode (local completion
+   * plus text search for usages).
+   */
+  lsp: {
+    /** Master switch. false = never start a language server. */
+    enabled: true,
+    /** 'ask' = ask; 'always' = always index; 'never' = never index. */
+    indexOnOpen: 'ask',
+    /** Memory ceiling handed to the language server (MB). */
+    memoryLimitMB: 2048,
+    /** Free system memory required before a server may start (MB). */
+    freeMemoryThresholdMB: 2048,
+    /** Idle time after which the language server exits (ms). */
+    idleTimeoutMs: 600000,
+    /** LSP request timeout (ms). Must stay >= 30000: the client library's own
+     * default is 3000, which silently times out on large projects. */
+    requestTimeoutMs: 30000,
+    /** How long an index may run before the cancel button appears (ms). */
+    cancelAfterMs: 60000,
+    /** Whether an idle language server may exit on its own. */
+    autoExit: true,
+    /** Whether a crashed language server is restarted once. */
+    autoRestart: true,
+    /** Per-language overrides: { [languageId]: { enabled, command, args } }. */
+    servers: {},
+    /** Project roots that completed a first build: { [absPath]: { at, languageId } }. */
+    indexedRoots: {},
+  },
   shortcuts: {
     project: 'Alt+1',
     commit: 'Alt+0',
@@ -117,6 +149,11 @@ export const DEFAULT_SETTINGS = {
     revertCommit: 'Ctrl+Alt+Z',
     jumpToSource: 'F4',
     openEntry: 'Enter',
+    /** PRD-v5 §6.4: the semantic navigation keys. */
+    findUsages: 'Alt+F7',
+    findUsagesText: 'Alt+F8',
+    goToDefinition: 'F12',
+    complete: 'Ctrl+Space',
   },
   /** Selected IDE project root per workspace root. */
   projectRoots: {},
@@ -171,6 +208,29 @@ export function migrateLegacyShortcuts(value) {
 }
 
 /**
+ * Fill in the `lsp` section of a document written before schema 3.
+ *
+ * The migration only touches the `lsp` section: every other setting the user
+ * made survives untouched, which is the whole point of the schema bump. A
+ * request timeout below the library's own 3000 ms default is raised, because
+ * that value silently times out on a large project.
+ * @param {any} value the merged settings document
+ * @returns {any} the same document, migrated in place
+ */
+export function migrateLspSettings(value) {
+  if (!isPlainObject(value)) return value
+  const current = isPlainObject(value.lsp) ? value.lsp : {}
+  const migrated = deepMerge(DEFAULT_SETTINGS.lsp, current)
+  if (!Number.isSafeInteger(migrated.requestTimeoutMs) || migrated.requestTimeoutMs < 30000) {
+    migrated.requestTimeoutMs = DEFAULT_SETTINGS.lsp.requestTimeoutMs
+  }
+  if (!isPlainObject(migrated.indexedRoots)) migrated.indexedRoots = {}
+  if (!isPlainObject(migrated.servers)) migrated.servers = {}
+  value.lsp = migrated
+  return value
+}
+
+/**
  * One settings document for the lifetime of the plugin fiber.
  */
 export class SettingsStore {
@@ -196,6 +256,7 @@ export class SettingsStore {
       }
       this.value = deepMerge(DEFAULT_SETTINGS, isPlainObject(parsed) ? { ...parsed, version: SETTINGS_VERSION } : {})
       migrateLegacyShortcuts(this.value)
+      migrateLspSettings(this.value)
       for (const ide of ['idea', 'webstorm', 'vscode']) {
         if (!isPlainObject(this.value[ide]) || typeof this.value[ide].path !== 'string' || this.value[ide].path.includes('\0')) {
           this.value[ide] = { ...DEFAULT_SETTINGS[ide] }

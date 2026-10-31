@@ -91,6 +91,23 @@ function Welcome({ store, slice }) {
   )
 }
 
+/**
+ * The labels of the editor's navigation menu (PRD-v5 §5.1, §5.3).
+ *
+ * They are exported so the tests can assert the wording without opening a
+ * context menu in a browser.
+ * @param {(key: string) => string} t
+ * @returns {{goToDefinition: string, findUsages: string, findUsagesText: string, semanticUnavailable: string}}
+ */
+export function editorNavLabels(t) {
+  return {
+    goToDefinition: t('nav.goToDefinition'),
+    findUsages: t('nav.findUsages'),
+    findUsagesText: t('nav.findUsagesText'),
+    semanticUnavailable: t('nav.semanticUnavailable'),
+  }
+}
+
 function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindInFiles, previewFind, onPreviewFindRequest, onClosePreviewFind }) {
   const t = store.t
   const scrollTimer = useRef(null)
@@ -127,6 +144,10 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
   }
   const saved = payload.content ?? ''
   const text = tab.dirty === true ? (tab.draft ?? saved) : saved
+  // The navigation menu of the editor (PRD-v5 §5.1, §5.3). The semantic
+  // entries are greyed out by the editor when the language server cannot
+  // serve them; the text entry always stays available.
+  const navLabels = editorNavLabels(t)
   if (tab.editing === true && payload.truncated !== true) {
     return React.createElement(CodeEditor, {
       key: `${tab.id}:${tab.resetToken ?? 0}`,
@@ -135,6 +156,7 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
       fontSize: slice.fontSize,
       resetToken: tab.resetToken ?? 0,
       revealLine: tab.revealLine,
+      revealColumn: tab.revealColumn ?? null,
       readOnly: false,
       onFindRequest,
       onFindInFiles,
@@ -144,6 +166,7 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
       onCursor: position => store.setCursor(position),
       onSendToChat: selection => store.sendSelectionToChat({ path: tab.path, rel: tab.rel, ...selection }),
       chatLabels: { send: t('chat.sendToChat'), copy: t('common.copy') },
+      navLabels,
     })
   }
   if (isMarkdownPath(tab.path) && (tab.view ?? 'preview') === 'preview') {
@@ -177,6 +200,7 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
     fontSize: slice.fontSize,
     resetToken: tab.resetToken ?? 0,
     revealLine: tab.revealLine,
+    revealColumn: tab.revealColumn ?? null,
     readOnly: true,
     onFindRequest,
     onFindInFiles,
@@ -184,6 +208,7 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
     onCursor: position => store.setCursor(position),
     onSendToChat: selection => store.sendSelectionToChat({ path: tab.path, rel: tab.rel, ...selection }),
     chatLabels: { send: t('chat.sendToChat'), copy: t('common.copy') },
+    navLabels,
   })
 }
 
@@ -728,7 +753,12 @@ export function EditorArea({ store, state: _state }) {
   if (active.kind === 'search') {
     return React.createElement('div', { className: 'iwb-editor' },
       React.createElement(TabBar, { store, slice }),
-      React.createElement(SearchView, { store }),
+      // The key keeps the two search tabs apart: the Find in Files view and
+      // the usages view have their own query and their own flags, so the
+      // view is remounted when the tab changes.
+      React.createElement(React.Fragment, { key: active.id },
+        React.createElement(SearchView, { store }),
+      ),
     )
   }
   const content = active.kind === 'file'

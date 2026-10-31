@@ -364,6 +364,36 @@ var en = {
   "settings.findInFilesShortcutHint": "Search the whole project",
   "settings.findInFilesAltShortcut": "Find in Files (fallback)",
   "settings.findInFilesAltShortcutHint": "Used when the shell reserves Ctrl+Shift+R (in a browser Ctrl+Shift+R is a hard reload)",
+  "settings.findUsagesShortcut": "Find usages (semantic)",
+  "settings.findUsagesShortcutHint": "List the semantic references of the symbol at the cursor",
+  "settings.findUsagesTextShortcut": "Find usages (text)",
+  "settings.findUsagesTextShortcutHint": "Text search for the symbol at the cursor; always available",
+  "settings.goToDefinitionShortcut": "Go to definition",
+  "settings.goToDefinitionShortcutHint": "Jump to the definition of the symbol at the cursor",
+  "settings.completeShortcut": "Trigger completion",
+  "settings.completeShortcutHint": "Open the completion popup by hand",
+  "settings.lspGroup": "Semantic analysis",
+  "settings.lspGroupHint": "Language servers provide semantic completion, go to definition and find usages. Without one the workbench keeps its basic mode (local completion and text search).",
+  "settings.lspEnabled": "Enable semantic analysis",
+  "settings.lspEnabledHint": "With this off no language server is ever started",
+  "settings.lspIndexOnOpen": "When opening an unindexed folder",
+  "settings.lspIndexOnOpenHint": "The first build of a project can take one or two minutes",
+  "settings.lspIndexAsk": "Ask me",
+  "settings.lspIndexAlways": "Always index",
+  "settings.lspIndexNever": "Never index (basic mode only)",
+  "settings.lspMemoryLimit": "Language server memory limit (MB)",
+  "settings.lspMemoryLimitHint": "Handed to the server itself; a server that cannot be limited is noted in the status bar",
+  "settings.lspFreeMemory": "Free memory required to start (MB)",
+  "settings.lspFreeMemoryHint": "Below this the workbench keeps the basic mode instead of starting a server",
+  "settings.lspIdleTimeout": "Idle exit (minutes)",
+  "settings.lspIdleTimeoutHint": "The server exits after this much time without activity, and its memory is released",
+  "settings.lspRequestTimeout": "Request timeout (ms)",
+  "settings.lspRequestTimeoutHint": "Must stay at 30000 or above: a shorter timeout fails silently on a large project",
+  "settings.lspAutoExit": "Exit the server when idle",
+  "settings.lspAutoRestart": "Restart once after a crash",
+  "settings.lspServersMissing": "Language servers not found",
+  "settings.lspServersMissingHint": "Install them and make sure they are on PATH",
+  "settings.lspOfflineNote": "An offline install does not include the bundled language servers: TypeScript, JavaScript and Python then need a language server on PATH.",
   "settings.terminalGroup": "Terminal",
   "settings.defaultShell": "Default shell profile",
   "settings.defaultShellHint": "New sessions use this shell",
@@ -758,7 +788,47 @@ var en = {
   "quickOpen.hint": "Enter to open \xB7 Esc to close",
   "quickOpen.recent": "Files",
   "status.ready": "Ready",
-  "status.changes": "changes"
+  "status.changes": "changes",
+  // ── code intelligence (PRD-v5) ─────────────────────────────────────────
+  // Placeholders in {braces} are substituted by the caller: the harness
+  // translate function does not interpolate.
+  "project.indexed": "Indexed",
+  "project.indexedHint": "This folder was indexed before. Reopening it is usually faster, but not free.",
+  "lsp.status.disabled": "Semantic analysis: off",
+  "lsp.status.missing": "Semantic analysis: {language} not installed",
+  "lsp.status.starting": "Semantic analysis: starting\u2026",
+  "lsp.status.building": "Semantic analysis: indexing\u2026",
+  "lsp.status.cancelling": "Semantic analysis: cancelling\u2026",
+  "lsp.status.updating": "Updating the index\u2026",
+  "lsp.status.ready": "Semantic analysis: ready",
+  "lsp.status.degraded": "Semantic analysis: basic mode",
+  "lsp.status.crashed": "Semantic analysis: crashed",
+  "lsp.status.cancelled": "Semantic analysis: cancelled (basic mode)",
+  "lsp.cancelIndex": "Cancel indexing",
+  "lsp.statusTitle": "Semantic analysis status",
+  "index.decision.title": "Build a code index for {name}?",
+  "index.decision.body": "The first build may take 1\u20132 minutes and can be cancelled at any time. Without it you only get the basic mode (local completion and text search for usages).",
+  "index.decision.rootTitle": "This is the workspace root",
+  "index.decision.rootWarning": "The workspace root usually contains several independent repositories. Indexing here treats them as one program and raises memory usage and build time considerably. Switch to a specific subfolder first.",
+  "index.decision.rootRepo": "This folder is a repository, but it may still be large. Indexing here covers the whole repository.",
+  "index.decision.build": "Build index",
+  "index.decision.buildRoot": "Index here (not recommended)",
+  "index.decision.conservative": "Basic mode only",
+  "index.decision.cancel": "Cancel",
+  "nav.goToDefinition": "Go to definition",
+  "nav.findUsages": "Find usages (semantic)",
+  "nav.findUsagesText": "Find usages (text)",
+  "nav.textMatch": "Text match",
+  "nav.usagesTitle": "Usages",
+  "nav.usagesCount": "{count} usages",
+  "nav.noUsages": "No usages found",
+  "nav.semanticUnavailable": "The language server does not support finding usages.",
+  "lsp.lowMemory": "Not enough free memory (needs {need} MB, {free} MB available)",
+  "lsp.lowMemoryHint": "Close other programs, or lower the memory limit in the settings.",
+  "lsp.crashedToast": "The language server exited. Memory exhaustion is the most common cause \u2014 lower the memory limit, disable that language, or continue in the basic mode.",
+  "lsp.outsideProject": "That file is outside the workspace and cannot be opened.",
+  "lsp.serverMissing": "No language server was found for {language}. Install it and make sure it is on PATH.",
+  "lsp.degraded": "Semantic analysis is unavailable; the basic mode is used instead."
 };
 var zh = {
   "meta.title": "IDE \u5DE5\u4F5C\u53F0",
@@ -794,6 +864,36 @@ var zh = {
   "settings.findInFilesShortcutHint": "\u641C\u7D22\u6574\u4E2A\u9879\u76EE",
   "settings.findInFilesAltShortcut": "\u5168\u9879\u76EE\u67E5\u627E\uFF08\u5907\u7528\uFF09",
   "settings.findInFilesAltShortcutHint": "\u5F53\u5916\u58F3\u5360\u7528 Ctrl+Shift+R \u65F6\u4F7F\u7528\uFF08\u6D4F\u89C8\u5668\u5F62\u6001\u4E0B Ctrl+Shift+R \u662F\u786C\u5237\u65B0\uFF09",
+  "settings.findUsagesShortcut": "\u67E5\u627E\u7528\u6CD5\uFF08\u8BED\u4E49\uFF09",
+  "settings.findUsagesShortcutHint": "\u5217\u51FA\u5149\u6807\u5904\u7B26\u53F7\u7684\u8BED\u4E49\u5F15\u7528",
+  "settings.findUsagesTextShortcut": "\u67E5\u627E\u7528\u6CD5\uFF08\u6587\u672C\uFF09",
+  "settings.findUsagesTextShortcutHint": "\u6309\u5149\u6807\u5904\u7B26\u53F7\u505A\u6587\u672C\u641C\u7D22\uFF1B\u59CB\u7EC8\u53EF\u7528",
+  "settings.goToDefinitionShortcut": "\u8DF3\u8F6C\u5B9A\u4E49",
+  "settings.goToDefinitionShortcutHint": "\u8DF3\u5230\u5149\u6807\u5904\u7B26\u53F7\u7684\u5B9A\u4E49",
+  "settings.completeShortcut": "\u624B\u52A8\u89E6\u53D1\u8865\u5168",
+  "settings.completeShortcutHint": "\u624B\u52A8\u6253\u5F00\u8865\u5168\u5F39\u7A97",
+  "settings.lspGroup": "\u8BED\u4E49\u5206\u6790",
+  "settings.lspGroupHint": "\u8BED\u8A00\u670D\u52A1\u5668\u63D0\u4F9B\u8BED\u4E49\u8865\u5168\u3001\u8DF3\u8F6C\u5B9A\u4E49\u4E0E\u67E5\u627E\u5F15\u7528\u3002\u6CA1\u6709\u8BED\u8A00\u670D\u52A1\u5668\u65F6\u5DE5\u4F5C\u53F0\u4FDD\u6301\u4FDD\u5B88\u7248\uFF08\u672C\u5730\u8865\u5168 + \u6587\u672C\u641C\u7D22\uFF09\u3002",
+  "settings.lspEnabled": "\u542F\u7528\u8BED\u4E49\u5206\u6790",
+  "settings.lspEnabledHint": "\u5173\u95ED\u540E\u4E0D\u4F1A\u542F\u52A8\u4EFB\u4F55\u8BED\u8A00\u670D\u52A1\u5668",
+  "settings.lspIndexOnOpen": "\u6253\u5F00\u672A\u7D22\u5F15\u76EE\u5F55\u65F6",
+  "settings.lspIndexOnOpenHint": "\u4E00\u4E2A\u9879\u76EE\u7684\u9996\u6B21\u6784\u5EFA\u53EF\u80FD\u9700\u8981\u4E00\u4E24\u5206\u949F",
+  "settings.lspIndexAsk": "\u8BE2\u95EE\u6211",
+  "settings.lspIndexAlways": "\u603B\u662F\u7D22\u5F15",
+  "settings.lspIndexNever": "\u4ECE\u4E0D\u7D22\u5F15\uFF08\u4EC5\u4FDD\u5B88\u7248\uFF09",
+  "settings.lspMemoryLimit": "\u8BED\u8A00\u670D\u52A1\u5668\u5185\u5B58\u4E0A\u9650 (MB)",
+  "settings.lspMemoryLimitHint": "\u4F1A\u4F20\u7ED9\u670D\u52A1\u5668\u81EA\u8EAB\uFF1B\u4E0D\u652F\u6301\u4E0A\u9650\u7684\u670D\u52A1\u5668\u4F1A\u5728\u72B6\u6001\u680F\u6CE8\u660E",
+  "settings.lspFreeMemory": "\u542F\u52A8\u6240\u9700\u53EF\u7528\u5185\u5B58 (MB)",
+  "settings.lspFreeMemoryHint": "\u4F4E\u4E8E\u8BE5\u503C\u65F6\u5DE5\u4F5C\u53F0\u4FDD\u6301\u4FDD\u5B88\u7248\uFF0C\u4E0D\u542F\u52A8\u670D\u52A1\u5668",
+  "settings.lspIdleTimeout": "\u7A7A\u95F2\u9000\u51FA (\u5206\u949F)",
+  "settings.lspIdleTimeoutHint": "\u670D\u52A1\u5668\u5728\u8FD9\u4E48\u4E45\u6CA1\u6709\u6D3B\u52A8\u540E\u9000\u51FA\uFF0C\u5185\u5B58\u968F\u4E4B\u91CA\u653E",
+  "settings.lspRequestTimeout": "\u8BF7\u6C42\u8D85\u65F6 (\u6BEB\u79D2)",
+  "settings.lspRequestTimeoutHint": "\u5FC5\u987B\u4E0D\u4F4E\u4E8E 30000\uFF1A\u66F4\u77ED\u7684\u503C\u5728\u5927\u9879\u76EE\u4E0A\u4F1A\u9759\u9ED8\u5931\u8D25",
+  "settings.lspAutoExit": "\u7A7A\u95F2\u65F6\u9000\u51FA\u670D\u52A1\u5668",
+  "settings.lspAutoRestart": "\u5D29\u6E83\u540E\u81EA\u52A8\u91CD\u542F\u4E00\u6B21",
+  "settings.lspServersMissing": "\u672A\u627E\u5230\u7684\u8BED\u8A00\u670D\u52A1\u5668",
+  "settings.lspServersMissingHint": "\u8BF7\u5B89\u88C5\u5B83\u4EEC\u5E76\u786E\u4FDD\u5B83\u4EEC\u5728 PATH \u4E2D",
+  "settings.lspOfflineNote": "\u79BB\u7EBF\u5B89\u88C5\u4E0D\u5305\u542B\u6253\u5305\u7684\u8BED\u8A00\u670D\u52A1\u5668\uFF1ATypeScript\u3001JavaScript \u4E0E Python \u9700\u8981 PATH \u4E0A\u6709\u5BF9\u5E94\u7684\u8BED\u8A00\u670D\u52A1\u5668\u3002",
   "settings.terminalGroup": "\u7EC8\u7AEF",
   "settings.defaultShell": "\u9ED8\u8BA4 Shell \u914D\u7F6E",
   "settings.defaultShellHint": "\u65B0\u4F1A\u8BDD\u4F7F\u7528\u8BE5 Shell",
@@ -1188,7 +1288,46 @@ var zh = {
   "quickOpen.hint": "Enter \u6253\u5F00 \xB7 Esc \u5173\u95ED",
   "quickOpen.recent": "\u6587\u4EF6",
   "status.ready": "\u5C31\u7EEA",
-  "status.changes": "\u9879\u6539\u52A8"
+  "status.changes": "\u9879\u6539\u52A8",
+  // ── 代码智能（PRD-v5）──────────────────────────────────────────────────
+  // 花括号里的占位符由调用方替换：harness 的 translate 函数不做插值。
+  "project.indexed": "\u5DF2\u7D22\u5F15",
+  "project.indexedHint": "\u8BE5\u76EE\u5F55\u6B64\u524D\u5EFA\u7ACB\u8FC7\u7D22\u5F15\u3002\u91CD\u65B0\u6253\u5F00\u901A\u5E38\u66F4\u5FEB\uFF0C\u4F46\u5E76\u975E\u96F6\u6210\u672C\u3002",
+  "lsp.status.disabled": "\u8BED\u4E49\u5206\u6790\uFF1A\u5DF2\u5173\u95ED",
+  "lsp.status.missing": "\u8BED\u4E49\u5206\u6790\uFF1A\u672A\u5B89\u88C5\uFF08{language}\uFF09",
+  "lsp.status.starting": "\u8BED\u4E49\u5206\u6790\uFF1A\u542F\u52A8\u4E2D\u2026",
+  "lsp.status.building": "\u8BED\u4E49\u5206\u6790\uFF1A\u7D22\u5F15\u4E2D\u2026",
+  "lsp.status.cancelling": "\u8BED\u4E49\u5206\u6790\uFF1A\u53D6\u6D88\u4E2D\u2026",
+  "lsp.status.updating": "\u6B63\u5728\u66F4\u65B0\u7D22\u5F15\u2026",
+  "lsp.status.ready": "\u8BED\u4E49\u5206\u6790\uFF1A\u5C31\u7EEA",
+  "lsp.status.degraded": "\u8BED\u4E49\u5206\u6790\uFF1A\u4FDD\u5B88\u7248",
+  "lsp.status.crashed": "\u8BED\u4E49\u5206\u6790\uFF1A\u5DF2\u5D29\u6E83",
+  "lsp.status.cancelled": "\u8BED\u4E49\u5206\u6790\uFF1A\u5DF2\u53D6\u6D88\uFF08\u4FDD\u5B88\u7248\uFF09",
+  "lsp.cancelIndex": "\u53D6\u6D88\u7D22\u5F15",
+  "lsp.statusTitle": "\u8BED\u4E49\u5206\u6790\u72B6\u6001",
+  "index.decision.title": "\u4E3A {name} \u6784\u5EFA\u4EE3\u7801\u7D22\u5F15\uFF1F",
+  "index.decision.body": "\u9996\u6B21\u6784\u5EFA\u53EF\u80FD\u9700\u8981 1\u20132 \u5206\u949F\uFF0C\u671F\u95F4\u53EF\u4EE5\u968F\u65F6\u53D6\u6D88\u3002\u4E0D\u6784\u5EFA\u5219\u53EA\u63D0\u4F9B\u4FDD\u5B88\u7248\uFF08\u57FA\u7840\u8865\u5168 + \u6587\u672C\u67E5\u627E\u5F15\u7528\uFF09\u3002",
+  "index.decision.rootTitle": "\u8FD9\u662F\u5DE5\u4F5C\u533A\u6839\u76EE\u5F55",
+  "index.decision.rootWarning": "\u5DE5\u4F5C\u533A\u6839\u76EE\u5F55\u901A\u5E38\u5305\u542B\u591A\u4E2A\u72EC\u7ACB\u4ED3\u5E93\u3002\u5728\u6B64\u7D22\u5F15\u4F1A\u628A\u5B83\u4EEC\u5F53\u4F5C\u540C\u4E00\u4E2A\u7A0B\u5E8F\uFF0C\u663E\u8457\u589E\u52A0\u5185\u5B58\u5360\u7528\u4E0E\u6784\u5EFA\u65F6\u95F4\u3002\u5EFA\u8BAE\u5148\u5207\u6362\u5230\u5177\u4F53\u5B50\u76EE\u5F55\u3002",
+  "index.decision.rootRepo": "\u8BE5\u76EE\u5F55\u672C\u8EAB\u662F\u4E00\u4E2A\u4ED3\u5E93\uFF0C\u4F46\u4ECD\u53EF\u80FD\u5F88\u5927\u3002\u5728\u6B64\u7D22\u5F15\u4F1A\u8986\u76D6\u6574\u4E2A\u4ED3\u5E93\u3002",
+  "index.decision.build": "\u6784\u5EFA\u7D22\u5F15",
+  "index.decision.buildRoot": "\u5728\u6B64\u76EE\u5F55\u7D22\u5F15\uFF08\u4E0D\u63A8\u8350\uFF09",
+  "index.decision.conservative": "\u4EC5\u4FDD\u5B88\u7248",
+  "index.decision.cancel": "\u53D6\u6D88",
+  "nav.goToDefinition": "\u8DF3\u8F6C\u5B9A\u4E49",
+  "nav.findUsages": "\u67E5\u627E\u7528\u6CD5\uFF08\u8BED\u4E49\uFF09",
+  "nav.findUsagesText": "\u67E5\u627E\u7528\u6CD5\uFF08\u6587\u672C\uFF09",
+  "nav.textMatch": "\u6587\u672C\u5339\u914D",
+  "nav.usagesTitle": "\u67E5\u627E\u7528\u6CD5",
+  "nav.usagesCount": "{count} \u5904\u5F15\u7528",
+  "nav.noUsages": "\u672A\u627E\u5230\u5F15\u7528",
+  "nav.semanticUnavailable": "\u8BE5\u8BED\u8A00\u670D\u52A1\u5668\u4E0D\u652F\u6301\u67E5\u627E\u5F15\u7528\u3002",
+  "lsp.lowMemory": "\u7CFB\u7EDF\u53EF\u7528\u5185\u5B58\u4E0D\u8DB3\uFF08\u9700\u8981 {need} MB\uFF0C\u53EF\u7528 {free} MB\uFF09",
+  "lsp.lowMemoryHint": "\u8BF7\u5173\u95ED\u5176\u5B83\u7A0B\u5E8F\uFF0C\u6216\u5728\u8BBE\u7F6E\u91CC\u8C03\u4F4E\u5185\u5B58\u4E0A\u9650\u3002",
+  "lsp.crashedToast": "\u8BED\u8A00\u670D\u52A1\u5668\u5DF2\u9000\u51FA\u3002\u6700\u5E38\u89C1\u7684\u539F\u56E0\u662F\u5185\u5B58\u4E0D\u8DB3\u2014\u2014\u8BF7\u964D\u4F4E\u5185\u5B58\u4E0A\u9650\u3001\u5173\u95ED\u8BE5\u8BED\u8A00\uFF0C\u6216\u6539\u7528\u4FDD\u5B88\u7248\u3002",
+  "lsp.outsideProject": "\u8BE5\u6587\u4EF6\u5728\u5DE5\u4F5C\u533A\u4E4B\u5916\uFF0C\u65E0\u6CD5\u6253\u5F00\u3002",
+  "lsp.serverMissing": "\u672A\u627E\u5230 {language} \u7684\u8BED\u8A00\u670D\u52A1\u5668\u3002\u8BF7\u5B89\u88C5\u5B83\u5E76\u786E\u4FDD\u5B83\u5728 PATH \u4E2D\u3002",
+  "lsp.degraded": "\u8BED\u4E49\u5206\u6790\u4E0D\u53EF\u7528\uFF0C\u5DF2\u6539\u7528\u4FDD\u5B88\u7248\u3002"
 };
 
 // src/client/api.js
@@ -1285,21 +1424,21 @@ function checkedPathsOf(entries, state) {
   return set;
 }
 function headerState(entries, checkedPaths) {
-  const list = Array.isArray(entries) ? entries : [];
-  if (list.length === 0) return "none";
-  const selected = list.filter((entry) => checkedPaths.has(entry.path)).length;
+  const list2 = Array.isArray(entries) ? entries : [];
+  if (list2.length === 0) return "none";
+  const selected = list2.filter((entry) => checkedPaths.has(entry.path)).length;
   if (selected === 0) return "none";
-  return selected === list.length ? "all" : "some";
+  return selected === list2.length ? "all" : "some";
 }
 function groupByDirectory(entries) {
   const map = /* @__PURE__ */ new Map();
   for (const entry of Array.isArray(entries) ? entries : []) {
     const dir = parentDirOf(entry.path);
-    const list = map.get(dir);
-    if (list === void 0) map.set(dir, [entry]);
-    else list.push(entry);
+    const list2 = map.get(dir);
+    if (list2 === void 0) map.set(dir, [entry]);
+    else list2.push(entry);
   }
-  return [...map.entries()].sort((left, right) => left[0].localeCompare(right[0])).map(([dir, list]) => ({ dir, entries: list }));
+  return [...map.entries()].sort((left, right) => left[0].localeCompare(right[0])).map(([dir, list2]) => ({ dir, entries: list2 }));
 }
 function changelistOf(path2, lists = {}) {
   for (const [name2, paths] of Object.entries(lists)) {
@@ -1309,8 +1448,8 @@ function changelistOf(path2, lists = {}) {
 }
 function assignChangelist(lists, paths, target) {
   const next = {};
-  for (const [name2, list] of Object.entries(lists ?? {})) {
-    next[name2] = (Array.isArray(list) ? list : []).filter((path2) => !paths.includes(path2));
+  for (const [name2, list2] of Object.entries(lists ?? {})) {
+    next[name2] = (Array.isArray(list2) ? list2 : []).filter((path2) => !paths.includes(path2));
   }
   if (target !== void 0) {
     next[target] = [.../* @__PURE__ */ new Set([...next[target] ?? [], ...paths])];
@@ -1496,10 +1635,10 @@ function relativeLinkCandidateEntries(path2, bases) {
   if (slashed.startsWith("//")) return [];
   const rel = slashed.startsWith("/") ? slashed.slice(1) : slashed;
   if (rel === "") return [];
-  const list = Array.isArray(bases) ? bases : [];
+  const list2 = Array.isArray(bases) ? bases : [];
   const entries = [];
   const seen = /* @__PURE__ */ new Set();
-  for (const base2 of list) {
+  for (const base2 of list2) {
     if (typeof base2 !== "string" || base2 === "") continue;
     const trimmed = base2.replace(/[\\/]+$/, "");
     if (trimmed === "") continue;
@@ -1598,17 +1737,17 @@ function defaultSidebarKind(ctx, address, ownKind) {
   }
   return void 0;
 }
-function openInDefaultSidebar(ctx, address, options = {}) {
+function openInDefaultSidebar(ctx, address, options2 = {}) {
   const sidebar = serviceOf(ctx, "sidebarRight");
   if (typeof sidebar?.openResource !== "function") return false;
   const placement = {
-    ...options.line === void 0 ? {} : { params: { line: options.line } },
+    ...options2.line === void 0 ? {} : { params: { line: options2.line } },
     revealIfOpened: true,
-    ...options.replaceTab === void 0 ? {} : { replaceTab: options.replaceTab }
+    ...options2.replaceTab === void 0 ? {} : { replaceTab: options2.replaceTab }
   };
   const kinds = [];
-  if (typeof options.kind === "string" && options.kind !== "") kinds.push(options.kind);
-  const probed = defaultSidebarKind(ctx, address, options.ownKind);
+  if (typeof options2.kind === "string" && options2.kind !== "") kinds.push(options2.kind);
+  const probed = defaultSidebarKind(ctx, address, options2.ownKind);
   if (probed !== void 0 && !kinds.includes(probed)) kinds.push(probed);
   for (const kind of kinds) {
     try {
@@ -1617,10 +1756,10 @@ function openInDefaultSidebar(ctx, address, options = {}) {
     } catch {
     }
   }
-  if (typeof options.suppressSelf !== "function") return false;
+  if (typeof options2.suppressSelf !== "function") return false;
   let release;
   try {
-    release = options.suppressSelf();
+    release = options2.suppressSelf();
     sidebar.openResource(address, placement);
     return true;
   } catch {
@@ -1779,8 +1918,8 @@ function sessionCwdOf(ctx, sessionId) {
   if (typeof sessionId !== "string" || sessionId === "") return "";
   try {
     const sessions = ctx?.sessions ?? ctx?.get?.("sessions");
-    const list = sessions?.list?.getSnapshot?.();
-    const summary = list?.byId?.[sessionId];
+    const list2 = sessions?.list?.getSnapshot?.();
+    const summary = list2?.byId?.[sessionId];
     return typeof summary?.cwd === "string" ? summary.cwd : "";
   } catch {
     return "";
@@ -1891,6 +2030,12 @@ function initialState() {
       caseSensitive: false,
       wholeWord: false,
       regexp: false,
+      /**
+       * True while the results come from the text version of Find Usages.
+       * Every hit then carries a "text match" label, so the user never
+       * mistakes a text hit for a semantic reference (PRD-v5 §5.3).
+       */
+      textMatch: false,
       loading: false,
       error: null,
       results: [],
@@ -1898,6 +2043,40 @@ function initialState() {
       truncated: false,
       token: 0
     },
+    /**
+     * The mirrored language-server status (PRD-v5 §4.3).
+     *
+     * The host owns the truth: the client only mirrors the last snapshot it
+     * read from `lsp.status` and never derives a state of its own.
+     */
+    lsp: {
+      /** False when the master switch in the settings is off. */
+      enabled: true,
+      /** 'idle' | 'starting' | 'building' | 'ready' | 'failed' | 'cancelled' | 'crashed' | 'degraded' | 'disabled' */
+      state: "idle",
+      languageId: "",
+      serverId: "",
+      source: null,
+      /** The host's explanation of the current state (shown as a tooltip). */
+      detail: null,
+      /** The progress text of a running build. */
+      progress: "",
+      /** When the current build started (epoch ms, 0 when unknown). */
+      startedAt: 0,
+      /** Whether the host accepts `lsp.cancelIndex` right now. */
+      cancellable: false,
+      /** The roots the host knows about, as reported by `lsp.status`. */
+      indexedRoots: [],
+      /** The language-server registry (`lsp.servers`), fetched once per language. */
+      servers: { available: [], missing: [] }
+    },
+    /**
+     * The pending index decision (PRD-v5 §2.3).
+     *
+     * `null` while no dialog is open; otherwise the data the dialog renders
+     * (the project it is about and whether it is the workspace root).
+     */
+    indexDecision: null,
     commit: {
       message: "",
       amend: false,
@@ -1980,6 +2159,9 @@ var WorkbenchStore = class {
     this.unsubscribers = [];
     this.hiddenLayout = null;
     this.lastToolGroup = "left";
+    this.lspPollTimer = null;
+    this.indexDecisionResolve = null;
+    this.lspServersChecked = /* @__PURE__ */ new Set();
   }
   // ── subscription ──────────────────────────────────────────────────────
   subscribe = (listener) => {
@@ -2238,7 +2420,7 @@ var WorkbenchStore = class {
    *   absolute?: string,
    * }>}
    */
-  async openExternalFile(address, options = {}) {
+  async openExternalFile(address, options2 = {}) {
     const parsed = parseFileAddress(address);
     if (parsed === void 0) return { status: "failed" };
     if (!await this.ensureInit()) return { status: "failed" };
@@ -2250,29 +2432,29 @@ var WorkbenchStore = class {
     if (workspace === "" || !isPathWithin(workspace, absolute)) {
       if (isAmbiguousLinkPath(parsed.path, this.state.workspaceRoot)) {
         const candidate = await this.#firstExistingCandidate(parsed);
-        if (candidate !== void 0) return this.#openResolved(candidate, workspace, options);
+        if (candidate !== void 0) return this.#openResolved(candidate, workspace, options2);
       }
       return { status: "outside-workspace", absolute };
     }
     if (this.#insideRoot(absolute)) {
-      this.#revealInProject(absolute, options.line);
+      this.#revealInProject(absolute, options2.line);
       return { status: "opened", absolute };
     }
     if (isPlainRelativeLinkPath(parsed.path)) {
       const candidate = await this.#firstExistingCandidate(parsed);
-      if (candidate !== void 0) return this.#openResolved(candidate, workspace, options);
+      if (candidate !== void 0) return this.#openResolved(candidate, workspace, options2);
     }
     if (this.state.tabs.some((tab3) => tab3.dirty === true)) {
       return { status: "dirty", absolute };
     }
-    if (options.switchProject !== true) {
+    if (options2.switchProject !== true) {
       return { status: "needs-project-switch", absolute };
     }
-    const switched = await this.selectProject(workspace);
+    const switched = await this.selectProject(workspace, { askIndex: false });
     if (switched === false || !this.#insideRoot(absolute)) {
       return { status: "failed", absolute };
     }
-    this.#revealInProject(absolute, options.line);
+    this.#revealInProject(absolute, options2.line);
     return { status: "opened", absolute };
   }
   /**
@@ -2316,22 +2498,22 @@ var WorkbenchStore = class {
    * @param {string} workspace the DSH workspace root
    * @param {{ line?: number, switchProject?: boolean }} options
    */
-  async #openResolved(absolute, workspace, options) {
+  async #openResolved(absolute, workspace, options2) {
     if (this.#insideRoot(absolute)) {
-      this.#revealInProject(absolute, options.line);
+      this.#revealInProject(absolute, options2.line);
       return { status: "opened", absolute };
     }
     if (this.state.tabs.some((tab3) => tab3.dirty === true)) {
       return { status: "dirty", absolute };
     }
-    if (options.switchProject !== true) {
+    if (options2.switchProject !== true) {
       return { status: "needs-project-switch", absolute };
     }
-    const switched = await this.selectProject(workspace);
+    const switched = await this.selectProject(workspace, { askIndex: false });
     if (switched === false || !this.#insideRoot(absolute)) {
       return { status: "failed", absolute };
     }
-    this.#revealInProject(absolute, options.line);
+    this.#revealInProject(absolute, options2.line);
     return { status: "opened", absolute };
   }
   /** Reveal one file the workbench already accepted (tree + preview tab). */
@@ -2413,9 +2595,9 @@ var WorkbenchStore = class {
    * @returns {boolean} whether the composer accepted the references
    */
   sendToChat(entries) {
-    const list = Array.isArray(entries) ? entries : [];
+    const list2 = Array.isArray(entries) ? entries : [];
     const mentions = [];
-    for (const entry of list) {
+    for (const entry of list2) {
       if (entry === null || typeof entry !== "object" || typeof entry.path !== "string") continue;
       const mention = formatFileMention(this.#chatRelPath(entry.path), entry.isDir === true);
       if (mention !== void 0) mentions.push(mention);
@@ -2470,13 +2652,25 @@ var WorkbenchStore = class {
         path: project.path,
         name: typeof project.name === "string" && project.name !== "" ? project.name : baseName(project.path),
         isRepo: project.isRepo === true,
-        isRoot: project.isRoot === true || project.path === workspaceRoot
+        isRoot: project.isRoot === true || project.path === workspaceRoot,
+        // The semantic-analysis status of the folder (PRD-v5 §2.1).
+        // `indexed` is a historical fact: the folder completed a first
+        // program build at some point in this profile.
+        indexState: typeof project.indexState === "string" && project.indexState !== "" ? project.indexState : "unknown",
+        indexedAt: Number.isFinite(project.indexedAt) ? project.indexedAt : null
       })) : [];
     } catch {
       projects = [];
     }
     if (!projects.some((project) => project.path === workspaceRoot)) {
-      projects.unshift({ path: workspaceRoot, name: baseName(workspaceRoot), isRepo: false, isRoot: true });
+      projects.unshift({
+        path: workspaceRoot,
+        name: baseName(workspaceRoot),
+        isRepo: false,
+        isRoot: true,
+        indexState: "unknown",
+        indexedAt: null
+      });
     }
     const gitRepos = projects.filter((project) => project.isRepo === true).map((project) => ({ path: project.path, name: project.name }));
     this.set({ projects, gitRepos });
@@ -2536,6 +2730,9 @@ var WorkbenchStore = class {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The language-server status belongs to the project that was left; the
+      // server registry does not, so it survives the switch.
+      lsp: { ...initialState().lsp, servers: this.state.lsp.servers },
       // The commit selection belongs to the repository it was made in
       // (PRD-v4 §3.2): it must not survive the switch.
       commit: this.#resetCommitSelection()
@@ -2548,8 +2745,17 @@ var WorkbenchStore = class {
     void this.loadLog(true);
     void this.persistNow();
   }
-  /** Switch the IDE project root inside the current workspace. */
-  async selectProject(projectRoot) {
+  /**
+   * Switch the IDE project root inside the current workspace.
+   *
+   * @param {string} projectRoot
+   * @param {{askIndex?: boolean}} [options] `askIndex: false` skips the index
+   *   dialog. The file-link bridge uses it: it asks for the project switch
+   *   from a carrier tab, where no workbench is mounted and the dialog could
+   *   never be answered.
+   * @returns {Promise<boolean>} whether the project was switched
+   */
+  async selectProject(projectRoot, options2 = {}) {
     if (typeof projectRoot !== "string" || projectRoot === "") return false;
     const project = this.state.projects.find((item) => sameScopePath(item.path, projectRoot));
     if (project === void 0) return false;
@@ -2563,13 +2769,188 @@ var WorkbenchStore = class {
         this.t("editor.unsavedSwitchRoot"),
         this.t("editor.discardChanges"),
         () => {
-          void this.#switchProject(project.path);
+          void this.#switchProjectWithIndex(project, options2.askIndex !== false);
         }
       );
       return false;
     }
+    return this.#switchProjectWithIndex(project, options2.askIndex !== false);
+  }
+  /**
+   * Switch the project, preceded by the index decision (PRD-v5 §2.3).
+   *
+   * The decision comes first: "Cancel" must leave the current project
+   * untouched, so the switch may not happen before the user answered.
+   * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
+   * @param {boolean} ask whether the dialog may be shown
+   * @returns {Promise<boolean>} whether the project was switched
+   */
+  async #switchProjectWithIndex(project, ask = true) {
+    const choice = await this.#decideIndex(project, ask);
+    if (choice === "cancel") return false;
     await this.#switchProject(project.path);
+    if (choice === "build") await this.#startLsp(project.path);
     return true;
+  }
+  /**
+   * The index decision for one project root (PRD-v5 §2.3).
+   *
+   * Resolves with `'build'` (start the language server), `'conservative'`
+   * (stay in the basic mode) or `'cancel'` (do not switch the project).
+   * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
+   * @param {boolean} [ask] false skips the dialog and stays conservative
+   * @returns {Promise<'build'|'conservative'|'cancel'>}
+   */
+  async #decideIndex(project, ask = true) {
+    const lsp = this.state.settings?.lsp;
+    if (lsp === null || lsp === void 0 || typeof lsp !== "object") return "conservative";
+    if (lsp.enabled === false) return "conservative";
+    if ((lsp.indexOnOpen ?? "ask") === "never") return "conservative";
+    const resources = await this.#lspResources(project.path);
+    if (resources !== null && resources.canIndex === false) {
+      const need = Math.round((resources.thresholdBytes ?? resources.memoryLimitBytes ?? 0) / (1024 * 1024));
+      const free = Math.round((resources.freeBytes ?? 0) / (1024 * 1024));
+      this.toast("error", this.#tpl("lsp.lowMemory", { need, free }), this.t("lsp.lowMemoryHint"));
+      return "conservative";
+    }
+    if (this.#isIndexed(project)) return "build";
+    if ((lsp.indexOnOpen ?? "ask") === "always") return "build";
+    if (ask === false) return "conservative";
+    return this.#askIndexDecision(project);
+  }
+  /**
+   * Whether this project root completed a first program build before.
+   *
+   * Both sources count: the host's project list and the profile settings.
+   * @param {{path: string, indexState?: string}} project
+   * @returns {boolean}
+   */
+  #isIndexed(project) {
+    if (project?.indexState === "indexed") return true;
+    const roots = this.state.settings?.lsp?.indexedRoots;
+    if (roots === null || roots === void 0 || typeof roots !== "object") return false;
+    return Object.keys(roots).some((key) => sameScopePath(key, project.path));
+  }
+  /**
+   * Show the index decision and wait for the user's answer.
+   * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
+   * @returns {Promise<'build'|'conservative'|'cancel'>}
+   */
+  #askIndexDecision(project) {
+    if (this.indexDecisionResolve !== null) this.indexDecisionResolve("cancel");
+    return new Promise((resolve) => {
+      this.indexDecisionResolve = resolve;
+      this.set({
+        indexDecision: {
+          path: project.path,
+          name: typeof project.name === "string" && project.name !== "" ? project.name : baseName(project.path),
+          isRoot: project.isRoot === true,
+          isRepo: project.isRepo === true
+        }
+      });
+    });
+  }
+  /**
+   * Answer the pending index decision.
+   *
+   * `Esc` and a click on the backdrop resolve as `'cancel'`: the project
+   * stays as it is (PRD-v5 §2.3).
+   * @param {'build'|'conservative'|'cancel'} choice
+   */
+  resolveIndexDecision(choice) {
+    const resolve = this.indexDecisionResolve;
+    this.indexDecisionResolve = null;
+    this.set({ indexDecision: null });
+    if (resolve === null) return;
+    resolve(choice === "build" ? "build" : choice === "conservative" ? "conservative" : "cancel");
+  }
+  /**
+   * The host's memory pre-check for one project root (PRD-v5 §2.2).
+   *
+   * `null` means "the host could not answer": the check is skipped then, and
+   * the host's own guard in `lsp.start` is the last line of defence.
+   * @param {string} root
+   * @returns {Promise<{canIndex?: boolean, freeBytes?: number, thresholdBytes?: number, memoryLimitBytes?: number}|null>}
+   */
+  async #lspResources(root) {
+    try {
+      const result = await call2("lsp.resources", { root });
+      if (result === null || typeof result !== "object") return null;
+      return result;
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * Start the language server for one project root.
+   *
+   * The client never sets the state itself: the host owns the transition, so
+   * the two sides cannot fight over it.
+   * @param {string} root
+   * @returns {Promise<unknown>} the host's answer, or null on failure
+   */
+  async #startLsp(root) {
+    try {
+      const result = await call2("lsp.start", { root });
+      await this.refreshLspStatus();
+      return result;
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * Cancel a running index build (PRD-v5 §2.4).
+   *
+   * Only the host is asked: the client never sets the state on its own, and
+   * nothing in the editor is touched — the tabs, the drafts and the cursor
+   * stay exactly as they are.
+   * @returns {Promise<void>}
+   */
+  async cancelLspIndex() {
+    const root = this.state.root;
+    if (root === "") return;
+    try {
+      await call2("lsp.cancelIndex", { root });
+    } catch {
+    }
+    await this.refreshLspStatus();
+  }
+  /**
+   * Whether the navigation entries of the editor are available
+   * (PRD-v5 §5.2, §5.3, §7.1).
+   *
+   * The semantic entries need a running language server; the text entry is
+   * always available, so the user always has a way to find the usages of a
+   * symbol. The reason is the text the editor shows next to the greyed-out
+   * entry.
+   * @returns {{findUsages: {enabled: boolean, reason: string}, findUsagesText: {enabled: boolean, reason: string}}}
+   */
+  semanticNavigation() {
+    const lsp = this.state.lsp ?? {};
+    const ready = lsp.enabled !== false && lsp.state === "ready";
+    return {
+      findUsages: {
+        enabled: ready,
+        reason: ready ? "" : this.t("nav.semanticUnavailable")
+      },
+      findUsagesText: { enabled: true, reason: "" }
+    };
+  }
+  /**
+   * Translate with `{placeholder}` substitution.
+   *
+   * The harness translate function does not interpolate, so the placeholders
+   * of the code-intelligence texts are filled in here.
+   * @param {string} key
+   * @param {Record<string, string|number>} values
+   * @returns {string}
+   */
+  #tpl(key, values2) {
+    let text = this.t(key);
+    for (const [name2, value] of Object.entries(values2)) {
+      text = text.replaceAll(`{${name2}}`, String(value));
+    }
+    return text;
   }
   async #switchProject(projectRoot) {
     this.set({
@@ -2588,6 +2969,9 @@ var WorkbenchStore = class {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The language-server status belongs to the project that was left; the
+      // server registry does not, so it survives the switch.
+      lsp: { ...initialState().lsp, servers: this.state.lsp.servers },
       // The checked paths and the group pins belong to the repository they
       // were made in (PRD-v4 §3.2): a path of repository A must not stay
       // pinned in the Unversioned group of repository B.
@@ -2710,12 +3094,22 @@ var WorkbenchStore = class {
       }
     }
     if (this.state.root !== "" && !this.state.dirs.has(this.state.root)) void this.loadRestoredTree({ lazy: true });
+    if (this.lspPollTimer === null) {
+      this.lspPollTimer = setInterval(() => {
+        void this.pollLspStatus();
+      }, 2e3);
+      void this.pollLspStatus();
+    }
   }
   deactivate() {
     this.set({ active: false });
     if (this.pollTimer !== null) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
+    }
+    if (this.lspPollTimer !== null) {
+      clearInterval(this.lspPollTimer);
+      this.lspPollTimer = null;
     }
     if (this.restoredTimer !== null) {
       clearTimeout(this.restoredTimer);
@@ -2728,6 +3122,98 @@ var WorkbenchStore = class {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     await this.refreshStatus({ silent: true });
     await this.#checkActiveFileOnDisk();
+  }
+  /**
+   * Poll the language-server status while the workbench is visible.
+   *
+   * The poll only reads: the host owns the state machine, so the client
+   * never derives a state of its own.
+   * @returns {Promise<void>}
+   */
+  async pollLspStatus() {
+    if (!this.state.active || this.state.root === "") return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    await this.refreshLspStatus();
+  }
+  /**
+   * Refresh the mirrored language-server status (PRD-v5 §3.1, §4.3).
+   *
+   * A crash is announced exactly once: the poll would otherwise repeat the
+   * toast every two seconds.
+   * @returns {Promise<void>}
+   */
+  async refreshLspStatus() {
+    const root = this.state.root;
+    if (root === "") return;
+    let status;
+    try {
+      status = await call2("lsp.status", { root });
+    } catch {
+      return;
+    }
+    if (status === null || typeof status !== "object") return;
+    const previous = this.state.lsp.state;
+    const next = {
+      ...this.state.lsp,
+      enabled: status.enabled !== false,
+      state: typeof status.state === "string" && status.state !== "" ? status.state : "idle",
+      languageId: typeof status.languageId === "string" ? status.languageId : "",
+      serverId: typeof status.serverId === "string" ? status.serverId : "",
+      source: typeof status.source === "string" ? status.source : null,
+      detail: typeof status.detail === "string" ? status.detail : null,
+      indexedRoots: Array.isArray(status.indexedRoots) ? status.indexedRoots : []
+    };
+    if (next.state === "building") {
+      const index = await this.#lspIndex(root);
+      if (index !== null) {
+        next.progress = typeof index.progress === "string" ? index.progress : "";
+        next.startedAt = Number.isFinite(index.startedAt) ? index.startedAt : 0;
+        next.cancellable = index.cancellable === true;
+      }
+    }
+    const current = this.state.lsp;
+    const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled;
+    if (changed) this.set({ lsp: next });
+    if (next.state === "crashed" && previous !== "crashed") {
+      this.toast("error", this.t("lsp.crashedToast"));
+    }
+    if (next.languageId !== "" && !this.lspServersChecked.has(next.languageId)) {
+      this.lspServersChecked.add(next.languageId);
+      void this.#loadLspServers();
+    }
+  }
+  /**
+   * The progress of a running index build.
+   * @param {string} root
+   * @returns {Promise<{progress?: string, startedAt?: number, cancellable?: boolean}|null>}
+   */
+  async #lspIndex(root) {
+    try {
+      const result = await call2("lsp.index", { root });
+      if (result === null || typeof result !== "object") return null;
+      return result;
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * The language-server registry (PRD-v5 §3.1).
+   *
+   * It tells the status bar whether a language has no server at all, which is
+   * a different state than "the server failed".
+   * @returns {Promise<void>}
+   */
+  async #loadLspServers() {
+    try {
+      const result = await call2("lsp.servers", {});
+      this.patch("lsp", {
+        servers: {
+          available: Array.isArray(result?.available) ? result.available : [],
+          missing: Array.isArray(result?.missing) ? result.missing : []
+        }
+      });
+    } catch {
+    }
   }
   /**
    * Cheap mtime probe for the active file; never reads the whole buffer.
@@ -2772,9 +3258,9 @@ var WorkbenchStore = class {
   #wantsNumstat() {
     return this.state.layout.left === "commit";
   }
-  async refreshStatus(options = {}) {
+  async refreshStatus(options2 = {}) {
     if (this.state.root === "") return;
-    if (this.polling && options.silent !== false && options.force !== true) return;
+    if (this.polling && options2.silent !== false && options2.force !== true) return;
     this.polling = true;
     const root = this.gitRoot;
     try {
@@ -2798,12 +3284,12 @@ var WorkbenchStore = class {
           filters: { ...this.state.git.filters, branch: status.branch }
         });
       }
-      if (changed || options.initial === true) {
+      if (changed || options2.initial === true) {
         this.#invalidateChangedDirs(status);
         this.#refreshActiveFile(status);
         if (this.state.layout.bottom === "git") void this.loadLog(true, { silent: true });
       }
-      if (options.initial === true) {
+      if (options2.initial === true) {
         void this.loadLog(true, { silent: true });
         void this.loadBranches();
         void this.loadCommitMessages();
@@ -2862,12 +3348,12 @@ var WorkbenchStore = class {
     void this.ensureTabContent(active.id, { force: true });
   }
   // ── file tree ─────────────────────────────────────────────────────────
-  async loadDir(path2, options = {}) {
+  async loadDir(path2, options2 = {}) {
     if (this.state.root === "") return;
     const root = this.state.root;
     const existing = this.state.dirs.get(path2);
-    if (existing !== void 0 && existing.loading === true && options.force !== true) return;
-    if (existing !== void 0 && existing.entries !== void 0 && options.force !== true) return;
+    if (existing !== void 0 && existing.loading === true && options2.force !== true) return;
+    if (existing !== void 0 && existing.entries !== void 0 && options2.force !== true) return;
     const token2 = (this.treeTokens.get(path2) ?? 0) + 1;
     this.treeTokens.set(path2, token2);
     const dirs = new Map(this.state.dirs);
@@ -2896,12 +3382,12 @@ var WorkbenchStore = class {
    * no longer replays its whole tree (PRD-v4 §1.2 PERF-07).
    * @param {{ lazy?: boolean }} [options]
    */
-  async loadRestoredTree(options = {}) {
+  async loadRestoredTree(options2 = {}) {
     if (this.state.root === "") return;
     const root = this.state.root;
     await this.loadDir(root);
     if (this.state.root !== root) return;
-    if (options.lazy === true) {
+    if (options2.lazy === true) {
       this.#scheduleRestoredFolders(root);
       return;
     }
@@ -3061,14 +3547,60 @@ var WorkbenchStore = class {
         activeId: id2
       });
     }
+    this.patch("search", { textMatch: false });
     if (typeof query === "string" && query !== "") this.runSearch(query);
   }
-  async runSearch(query, options = {}) {
+  /**
+   * The text version of Find Usages (PRD-v5 §5.3).
+   *
+   * It is always available — it is the fallback for a workspace without a
+   * language server — and every hit carries a "text match" label, so the user
+   * never mistakes a text hit for a semantic reference.
+   * @param {string} identifier the identifier under the cursor
+   * @returns {Promise<void>}
+   */
+  async findUsagesText(identifier5) {
+    const query = typeof identifier5 === "string" ? identifier5.trim() : "";
+    if (query === "") return;
+    const id2 = "search:usages";
+    const existing = this.state.tabs.find((tab3) => tab3.id === id2);
+    if (existing === void 0) {
+      this.set({
+        tabs: [...this.state.tabs, {
+          id: id2,
+          kind: "search",
+          name: this.t("nav.usagesTitle"),
+          preview: false,
+          pinned: true,
+          loading: false,
+          error: null,
+          scrollTop: 0
+        }],
+        activeId: id2
+      });
+    } else {
+      this.set({ activeId: id2 });
+    }
+    this.patch("search", {
+      query,
+      wholeWord: true,
+      caseSensitive: false,
+      regexp: false,
+      textMatch: true,
+      loading: false,
+      error: null,
+      results: [],
+      tookMs: 0,
+      truncated: false
+    });
+    await this.runSearch(query, { wholeWord: true, caseSensitive: false, regexp: false });
+  }
+  async runSearch(query, options2 = {}) {
     const value = typeof query === "string" ? query : this.state.search.query;
     const flags = {
-      caseSensitive: options.caseSensitive ?? this.state.search.caseSensitive,
-      wholeWord: options.wholeWord ?? this.state.search.wholeWord,
-      regexp: options.regexp ?? this.state.search.regexp
+      caseSensitive: options2.caseSensitive ?? this.state.search.caseSensitive,
+      wholeWord: options2.wholeWord ?? this.state.search.wholeWord,
+      regexp: options2.regexp ?? this.state.search.regexp
     };
     const token2 = ++this.searchToken;
     this.searchIndex = -1;
@@ -3105,9 +3637,9 @@ var WorkbenchStore = class {
   // ── selection (JetBrains: select first, act second) ──────────────────
   /** Replace the selection; `anchor` is the pivot for Shift range selection. */
   setSelection(paths, anchor) {
-    const list = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
-    const focus = typeof anchor === "string" && anchor !== "" ? anchor : list[list.length - 1] ?? "";
-    this.set({ selectedPaths: new Set(list), selectedPath: focus, anchorPath: focus });
+    const list2 = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
+    const focus = typeof anchor === "string" && anchor !== "" ? anchor : list2[list2.length - 1] ?? "";
+    this.set({ selectedPaths: new Set(list2), selectedPath: focus, anchorPath: focus });
   }
   /** Ctrl+click toggle. */
   toggleSelection(path2) {
@@ -3146,9 +3678,9 @@ var WorkbenchStore = class {
   }
   // ── file operations (JetBrains tree) ──────────────────────────────────
   setFileClipboard(paths, cut) {
-    const list = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
-    this.set({ clipboard: list.length === 0 ? null : { paths: list, cut: cut === true } });
-    if (list.length > 0) this.toast("success", this.t(cut === true ? "project.cut" : "project.copy"), `${list.length}`);
+    const list2 = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
+    this.set({ clipboard: list2.length === 0 ? null : { paths: list2, cut: cut === true } });
+    if (list2.length > 0) this.toast("success", this.t(cut === true ? "project.cut" : "project.copy"), `${list2.length}`);
   }
   async pasteEntries(target) {
     const clipboard = this.state.clipboard;
@@ -3157,16 +3689,16 @@ var WorkbenchStore = class {
     await this.moveEntries(clipboard.paths, target, !moved);
     if (moved) this.set({ clipboard: null });
   }
-  async createEntry(parent, options = {}) {
-    const name2 = String(options.name ?? "").trim();
+  async createEntry(parent, options2 = {}) {
+    const name2 = String(options2.name ?? "").trim();
     if (name2 === "") return;
     try {
       const result = await call2("fs.create", {
         root: this.state.root,
         parent,
         name: name2,
-        isDir: options.isDir === true,
-        content: typeof options.content === "string" ? options.content : ""
+        isDir: options2.isDir === true,
+        content: typeof options2.content === "string" ? options2.content : ""
       });
       await this.loadDir(parent, { force: true });
       await this.refreshStatus();
@@ -3192,10 +3724,10 @@ var WorkbenchStore = class {
     }
   }
   async duplicateEntries(paths) {
-    const list = Array.isArray(paths) ? paths : [];
-    if (list.length === 0) return;
+    const list2 = Array.isArray(paths) ? paths : [];
+    if (list2.length === 0) return;
     let last2;
-    for (const path2 of list) {
+    for (const path2 of list2) {
       try {
         last2 = await call2("fs.duplicate", { root: this.state.root, path: path2 });
         await this.loadDir(parentPath(path2), { force: true });
@@ -3215,12 +3747,12 @@ var WorkbenchStore = class {
    * (`name-copy`), matching JetBrains' duplicate behaviour.
    */
   async moveEntries(paths, target, copy = false) {
-    const list = Array.isArray(paths) ? paths.filter((path2) => typeof path2 === "string") : [];
-    if (list.length === 0 || typeof target !== "string" || target === "") return;
+    const list2 = Array.isArray(paths) ? paths.filter((path2) => typeof path2 === "string") : [];
+    if (list2.length === 0 || typeof target !== "string" || target === "") return;
     try {
       const result = await call2("fs.move", {
         root: this.state.root,
-        paths: list,
+        paths: list2,
         target,
         copy,
         conflict: "rename"
@@ -3230,7 +3762,7 @@ var WorkbenchStore = class {
       if (done.length > 0) {
         const mapping = done.map((item) => [this.#absoluteOf(item.path), this.#absoluteOf(item.target)]);
         this.#applyPathMapping(mapping);
-        const dirs = /* @__PURE__ */ new Set([...list.map(parentPath), target, ...done.map((item) => parentPath(this.#absoluteOf(item.target)))]);
+        const dirs = /* @__PURE__ */ new Set([...list2.map(parentPath), target, ...done.map((item) => parentPath(this.#absoluteOf(item.target)))]);
         for (const dir of dirs) {
           try {
             await this.loadDir(dir, { force: true });
@@ -3253,32 +3785,32 @@ var WorkbenchStore = class {
   }
   /** Confirmation then deletion (recycle bin when enabled). */
   requestDelete(paths) {
-    const list = [...new Set((Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== ""))];
-    if (list.length === 0) return;
-    const dirty = this.state.tabs.filter((tab3) => tab3.kind === "file" && tab3.dirty === true && list.some((path2) => tab3.path === path2 || tab3.path.startsWith(`${path2}\\`) || tab3.path.startsWith(`${path2}/`)));
-    const names = list.map((path2) => baseName(path2)).slice(0, 8).join(", ");
+    const list2 = [...new Set((Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== ""))];
+    if (list2.length === 0) return;
+    const dirty = this.state.tabs.filter((tab3) => tab3.kind === "file" && tab3.dirty === true && list2.some((path2) => tab3.path === path2 || tab3.path.startsWith(`${path2}\\`) || tab3.path.startsWith(`${path2}/`)));
+    const names = list2.map((path2) => baseName(path2)).slice(0, 8).join(", ");
     const extra = dirty.length > 0 ? `
 ${this.t("project.deleteDirty")}` : "";
     const target = this.state.settings?.delete?.useRecycleBin !== false ? this.t("project.deleteToTrash") : this.t("project.deletePermanent");
     this.askConfirm(
       this.t("project.deleteTitle"),
-      `${list.length === 1 ? this.t("project.deleteOne") : `${list.length} ${this.t("project.deleteMany")}`}
+      `${list2.length === 1 ? this.t("project.deleteOne") : `${list2.length} ${this.t("project.deleteMany")}`}
 ${names}${extra}
 ${target}`,
       this.t("project.delete"),
       () => {
-        void this.deleteEntries(list);
+        void this.deleteEntries(list2);
       }
     );
   }
-  async deleteEntries(paths, options = {}) {
-    const list = Array.isArray(paths) ? paths : [];
-    if (list.length === 0) return;
-    const trash = options.trash ?? this.state.settings?.delete?.useRecycleBin !== false;
+  async deleteEntries(paths, options2 = {}) {
+    const list2 = Array.isArray(paths) ? paths : [];
+    if (list2.length === 0) return;
+    const trash = options2.trash ?? this.state.settings?.delete?.useRecycleBin !== false;
     try {
       const result = await call2("fs.delete", {
         root: this.state.root,
-        paths: list,
+        paths: list2,
         trash,
         allowPermanent: trash !== true
       });
@@ -3287,7 +3819,7 @@ ${target}`,
       if (done.length > 0) {
         const removed = done.map((item) => this.#absoluteOf(item.path));
         this.#closeTabsUnder(removed);
-        const dirs = new Set(list.map(parentPath));
+        const dirs = new Set(list2.map(parentPath));
         for (const dir of dirs) {
           try {
             await this.loadDir(dir, { force: true });
@@ -3442,23 +3974,28 @@ ${target}`,
    * - a single click reuses the one preview tab (or creates it);
    * - a double click pins the tab (creating a pinned one when needed).
    * @param {string} path absolute path
-   * @param {{ rel?: string, preview?: boolean }} [options]
+   * @param {{ rel?: string, preview?: boolean, line?: number, column?: number }} [options]
    */
-  openFile(path2, options = {}) {
+  openFile(path2, options2 = {}) {
     if (typeof path2 !== "string" || path2 === "") return;
-    const rel = options.rel ?? this.relOf(path2);
+    const rel = options2.rel ?? this.relOf(path2);
     const existing = this.state.tabs.find((tab4) => tab4.kind === "file" && tab4.path === path2);
     if (existing !== void 0) {
-      const tabs2 = this.state.tabs.map((tab4) => tab4 === existing ? { ...tab4, preview: tab4.preview && options.preview === true } : tab4);
+      const tabs2 = this.state.tabs.map((tab4) => tab4 === existing ? { ...tab4, preview: tab4.preview && options2.preview === true } : tab4);
       this.set({ tabs: tabs2, activeId: existing.id });
-      if (Number.isInteger(options.line)) this.#updateTab(existing.id, { revealLine: options.line });
+      if (Number.isInteger(options2.line)) {
+        this.#updateTab(existing.id, {
+          revealLine: options2.line,
+          revealColumn: Number.isInteger(options2.column) ? options2.column : null
+        });
+      }
       this.setSelectedPath(path2);
-      if (options.preview !== true) void this.pinTab(existing.id, { silent: true });
+      if (options2.preview !== true) void this.pinTab(existing.id, { silent: true });
       void this.ensureTabContent(existing.id);
       this.persist();
       return;
     }
-    const preview = options.preview === true;
+    const preview = options2.preview === true;
     const tab3 = {
       id: `file:${path2}`,
       kind: "file",
@@ -3478,7 +4015,10 @@ ${target}`,
       dirty: false,
       saving: false,
       conflict: null,
-      revealLine: Number.isInteger(options.line) ? options.line : null
+      revealLine: Number.isInteger(options2.line) ? options2.line : null,
+      // The column of the jump target (PRD-v5 §5.5); null keeps the old
+      // line-only behaviour.
+      revealColumn: Number.isInteger(options2.column) ? options2.column : null
     };
     let tabs = this.state.tabs;
     if (preview) {
@@ -3502,11 +4042,11 @@ ${target}`,
     this.persist();
   }
   /** Load (or reload) one tab's payload. */
-  async ensureTabContent(id2, options = {}) {
+  async ensureTabContent(id2, options2 = {}) {
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3 === void 0) return;
     if (tab3.loading === true) return;
-    if (options.force !== true) {
+    if (options2.force !== true) {
       if (tab3.kind === "file" && tab3.content !== null) return;
       if (tab3.kind === "diff" && tab3.payload !== void 0) return;
       if (tab3.kind === "commit" && tab3.detail !== void 0) return;
@@ -3518,9 +4058,9 @@ ${target}`,
         const latest = this.state.tabs.find((item) => item.id === id2);
         const text = result.kind === "text" ? normalizeNewlines(result.content) : null;
         const eol2 = typeof result.content === "string" && result.content.includes("\r\n") ? "\r\n" : "\n";
-        const keepDraft = latest?.dirty === true && options.force === true && options.discardDraft !== true;
+        const keepDraft = latest?.dirty === true && options2.force === true && options2.discardDraft !== true;
         const editable2 = result.kind === "text" && result.truncated !== true ? latest?.editingUserSet === true ? latest.editing === true : this.defaultEditing(result.size, tab3.path) : false;
-        const rebuilt = options.force === true && !keepDraft && options.discardDraft !== true;
+        const rebuilt = options2.force === true && !keepDraft && options2.discardDraft !== true;
         this.#updateTab(id2, {
           loading: false,
           conflict: null,
@@ -3569,18 +4109,18 @@ ${target}`,
     void this.ensureTabContent(id2);
     this.persist();
   }
-  async pinTab(id2, options = {}) {
+  async pinTab(id2, options2 = {}) {
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3 === void 0 || tab3.kind !== "file" || tab3.pinned) return;
     this.#updateTab(id2, { preview: false, pinned: true });
     this.persist();
-    if (options.silent !== true) this.toast("info", this.t("common.pinTab"));
+    if (options2.silent !== true) this.toast("info", this.t("common.pinTab"));
   }
-  closeTab(id2, options = {}) {
+  closeTab(id2, options2 = {}) {
     const index = this.state.tabs.findIndex((tab4) => tab4.id === id2);
     if (index < 0) return;
     const tab3 = this.state.tabs[index];
-    if (tab3.dirty === true && options.force !== true) {
+    if (tab3.dirty === true && options2.force !== true) {
       this.askChoice(
         this.t("editor.unsavedTitle"),
         this.t("editor.unsavedClose"),
@@ -3674,7 +4214,7 @@ ${target}`,
     });
   }
   /** Persist one edited file through the host's fenced writer. */
-  async saveTab(id2, options = {}) {
+  async saveTab(id2, options2 = {}) {
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3 === void 0 || tab3.kind !== "file" || tab3.dirty !== true || tab3.saving === true) return;
     const text = normalizeNewlines(tab3.draft ?? "");
@@ -3688,7 +4228,7 @@ ${target}`,
         path: tab3.path,
         content: out,
         encoding: payload.encoding ?? "utf-8",
-        expectedMtimeMs: options.force === true ? void 0 : Number.isFinite(payload.mtimeMs) ? payload.mtimeMs : void 0
+        expectedMtimeMs: options2.force === true ? void 0 : Number.isFinite(payload.mtimeMs) ? payload.mtimeMs : void 0
       });
       const latest = this.state.tabs.find((item) => item.id === id2);
       const latestDraft = normalizeNewlines(latest?.draft ?? text);
@@ -3932,8 +4472,8 @@ ${target}`,
    * its `U` letter and its untracked colour.
    */
   async setCommitChecked(entries, checked) {
-    const list = (Array.isArray(entries) ? entries : []).filter((entry) => entry !== null && entry !== void 0 && entry.conflict !== true);
-    if (list.length === 0) return;
+    const list2 = (Array.isArray(entries) ? entries : []).filter((entry) => entry !== null && entry !== void 0 && entry.conflict !== true);
+    if (list2.length === 0) return;
     const commit = this.state.commit;
     const checkedSet = new Set(commit.checked);
     const uncheckedSet = new Set(commit.unchecked);
@@ -3941,7 +4481,7 @@ ${target}`,
     const pendingStage = new Set(commit.pendingStage ?? []);
     const toStage = [];
     const toUnstage = [];
-    for (const entry of list) {
+    for (const entry of list2) {
       const currently = this.isCommitChecked(entry);
       if (currently === checked) continue;
       if (checked) {
@@ -3991,10 +4531,10 @@ ${target}`,
   }
   /** Move paths into `target` (created on demand). */
   async moveToChangelist(paths, target) {
-    const list = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
-    if (list.length === 0 || typeof target !== "string" || target.trim() === "") return;
+    const list2 = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
+    if (list2.length === 0 || typeof target !== "string" || target.trim() === "") return;
     const name2 = target.trim();
-    const lists = assignChangelist(this.#changelistDoc().lists, list, name2);
+    const lists = assignChangelist(this.#changelistDoc().lists, list2, name2);
     await this.#saveChangelists(lists, name2);
   }
   /** Destructive changelist rename is out of V2; creating one is enough. */
@@ -4082,22 +4622,22 @@ ${name2}`,
       this.patch("commit", { messagesLoading: false });
     }
   }
-  async stage(paths, options = {}) {
+  async stage(paths, options2 = {}) {
     if (paths.length === 0) return;
     try {
       await call2("git.stage", { root: this.gitRoot, paths });
       await this.refreshStatus({ initial: false });
-      if (options.refreshDiff === true) this.#reloadActiveDiff();
+      if (options2.refreshDiff === true) this.#reloadActiveDiff();
     } catch (error) {
       this.toast("error", this.t("commit.failed"), error instanceof Error ? error.message : String(error));
     }
   }
-  async unstage(paths, options = {}) {
+  async unstage(paths, options2 = {}) {
     if (paths.length === 0) return;
     try {
       await call2("git.unstage", { root: this.gitRoot, paths });
       await this.refreshStatus({ initial: false });
-      if (options.refreshDiff === true) this.#reloadActiveDiff();
+      if (options2.refreshDiff === true) this.#reloadActiveDiff();
     } catch (error) {
       this.toast("error", this.t("commit.failed"), error instanceof Error ? error.message : String(error));
     }
@@ -4206,14 +4746,14 @@ ${outcome.output ?? ""}`.trim();
       this.toast("error", this.t("commit.commitFailed"), messageText);
     }
   }
-  async push(options = {}) {
+  async push(options2 = {}) {
     try {
       await call2("git.push", { root: this.gitRoot });
       this.toast("success", this.t("commit.pushed"));
       await this.refreshStatus({ initial: false });
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
-      this.toast("error", options.afterCommit === true ? this.t("commit.pushFailed") : this.t("commit.failed"), text);
+      this.toast("error", options2.afterCommit === true ? this.t("commit.pushFailed") : this.t("commit.failed"), text);
     }
   }
   // ── git window ────────────────────────────────────────────────────────
@@ -4253,7 +4793,7 @@ ${outcome.output ?? ""}`.trim();
       this.patch("git", { branches: [] });
     }
   }
-  async loadLog(reset, options = {}) {
+  async loadLog(reset, options2 = {}) {
     if (this.state.root === "") return;
     if (this.state.git.loading && !reset) return;
     const token2 = ++this.gitRequestToken;
@@ -4384,17 +4924,17 @@ ${outcome.output ?? ""}`.trim();
     }
   }
   /** Create one terminal session key (the view owns the socket). */
-  addTerminal(options = {}) {
+  addTerminal(options2 = {}) {
     const id2 = nextId("term");
     const shells = this.state.terminal.shells;
     const preferred = this.state.settings?.terminal?.shell;
-    const shell = options.shellId ?? (preferred === "auto" || preferred === void 0 ? shells[0]?.id : preferred);
+    const shell = options2.shellId ?? (preferred === "auto" || preferred === void 0 ? shells[0]?.id : preferred);
     const session = {
       key: id2,
       id: void 0,
       title: shells.find((item) => item.id === shell)?.label ?? this.t("terminal.title"),
       shell: shell ?? "",
-      cwd: options.cwd ?? this.state.root,
+      cwd: options2.cwd ?? this.state.root,
       status: "starting",
       exitCode: null,
       error: null
@@ -4470,7 +5010,7 @@ ${outcome.output ?? ""}`.trim();
    * @param {boolean} stacked
    * @param {{ transition?: boolean }} [options]
    */
-  setStacked(stacked, options = {}) {
+  setStacked(stacked, options2 = {}) {
     const next = stacked === true;
     if (this.state.stacked === next) return;
     const was = this.state.stacked === true;
@@ -4480,7 +5020,7 @@ ${outcome.output ?? ""}`.trim();
       const hasLeft = layout.left !== null && layout.left !== void 0;
       const hasBottom = layout.bottom !== null && layout.bottom !== void 0;
       const crowded = hasLeft && hasBottom;
-      if (crowded || options.transition === true && (hasLeft || hasBottom)) {
+      if (crowded || options2.transition === true && (hasLeft || hasBottom)) {
         this.hiddenLayout = { left: layout.left ?? null, bottom: layout.bottom ?? null };
         this.set({ layout: { ...layout, left: null, bottom: null } });
       }
@@ -4634,9 +5174,9 @@ var StoreCache = class {
   /**
    * @param {{ limit?: number, isMounted?: (sessionId: string) => boolean }} [options]
    */
-  constructor(options = {}) {
-    this.limit = Number.isInteger(options.limit) && options.limit > 0 ? options.limit : 3;
-    this.isMounted = typeof options.isMounted === "function" ? options.isMounted : () => false;
+  constructor(options2 = {}) {
+    this.limit = Number.isInteger(options2.limit) && options2.limit > 0 ? options2.limit : 3;
+    this.isMounted = typeof options2.isMounted === "function" ? options2.isMounted : () => false;
     this.stores = /* @__PURE__ */ new Map();
     this.sessions = /* @__PURE__ */ new Map();
   }
@@ -4673,11 +5213,11 @@ var StoreCache = class {
    * @param {{ evict?: boolean }} [options] `evict: false` keeps the cache as
    *   it is; the caller evicts later (outside a render).
    */
-  set(key, store, sessionId, options = {}) {
+  set(key, store, sessionId, options2 = {}) {
     this.stores.delete(key);
     this.stores.set(key, store);
     this.claim(key, sessionId);
-    if (options.evict !== false) this.evict();
+    if (options2.evict !== false) this.evict();
     if (false) perfCounters.stores = this.stores.size;
     return store;
   }
@@ -5104,6 +5644,9 @@ function ContextMenu({ x, y, items, onClose, depth = 0 }) {
         type: "button",
         className: `iwb-menu-item ${item.danger === true ? "iwb-menu-danger" : ""}`,
         disabled: item.disabled === true,
+        // A menu item may carry a tooltip: a greyed-out entry has to say *why*
+        // it is greyed out, and the label itself is often too narrow for it.
+        title: item.title,
         "aria-haspopup": hasSubmenu ? "menu" : void 0,
         "aria-expanded": hasSubmenu ? open : void 0,
         onClick: () => {
@@ -5349,12 +5892,12 @@ function ancestorsOf(rel) {
   return output;
 }
 function aggregateStatus(entries) {
-  const list = Array.isArray(entries) ? entries : [];
+  const list2 = Array.isArray(entries) ? entries : [];
   const dirs = /* @__PURE__ */ new Map();
   const files = /* @__PURE__ */ new Map();
   const ignored = /* @__PURE__ */ new Set();
   const conflictDirs = /* @__PURE__ */ new Set();
-  for (const entry of list) {
+  for (const entry of list2) {
     if (entry === null || typeof entry !== "object" || typeof entry.path !== "string") continue;
     const kind = fileStatusKind(entry);
     if (kind === null) continue;
@@ -5370,7 +5913,7 @@ function aggregateStatus(entries) {
       if (kind === "conflict") conflictDirs.add(dir);
     }
   }
-  return { dirs, files, ignored, conflictDirs, entries: list };
+  return { dirs, files, ignored, conflictDirs, entries: list2 };
 }
 function sameStatusEntries(left, right) {
   const first = Array.isArray(left) ? left : [];
@@ -5378,18 +5921,18 @@ function sameStatusEntries(left, right) {
   if (first.length !== second.length) return false;
   for (let index = 0; index < first.length; index += 1) {
     const one = first[index];
-    const other = second[index];
-    if (one === other) continue;
-    if (one === null || other === null || typeof one !== "object" || typeof other !== "object") return false;
-    if (one.path !== other.path) return false;
-    if (fileStatusKind(one) !== fileStatusKind(other)) return false;
+    const other2 = second[index];
+    if (one === other2) continue;
+    if (one === null || other2 === null || typeof one !== "object" || typeof other2 !== "object") return false;
+    if (one.path !== other2.path) return false;
+    if (fileStatusKind(one) !== fileStatusKind(other2)) return false;
   }
   return true;
 }
 function stableAggregateStatus(previous, entries) {
-  const list = Array.isArray(entries) ? entries : [];
-  if (previous !== void 0 && sameStatusEntries(previous.entries, list)) return previous;
-  return aggregateStatus(list);
+  const list2 = Array.isArray(entries) ? entries : [];
+  if (previous !== void 0 && sameStatusEntries(previous.entries, list2)) return previous;
+  return aggregateStatus(list2);
 }
 
 // src/client/ProjectPanel.jsx
@@ -5702,7 +6245,7 @@ function ProjectPanel({ store, state: _state }) {
   const treeRef = (0, import_react5.useRef)(null);
   const dragRef = (0, import_react5.useRef)(null);
   const shortcuts = slice.settings?.shortcuts ?? {};
-  const shortcutFor = (key) => shortcuts[key] ?? SHORTCUT_FALLBACK[key] ?? "";
+  const shortcutFor2 = (key) => shortcuts[key] ?? SHORTCUT_FALLBACK[key] ?? "";
   const showIgnored = slice.settings?.project?.showIgnored === true;
   const singleClickOpen = slice.settings?.project?.singleClickOpen === true;
   const status = useStableStatus(slice.status.entries);
@@ -5813,7 +6356,7 @@ function ProjectPanel({ store, state: _state }) {
     const isDir = entry?.isDir === true;
     const parentDir = entry === void 0 ? slice.root : isDir ? entry.path : parentOf(entry.path);
     const pasteTarget = isDir ? entry.path : entry === void 0 ? slice.root : parentOf(entry.path);
-    const shortcut = shortcutFor;
+    const shortcut = shortcutFor2;
     const items = [
       { key: "quick-open", text: t2("quickOpen.title"), shortcut: shortcut("quickOpen"), action: () => store.openQuickOpen() },
       null,
@@ -5922,7 +6465,7 @@ function ProjectPanel({ store, state: _state }) {
     const target = event.target;
     if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
     const key = event.key;
-    const hit = (name2) => matchesShortcut(shortcutFor(name2), event);
+    const hit = (name2) => matchesShortcut(shortcutFor2(name2), event);
     if ((event.ctrlKey || event.metaKey) && !event.altKey && key.toLowerCase() === "a") {
       event.preventDefault();
       event.stopPropagation();
@@ -6947,8 +7490,8 @@ function label(t2, key, fallback2) {
   return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
 }
 function gitRepoCandidates(slice) {
-  const list = Array.isArray(slice.gitRepos) ? slice.gitRepos : [];
-  if (list.length > 0) return list;
+  const list2 = Array.isArray(slice.gitRepos) ? slice.gitRepos : [];
+  if (list2.length > 0) return list2;
   return (slice.projects ?? []).filter((project) => project.isRepo === true).map((project) => ({ path: project.path, name: project.name ?? project.path }));
 }
 function gitSlice(state) {
@@ -7132,12 +7675,12 @@ function firstLeafOf(node) {
   }
   return "";
 }
-function fileTreeRows(node, options) {
+function fileTreeRows(node, options2) {
   const rows = [];
   for (const [index, child] of sortedChildren(node).entries()) {
     if (child.kind === "dir") {
       const dir = child.node;
-      const expanded = !options.collapsed.has(dir.path);
+      const expanded = !options2.collapsed.has(dir.path);
       rows.push(import_react7.default.createElement(
         "button",
         {
@@ -7146,13 +7689,13 @@ function fileTreeRows(node, options) {
           className: "iwb-git-tree-dir",
           title: dir.path,
           "aria-expanded": expanded,
-          style: { paddingLeft: `${TREE_DIR_INDENT + options.depth * TREE_INDENT_STEP}px` },
-          onClick: () => options.onToggleDir(dir.path)
+          style: { paddingLeft: `${TREE_DIR_INDENT + options2.depth * TREE_INDENT_STEP}px` },
+          onClick: () => options2.onToggleDir(dir.path)
         },
         import_react7.default.createElement("span", { className: "iwb-git-tree-caret" }, expanded ? "\u25BE" : "\u25B8"),
         import_react7.default.createElement("span", { className: "iwb-git-tree-dir-name" }, dir.name)
       ));
-      if (expanded) rows.push(...fileTreeRows(dir, { ...options, depth: options.depth + 1 }));
+      if (expanded) rows.push(...fileTreeRows(dir, { ...options2, depth: options2.depth + 1 }));
       continue;
     }
     const file = child.file;
@@ -7161,11 +7704,11 @@ function fileTreeRows(node, options) {
       {
         key: `file:${file.path}:${index}`,
         type: "button",
-        className: `iwb-git-drawer-file iwb-git-tree-file${options.selectedPath === file.path ? " iwb-selected" : ""}`,
+        className: `iwb-git-drawer-file iwb-git-tree-file${options2.selectedPath === file.path ? " iwb-selected" : ""}`,
         title: file.path,
-        style: { paddingLeft: `${TREE_FILE_INDENT + options.depth * TREE_INDENT_STEP}px` },
-        onClick: () => options.onSelectFile(file.path),
-        onDoubleClick: () => options.onOpenFile(file.path)
+        style: { paddingLeft: `${TREE_FILE_INDENT + options2.depth * TREE_INDENT_STEP}px` },
+        onClick: () => options2.onSelectFile(file.path),
+        onDoubleClick: () => options2.onOpenFile(file.path)
       },
       import_react7.default.createElement("span", { className: `iwb-git-file-status iwb-status-${file.status}` }, file.status),
       import_react7.default.createElement("span", { className: "iwb-git-file-name" }, child.name),
@@ -7281,18 +7824,18 @@ function BranchPopover({ store, branches, currentBranch, x, y, onClose }) {
     )
   );
 }
-function repoRows(repos, options) {
+function repoRows(repos, options2) {
   return repos.map((repo, position) => import_react7.default.createElement(
     "button",
     {
       key: repo.path,
       type: "button",
-      className: `iwb-branch-row ${position === options.index ? "iwb-selected" : ""}`,
+      className: `iwb-branch-row ${position === options2.index ? "iwb-selected" : ""}`,
       title: repo.path,
-      onMouseEnter: () => options.onHover?.(position),
-      onClick: () => options.onChoose(repo.path)
+      onMouseEnter: () => options2.onHover?.(position),
+      onClick: () => options2.onChoose(repo.path)
     },
-    import_react7.default.createElement("span", { className: "iwb-branch-check" }, repo.path === options.current ? "\u2713" : ""),
+    import_react7.default.createElement("span", { className: "iwb-branch-check" }, repo.path === options2.current ? "\u2713" : ""),
     import_react7.default.createElement("span", { className: "iwb-branch-name" }, repo.name)
   ));
 }
@@ -7541,10 +8084,10 @@ function GitPanel({ store, state }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [drawerOpen, git.detail?.hash, git.detailHash]);
   const moveSelection = (delta) => {
-    const list = git.commits;
-    const index = list.findIndex((commit2) => commit2.hash === git.selectedHash);
-    const next = Math.max(0, Math.min(list.length - 1, index < 0 ? 0 : index + delta));
-    const commit = list[next];
+    const list2 = git.commits;
+    const index = list2.findIndex((commit2) => commit2.hash === git.selectedHash);
+    const next = Math.max(0, Math.min(list2.length - 1, index < 0 ? 0 : index + delta));
+    const commit = list2[next];
     if (commit !== void 0) {
       store.selectCommit(commit.hash);
       const row = rowRefs.current.get(commit.hash);
@@ -17489,8 +18032,8 @@ var Text2 = class _Text {
   /**
   Append another document to this one.
   */
-  append(other) {
-    return this.replace(this.length, this.length, other);
+  append(other2) {
+    return this.replace(this.length, this.length, other2);
   }
   /**
   Retrieve the text between the given points.
@@ -17504,13 +18047,13 @@ var Text2 = class _Text {
   /**
   Test whether this text is equal to another instance.
   */
-  eq(other) {
-    if (other == this)
+  eq(other2) {
+    if (other2 == this)
       return true;
-    if (other.length != this.length || other.lines != this.lines)
+    if (other2.length != this.length || other2.lines != this.lines)
       return false;
-    let start = this.scanIdentical(other, 1), end = this.length - this.scanIdentical(other, -1);
-    let a2 = new RawTextCursor(this), b2 = new RawTextCursor(other);
+    let start = this.scanIdentical(other2, 1), end = this.length - this.scanIdentical(other2, -1);
+    let a2 = new RawTextCursor(this), b2 = new RawTextCursor(other2);
     for (let skip = start, pos = start; ; ) {
       a2.next(skip);
       b2.next(skip);
@@ -17737,15 +18280,15 @@ var TextNode = class _TextNode extends Text2 {
     for (let child of this.children)
       child.flatten(target);
   }
-  scanIdentical(other, dir) {
-    if (!(other instanceof _TextNode))
+  scanIdentical(other2, dir) {
+    if (!(other2 instanceof _TextNode))
       return 0;
     let length = 0;
-    let [iA, iB, eA, eB] = dir > 0 ? [0, 0, this.children.length, other.children.length] : [this.children.length - 1, other.children.length - 1, -1, -1];
+    let [iA, iB, eA, eB] = dir > 0 ? [0, 0, this.children.length, other2.children.length] : [this.children.length - 1, other2.children.length - 1, -1, -1];
     for (; ; iA += dir, iB += dir) {
       if (iA == eA || iB == eB)
         return length;
-      let chA = this.children[iA], chB = other.children[iB];
+      let chA = this.children[iA], chB = other2.children[iB];
       if (chA != chB)
         return length + chA.scanIdentical(chB, dir);
       length += chA.length + 1;
@@ -18113,8 +18656,8 @@ var ChangeDesc = class _ChangeDesc {
   after this one. The length of the document after this set should
   match the length before `other`.
   */
-  composeDesc(other) {
-    return this.empty ? other : other.empty ? this : composeSets(this, other);
+  composeDesc(other2) {
+    return this.empty ? other2 : other2.empty ? this : composeSets(this, other2);
   }
   /**
   Map this description, which should start with the same document
@@ -18122,8 +18665,8 @@ var ChangeDesc = class _ChangeDesc {
   applied after it. When `before` is true, map as if the changes
   in `this` happened before the ones in `other`.
   */
-  mapDesc(other, before = false) {
-    return other.empty ? this : mapSet(this, other, before);
+  mapDesc(other2, before = false) {
+    return other2.empty ? this : mapSet(this, other2, before);
   }
   mapPos(pos, assoc = -1, mode = MapMode.Simple) {
     let posA = 0, posB = 0;
@@ -18208,8 +18751,8 @@ var ChangeSet = class _ChangeSet extends ChangeDesc {
     iterChanges(this, (fromA, toA, fromB, _toB, text) => doc2 = doc2.replace(fromB, fromB + (toA - fromA), text), false);
     return doc2;
   }
-  mapDesc(other, before = false) {
-    return mapSet(this, other, before, true);
+  mapDesc(other2, before = false) {
+    return mapSet(this, other2, before, true);
   }
   /**
   Given the document as it existed _before_ the changes, return a
@@ -18239,8 +18782,8 @@ var ChangeSet = class _ChangeSet extends ChangeDesc {
   `docA` → `docB` and `other` represents `docB` → `docC`, the
   returned value will represent the change `docA` → `docC`.
   */
-  compose(other) {
-    return this.empty ? other : other.empty ? this : composeSets(this, other, true);
+  compose(other2) {
+    return this.empty ? other2 : other2.empty ? this : composeSets(this, other2, true);
   }
   /**
   Given another change set starting in the same document, maps this
@@ -18255,8 +18798,8 @@ var ChangeSet = class _ChangeSet extends ChangeDesc {
   transformation](https://en.wikipedia.org/wiki/Operational_transformation),
   and can be used for collaborative editing.
   */
-  map(other, before = false) {
-    return other.empty ? this : mapSet(this, other, before, true);
+  map(other2, before = false) {
+    return other2.empty ? this : mapSet(this, other2, before, true);
   }
   /**
   Iterate over the changed ranges in the document, calling `f` for
@@ -18688,8 +19231,8 @@ var SelectionRange = class _SelectionRange {
   /**
   Compare this range to another range.
   */
-  eq(other, includeAssoc = false) {
-    return this.anchor == other.anchor && this.head == other.head && this.goalColumn == other.goalColumn && (!includeAssoc || !this.empty || this.assoc == other.assoc);
+  eq(other2, includeAssoc = false) {
+    return this.anchor == other2.anchor && this.head == other2.head && this.goalColumn == other2.goalColumn && (!includeAssoc || !this.empty || this.assoc == other2.assoc);
   }
   /**
   Return a JSON-serializable object representing the range.
@@ -18733,11 +19276,11 @@ var EditorSelection = class _EditorSelection {
   cursor ranges must also have the same
   [`assoc`](https://codemirror.net/6/docs/ref/#state.SelectionRange.assoc) value.
   */
-  eq(other, includeAssoc = false) {
-    if (this.ranges.length != other.ranges.length || this.mainIndex != other.mainIndex)
+  eq(other2, includeAssoc = false) {
+    if (this.ranges.length != other2.ranges.length || this.mainIndex != other2.mainIndex)
       return false;
     for (let i2 = 0; i2 < this.ranges.length; i2++)
-      if (!this.ranges[i2].eq(other.ranges[i2], includeAssoc))
+      if (!this.ranges[i2].eq(other2.ranges[i2], includeAssoc))
         return false;
     return true;
   }
@@ -18877,8 +19420,8 @@ var Facet = class _Facet {
   /**
   Define a new facet.
   */
-  static define(config = {}) {
-    return new _Facet(config.combine || ((a2) => a2), config.compareInput || ((a2, b2) => a2 === b2), config.compare || (!config.combine ? sameArray : (a2, b2) => a2 === b2), !!config.static, config.enables);
+  static define(config2 = {}) {
+    return new _Facet(config2.combine || ((a2) => a2), config2.compareInput || ((a2, b2) => a2 === b2), config2.compare || (!config2.combine ? sameArray : (a2, b2) => a2 === b2), !!config2.static, config2.enables);
   }
   /**
   Returns an extension that adds the given value to this facet.
@@ -19055,10 +19598,10 @@ var StateField = class _StateField {
   /**
   Define a state field.
   */
-  static define(config) {
-    let field = new _StateField(nextID++, config.create, config.update, config.compare || ((a2, b2) => a2 === b2), config);
-    if (config.provide)
-      field.provides = config.provide(field);
+  static define(config2) {
+    let field = new _StateField(nextID++, config2.create, config2.update, config2.compare || ((a2, b2) => a2 === b2), config2);
+    if (config2.provide)
+      field.provides = config2.provide(field);
     return field;
   }
   create(state) {
@@ -19421,13 +19964,13 @@ var StateEffect = class _StateEffect {
 StateEffect.reconfigure = /* @__PURE__ */ StateEffect.define();
 StateEffect.appendConfig = /* @__PURE__ */ StateEffect.define();
 var Transaction = class _Transaction {
-  constructor(startState, changes, selection, effects, annotations, scrollIntoView2) {
+  constructor(startState, changes, selection, effects, annotations, scrollIntoView3) {
     this.startState = startState;
     this.changes = changes;
     this.selection = selection;
     this.effects = effects;
     this.annotations = annotations;
-    this.scrollIntoView = scrollIntoView2;
+    this.scrollIntoView = scrollIntoView3;
     this._doc = null;
     this._state = null;
     if (selection)
@@ -19438,8 +19981,8 @@ var Transaction = class _Transaction {
   /**
   @internal
   */
-  static create(startState, changes, selection, effects, annotations, scrollIntoView2) {
-    return new _Transaction(startState, changes, selection, effects, annotations, scrollIntoView2);
+  static create(startState, changes, selection, effects, annotations, scrollIntoView3) {
+    return new _Transaction(startState, changes, selection, effects, annotations, scrollIntoView3);
   }
   /**
   The new document produced by the transaction. Contrary to
@@ -19659,12 +20202,12 @@ function makeCategorizer(wordChars) {
   };
 }
 var EditorState = class _EditorState {
-  constructor(config, doc2, selection, values2, computeSlot, tr2) {
-    this.config = config;
+  constructor(config2, doc2, selection, values2, computeSlot, tr2) {
+    this.config = config2;
     this.doc = doc2;
     this.selection = selection;
     this.values = values2;
-    this.status = config.statusTemplate.slice();
+    this.status = config2.statusTemplate.slice();
     this.computeSlot = computeSlot;
     if (tr2)
       tr2._state = this;
@@ -19835,7 +20378,7 @@ var EditorState = class _EditorState {
   to [`toJSON`](https://codemirror.net/6/docs/ref/#state.EditorState.toJSON) when serializing as
   third argument.
   */
-  static fromJSON(json2, config = {}, fields) {
+  static fromJSON(json2, config2 = {}, fields) {
     if (!json2 || typeof json2.doc != "string")
       throw new RangeError("Invalid JSON representation for EditorState");
     let fieldInit = [];
@@ -19849,7 +20392,7 @@ var EditorState = class _EditorState {
     return _EditorState.create({
       doc: json2.doc,
       selection: EditorSelection.fromJSON(json2.selection),
-      extensions: config.extensions ? fieldInit.concat([config.extensions]) : fieldInit
+      extensions: config2.extensions ? fieldInit.concat([config2.extensions]) : fieldInit
     });
   }
   /**
@@ -19857,10 +20400,10 @@ var EditorState = class _EditorState {
   initializing an editor—updated states are created by applying
   transactions.
   */
-  static create(config = {}) {
-    let configuration = Configuration.resolve(config.extensions || [], /* @__PURE__ */ new Map());
-    let doc2 = config.doc instanceof Text2 ? config.doc : Text2.of((config.doc || "").split(configuration.staticFacet(_EditorState.lineSeparator) || DefaultSplit));
-    let selection = !config.selection ? EditorSelection.single(0) : config.selection instanceof EditorSelection ? config.selection : EditorSelection.single(config.selection.anchor, config.selection.head);
+  static create(config2 = {}) {
+    let configuration = Configuration.resolve(config2.extensions || [], /* @__PURE__ */ new Map());
+    let doc2 = config2.doc instanceof Text2 ? config2.doc : Text2.of((config2.doc || "").split(configuration.staticFacet(_EditorState.lineSeparator) || DefaultSplit));
+    let selection = !config2.selection ? EditorSelection.single(0) : config2.selection instanceof EditorSelection ? config2.selection : EditorSelection.single(config2.selection.anchor, config2.selection.head);
     checkSelection(selection, doc2.length);
     if (!configuration.staticFacet(allowMultipleSelections))
       selection = selection.asSingle();
@@ -19995,11 +20538,11 @@ EditorState.changeFilter = changeFilter;
 EditorState.transactionFilter = transactionFilter;
 EditorState.transactionExtender = transactionExtender;
 Compartment.reconfigure = /* @__PURE__ */ StateEffect.define();
-function combineConfig(configs, defaults2, combine = {}) {
+function combineConfig(configs, defaults3, combine = {}) {
   let result = {};
-  for (let config of configs)
-    for (let key of Object.keys(config)) {
-      let value = config[key], current = result[key];
+  for (let config2 of configs)
+    for (let key of Object.keys(config2)) {
+      let value = config2[key], current = result[key];
       if (current === void 0)
         result[key] = value;
       else if (current === value || value === void 0) ;
@@ -20008,9 +20551,9 @@ function combineConfig(configs, defaults2, combine = {}) {
       else
         throw new Error("Config merge conflict for field " + key);
     }
-  for (let key in defaults2)
+  for (let key in defaults3)
     if (result[key] === void 0)
-      result[key] = defaults2[key];
+      result[key] = defaults3[key];
   return result;
 }
 var RangeValue = class {
@@ -20021,8 +20564,8 @@ var RangeValue = class {
   of your value type, it is a good idea to implement this
   properly.
   */
-  eq(other) {
-    return this == other;
+  eq(other2) {
+    return this == other2;
   }
   /**
   Create a [range](https://codemirror.net/6/docs/ref/#state.Range) with this value.
@@ -20191,21 +20734,21 @@ var RangeSet = class _RangeSet {
       add2 = add2.slice().sort(cmpRange);
     if (this.isEmpty)
       return add2.length ? _RangeSet.of(add2) : this;
-    let cur = new LayerCursor(this, null, -1).goto(0), i2 = 0, spill = [];
+    let cur2 = new LayerCursor(this, null, -1).goto(0), i2 = 0, spill = [];
     let builder = new RangeSetBuilder();
-    while (cur.value || i2 < add2.length) {
-      if (i2 < add2.length && (cur.from - add2[i2].from || cur.startSide - add2[i2].value.startSide) >= 0) {
+    while (cur2.value || i2 < add2.length) {
+      if (i2 < add2.length && (cur2.from - add2[i2].from || cur2.startSide - add2[i2].value.startSide) >= 0) {
         let range = add2[i2++];
         if (!builder.addInner(range.from, range.to, range.value, false))
           spill.push(range);
-      } else if (cur.rangeIndex == 1 && cur.chunkIndex < this.chunk.length && (i2 == add2.length || this.chunkEnd(cur.chunkIndex) < add2[i2].from) && (!filter || filterFrom > this.chunkEnd(cur.chunkIndex) || filterTo < this.chunkPos[cur.chunkIndex]) && builder.addChunk(this.chunkPos[cur.chunkIndex], this.chunk[cur.chunkIndex])) {
-        cur.nextChunk();
+      } else if (cur2.rangeIndex == 1 && cur2.chunkIndex < this.chunk.length && (i2 == add2.length || this.chunkEnd(cur2.chunkIndex) < add2[i2].from) && (!filter || filterFrom > this.chunkEnd(cur2.chunkIndex) || filterTo < this.chunkPos[cur2.chunkIndex]) && builder.addChunk(this.chunkPos[cur2.chunkIndex], this.chunk[cur2.chunkIndex])) {
+        cur2.nextChunk();
       } else {
-        if (!filter || filterFrom > cur.to || filterTo < cur.from || filter(cur.from, cur.to, cur.value)) {
-          if (!builder.addInner(cur.from, cur.to, cur.value, false))
-            spill.push(Range.create(cur.from, cur.to, cur.value));
+        if (!filter || filterFrom > cur2.to || filterTo < cur2.from || filter(cur2.from, cur2.to, cur2.value)) {
+          if (!builder.addInner(cur2.from, cur2.to, cur2.value, false))
+            spill.push(Range.create(cur2.from, cur2.to, cur2.value));
         }
-        cur.next();
+        cur2.next();
       }
     }
     return builder.finishInner(this.nextLayer.isEmpty && !spill.length ? _RangeSet.empty : this.nextLayer.update({ add: spill, filter, filterFrom, filterTo }));
@@ -20380,10 +20923,10 @@ function last(arr) {
 function lazySort(ranges) {
   if (ranges.length > 1)
     for (let prev = ranges[0], i2 = 1; i2 < ranges.length; i2++) {
-      let cur = ranges[i2];
-      if (cmpRange(prev, cur) > 0)
+      let cur2 = ranges[i2];
+      if (cmpRange(prev, cur2) > 0)
         return ranges.slice().sort(cmpRange);
-      prev = cur;
+      prev = cur2;
     }
   return ranges;
 }
@@ -20579,8 +21122,8 @@ var LayerCursor = class {
     this.rangeIndex = 0;
     this.next();
   }
-  compare(other) {
-    return this.from - other.from || this.startSide - other.startSide || this.rank - other.rank || this.to - other.to || this.endSide - other.endSide;
+  compare(other2) {
+    return this.from - other2.from || this.startSide - other2.startSide || this.rank - other2.rank || this.to - other2.to || this.endSide - other2.endSide;
   }
 };
 var HeapCursor = class _HeapCursor {
@@ -20590,9 +21133,9 @@ var HeapCursor = class _HeapCursor {
   static from(sets, skip = null, minPoint = -1) {
     let heap = [];
     for (let i2 = 0; i2 < sets.length; i2++) {
-      for (let cur = sets[i2]; !cur.isEmpty; cur = cur.nextLayer) {
-        if (cur.maxPoint >= minPoint)
-          heap.push(new LayerCursor(cur, skip, minPoint, i2));
+      for (let cur2 = sets[i2]; !cur2.isEmpty; cur2 = cur2.nextLayer) {
+        if (cur2.maxPoint >= minPoint)
+          heap.push(new LayerCursor(cur2, skip, minPoint, i2));
       }
     }
     return heap.length == 1 ? heap[0] : new _HeapCursor(heap);
@@ -20601,16 +21144,16 @@ var HeapCursor = class _HeapCursor {
     return this.value ? this.value.startSide : 0;
   }
   goto(pos, side = -1e9) {
-    for (let cur of this.heap)
-      cur.goto(pos, side);
+    for (let cur2 of this.heap)
+      cur2.goto(pos, side);
     for (let i2 = this.heap.length >> 1; i2 >= 0; i2--)
       heapBubble(this.heap, i2);
     this.next();
     return this;
   }
   forward(pos, side) {
-    for (let cur of this.heap)
-      cur.forward(pos, side);
+    for (let cur2 of this.heap)
+      cur2.forward(pos, side);
     for (let i2 = this.heap.length >> 1; i2 >= 0; i2--)
       heapBubble(this.heap, i2);
     if ((this.to - pos || this.value.endSide - side) < 0)
@@ -20634,7 +21177,7 @@ var HeapCursor = class _HeapCursor {
   }
 };
 function heapBubble(heap, index) {
-  for (let cur = heap[index]; ; ) {
+  for (let cur2 = heap[index]; ; ) {
     let childIndex = (index << 1) + 1;
     if (childIndex >= heap.length)
       break;
@@ -20643,9 +21186,9 @@ function heapBubble(heap, index) {
       child = heap[childIndex + 1];
       childIndex++;
     }
-    if (cur.compare(child) < 0)
+    if (cur2.compare(child) < 0)
       break;
-    heap[childIndex] = cur;
+    heap[childIndex] = cur2;
     heap[index] = child;
     index = childIndex;
   }
@@ -20861,9 +21404,9 @@ var StyleModule = class {
   //
   // When `finish` is given, it is called on regular (non-`@`)
   // selectors (after `&` expansion) to compute the final selector.
-  constructor(spec, options) {
+  constructor(spec, options2) {
     this.rules = [];
-    let { finish } = options || {};
+    let { finish } = options2 || {};
     function splitSelector(selector) {
       return /^@/.test(selector) ? [selector] : selector.split(/,\s*/);
     }
@@ -20919,8 +21462,8 @@ var StyleModule = class {
   //
   // If a Content Security Policy nonce is provided, it is added to
   // the `<style>` tag generated by the library.
-  static mount(root, modules, options) {
-    let set = root[SET], nonce = options && options.nonce;
+  static mount(root, modules, options2) {
+    let set = root[SET], nonce = options2 && options2.nonce;
     if (!set) set = new StyleSet(root, nonce);
     else if (nonce) set.setNonce(nonce);
     set.mount(Array.isArray(modules) ? modules : [modules], root);
@@ -21251,8 +21794,8 @@ var WidgetType = class {
   /**
   @internal
   */
-  compare(other) {
-    return this == other || this.constructor == other.constructor && this.eq(other);
+  compare(other2) {
+    return this == other2 || this.constructor == other2.constructor && this.eq(other2);
   }
   /**
   The estimated height this widget will have, to be used when
@@ -21347,25 +21890,25 @@ var Decoration = class extends RangeValue {
   given position.
   */
   static widget(spec) {
-    let side = Math.max(-1e4, Math.min(1e4, spec.side || 0)), block = !!spec.block;
-    side += block && !spec.inlineOrder ? side > 0 ? 3e8 : -4e8 : side > 0 ? 1e8 : -1e8;
-    return new PointDecoration(spec, side, side, block, spec.widget || null, false);
+    let side = Math.max(-1e4, Math.min(1e4, spec.side || 0)), block2 = !!spec.block;
+    side += block2 && !spec.inlineOrder ? side > 0 ? 3e8 : -4e8 : side > 0 ? 1e8 : -1e8;
+    return new PointDecoration(spec, side, side, block2, spec.widget || null, false);
   }
   /**
   Create a replace decoration which replaces the given range with
   a widget, or simply hides it.
   */
   static replace(spec) {
-    let block = !!spec.block, startSide, endSide;
+    let block2 = !!spec.block, startSide, endSide;
     if (spec.isBlockGap) {
       startSide = -5e8;
       endSide = 4e8;
     } else {
-      let { start, end } = getInclusive(spec, block);
-      startSide = (start ? block ? -3e8 : -1 : 5e8) - 1;
-      endSide = (end ? block ? 2e8 : 1 : -6e8) + 1;
+      let { start, end } = getInclusive(spec, block2);
+      startSide = (start ? block2 ? -3e8 : -1 : 5e8) - 1;
+      endSide = (end ? block2 ? 2e8 : 1 : -6e8) + 1;
     }
-    return new PointDecoration(spec, startSide, endSide, block, spec.widget || null, true);
+    return new PointDecoration(spec, startSide, endSide, block2, spec.widget || null, true);
   }
   /**
   Create a line decoration, which can add DOM attributes to the
@@ -21397,8 +21940,8 @@ var MarkDecoration = class _MarkDecoration extends Decoration {
     this.tagName = spec.tagName || "span";
     this.attrs = spec.class && spec.attributes ? combineAttrs(spec.attributes, { class: spec.class }) : spec.class ? { class: spec.class } : spec.attributes || noAttrs;
   }
-  eq(other) {
-    return this == other || other instanceof _MarkDecoration && this.tagName == other.tagName && attrsEq(this.attrs, other.attrs);
+  eq(other2) {
+    return this == other2 || other2 instanceof _MarkDecoration && this.tagName == other2.tagName && attrsEq(this.attrs, other2.attrs);
   }
   range(from, to = from) {
     if (from >= to)
@@ -21411,8 +21954,8 @@ var LineDecoration = class _LineDecoration extends Decoration {
   constructor(spec) {
     super(-2e8, -2e8, null, spec);
   }
-  eq(other) {
-    return other instanceof _LineDecoration && this.spec.class == other.spec.class && attrsEq(this.spec.attributes, other.spec.attributes);
+  eq(other2) {
+    return other2 instanceof _LineDecoration && this.spec.class == other2.spec.class && attrsEq(this.spec.attributes, other2.spec.attributes);
   }
   range(from, to = from) {
     if (to != from)
@@ -21423,11 +21966,11 @@ var LineDecoration = class _LineDecoration extends Decoration {
 LineDecoration.prototype.mapMode = MapMode.TrackBefore;
 LineDecoration.prototype.point = true;
 var PointDecoration = class _PointDecoration extends Decoration {
-  constructor(spec, startSide, endSide, block, widget, isReplace) {
+  constructor(spec, startSide, endSide, block2, widget, isReplace) {
     super(startSide, endSide, widget, spec);
-    this.block = block;
+    this.block = block2;
     this.isReplace = isReplace;
-    this.mapMode = !block ? MapMode.TrackDel : startSide <= 0 ? MapMode.TrackBefore : MapMode.TrackAfter;
+    this.mapMode = !block2 ? MapMode.TrackDel : startSide <= 0 ? MapMode.TrackBefore : MapMode.TrackAfter;
   }
   // Only relevant when this.block == true
   get type() {
@@ -21436,8 +21979,8 @@ var PointDecoration = class _PointDecoration extends Decoration {
   get heightRelevant() {
     return this.block || !!this.widget && (this.widget.estimatedHeight >= 5 || this.widget.lineBreaks > 0);
   }
-  eq(other) {
-    return other instanceof _PointDecoration && widgetsEq(this.widget, other.widget) && this.block == other.block && this.startSide == other.startSide && this.endSide == other.endSide;
+  eq(other2) {
+    return other2 instanceof _PointDecoration && widgetsEq(this.widget, other2.widget) && this.block == other2.block && this.startSide == other2.startSide && this.endSide == other2.endSide;
   }
   range(from, to = from) {
     if (this.isReplace && (from > to || from == to && this.startSide > 0 && this.endSide <= 0))
@@ -21448,13 +21991,13 @@ var PointDecoration = class _PointDecoration extends Decoration {
   }
 };
 PointDecoration.prototype.point = true;
-function getInclusive(spec, block = false) {
+function getInclusive(spec, block2 = false) {
   let { inclusiveStart: start, inclusiveEnd: end } = spec;
   if (start == null)
     start = spec.inclusive;
   if (end == null)
     end = spec.inclusive;
-  return { start: start !== null && start !== void 0 ? start : block, end: end !== null && end !== void 0 ? end : block };
+  return { start: start !== null && start !== void 0 ? start : block2, end: end !== null && end !== void 0 ? end : block2 };
 }
 function widgetsEq(a2, b2) {
   return a2 == b2 || !!(a2 && b2 && a2.compare(b2));
@@ -21473,8 +22016,8 @@ var BlockWrapper = class _BlockWrapper extends RangeValue {
     this.attributes = attributes;
     this.rank = rank;
   }
-  eq(other) {
-    return other == this || other instanceof _BlockWrapper && this.tagName == other.tagName && attrsEq(this.attributes, other.attributes);
+  eq(other2) {
+    return other2 == this || other2 instanceof _BlockWrapper && this.tagName == other2.tagName && attrsEq(this.attributes, other2.attributes);
   }
   /**
   Create a block wrapper object with the given tag name and
@@ -21594,31 +22137,31 @@ function getScale(elt2, rect) {
 }
 function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
   let doc2 = dom.ownerDocument, win = doc2.defaultView || window;
-  for (let cur = dom, stop = false; cur && !stop; ) {
-    if (isElt(cur)) {
-      let bounding, top2 = cur == doc2.body;
+  for (let cur2 = dom, stop = false; cur2 && !stop; ) {
+    if (isElt(cur2)) {
+      let bounding, top2 = cur2 == doc2.body;
       let scaleX = 1, scaleY = 1, xScroll = true, yScroll = true;
       if (top2) {
         bounding = windowRect(win);
       } else {
-        let style = getComputedStyle(cur);
+        let style = getComputedStyle(cur2);
         if (/^(fixed|sticky)$/.test(style.position))
           stop = true;
-        if (cur.scrollHeight <= cur.clientHeight || !/auto|scroll/.test(style.overflowY))
+        if (cur2.scrollHeight <= cur2.clientHeight || !/auto|scroll/.test(style.overflowY))
           yScroll = false;
-        if (cur.scrollWidth <= cur.clientWidth || !/auto|scroll/.test(style.overflowX))
+        if (cur2.scrollWidth <= cur2.clientWidth || !/auto|scroll/.test(style.overflowX))
           xScroll = false;
         if (!xScroll && !yScroll) {
-          cur = cur.assignedSlot || cur.parentNode;
+          cur2 = cur2.assignedSlot || cur2.parentNode;
           continue;
         }
-        let rect2 = cur.getBoundingClientRect();
-        ({ scaleX, scaleY } = getScale(cur, rect2));
+        let rect2 = cur2.getBoundingClientRect();
+        ({ scaleX, scaleY } = getScale(cur2, rect2));
         bounding = {
           left: rect2.left,
-          right: rect2.left + cur.clientWidth * scaleX,
+          right: rect2.left + cur2.clientWidth * scaleX,
           top: rect2.top,
-          bottom: rect2.top + cur.clientHeight * scaleY
+          bottom: rect2.top + cur2.clientHeight * scaleY
         };
       }
       let moveX = 0, moveY = 0;
@@ -21659,14 +22202,14 @@ function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
         } else {
           let movedX = 0, movedY = 0;
           if (moveY) {
-            let start = cur.scrollTop;
-            cur.scrollTop += moveY / scaleY;
-            movedY = (cur.scrollTop - start) * scaleY;
+            let start = cur2.scrollTop;
+            cur2.scrollTop += moveY / scaleY;
+            movedY = (cur2.scrollTop - start) * scaleY;
           }
           if (moveX) {
-            let start = cur.scrollLeft;
-            cur.scrollLeft += moveX / scaleX;
-            movedX = (cur.scrollLeft - start) * scaleX;
+            let start = cur2.scrollLeft;
+            cur2.scrollLeft += moveX / scaleX;
+            movedX = (cur2.scrollLeft - start) * scaleX;
           }
           rect = {
             left: rect.left - movedX,
@@ -21689,9 +22232,9 @@ function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
           top: Math.max(rect.top, bounding.top),
           bottom: Math.min(rect.bottom, bounding.bottom)
         };
-      cur = cur.assignedSlot || cur.parentNode;
-    } else if (cur.nodeType == 11) {
-      cur = cur.host;
+      cur2 = cur2.assignedSlot || cur2.parentNode;
+    } else if (cur2.nodeType == 11) {
+      cur2 = cur2.host;
     } else {
       break;
     }
@@ -21699,17 +22242,17 @@ function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
 }
 function scrollableParents(dom, getX = true) {
   let doc2 = dom.ownerDocument, x = null, y = null;
-  for (let cur = dom.parentNode; cur; ) {
-    if (cur == doc2.body || (!getX || x) && y) {
+  for (let cur2 = dom.parentNode; cur2; ) {
+    if (cur2 == doc2.body || (!getX || x) && y) {
       break;
-    } else if (isElt(cur)) {
-      if (!y && cur.scrollHeight > cur.clientHeight && /scroll|auto/.test(getComputedStyle(cur).overflowY))
-        y = cur;
-      if (getX && !x && cur.scrollWidth > cur.clientWidth && /scroll|auto/.test(getComputedStyle(cur).overflowX))
-        x = cur;
-      cur = cur.assignedSlot || cur.parentNode;
-    } else if (cur.nodeType == 11) {
-      cur = cur.host;
+    } else if (isElt(cur2)) {
+      if (!y && cur2.scrollHeight > cur2.clientHeight && /scroll|auto/.test(getComputedStyle(cur2).overflowY))
+        y = cur2;
+      if (getX && !x && cur2.scrollWidth > cur2.clientWidth && /scroll|auto/.test(getComputedStyle(cur2).overflowX))
+        x = cur2;
+      cur2 = cur2.assignedSlot || cur2.parentNode;
+    } else if (cur2.nodeType == 11) {
+      cur2 = cur2.host;
     } else {
       break;
     }
@@ -21739,9 +22282,9 @@ var DOMSelectionState = class {
 };
 function getScrollStack(target) {
   let stack = [];
-  for (let cur = target; cur; cur = cur.nodeType == 11 ? cur.host : cur.parentNode) {
-    if (isElt(cur))
-      stack.push({ node: cur, left: cur.scrollLeft, top: cur.scrollTop });
+  for (let cur2 = target; cur2; cur2 = cur2.nodeType == 11 ? cur2.host : cur2.parentNode) {
+    if (isElt(cur2))
+      stack.push({ node: cur2, left: cur2.scrollLeft, top: cur2.scrollTop });
   }
   return stack;
 }
@@ -21781,13 +22324,13 @@ function textRange(node, from, to = from) {
   return range;
 }
 function dispatchKey(elt2, name2, code2, mods) {
-  let options = { key: name2, code: name2, keyCode: code2, which: code2, cancelable: true };
+  let options2 = { key: name2, code: name2, keyCode: code2, which: code2, cancelable: true };
   if (mods)
-    ({ altKey: options.altKey, ctrlKey: options.ctrlKey, shiftKey: options.shiftKey, metaKey: options.metaKey } = mods);
-  let down = new KeyboardEvent("keydown", options);
+    ({ altKey: options2.altKey, ctrlKey: options2.ctrlKey, shiftKey: options2.shiftKey, metaKey: options2.metaKey } = mods);
+  let down = new KeyboardEvent("keydown", options2);
   down.synthetic = true;
   elt2.dispatchEvent(down);
-  let up = new KeyboardEvent("keyup", options);
+  let up = new KeyboardEvent("keyup", options2);
   up.synthetic = true;
   elt2.dispatchEvent(up);
   return down.defaultPrevented || up.defaultPrevented;
@@ -22000,13 +22543,13 @@ function computeCharTypes(line, rFrom, rTo, isolates, outerType) {
 }
 function processBracketPairs(line, rFrom, rTo, isolates, outerType) {
   let oppositeType = outerType == 1 ? 2 : 1;
-  for (let iI = 0, sI = 0, context = 0; iI <= isolates.length; iI++) {
+  for (let iI = 0, sI = 0, context2 = 0; iI <= isolates.length; iI++) {
     let from = iI ? isolates[iI - 1].to : rFrom, to = iI < isolates.length ? isolates[iI].from : rTo;
-    for (let i2 = from, ch, br3, type; i2 < to; i2++) {
-      if (br3 = Brackets[ch = line.charCodeAt(i2)]) {
-        if (br3 < 0) {
+    for (let i2 = from, ch, br4, type; i2 < to; i2++) {
+      if (br4 = Brackets[ch = line.charCodeAt(i2)]) {
+        if (br4 < 0) {
           for (let sJ = sI - 3; sJ >= 0; sJ -= 3) {
-            if (BracketStack[sJ + 1] == -br3) {
+            if (BracketStack[sJ + 1] == -br4) {
               let flags = BracketStack[sJ + 2];
               let type2 = flags & 2 ? outerType : !(flags & 4) ? 0 : flags & 1 ? oppositeType : outerType;
               if (type2)
@@ -22020,19 +22563,19 @@ function processBracketPairs(line, rFrom, rTo, isolates, outerType) {
         } else {
           BracketStack[sI++] = i2;
           BracketStack[sI++] = ch;
-          BracketStack[sI++] = context;
+          BracketStack[sI++] = context2;
         }
       } else if ((type = types[i2]) == 2 || type == 1) {
         let embed = type == outerType;
-        context = embed ? 0 : 1;
+        context2 = embed ? 0 : 1;
         for (let sJ = sI - 3; sJ >= 0; sJ -= 3) {
-          let cur = BracketStack[sJ + 2];
-          if (cur & 2)
+          let cur2 = BracketStack[sJ + 2];
+          if (cur2 & 2)
             break;
           if (embed) {
             BracketStack[sJ + 2] |= 2;
           } else {
-            if (cur & 4)
+            if (cur2 & 4)
               break;
             BracketStack[sJ + 2] |= 4;
           }
@@ -22289,13 +22832,13 @@ var ScrollTarget = class _ScrollTarget {
 };
 var scrollIntoView = /* @__PURE__ */ StateEffect.define({ map: (t2, ch) => t2.map(ch) });
 var setEditContextFormatting = /* @__PURE__ */ StateEffect.define();
-function logException(state, exception, context) {
+function logException(state, exception, context2) {
   let handler = state.facet(exceptionSink);
   if (handler.length)
     handler[0](exception);
-  else if (window.onerror && window.onerror(String(exception), context, void 0, void 0, exception)) ;
-  else if (context)
-    console.error(context + ":", exception);
+  else if (window.onerror && window.onerror(String(exception), context2, void 0, void 0, exception)) ;
+  else if (context2)
+    console.error(context2 + ":", exception);
   else
     console.error(exception);
 }
@@ -22485,8 +23028,8 @@ var ChangedRange = class _ChangedRange {
     this.fromB = fromB;
     this.toB = toB;
   }
-  join(other) {
-    return new _ChangedRange(Math.min(this.fromA, other.fromA), Math.max(this.toA, other.toA), Math.min(this.fromB, other.fromB), Math.max(this.toB, other.toB));
+  join(other2) {
+    return new _ChangedRange(Math.min(this.fromA, other2.fromA), Math.max(this.toA, other2.toA), Math.min(this.fromB, other2.fromB), Math.max(this.toB, other2.toB));
   }
   addToSet(set) {
     let i2 = set.length, me = this;
@@ -22797,19 +23340,19 @@ var DocTile = class extends CompositeTile {
     }
   }
   blockTiles(f) {
-    for (let stack = [], cur = this, i2 = 0, pos = 0; ; ) {
-      if (i2 == cur.children.length) {
+    for (let stack = [], cur2 = this, i2 = 0, pos = 0; ; ) {
+      if (i2 == cur2.children.length) {
         if (!stack.length)
           return;
-        cur = cur.parent;
-        if (cur.breakAfter)
+        cur2 = cur2.parent;
+        if (cur2.breakAfter)
           pos++;
         i2 = stack.pop();
       } else {
-        let next = cur.children[i2++];
+        let next = cur2.children[i2++];
         if (next instanceof BlockWrapperTile) {
           stack.push(i2);
-          cur = next;
+          cur2 = next;
           i2 = 0;
         } else {
           let end = pos + next.length;
@@ -23047,11 +23590,11 @@ var WidgetTile = class _WidgetTile extends Tile {
   coordsIn(pos, side) {
     return this.coordsInWidget(pos, side, false);
   }
-  coordsInWidget(pos, side, block) {
+  coordsInWidget(pos, side, block2) {
     let custom = this.widget.coordsAt(this.dom, pos, side);
     if (custom)
       return custom;
-    if (block) {
+    if (block2) {
       return flattenRect(this.dom.getBoundingClientRect(), this.length ? pos == 0 : side <= 0);
     } else {
       let rects = this.dom.getClientRects(), rect = null;
@@ -23214,19 +23757,19 @@ var TileBuilder = class {
     this.pos += text.length;
     this.afterWidget = null;
   }
-  addComposition(composition, context) {
+  addComposition(composition, context2) {
     let line = this.curLine;
-    if (line.dom != context.line.dom) {
-      line.setDOM(this.cache.reused.has(context.line) ? freeNode(context.line.dom) : context.line.dom);
+    if (line.dom != context2.line.dom) {
+      line.setDOM(this.cache.reused.has(context2.line) ? freeNode(context2.line.dom) : context2.line.dom);
       this.cache.reused.set(
-        context.line,
+        context2.line,
         2
         /* Reused.DOM */
       );
     }
     let head = line;
-    for (let i2 = context.marks.length - 1; i2 >= 0; i2--) {
-      let mark = context.marks[i2];
+    for (let i2 = context2.marks.length - 1; i2 >= 0; i2--) {
+      let mark = context2.marks[i2];
       let last2 = head.lastChild;
       if (last2 instanceof MarkTile && last2.mark.eq(mark.mark)) {
         if (last2.dom != mark.dom)
@@ -23361,10 +23904,10 @@ var TileBuilder = class {
     for (let i2 = this.wrappers.length - 1; i2 >= 0; i2--)
       if (this.wrappers[i2].to < this.pos)
         this.wrappers.splice(i2, 1);
-    for (let cur = this.blockWrappers; cur.value && cur.from <= this.pos; cur.next())
-      if (cur.to >= this.pos) {
-        let rank = cur.rank * 102 + cur.value.rank;
-        let wrap = new OpenWrapper(cur.from, cur.to, cur.value, rank), i2 = this.wrappers.length;
+    for (let cur2 = this.blockWrappers; cur2.value && cur2.from <= this.pos; cur2.next())
+      if (cur2.to >= this.pos) {
+        let rank = cur2.rank * 102 + cur2.value.rank;
+        let wrap = new OpenWrapper(cur2.from, cur2.to, cur2.value, rank), i2 = this.wrappers.length;
         while (i2 > 0 && (this.wrappers[i2 - 1].rank - wrap.rank || this.wrappers[i2 - 1].to - wrap.to) < 0)
           i2--;
         this.wrappers.splice(i2, 0, wrap);
@@ -23801,12 +24344,12 @@ function freeNode(node) {
   return node;
 }
 var NullWidget = class extends WidgetType {
-  constructor(tag) {
+  constructor(tag2) {
     super();
-    this.tag = tag;
+    this.tag = tag2;
   }
-  eq(other) {
-    return other.tag == this.tag;
+  eq(other2) {
+    return other2.tag == this.tag;
   }
   toDOM() {
     return document.createElement(this.tag);
@@ -24324,15 +24867,15 @@ var DocView = class {
       }
     }
     let { range } = target;
-    let rect = this.coordsAt(range.head, range.assoc || (range.head > range.anchor ? -1 : 1)), other;
+    let rect = this.coordsAt(range.head, range.assoc || (range.head > range.anchor ? -1 : 1)), other2;
     if (!rect)
       return;
-    if (!range.empty && (other = this.coordsAt(range.anchor, range.anchor > range.head ? -1 : 1)))
+    if (!range.empty && (other2 = this.coordsAt(range.anchor, range.anchor > range.head ? -1 : 1)))
       rect = {
-        left: Math.min(rect.left, other.left),
-        top: Math.min(rect.top, other.top),
-        right: Math.max(rect.right, other.right),
-        bottom: Math.max(rect.bottom, other.bottom)
+        left: Math.min(rect.left, other2.left),
+        top: Math.min(rect.top, other2.top),
+        right: Math.max(rect.right, other2.right),
+        bottom: Math.max(rect.bottom, other2.bottom)
       };
     let margins = getScrollMargins(this.view);
     let targetRect = {
@@ -24450,8 +24993,8 @@ function findChangedWrappers(a2, b2, diff) {
   return comp.changes;
 }
 function inUneditable(node, inside) {
-  for (let cur = node; cur && cur != inside; cur = cur.assignedSlot || cur.parentNode) {
-    if (isElt(cur) && cur.contentEditable == "false")
+  for (let cur2 = node; cur2 && cur2 != inside; cur2 = cur2.assignedSlot || cur2.parentNode) {
+    if (isElt(cur2) && cur2.contentEditable == "false")
       return true;
   }
   return false;
@@ -24476,8 +25019,8 @@ var BlockGapWidget = class extends WidgetType {
     this.updateDOM(elt2);
     return elt2;
   }
-  eq(other) {
-    return other.height == this.height;
+  eq(other2) {
+    return other2.height == this.height;
   }
   updateDOM(elt2) {
     elt2.style.height = this.height + "px";
@@ -24522,15 +25065,15 @@ function groupAt(state, pos, bias = 1) {
   }
   return EditorSelection.undirectionalRange(from + line.from, to + line.from);
 }
-function posAtCoordsImprecise(view, contentRect, block, x, y) {
+function posAtCoordsImprecise(view, contentRect, block2, x, y) {
   let into = Math.round((x - contentRect.left) * view.defaultCharacterWidth);
-  if (view.lineWrapping && block.height > view.defaultLineHeight * 1.5) {
+  if (view.lineWrapping && block2.height > view.defaultLineHeight * 1.5) {
     let textHeight = view.viewState.heightOracle.textHeight;
-    let line = Math.floor((y - block.top - (view.defaultLineHeight - textHeight) * 0.5) / textHeight);
+    let line = Math.floor((y - block2.top - (view.defaultLineHeight - textHeight) * 0.5) / textHeight);
     into += line * view.viewState.heightOracle.lineLength;
   }
-  let content2 = view.state.sliceDoc(block.from, block.to);
-  return block.from + findColumn(content2, into, view.state.tabSize);
+  let content2 = view.state.sliceDoc(block2.from, block2.to);
+  return block2.from + findColumn(content2, into, view.state.tabSize);
 }
 function blockAt(view, pos, side) {
   let line = view.lineBlockAt(pos);
@@ -24551,11 +25094,11 @@ function blockAt(view, pos, side) {
   return line;
 }
 function moveToLineBoundary(view, start, forward, includeWrap) {
-  let block = blockAt(view, start.head, start.assoc || -1);
-  let coords = !includeWrap || block.type != BlockType.Text || !(view.lineWrapping || block.widgetLineBreaks) ? null : view.coordsAtPos(start.assoc < 0 && start.head > block.from ? start.head - 1 : start.head);
+  let block2 = blockAt(view, start.head, start.assoc || -1);
+  let coords = !includeWrap || block2.type != BlockType.Text || !(view.lineWrapping || block2.widgetLineBreaks) ? null : view.coordsAtPos(start.assoc < 0 && start.head > block2.from ? start.head - 1 : start.head);
   if (coords) {
     let editorRect = view.dom.getBoundingClientRect();
-    let direction = view.textDirectionAt(block.from);
+    let direction = view.textDirectionAt(block2.from);
     let pos = view.posAndSideAtCoords({
       x: forward == (direction == Direction.LTR) ? editorRect.right - 1 : editorRect.left + 1,
       y: (coords.top + coords.bottom) / 2
@@ -24563,16 +25106,16 @@ function moveToLineBoundary(view, start, forward, includeWrap) {
     if (pos)
       return EditorSelection.cursor(pos.pos, pos.assoc);
   }
-  return EditorSelection.cursor(forward ? block.to : block.from, forward ? 1 : -1);
+  return EditorSelection.cursor(forward ? block2.to : block2.from, forward ? 1 : -1);
 }
 function moveByChar(view, start, forward, by) {
   let line = view.state.doc.lineAt(start.head), spans = view.bidiSpans(line);
   let direction = view.textDirectionAt(line.from);
-  for (let cur = start, check = null; ; ) {
-    let next = moveVisually(line, spans, direction, cur, forward), char = movedOver;
+  for (let cur2 = start, check = null; ; ) {
+    let next = moveVisually(line, spans, direction, cur2, forward), char = movedOver;
     if (!next) {
       if (line.number == (forward ? view.state.doc.lines : 1))
-        return cur;
+        return cur2;
       char = "\n";
       line = view.state.doc.line(line.number + (forward ? 1 : -1));
       spans = view.bidiSpans(line);
@@ -24583,9 +25126,9 @@ function moveByChar(view, start, forward, by) {
         return next;
       check = by(char);
     } else if (!check(char)) {
-      return cur;
+      return cur2;
     }
-    cur = next;
+    cur2 = next;
   }
 }
 function byGroup(view, pos, start) {
@@ -24682,39 +25225,39 @@ var PosAssoc = class {
 };
 function posAtCoords(view, coords, precise, scanY) {
   let content2 = view.contentDOM.getBoundingClientRect(), docTop = content2.top + view.viewState.paddingTop;
-  let { x, y } = coords, yOffset = y - docTop, block;
+  let { x, y } = coords, yOffset = y - docTop, block2;
   for (; ; ) {
     if (yOffset < 0)
       return new PosAssoc(0, 1);
     if (yOffset > view.viewState.docHeight)
       return new PosAssoc(view.state.doc.length, -1);
-    block = view.elementAtHeight(yOffset);
+    block2 = view.elementAtHeight(yOffset);
     if (scanY == null)
       break;
-    if (block.type == BlockType.Text) {
-      if (scanY < 0 ? block.to < view.viewport.from : block.from > view.viewport.to)
+    if (block2.type == BlockType.Text) {
+      if (scanY < 0 ? block2.to < view.viewport.from : block2.from > view.viewport.to)
         break;
-      let rect = view.docView.coordsAt(scanY < 0 ? block.from : block.to, scanY > 0 ? -1 : 1);
+      let rect = view.docView.coordsAt(scanY < 0 ? block2.from : block2.to, scanY > 0 ? -1 : 1);
       if (rect && (scanY < 0 ? rect.top <= yOffset + docTop : rect.bottom >= yOffset + docTop))
         break;
     }
     let halfLine = view.viewState.heightOracle.textHeight / 2;
-    yOffset = scanY > 0 ? block.bottom + halfLine : block.top - halfLine;
+    yOffset = scanY > 0 ? block2.bottom + halfLine : block2.top - halfLine;
   }
-  if (view.viewport.from >= block.to || view.viewport.to <= block.from) {
+  if (view.viewport.from >= block2.to || view.viewport.to <= block2.from) {
     if (precise)
       return null;
-    if (block.type == BlockType.Text) {
-      let pos = posAtCoordsImprecise(view, content2, block, x, y);
-      return new PosAssoc(pos, pos == block.from ? 1 : -1);
+    if (block2.type == BlockType.Text) {
+      let pos = posAtCoordsImprecise(view, content2, block2, x, y);
+      return new PosAssoc(pos, pos == block2.from ? 1 : -1);
     }
   }
-  if (block.type != BlockType.Text)
-    return yOffset < (block.top + block.bottom) / 2 ? new PosAssoc(block.from, 1) : new PosAssoc(block.to, -1);
-  let line = view.docView.lineAt(block.from, 2);
-  if (!line || line.length != block.length)
-    line = view.docView.lineAt(block.from, -2);
-  return new InlineCoordsScan(view, x, y, view.textDirectionAt(block.from)).scanTile(line, block.from);
+  if (block2.type != BlockType.Text)
+    return yOffset < (block2.top + block2.bottom) / 2 ? new PosAssoc(block2.from, 1) : new PosAssoc(block2.to, -1);
+  let line = view.docView.lineAt(block2.from, 2);
+  if (!line || line.length != block2.length)
+    line = view.docView.lineAt(block2.from, -2);
+  return new InlineCoordsScan(view, x, y, view.textDirectionAt(block2.from)).scanTile(line, block2.from);
 }
 var InlineCoordsScan = class {
   constructor(view, x, y, baseDir) {
@@ -24885,20 +25428,20 @@ var DOMReader = class {
     if (!start)
       return this;
     let parent = start.parentNode;
-    for (let cur = start; ; ) {
-      this.findPointBefore(parent, cur);
+    for (let cur2 = start; ; ) {
+      this.findPointBefore(parent, cur2);
       let oldLen = this.text.length;
-      this.readNode(cur);
-      let tile = Tile.get(cur), next = cur.nextSibling;
+      this.readNode(cur2);
+      let tile = Tile.get(cur2), next = cur2.nextSibling;
       if (next == end) {
         if ((tile === null || tile === void 0 ? void 0 : tile.breakAfter) && !next && parent != this.view.contentDOM)
           this.lineBreak();
         break;
       }
       let nextTile = Tile.get(next);
-      if ((tile && nextTile ? tile.breakAfter : (tile ? tile.breakAfter : isBlockElement(cur)) || isBlockElement(next) && (cur.nodeName != "BR" || (tile === null || tile === void 0 ? void 0 : tile.isWidget())) && this.text.length > oldLen) && !isEmptyToEnd(next, end))
+      if ((tile && nextTile ? tile.breakAfter : (tile ? tile.breakAfter : isBlockElement(cur2)) || isBlockElement(next) && (cur2.nodeName != "BR" || (tile === null || tile === void 0 ? void 0 : tile.isWidget())) && this.text.length > oldLen) && !isEmptyToEnd(next, end))
         this.lineBreak();
-      cur = next;
+      cur2 = next;
     }
     this.findPointBefore(parent, end);
     return this;
@@ -25118,15 +25661,15 @@ function applyDOMChange(view, domChange) {
   if (change) {
     return applyDOMChangeInner(view, change, newSel, lastKey);
   } else if (newSel && !sameSelPos(newSel, sel)) {
-    let scrollIntoView2 = false, userEvent = "select";
+    let scrollIntoView3 = false, userEvent = "select";
     if (view.inputState.lastSelectionTime > Date.now() - 50) {
       if (view.inputState.lastSelectionOrigin == "select")
-        scrollIntoView2 = true;
+        scrollIntoView3 = true;
       userEvent = view.inputState.lastSelectionOrigin;
       if (userEvent == "select.pointer")
         newSel = skipAtomsForSelection(state.facet(atomicRanges).map((f) => f(view)), newSel);
     }
-    view.dispatch({ selection: newSel, scrollIntoView: scrollIntoView2, userEvent });
+    view.dispatch({ selection: newSel, scrollIntoView: scrollIntoView3, userEvent });
     return true;
   } else {
     return false;
@@ -25755,16 +26298,16 @@ function basicMouseSelection(view, event) {
       }
     },
     get(event2, extend, multiple) {
-      let cur = view.posAndSideAtCoords({ x: event2.clientX, y: event2.clientY }, false), removed;
-      let range = rangeForClick(view, cur.pos, cur.assoc, type);
-      if (start.pos != cur.pos && !extend) {
+      let cur2 = view.posAndSideAtCoords({ x: event2.clientX, y: event2.clientY }, false), removed;
+      let range = rangeForClick(view, cur2.pos, cur2.assoc, type);
+      if (start.pos != cur2.pos && !extend) {
         let startRange = rangeForClick(view, start.pos, start.assoc, type);
         let from = Math.min(startRange.from, range.from), to = Math.max(startRange.to, range.to);
         range = from < range.from ? EditorSelection.range(from, to, range.assoc) : EditorSelection.range(to, from, range.assoc);
       }
       if (extend)
         return startSel.replaceRange(startSel.main.extend(range.from, range.to, range.assoc));
-      else if (multiple && type == 1 && startSel.ranges.length > 1 && (removed = removeRangeAround(startSel, cur.pos)))
+      else if (multiple && type == 1 && startSel.ranges.length > 1 && (removed = removeRangeAround(startSel, cur2.pos)))
         return removed;
       else if (multiple)
         return startSel.addRange(range);
@@ -26171,9 +26714,9 @@ var BlockInfo = class _BlockInfo {
   /**
   @internal
   */
-  join(other) {
-    let content2 = (Array.isArray(this._content) ? this._content : [this]).concat(Array.isArray(other._content) ? other._content : [other]);
-    return new _BlockInfo(this.from, this.length + other.length, this.top, this.height + other.height, content2);
+  join(other2) {
+    let content2 = (Array.isArray(this._content) ? this._content : [this]).concat(Array.isArray(other2._content) ? other2._content : [other2]);
+    return new _BlockInfo(this.from, this.length + other2.length, this.top, this.height + other2.height, content2);
   }
 };
 var QueryType = /* @__PURE__ */ (function(QueryType3) {
@@ -26705,15 +27248,15 @@ var NodeBuilder = class _NodeBuilder {
     this.nodes.push(line);
     return line;
   }
-  addBlock(block) {
+  addBlock(block2) {
     this.enterLine();
-    let deco = block.deco;
+    let deco = block2.deco;
     if (deco && deco.startSide > 0 && !this.isCovered)
       this.ensureLine();
-    this.nodes.push(block);
-    this.writtenTo = this.pos = this.pos + block.length;
+    this.nodes.push(block2);
+    this.writtenTo = this.pos = this.pos + block2.length;
     if (deco && deco.endSide > 0)
-      this.covering = block;
+      this.covering = block2;
   }
   addLineDeco(height, breaks, length) {
     let line = this.ensureLine();
@@ -26835,8 +27378,8 @@ var LineGapWidget = class extends WidgetType {
     this.size = size;
     this.vertical = vertical;
   }
-  eq(other) {
-    return other.size == this.size && other.vertical == this.vertical;
+  eq(other2) {
+    return other2.size == this.size && other2.vertical == this.vertical;
   }
   toDOM() {
     let elt2 = document.createElement("div");
@@ -26912,8 +27455,8 @@ var ViewState = class {
   }
   updateViewportLines() {
     this.viewportLines = [];
-    this.heightMap.forEachLine(this.viewport.from, this.viewport.to, this.heightOracle.setDoc(this.state.doc), 0, 0, (block) => {
-      this.viewportLines.push(scaleBlock(block, this.scaler));
+    this.heightMap.forEachLine(this.viewport.from, this.viewport.to, this.heightOracle.setDoc(this.state.doc), 0, 0, (block2) => {
+      this.viewportLines.push(scaleBlock(block2, this.scaler));
     });
   }
   update(update, scrollTarget = null) {
@@ -27070,13 +27613,13 @@ var ViewState = class {
       let { head } = scrollTarget.range;
       if (head < viewport.from || head > viewport.to) {
         let viewHeight = Math.min(this.editorHeight, this.pixelViewport.bottom - this.pixelViewport.top);
-        let block = map.lineAt(head, QueryType.ByPos, oracle, 0, 0), topPos;
+        let block2 = map.lineAt(head, QueryType.ByPos, oracle, 0, 0), topPos;
         if (scrollTarget.y == "center")
-          topPos = (block.top + block.bottom) / 2 - viewHeight / 2;
+          topPos = (block2.top + block2.bottom) / 2 - viewHeight / 2;
         else if (scrollTarget.y == "start" || scrollTarget.y == "nearest" && head < viewport.from)
-          topPos = block.top;
+          topPos = block2.top;
         else
-          topPos = block.bottom - viewHeight;
+          topPos = block2.bottom - viewHeight;
         viewport = new Viewport(map.lineAt(topPos - 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).from, map.lineAt(topPos + viewHeight + 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).to);
       }
     }
@@ -27262,8 +27805,8 @@ var ViewState = class {
     return this.scrollParent == this.view.scrollDOM ? this.scrollParent.scrollTop * this.scaleY : (this.scrollParent ? this.scrollParent.getBoundingClientRect().top : 0) - this.view.contentDOM.getBoundingClientRect().top;
   }
   scrollAnchorAt(scrollOffset) {
-    let block = this.lineBlockAtHeight(scrollOffset + 12 - this.paddingTop);
-    return block.from >= this.viewport.from || this.viewportLines[0].top - scrollOffset > 200 ? block : this.viewportLines[0];
+    let block2 = this.lineBlockAtHeight(scrollOffset + 12 - this.paddingTop);
+    return block2.from >= this.viewport.from || this.viewportLines[0].top - scrollOffset > 200 ? block2 : this.viewportLines[0];
   }
   elementAtHeight(height) {
     return scaleBlock(this.heightMap.blockAt(this.scaler.fromDOM(height), this.heightOracle, 0, 0), this.scaler);
@@ -27338,8 +27881,8 @@ var IdScaler = {
     return n;
   },
   scale: 1,
-  eq(other) {
-    return other == this;
+  eq(other2) {
+    return other2 == this;
   }
 };
 function staticDeco(state) {
@@ -27394,17 +27937,17 @@ var BigScaler = class _BigScaler {
       domBase = vp.domBottom;
     }
   }
-  eq(other) {
-    if (!(other instanceof _BigScaler))
+  eq(other2) {
+    if (!(other2 instanceof _BigScaler))
       return false;
-    return this.scale == other.scale && this.viewports.length == other.viewports.length && this.viewports.every((vp, i2) => vp.from == other.viewports[i2].from && vp.to == other.viewports[i2].to);
+    return this.scale == other2.scale && this.viewports.length == other2.viewports.length && this.viewports.every((vp, i2) => vp.from == other2.viewports[i2].from && vp.to == other2.viewports[i2].to);
   }
 };
-function scaleBlock(block, scaler) {
+function scaleBlock(block2, scaler) {
   if (scaler.scale == 1)
-    return block;
-  let bTop = scaler.toDOM(block.top), bBottom = scaler.toDOM(block.bottom);
-  return new BlockInfo(block.from, block.length, bTop, bBottom - bTop, Array.isArray(block._content) ? block._content.map((b2) => scaleBlock(b2, scaler)) : block._content);
+    return block2;
+  let bTop = scaler.toDOM(block2.top), bBottom = scaler.toDOM(block2.bottom);
+  return new BlockInfo(block2.from, block2.length, bTop, bBottom - bTop, Array.isArray(block2._content) ? block2._content.map((b2) => scaleBlock(b2, scaler)) : block2._content);
 }
 var theme = /* @__PURE__ */ Facet.define({ combine: (strs) => strs.join(" ") });
 var darkTheme = /* @__PURE__ */ Facet.define({ combine: (values2) => values2.indexOf(true) > -1 });
@@ -27846,8 +28389,8 @@ var DOMObserver = class {
     let { view } = this, sel = this.selectionRange;
     if (view.state.facet(editable) ? view.root.activeElement != this.dom : !hasSelection(this.dom, sel))
       return;
-    let context = sel.anchorNode && view.docView.tile.nearest(sel.anchorNode);
-    if (context && context.isWidget() && context.widget.ignoreEvent(event)) {
+    let context2 = sel.anchorNode && view.docView.tile.nearest(sel.anchorNode);
+    if (context2 && context2.isWidget() && context2.widget.ignoreEvent(event)) {
       if (!wasChanged)
         this.selectionChanged = false;
       return;
@@ -28172,7 +28715,7 @@ var EditContextManager = class {
     this.handlers = /* @__PURE__ */ Object.create(null);
     this.composing = null;
     this.resetRange(view.state);
-    let context = this.editContext = new window.EditContext({
+    let context2 = this.editContext = new window.EditContext({
       text: view.state.doc.sliceString(this.from, this.to),
       selectionStart: this.toContextPos(Math.max(this.from, Math.min(this.to, view.state.selection.main.anchor))),
       selectionEnd: this.toContextPos(view.state.selection.main.head)
@@ -28210,7 +28753,7 @@ var EditContextManager = class {
         this.revertPending(view.state);
         this.setSelection(view.state);
       }
-      if (change.from < change.to && !change.insert.length && view.inputState.composing >= 0 && !/[\\p{Alphabetic}\\p{Number}_]/.test(context.text.slice(Math.max(0, e.updateRangeStart - 1), Math.min(context.text.length, e.updateRangeStart + 1))))
+      if (change.from < change.to && !change.insert.length && view.inputState.composing >= 0 && !/[\\p{Alphabetic}\\p{Number}_]/.test(context2.text.slice(Math.max(0, e.updateRangeStart - 1), Math.min(context2.text.length, e.updateRangeStart + 1))))
         this.handlers.compositionend(e);
     };
     this.handlers.characterboundsupdate = (e) => {
@@ -28220,7 +28763,7 @@ var EditContextManager = class {
         prev = rect && new DOMRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top) || prev || new DOMRect();
         rects.push(prev);
       }
-      context.updateCharacterBounds(e.rangeStart, rects);
+      context2.updateCharacterBounds(e.rangeStart, rects);
     };
     this.handlers.textformatupdate = (e) => {
       let deco = [];
@@ -28253,7 +28796,7 @@ var EditContextManager = class {
       }
     };
     for (let event in this.handlers)
-      context.addEventListener(event, this.handlers[event]);
+      context2.addEventListener(event, this.handlers[event]);
     this.measureReq = { read: (view2) => {
       let sel = getSelection(view2.root);
       if (sel && sel.rangeCount)
@@ -28427,7 +28970,7 @@ var EditorView = class _EditorView {
   option, or put `view.dom` into your document after creating a
   view, so that the user can see the editor.
   */
-  constructor(config = {}) {
+  constructor(config2 = {}) {
     var _a2;
     this.plugins = [];
     this.pluginMap = /* @__PURE__ */ new Map();
@@ -28450,15 +28993,15 @@ var EditorView = class _EditorView {
     this.dom = document.createElement("div");
     this.dom.appendChild(this.announceDOM);
     this.dom.appendChild(this.scrollDOM);
-    if (config.parent)
-      config.parent.appendChild(this.dom);
-    let { dispatch } = config;
-    this.dispatchTransactions = config.dispatchTransactions || dispatch && ((trs) => trs.forEach((tr2) => dispatch(tr2, this))) || ((trs) => this.update(trs));
+    if (config2.parent)
+      config2.parent.appendChild(this.dom);
+    let { dispatch } = config2;
+    this.dispatchTransactions = config2.dispatchTransactions || dispatch && ((trs) => trs.forEach((tr2) => dispatch(tr2, this))) || ((trs) => this.update(trs));
     this.dispatch = this.dispatch.bind(this);
-    this._root = config.root || getRoot(config.parent) || document;
-    this.viewState = new ViewState(this, config.state || EditorState.create(config));
-    if (config.scrollTo && config.scrollTo.is(scrollIntoView))
-      this.viewState.scrollTarget = config.scrollTo.value.clip(this.viewState.state);
+    this._root = config2.root || getRoot(config2.parent) || document;
+    this.viewState = new ViewState(this, config2.state || EditorState.create(config2));
+    if (config2.scrollTo && config2.scrollTo.is(scrollIntoView))
+      this.viewState.scrollTarget = config2.scrollTo.value.clip(this.viewState.state);
     this.plugins = this.state.facet(viewPlugin).map((spec) => new PluginInstance(spec));
     for (let plugin of this.plugins)
       plugin.update(this);
@@ -28685,9 +29228,9 @@ var EditorView = class _EditorView {
             scrollAnchorPos = -1;
             scrollAnchorHeight = this.viewState.heightMap.height / this.viewState.scaleY;
           } else {
-            let block = this.viewState.scrollAnchorAt(scrollOffset);
-            scrollAnchorPos = block.from;
-            scrollAnchorHeight = block.top;
+            let block2 = this.viewState.scrollAnchorAt(scrollOffset);
+            scrollAnchorPos = block2.from;
+            scrollAnchorHeight = block2.top;
           }
           scrollScale = this.viewState.scaleY;
         }
@@ -29188,9 +29731,9 @@ var EditorView = class _EditorView {
   [added](https://codemirror.net/6/docs/ref/#state.TransactionSpec.effects) to a transaction to
   cause it to scroll the given position or range into view.
   */
-  static scrollIntoView(pos, options = {}) {
+  static scrollIntoView(pos, options2 = {}) {
     var _a2, _b2, _c2, _d;
-    return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? EditorSelection.cursor(pos) : pos, (_a2 = options.y) !== null && _a2 !== void 0 ? _a2 : "nearest", (_b2 = options.x) !== null && _b2 !== void 0 ? _b2 : "nearest", (_c2 = options.yMargin) !== null && _c2 !== void 0 ? _c2 : 5, (_d = options.xMargin) !== null && _d !== void 0 ? _d : 5));
+    return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? EditorSelection.cursor(pos) : pos, (_a2 = options2.y) !== null && _a2 !== void 0 ? _a2 : "nearest", (_b2 = options2.x) !== null && _b2 !== void 0 ? _b2 : "nearest", (_c2 = options2.yMargin) !== null && _c2 !== void 0 ? _c2 : 5, (_d = options2.xMargin) !== null && _d !== void 0 ? _d : 5));
   }
   /**
   Return an effect that resets the editor to its current (at the
@@ -29272,10 +29815,10 @@ var EditorView = class _EditorView {
   themes](https://codemirror.net/6/docs/ref/#view.EditorView^baseTheme) to be used (as opposed to
   `&light` when a light theme is active).
   */
-  static theme(spec, options) {
+  static theme(spec, options2) {
     let prefix = StyleModule.newName();
     let result = [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))];
-    if (options && options.dark)
+    if (options2 && options2.dark)
       result.push(darkTheme.of(true));
     return result;
   }
@@ -29700,8 +30243,8 @@ function rectanglesForRange(view, className, range) {
       addSpan(start, from2 == null, end, to2 == null, view.textDirection);
     return { top: top2, bottom, horizontal };
   }
-  function drawForWidget(block, top2) {
-    let y = contentRect.top + (top2 ? block.top : block.bottom);
+  function drawForWidget(block2, top2) {
+    let y = contentRect.top + (top2 ? block2.top : block2.bottom);
     return { top: y, bottom: y, horizontal: [] };
   }
 }
@@ -29786,10 +30329,10 @@ var LayerView = class {
   }
 };
 var layerOrder = /* @__PURE__ */ Facet.define();
-function layer(config) {
+function layer(config2) {
   return [
-    ViewPlugin.define((v2) => new LayerView(v2, config)),
-    layerOrder.of(config)
+    ViewPlugin.define((v2) => new LayerView(v2, config2)),
+    layerOrder.of(config2)
   ];
 }
 var drawMainRange = !browser.ios;
@@ -29805,9 +30348,9 @@ var selectionConfig = /* @__PURE__ */ Facet.define({
     });
   }
 });
-function drawSelection(config = {}) {
+function drawSelection(config2 = {}) {
   return [
-    selectionConfig.of(config),
+    selectionConfig.of(config2),
     cursorLayer,
     selectionLayer,
     hideNativeSelection,
@@ -30009,8 +30552,8 @@ var MatchDecorator = class {
   /**
   Create a decorator.
   */
-  constructor(config) {
-    const { regexp, decoration, decorate, boundary, maxLength = 1e3 } = config;
+  constructor(config2) {
+    const { regexp, decoration, decorate, boundary, maxLength = 1e3 } = config2;
     if (!regexp.global)
       throw new RangeError("The regular expression given to MatchDecorator should have its 'g' flag set");
     this.regexp = regexp;
@@ -30130,20 +30673,20 @@ function supportsTabSize() {
 }
 var specialCharConfig = /* @__PURE__ */ Facet.define({
   combine(configs) {
-    let config = combineConfig(configs, {
+    let config2 = combineConfig(configs, {
       render: null,
       specialChars: Specials,
       addSpecialChars: null
     });
-    if (config.replaceTabs = !supportsTabSize())
-      config.specialChars = new RegExp("	|" + config.specialChars.source, UnicodeRegexpSupport);
-    if (config.addSpecialChars)
-      config.specialChars = new RegExp(config.specialChars.source + "|" + config.addSpecialChars.source, UnicodeRegexpSupport);
-    return config;
+    if (config2.replaceTabs = !supportsTabSize())
+      config2.specialChars = new RegExp("	|" + config2.specialChars.source, UnicodeRegexpSupport);
+    if (config2.addSpecialChars)
+      config2.specialChars = new RegExp(config2.specialChars.source + "|" + config2.addSpecialChars.source, UnicodeRegexpSupport);
+    return config2;
   }
 });
-function highlightSpecialChars(config = {}) {
-  return [specialCharConfig.of(config), specialCharPlugin()];
+function highlightSpecialChars(config2 = {}) {
+  return [specialCharConfig.of(config2), specialCharPlugin()];
 }
 var _plugin = null;
 function specialCharPlugin() {
@@ -30195,13 +30738,13 @@ function placeholder$1(code2) {
   return String.fromCharCode(9216 + code2);
 }
 var SpecialCharWidget = class extends WidgetType {
-  constructor(options, code2) {
+  constructor(options2, code2) {
     super();
-    this.options = options;
+    this.options = options2;
     this.code = code2;
   }
-  eq(other) {
-    return other.code == this.code;
+  eq(other2) {
+    return other2.code == this.code;
   }
   toDOM(view) {
     let ph = placeholder$1(this.code);
@@ -30225,8 +30768,8 @@ var TabWidget = class extends WidgetType {
     super();
     this.width = width;
   }
-  eq(other) {
-    return other.width == this.width;
+  eq(other2) {
+    return other2.width == this.width;
   }
   toDOM() {
     let span = document.createElement("span");
@@ -30315,10 +30858,10 @@ function rectangleSelectionStyle(view, event) {
       }
     },
     get(event2, _extend, multiple) {
-      let cur = getPos(view, event2);
-      if (!cur)
+      let cur2 = getPos(view, event2);
+      if (!cur2)
         return startSel;
-      let ranges = rectangleFor(view.state, start, cur);
+      let ranges = rectangleFor(view.state, start, cur2);
       if (!ranges.length)
         return startSel;
       if (multiple)
@@ -30328,8 +30871,8 @@ function rectangleSelectionStyle(view, event) {
     }
   };
 }
-function rectangularSelection(options) {
-  let filter = (options === null || options === void 0 ? void 0 : options.eventFilter) || ((e) => e.altKey && e.button == 0);
+function rectangularSelection(options2) {
+  let filter = (options2 === null || options2 === void 0 ? void 0 : options2.eventFilter) || ((e) => e.altKey && e.button == 0);
   return EditorView.mouseSelectionStyle.of((view, event) => filter(event) ? rectangleSelectionStyle(view, event) : null);
 }
 var keys = {
@@ -30339,8 +30882,8 @@ var keys = {
   Meta: [91, (e) => !!e.metaKey]
 };
 var showCrosshair = { style: "cursor: crosshair" };
-function crosshairCursor(options = {}) {
-  let [code2, getter] = keys[options.key || "Alt"];
+function crosshairCursor(options2 = {}) {
+  let [code2, getter] = keys[options2.key || "Alt"];
   let plugin = ViewPlugin.fromClass(class {
     constructor(view) {
       this.view = view;
@@ -30373,6 +30916,334 @@ function crosshairCursor(options = {}) {
       return ((_a2 = view.plugin(plugin)) === null || _a2 === void 0 ? void 0 : _a2.isDown) ? showCrosshair : null;
     })
   ];
+}
+var Outside = "-10000px";
+var TooltipViewManager = class {
+  constructor(view, facet, createTooltipView, removeTooltipView) {
+    this.facet = facet;
+    this.createTooltipView = createTooltipView;
+    this.removeTooltipView = removeTooltipView;
+    this.input = view.state.facet(facet);
+    this.tooltips = this.input.filter((t2) => t2);
+    let prev = null;
+    this.tooltipViews = this.tooltips.map((t2) => prev = createTooltipView(t2, prev));
+  }
+  update(update, above) {
+    var _a2;
+    let input = update.state.facet(this.facet);
+    let tooltips = input.filter((x) => x);
+    if (input === this.input) {
+      for (let t2 of this.tooltipViews)
+        if (t2.update)
+          t2.update(update);
+      return false;
+    }
+    let tooltipViews = [], newAbove = above ? [] : null;
+    for (let i2 = 0; i2 < tooltips.length; i2++) {
+      let tip = tooltips[i2], known = -1;
+      if (!tip)
+        continue;
+      for (let i3 = 0; i3 < this.tooltips.length; i3++) {
+        let other2 = this.tooltips[i3];
+        if (other2 && other2.create == tip.create)
+          known = i3;
+      }
+      if (known < 0) {
+        tooltipViews[i2] = this.createTooltipView(tip, i2 ? tooltipViews[i2 - 1] : null);
+        if (newAbove)
+          newAbove[i2] = !!tip.above;
+      } else {
+        let tooltipView = tooltipViews[i2] = this.tooltipViews[known];
+        if (newAbove)
+          newAbove[i2] = above[known];
+        if (tooltipView.update)
+          tooltipView.update(update);
+      }
+    }
+    for (let t2 of this.tooltipViews)
+      if (tooltipViews.indexOf(t2) < 0) {
+        this.removeTooltipView(t2);
+        (_a2 = t2.destroy) === null || _a2 === void 0 ? void 0 : _a2.call(t2);
+      }
+    if (above) {
+      newAbove.forEach((val, i2) => above[i2] = val);
+      above.length = newAbove.length;
+    }
+    this.input = input;
+    this.tooltips = tooltips;
+    this.tooltipViews = tooltipViews;
+    return true;
+  }
+};
+function fixedRange(view) {
+  let docElt = view.dom.ownerDocument.documentElement, width = docElt.clientWidth;
+  let style = getComputedStyle(docElt);
+  if (!/stable/.test(style.scrollbarGutter || ""))
+    return { left: 0, right: width };
+  let rect = docElt.getBoundingClientRect(), scrollX = view.win.scrollX;
+  return {
+    left: Math.max(0, rect.left + scrollX - parseFloat(style.marginLeft)),
+    right: Math.min(width, rect.right + scrollX + parseFloat(style.marginRight))
+  };
+}
+function windowSpace(view) {
+  let { left, right } = fixedRange(view);
+  return { top: 0, left, right, bottom: view.dom.ownerDocument.documentElement.clientHeight };
+}
+var tooltipConfig = /* @__PURE__ */ Facet.define({
+  combine: (values2) => {
+    var _a2, _b2, _c2;
+    return {
+      position: browser.ios ? "absolute" : ((_a2 = values2.find((conf) => conf.position)) === null || _a2 === void 0 ? void 0 : _a2.position) || "fixed",
+      parent: ((_b2 = values2.find((conf) => conf.parent)) === null || _b2 === void 0 ? void 0 : _b2.parent) || null,
+      tooltipSpace: ((_c2 = values2.find((conf) => conf.tooltipSpace)) === null || _c2 === void 0 ? void 0 : _c2.tooltipSpace) || windowSpace
+    };
+  }
+});
+var knownHeight = /* @__PURE__ */ new WeakMap();
+var tooltipPlugin = /* @__PURE__ */ ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.view = view;
+    this.above = [];
+    this.inView = true;
+    this.madeAbsolute = false;
+    this.lastTransaction = 0;
+    this.measureTimeout = -1;
+    let config2 = view.state.facet(tooltipConfig);
+    this.position = config2.position;
+    this.parent = config2.parent;
+    this.classes = view.themeClasses;
+    this.createContainer();
+    this.measureReq = { read: this.readMeasure.bind(this), write: this.writeMeasure.bind(this), key: this };
+    this.resizeObserver = typeof ResizeObserver == "function" ? new ResizeObserver(() => this.measureSoon()) : null;
+    this.manager = new TooltipViewManager(view, showTooltip, (t2, p) => this.createTooltip(t2, p), (t2) => {
+      if (this.resizeObserver)
+        this.resizeObserver.unobserve(t2.dom);
+      t2.dom.remove();
+    });
+    this.above = this.manager.tooltips.map((t2) => !!t2.above);
+    this.intersectionObserver = typeof IntersectionObserver == "function" ? new IntersectionObserver((entries) => {
+      if (Date.now() > this.lastTransaction - 50 && entries.length > 0 && entries[entries.length - 1].intersectionRatio < 1)
+        this.measureSoon();
+    }, { threshold: [1] }) : null;
+    this.observeIntersection();
+    view.win.addEventListener("resize", this.measureSoon = this.measureSoon.bind(this));
+    this.maybeMeasure();
+  }
+  createContainer() {
+    if (this.parent) {
+      this.container = document.createElement("div");
+      this.container.style.position = "relative";
+      this.container.className = this.view.themeClasses;
+      this.parent.appendChild(this.container);
+    } else {
+      this.container = this.view.dom;
+    }
+  }
+  observeIntersection() {
+    if (this.intersectionObserver) {
+      this.intersectionObserver.disconnect();
+      for (let tooltip of this.manager.tooltipViews)
+        this.intersectionObserver.observe(tooltip.dom);
+    }
+  }
+  measureSoon() {
+    if (this.measureTimeout < 0)
+      this.measureTimeout = setTimeout(() => {
+        this.measureTimeout = -1;
+        this.maybeMeasure();
+      }, 50);
+  }
+  update(update) {
+    if (update.transactions.length)
+      this.lastTransaction = Date.now();
+    let updated = this.manager.update(update, this.above);
+    if (updated)
+      this.observeIntersection();
+    let shouldMeasure = updated || update.geometryChanged;
+    let newConfig = update.state.facet(tooltipConfig);
+    if (newConfig.position != this.position && !this.madeAbsolute) {
+      this.position = newConfig.position;
+      for (let t2 of this.manager.tooltipViews)
+        t2.dom.style.position = this.position;
+      shouldMeasure = true;
+    }
+    if (newConfig.parent != this.parent) {
+      if (this.parent)
+        this.container.remove();
+      this.parent = newConfig.parent;
+      this.createContainer();
+      for (let t2 of this.manager.tooltipViews)
+        this.container.appendChild(t2.dom);
+      shouldMeasure = true;
+    } else if (this.parent && this.view.themeClasses != this.classes) {
+      this.classes = this.container.className = this.view.themeClasses;
+    }
+    if (shouldMeasure)
+      this.maybeMeasure();
+  }
+  createTooltip(tooltip, prev) {
+    let tooltipView = tooltip.create(this.view);
+    let before = prev ? prev.dom : null;
+    tooltipView.dom.classList.add("cm-tooltip");
+    if (tooltip.arrow && !tooltipView.dom.querySelector(".cm-tooltip > .cm-tooltip-arrow")) {
+      let arrow = document.createElement("div");
+      arrow.className = "cm-tooltip-arrow";
+      tooltipView.dom.appendChild(arrow);
+    }
+    tooltipView.dom.style.position = this.position;
+    tooltipView.dom.style.top = Outside;
+    tooltipView.dom.style.left = "0px";
+    this.container.insertBefore(tooltipView.dom, before);
+    if (tooltipView.mount)
+      tooltipView.mount(this.view);
+    if (this.resizeObserver)
+      this.resizeObserver.observe(tooltipView.dom);
+    return tooltipView;
+  }
+  destroy() {
+    var _a2, _b2, _c2;
+    this.view.win.removeEventListener("resize", this.measureSoon);
+    for (let tooltipView of this.manager.tooltipViews) {
+      tooltipView.dom.remove();
+      (_a2 = tooltipView.destroy) === null || _a2 === void 0 ? void 0 : _a2.call(tooltipView);
+    }
+    if (this.parent)
+      this.container.remove();
+    (_b2 = this.resizeObserver) === null || _b2 === void 0 ? void 0 : _b2.disconnect();
+    (_c2 = this.intersectionObserver) === null || _c2 === void 0 ? void 0 : _c2.disconnect();
+    clearTimeout(this.measureTimeout);
+  }
+  readMeasure() {
+    let scaleX = 1, scaleY = 1, makeAbsolute = false, fixedLeft = 0;
+    if (this.position == "fixed" && this.manager.tooltipViews.length) {
+      let { dom } = this.manager.tooltipViews[0];
+      if (browser.safari) {
+        let rect = dom.getBoundingClientRect();
+        makeAbsolute = Math.abs(rect.top + 1e4) > 1 || Math.abs(rect.left) > 1;
+      } else {
+        makeAbsolute = !!dom.offsetParent && dom.offsetParent != this.container.ownerDocument.body;
+      }
+    }
+    if (makeAbsolute || this.position == "absolute") {
+      if (this.parent) {
+        let rect = this.parent.getBoundingClientRect();
+        if (rect.width && rect.height) {
+          scaleX = rect.width / this.parent.offsetWidth;
+          scaleY = rect.height / this.parent.offsetHeight;
+        }
+      } else {
+        ({ scaleX, scaleY } = this.view.viewState);
+      }
+    } else {
+      fixedLeft = fixedRange(this.view).left;
+    }
+    let visible = this.view.scrollDOM.getBoundingClientRect(), margins = getScrollMargins(this.view);
+    return {
+      visible: {
+        left: visible.left + margins.left,
+        top: visible.top + margins.top,
+        right: visible.right - margins.right,
+        bottom: visible.bottom - margins.bottom
+      },
+      parent: this.parent ? this.container.getBoundingClientRect() : this.view.dom.getBoundingClientRect(),
+      pos: this.manager.tooltips.map((t2, i2) => {
+        let tv = this.manager.tooltipViews[i2];
+        return tv.getCoords ? tv.getCoords(t2.pos) : this.view.coordsAtPos(t2.pos);
+      }),
+      size: this.manager.tooltipViews.map(({ dom }) => dom.getBoundingClientRect()),
+      space: this.view.state.facet(tooltipConfig).tooltipSpace(this.view),
+      scaleX,
+      scaleY,
+      makeAbsolute,
+      fixedLeft
+    };
+  }
+  writeMeasure(measured) {
+    var _a2;
+    if (measured.makeAbsolute) {
+      this.madeAbsolute = true;
+      this.position = "absolute";
+      for (let t2 of this.manager.tooltipViews)
+        t2.dom.style.position = "absolute";
+    }
+    let { visible, space: space6, scaleX, scaleY } = measured;
+    let others = [];
+    for (let i2 = 0; i2 < this.manager.tooltips.length; i2++) {
+      let tooltip = this.manager.tooltips[i2], tView = this.manager.tooltipViews[i2], { dom } = tView;
+      let pos = measured.pos[i2], size = measured.size[i2];
+      if (!pos || tooltip.clip !== false && (pos.bottom <= Math.max(visible.top, space6.top) || pos.top >= Math.min(visible.bottom, space6.bottom) || pos.right < Math.max(visible.left, space6.left) - 0.1 || pos.left > Math.min(visible.right, space6.right) + 0.1)) {
+        dom.style.top = Outside;
+        continue;
+      }
+      let arrow = tooltip.arrow ? tView.dom.querySelector(".cm-tooltip-arrow") : null;
+      let arrowHeight = arrow ? 7 : 0;
+      let width = size.right - size.left, height = (_a2 = knownHeight.get(tView)) !== null && _a2 !== void 0 ? _a2 : size.bottom - size.top;
+      let offset = tView.offset || noOffset, ltr = this.view.textDirection == Direction.LTR;
+      let left = size.width > space6.right - space6.left ? ltr ? space6.left : space6.right - size.width : ltr ? Math.max(space6.left, Math.min(pos.left - (arrow ? 14 : 0) + offset.x, space6.right - width)) : Math.min(Math.max(space6.left, pos.left - width + (arrow ? 14 : 0) - offset.x), space6.right - width);
+      let above = this.above[i2];
+      if (!tooltip.strictSide && (above ? pos.top - height - arrowHeight - offset.y < space6.top : pos.bottom + height + arrowHeight + offset.y > space6.bottom) && above == space6.bottom - pos.bottom > pos.top - space6.top)
+        above = this.above[i2] = !above;
+      let spaceVert = (above ? pos.top - space6.top : space6.bottom - pos.bottom) - arrowHeight;
+      if (spaceVert < height && tView.resize !== false) {
+        if (spaceVert < this.view.defaultLineHeight) {
+          dom.style.top = Outside;
+          continue;
+        }
+        knownHeight.set(tView, height);
+        dom.style.height = (height = spaceVert) / scaleY + "px";
+      } else if (dom.style.height) {
+        dom.style.height = "";
+      }
+      let top2 = above ? pos.top - height - arrowHeight - offset.y : pos.bottom + arrowHeight + offset.y;
+      let right = left + width;
+      if (tView.overlap !== true) {
+        for (let r of others)
+          if (r.left < right && r.right > left && r.top < top2 + height && r.bottom > top2)
+            top2 = above ? r.top - height - 2 - arrowHeight : r.bottom + arrowHeight + 2;
+      }
+      if (this.position == "absolute") {
+        dom.style.top = (top2 - measured.parent.top) / scaleY + "px";
+        setLeftStyle(dom, (left - measured.parent.left) / scaleX);
+      } else {
+        dom.style.top = top2 / scaleY + "px";
+        setLeftStyle(dom, (left - measured.fixedLeft) / scaleX);
+      }
+      if (arrow) {
+        let arrowLeft = pos.left + (ltr ? offset.x : -offset.x) - (left + 14 - 7);
+        arrow.style.left = arrowLeft / scaleX + "px";
+      }
+      if (tView.overlap !== true)
+        others.push({ left, top: top2, right, bottom: top2 + height });
+      dom.classList.toggle("cm-tooltip-above", above);
+      dom.classList.toggle("cm-tooltip-below", !above);
+      if (tView.positioned)
+        tView.positioned(measured.space);
+    }
+  }
+  maybeMeasure() {
+    if (this.manager.tooltips.length) {
+      if (this.view.inView)
+        this.view.requestMeasure(this.measureReq);
+      if (this.inView != this.view.inView) {
+        this.inView = this.view.inView;
+        if (!this.inView)
+          for (let tv of this.manager.tooltipViews)
+            tv.dom.style.top = Outside;
+      }
+    }
+  }
+}, {
+  eventObservers: {
+    scroll() {
+      this.maybeMeasure();
+    }
+  }
+});
+function setLeftStyle(elt2, value) {
+  let current = parseInt(elt2.style.left, 10);
+  if (isNaN(current) || Math.abs(value - current) > 1)
+    elt2.style.left = value + "px";
 }
 var baseTheme = /* @__PURE__ */ EditorView.baseTheme({
   ".cm-tooltip": {
@@ -30436,6 +31307,314 @@ var baseTheme = /* @__PURE__ */ EditorView.baseTheme({
     }
   }
 });
+var noOffset = { x: 0, y: 0 };
+var showTooltip = /* @__PURE__ */ Facet.define({
+  enables: [tooltipPlugin, baseTheme]
+});
+var showHoverTooltip = /* @__PURE__ */ Facet.define({
+  combine: (inputs2) => inputs2.reduce((a2, i2) => a2.concat(i2), [])
+});
+var HoverTooltipHost = class _HoverTooltipHost {
+  // Needs to be static so that host tooltip instances always match
+  static create(view) {
+    return new _HoverTooltipHost(view);
+  }
+  constructor(view) {
+    this.view = view;
+    this.mounted = false;
+    this.dom = document.createElement("div");
+    this.dom.classList.add("cm-tooltip-hover");
+    this.manager = new TooltipViewManager(view, showHoverTooltip, (t2, p) => this.createHostedView(t2, p), (t2) => t2.dom.remove());
+  }
+  createHostedView(tooltip, prev) {
+    let hostedView = tooltip.create(this.view);
+    hostedView.dom.classList.add("cm-tooltip-section");
+    this.dom.insertBefore(hostedView.dom, prev ? prev.dom.nextSibling : this.dom.firstChild);
+    if (this.mounted && hostedView.mount)
+      hostedView.mount(this.view);
+    return hostedView;
+  }
+  mount(view) {
+    for (let hostedView of this.manager.tooltipViews) {
+      if (hostedView.mount)
+        hostedView.mount(view);
+    }
+    this.mounted = true;
+  }
+  positioned(space6) {
+    for (let hostedView of this.manager.tooltipViews) {
+      if (hostedView.positioned)
+        hostedView.positioned(space6);
+    }
+  }
+  update(update) {
+    this.manager.update(update);
+  }
+  destroy() {
+    var _a2;
+    for (let t2 of this.manager.tooltipViews)
+      (_a2 = t2.destroy) === null || _a2 === void 0 ? void 0 : _a2.call(t2);
+  }
+  passProp(name2) {
+    let value = void 0;
+    for (let view of this.manager.tooltipViews) {
+      let given = view[name2];
+      if (given !== void 0) {
+        if (value === void 0)
+          value = given;
+        else if (value !== given)
+          return void 0;
+      }
+    }
+    return value;
+  }
+  get offset() {
+    return this.passProp("offset");
+  }
+  get getCoords() {
+    return this.passProp("getCoords");
+  }
+  get overlap() {
+    return this.passProp("overlap");
+  }
+  get resize() {
+    return this.passProp("resize");
+  }
+};
+var showHoverTooltipHost = /* @__PURE__ */ showTooltip.compute([showHoverTooltip], (state) => {
+  let tooltips = state.facet(showHoverTooltip);
+  if (tooltips.length === 0)
+    return null;
+  return {
+    pos: Math.min(...tooltips.map((t2) => t2.pos)),
+    end: Math.max(...tooltips.map((t2) => {
+      var _a2;
+      return (_a2 = t2.end) !== null && _a2 !== void 0 ? _a2 : t2.pos;
+    })),
+    create: HoverTooltipHost.create,
+    above: tooltips[0].above,
+    arrow: tooltips.some((t2) => t2.arrow)
+  };
+});
+var hoverPlugin = /* @__PURE__ */ Facet.define();
+var HoverPlugin = class {
+  constructor(view, source, field, locked, setHover, hoverTime) {
+    this.view = view;
+    this.source = source;
+    this.field = field;
+    this.locked = locked;
+    this.setHover = setHover;
+    this.hoverTime = hoverTime;
+    this.hoverTimeout = -1;
+    this.restartTimeout = -1;
+    this.pending = null;
+    this.lastMove = { x: 0, y: 0, target: view.dom, time: 0 };
+    this.checkHover = this.checkHover.bind(this);
+    view.dom.addEventListener("mouseleave", this.mouseleave = this.mouseleave.bind(this));
+    view.dom.addEventListener("mousemove", this.mousemove = this.mousemove.bind(this));
+  }
+  update(update) {
+    if (this.pending) {
+      this.pending = null;
+      clearTimeout(this.restartTimeout);
+      this.restartTimeout = setTimeout(() => this.startHover(), 20);
+    }
+  }
+  get active() {
+    return this.view.state.field(this.field);
+  }
+  checkHover() {
+    this.hoverTimeout = -1;
+    if (this.active.length)
+      return;
+    let hovered = Date.now() - this.lastMove.time;
+    if (hovered < this.hoverTime)
+      this.hoverTimeout = setTimeout(this.checkHover, this.hoverTime - hovered);
+    else
+      this.startHover();
+  }
+  startHover() {
+    clearTimeout(this.restartTimeout);
+    let { view, lastMove } = this;
+    let tile = view.docView.tile.nearest(lastMove.target);
+    if (!tile)
+      return;
+    let pos, side = 1;
+    if (tile.isWidget()) {
+      pos = tile.posAtStart;
+    } else {
+      pos = view.posAtCoords(lastMove);
+      if (pos == null)
+        return;
+      let posCoords = view.coordsAtPos(pos);
+      if (!posCoords || lastMove.y < posCoords.top || lastMove.y > posCoords.bottom || lastMove.x < posCoords.left - view.defaultCharacterWidth || lastMove.x > posCoords.right + view.defaultCharacterWidth)
+        return;
+      let bidi = view.bidiSpans(view.state.doc.lineAt(pos)).find((s15) => s15.from <= pos && s15.to >= pos);
+      let rtl = bidi && bidi.dir == Direction.RTL ? -1 : 1;
+      side = lastMove.x < posCoords.left ? -rtl : rtl;
+    }
+    this.activateHover(view, pos, side);
+  }
+  activateHover(view, pos, side, locked) {
+    let open = this.source(view, pos, side);
+    let done = (value) => {
+      if (value && !(Array.isArray(value) && !value.length)) {
+        let tooltips = Array.isArray(value) ? value : [value];
+        if (locked)
+          this.locked.set(tooltips, locked);
+        view.dispatch({ effects: this.setHover.of(tooltips) });
+      }
+    };
+    if (open && "then" in open) {
+      let pending = this.pending = { pos };
+      open.then((result) => {
+        if (this.pending == pending) {
+          this.pending = null;
+          done(result);
+        }
+      }, (e) => logException(view.state, e, "hover tooltip"));
+    } else {
+      done(open);
+    }
+  }
+  get tooltip() {
+    let plugin = this.view.plugin(tooltipPlugin);
+    let index = plugin ? plugin.manager.tooltips.findIndex((t2) => t2.create == HoverTooltipHost.create) : -1;
+    return index > -1 ? plugin.manager.tooltipViews[index] : null;
+  }
+  mousemove(event) {
+    var _a2, _b2;
+    this.lastMove = { x: event.clientX, y: event.clientY, target: event.target, time: Date.now() };
+    if (this.hoverTimeout < 0)
+      this.hoverTimeout = setTimeout(this.checkHover, this.hoverTime);
+    let { active, tooltip } = this;
+    if (active.length && !this.locked.has(active) && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
+      let { pos } = active[0] || this.pending, end = (_b2 = (_a2 = active[0]) === null || _a2 === void 0 ? void 0 : _a2.end) !== null && _b2 !== void 0 ? _b2 : pos;
+      if (pos == end ? this.view.posAtCoords(this.lastMove) != pos : !isOverRange(this.view, pos, end, event.clientX, event.clientY)) {
+        this.view.dispatch({ effects: this.setHover.of([]) });
+        this.pending = null;
+      }
+    }
+  }
+  mouseleave(event) {
+    clearTimeout(this.hoverTimeout);
+    this.hoverTimeout = -1;
+    let { active } = this;
+    if (active.length && !this.locked.has(active)) {
+      let { tooltip } = this;
+      let inTooltip = tooltip && tooltip.dom.contains(event.relatedTarget);
+      if (!inTooltip)
+        this.view.dispatch({ effects: this.setHover.of([]) });
+      else
+        this.watchTooltipLeave(tooltip.dom);
+    }
+  }
+  watchTooltipLeave(tooltip) {
+    let watch = (event) => {
+      tooltip.removeEventListener("mouseleave", watch);
+      let { active } = this;
+      if (active.length && !this.locked.has(active) && !this.view.dom.contains(event.relatedTarget))
+        this.view.dispatch({ effects: this.setHover.of([]) });
+    };
+    tooltip.addEventListener("mouseleave", watch);
+  }
+  destroy() {
+    clearTimeout(this.hoverTimeout);
+    clearTimeout(this.restartTimeout);
+    this.view.dom.removeEventListener("mouseleave", this.mouseleave);
+    this.view.dom.removeEventListener("mousemove", this.mousemove);
+  }
+};
+var tooltipMargin = 4;
+function isInTooltip(tooltip, event) {
+  let { left, right, top: top2, bottom } = tooltip.getBoundingClientRect(), arrow;
+  if (arrow = tooltip.querySelector(".cm-tooltip-arrow")) {
+    let arrowRect = arrow.getBoundingClientRect();
+    top2 = Math.min(arrowRect.top, top2);
+    bottom = Math.max(arrowRect.bottom, bottom);
+  }
+  return event.clientX >= left - tooltipMargin && event.clientX <= right + tooltipMargin && event.clientY >= top2 - tooltipMargin && event.clientY <= bottom + tooltipMargin;
+}
+function isOverRange(view, from, to, x, y, margin) {
+  let rect = view.scrollDOM.getBoundingClientRect();
+  let docBottom = view.documentTop + view.documentPadding.top + view.contentHeight;
+  if (rect.left > x || rect.right < x || rect.top > y || Math.min(rect.bottom, docBottom) < y)
+    return false;
+  let pos = view.posAtCoords({ x, y }, false);
+  return pos >= from && pos <= to;
+}
+function hoverTooltip(source, options2 = {}) {
+  let setHover = StateEffect.define();
+  let locked = /* @__PURE__ */ new WeakMap();
+  let hoverState = StateField.define({
+    create() {
+      return [];
+    },
+    update(value, tr2) {
+      let lock = locked.get(value);
+      if (value.length) {
+        if (options2.hideOnChange && (tr2.docChanged || tr2.selection))
+          value = [];
+        else if (lock && lock(tr2))
+          value = [];
+        else if (options2.hideOn)
+          value = value.filter((v2) => !options2.hideOn(tr2, v2));
+      }
+      if (tr2.docChanged && value.length) {
+        let mapped = [];
+        for (let tooltip of value) {
+          let newPos = tr2.changes.mapPos(tooltip.pos, -1, MapMode.TrackDel);
+          if (newPos != null) {
+            let copy = Object.assign(/* @__PURE__ */ Object.create(null), tooltip);
+            copy.pos = newPos;
+            if (copy.end != null)
+              copy.end = tr2.changes.mapPos(copy.end);
+            mapped.push(copy);
+          }
+        }
+        value = mapped;
+      }
+      for (let effect of tr2.effects) {
+        if (effect.is(setHover)) {
+          value = effect.value;
+          lock = void 0;
+        }
+        if (effect.is(closeHoverTooltipEffect) && !effect.value || effect.value == hoverState)
+          value = [];
+      }
+      if (value.length && lock)
+        locked.set(value, lock);
+      return value;
+    },
+    provide: (f) => showHoverTooltip.from(f)
+  });
+  const plugin = ViewPlugin.define((view) => new HoverPlugin(
+    view,
+    source,
+    hoverState,
+    locked,
+    setHover,
+    options2.hoverTime || 300
+    /* Hover.Time */
+  ));
+  return {
+    active: hoverState,
+    extension: [
+      hoverState,
+      plugin,
+      hoverPlugin.of(plugin),
+      showHoverTooltipHost
+    ]
+  };
+}
+function getTooltip(view, tooltip) {
+  let plugin = view.plugin(tooltipPlugin);
+  if (!plugin)
+    return null;
+  let found = plugin.manager.tooltips.indexOf(tooltip);
+  return found < 0 ? null : plugin.manager.tooltipViews[found];
+}
+var closeHoverTooltipEffect = /* @__PURE__ */ StateEffect.define();
 var panelConfig = /* @__PURE__ */ Facet.define({
   combine(configs) {
     let topContainer, bottomContainer;
@@ -30587,17 +31766,116 @@ function rm(node) {
 var showPanel = /* @__PURE__ */ Facet.define({
   enables: panelPlugin
 });
+function showDialog(view, config2) {
+  let resolve;
+  let promise = new Promise((r) => resolve = r);
+  let panelCtor = (view2) => createDialog(view2, config2, resolve);
+  if (view.state.field(dialogField, false)) {
+    view.dispatch({ effects: openDialogEffect.of(panelCtor) });
+  } else {
+    view.dispatch({ effects: StateEffect.appendConfig.of(dialogField.init(() => [panelCtor])) });
+  }
+  let close = closeDialogEffect.of(panelCtor);
+  return { close, result: promise.then((form) => {
+    let queue = view.win.queueMicrotask || ((f) => view.win.setTimeout(f, 10));
+    queue(() => {
+      if (view.state.field(dialogField).indexOf(panelCtor) > -1)
+        view.dispatch({ effects: close });
+    });
+    return form;
+  }) };
+}
+var dialogField = /* @__PURE__ */ StateField.define({
+  create() {
+    return [];
+  },
+  update(dialogs, tr2) {
+    for (let e of tr2.effects) {
+      if (e.is(openDialogEffect))
+        dialogs = [e.value].concat(dialogs);
+      else if (e.is(closeDialogEffect))
+        dialogs = dialogs.filter((d) => d != e.value);
+    }
+    return dialogs;
+  },
+  provide: (f) => showPanel.computeN([f], (state) => state.field(f))
+});
+var openDialogEffect = /* @__PURE__ */ StateEffect.define();
+var closeDialogEffect = /* @__PURE__ */ StateEffect.define();
+function createDialog(view, config2, result) {
+  let content2 = config2.content ? config2.content(view, () => done(null)) : null;
+  if (!content2) {
+    content2 = crelt("form");
+    if (config2.input) {
+      let input = crelt("input", config2.input);
+      if (/^(text|password|number|email|tel|url)$/.test(input.type))
+        input.classList.add("cm-textfield");
+      if (!input.name)
+        input.name = "input";
+      content2.appendChild(crelt("label", (config2.label || "") + ": ", input));
+    } else {
+      content2.appendChild(document.createTextNode(config2.label || ""));
+    }
+    content2.appendChild(document.createTextNode(" "));
+    content2.appendChild(crelt("button", { class: "cm-button", type: "submit" }, config2.submitLabel || "OK"));
+  }
+  let forms = content2.nodeName == "FORM" ? [content2] : content2.querySelectorAll("form");
+  for (let i2 = 0; i2 < forms.length; i2++) {
+    let form = forms[i2];
+    form.addEventListener("keydown", (event) => {
+      if (event.keyCode == 27) {
+        event.preventDefault();
+        done(null);
+      } else if (event.keyCode == 13) {
+        event.preventDefault();
+        done(form);
+      }
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      done(form);
+    });
+  }
+  let panel = crelt("div", content2, crelt("button", {
+    onclick: () => done(null),
+    "aria-label": view.state.phrase("close"),
+    class: "cm-dialog-close",
+    type: "button"
+  }, ["\xD7"]));
+  if (config2.class)
+    panel.className = config2.class;
+  panel.classList.add("cm-dialog");
+  let focus = typeof config2.focus == "string" ? content2.querySelector(config2.focus) : config2.focus ? content2.querySelector("input") || content2.querySelector("button") : null;
+  function done(form) {
+    if (panel.contains(panel.ownerDocument.activeElement))
+      view.focus();
+    result(form);
+  }
+  return {
+    dom: panel,
+    top: config2.top,
+    mount: () => {
+      if (focus) {
+        if ("select" in focus)
+          focus.select();
+        else if ("focus" in focus)
+          focus.focus();
+      }
+    },
+    destroy: () => result(null)
+  };
+}
 var GutterMarker = class extends RangeValue {
   /**
   @internal
   */
-  compare(other) {
-    return this == other || this.constructor == other.constructor && this.eq(other);
+  compare(other2) {
+    return this == other2 || this.constructor == other2.constructor && this.eq(other2);
   }
   /**
   Compare this marker to another marker of the same type.
   */
-  eq(other) {
+  eq(other2) {
     return false;
   }
   /**
@@ -30618,11 +31896,11 @@ var activeGutters = /* @__PURE__ */ Facet.define();
 var unfixGutters = /* @__PURE__ */ Facet.define({
   combine: (values2) => values2.some((x) => x)
 });
-function gutters(config) {
+function gutters(config2) {
   let result = [
     gutterView
   ];
-  if (config && config.fixed === false)
+  if (config2 && config2.fixed === false)
     result.push(unfixGutters.of(true));
   return result;
 }
@@ -30724,16 +32002,16 @@ var gutterView = /* @__PURE__ */ ViewPlugin.fromClass(class {
     }
   }
   updateGutters(update) {
-    let prev = update.startState.facet(activeGutters), cur = update.state.facet(activeGutters);
+    let prev = update.startState.facet(activeGutters), cur2 = update.state.facet(activeGutters);
     let change = update.docChanged || update.heightChanged || update.viewportChanged || !RangeSet.eq(update.startState.facet(gutterLineClass), update.state.facet(gutterLineClass), update.view.viewport.from, update.view.viewport.to);
-    if (prev == cur) {
+    if (prev == cur2) {
       for (let gutter2 of this.gutters)
         if (gutter2.update(update))
           change = true;
     } else {
       change = true;
       let gutters2 = [];
-      for (let conf of cur) {
+      for (let conf of cur2) {
         let known = prev.indexOf(conf);
         if (known < 0) {
           gutters2.push(new SingleGutterView(this.view, conf));
@@ -30790,8 +32068,8 @@ var UpdateContext = class {
     this.i = 0;
     this.cursor = RangeSet.iter(gutter2.markers, viewport.from);
   }
-  addElement(view, block, markers) {
-    let { gutter: gutter2 } = this, above = (block.top - this.height) / view.scaleY, height = block.height / view.scaleY;
+  addElement(view, block2, markers) {
+    let { gutter: gutter2 } = this, above = (block2.top - this.height) / view.scaleY, height = block2.height / view.scaleY;
     if (this.i == gutter2.elements.length) {
       let newElt = new GutterElement(view, height, above, markers);
       gutter2.elements.push(newElt);
@@ -30799,7 +32077,7 @@ var UpdateContext = class {
     } else {
       gutter2.elements[this.i].update(view, height, above, markers);
     }
-    this.height = block.bottom;
+    this.height = block2.bottom;
     this.i++;
   }
   line(view, line, extraMarkers) {
@@ -30815,15 +32093,15 @@ var UpdateContext = class {
       return;
     this.addElement(view, line, localMarkers);
   }
-  widget(view, block) {
-    let marker = this.gutter.config.widgetMarker(view, block.widget, block), markers = marker ? [marker] : null;
+  widget(view, block2) {
+    let marker = this.gutter.config.widgetMarker(view, block2.widget, block2), markers = marker ? [marker] : null;
     for (let cls of view.state.facet(gutterWidgetClass)) {
-      let marker2 = cls(view, block.widget, block);
+      let marker2 = cls(view, block2.widget, block2);
       if (marker2)
         (markers || (markers = [])).push(marker2);
     }
     if (markers)
-      this.addElement(view, block, markers);
+      this.addElement(view, block2, markers);
   }
   finish() {
     let gutter2 = this.gutter;
@@ -30835,14 +32113,14 @@ var UpdateContext = class {
   }
 };
 var SingleGutterView = class {
-  constructor(view, config) {
+  constructor(view, config2) {
     this.view = view;
-    this.config = config;
+    this.config = config2;
     this.elements = [];
     this.spacer = null;
     this.dom = document.createElement("div");
     this.dom.className = "cm-gutter" + (this.config.class ? " " + this.config.class : "");
-    for (let prop in config.domEventHandlers) {
+    for (let prop in config2.domEventHandlers) {
       this.dom.addEventListener(prop, (event) => {
         let target = event.target, y;
         if (target != this.dom && this.dom.contains(target)) {
@@ -30854,13 +32132,13 @@ var SingleGutterView = class {
           y = event.clientY;
         }
         let line = view.lineBlockAtHeight(y - view.documentTop);
-        if (config.domEventHandlers[prop](view, line, event))
+        if (config2.domEventHandlers[prop](view, line, event))
           event.preventDefault();
       });
     }
-    this.markers = asArray2(config.markers(view));
-    if (config.initialSpacer) {
-      this.spacer = new GutterElement(view, 0, 0, [config.initialSpacer(view)]);
+    this.markers = asArray2(config2.markers(view));
+    if (config2.initialSpacer) {
+      this.spacer = new GutterElement(view, 0, 0, [config2.initialSpacer(view)]);
       this.dom.appendChild(this.spacer.dom);
       this.spacer.dom.style.cssText += "visibility: hidden; pointer-events: none";
     }
@@ -30973,8 +32251,8 @@ var NumberMarker = class extends GutterMarker {
     super();
     this.number = number2;
   }
-  eq(other) {
-    return this.number == other.number;
+  eq(other2) {
+    return this.number == other2.number;
   }
   toDOM() {
     return document.createTextNode(this.number);
@@ -30994,9 +32272,9 @@ var lineNumberGutter = /* @__PURE__ */ activeGutters.compute([lineNumberConfig],
       return null;
     return new NumberMarker(formatNumber(view, view.state.doc.lineAt(line.from).number));
   },
-  widgetMarker: (view, widget, block) => {
+  widgetMarker: (view, widget, block2) => {
     for (let m of view.state.facet(lineNumberWidgetMarker)) {
-      let result = m(view, widget, block);
+      let result = m(view, widget, block2);
       if (result)
         return result;
     }
@@ -31013,9 +32291,9 @@ var lineNumberGutter = /* @__PURE__ */ activeGutters.compute([lineNumberConfig],
   domEventHandlers: state.facet(lineNumberConfig).domEventHandlers,
   side: "before"
 }));
-function lineNumbers(config = {}) {
+function lineNumbers(config2 = {}) {
   return [
-    lineNumberConfig.of(config),
+    lineNumberConfig.of(config2),
     gutters(),
     lineNumberGutter
   ];
@@ -31060,13 +32338,13 @@ var NodeProp = class {
   /**
   Create a new node prop type.
   */
-  constructor(config = {}) {
+  constructor(config2 = {}) {
     this.id = nextPropID++;
-    this.perNode = !!config.perNode;
-    this.deserialize = config.deserialize || (() => {
+    this.perNode = !!config2.perNode;
+    this.deserialize = config2.deserialize || (() => {
       throw new Error("This node type doesn't define a deserialize function");
     });
-    this.combine = config.combine || null;
+    this.combine = config2.combine || null;
   }
   /**
   This is meant to be used with
@@ -31100,10 +32378,10 @@ NodeProp.contextHash = new NodeProp({ perNode: true });
 NodeProp.lookAhead = new NodeProp({ perNode: true });
 NodeProp.mounted = new NodeProp({ perNode: true });
 var MountedTree = class {
-  constructor(tree, overlay, parser15, bracketed2 = false) {
+  constructor(tree, overlay, parser16, bracketed2 = false) {
     this.tree = tree;
     this.overlay = overlay;
-    this.parser = parser15;
+    this.parser = parser16;
     this.bracketed = bracketed2;
   }
   /**
@@ -31414,8 +32692,8 @@ var Tree = class _Tree {
   which may have children grouped into subtrees with type
   [`NodeType.none`](#common.NodeType^none).
   */
-  balance(config = {}) {
-    return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new _Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new _Tree(NodeType.none, children, positions, length)));
+  balance(config2 = {}) {
+    return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new _Tree(this.type, children, positions, length, this.propValues), config2.makeTree || ((children, positions, length) => new _Tree(NodeType.none, children, positions, length)));
   }
   /**
   Build a tree from a postfix-ordered buffer of node information,
@@ -31581,8 +32859,8 @@ var BaseNode = class {
   resolveInner(pos, side = 0) {
     return resolveNode(this, pos, side, true);
   }
-  matchContext(context) {
-    return matchNodeContext(this.parent, context);
+  matchContext(context2) {
+    return matchNodeContext(this.parent, context2);
   }
   enterUnfinishedNodesBefore(pos) {
     let scan = this.childBefore(pos), node = this;
@@ -31745,30 +33023,30 @@ var TreeNode = class _TreeNode extends BaseNode {
   }
 };
 function getChildren(node, type, before, after) {
-  let cur = node.cursor(), result = [];
-  if (!cur.firstChild())
+  let cur2 = node.cursor(), result = [];
+  if (!cur2.firstChild())
     return result;
   if (before != null)
     for (let found = false; !found; ) {
-      found = cur.type.is(before);
-      if (!cur.nextSibling())
+      found = cur2.type.is(before);
+      if (!cur2.nextSibling())
         return result;
     }
   for (; ; ) {
-    if (after != null && cur.type.is(after))
+    if (after != null && cur2.type.is(after))
       return result;
-    if (cur.type.is(type))
-      result.push(cur.node);
-    if (!cur.nextSibling())
+    if (cur2.type.is(type))
+      result.push(cur2.node);
+    if (!cur2.nextSibling())
       return after == null ? result : [];
   }
 }
-function matchNodeContext(node, context, i2 = context.length - 1) {
+function matchNodeContext(node, context2, i2 = context2.length - 1) {
   for (let p = node; i2 >= 0; p = p.parent) {
     if (!p)
       return false;
     if (!p.type.isAnonymous) {
-      if (context[i2] && context[i2] != p.name)
+      if (context2[i2] && context2[i2] != p.name)
         return false;
       i2--;
     }
@@ -31793,12 +33071,12 @@ var BufferNode = class _BufferNode extends BaseNode {
   get to() {
     return this.context.start + this.context.buffer.buffer[this.index + 2];
   }
-  constructor(context, _parent, index) {
+  constructor(context2, _parent, index) {
     super();
-    this.context = context;
+    this.context = context2;
     this._parent = _parent;
     this.index = index;
-    this.type = context.buffer.set.types[context.buffer.buffer[index]];
+    this.type = context2.buffer.set.types[context2.buffer.buffer[index]];
   }
   child(dir, pos, side) {
     let { buffer } = this.context;
@@ -32269,16 +33547,16 @@ var TreeCursor = class {
   of direct parent node names. Empty strings in the context array
   are treated as wildcards.
   */
-  matchContext(context) {
+  matchContext(context2) {
     if (!this.buffer)
-      return matchNodeContext(this.node.parent, context);
+      return matchNodeContext(this.node.parent, context2);
     let { buffer } = this.buffer, { types: types2 } = buffer.set;
-    for (let i2 = context.length - 1, d = this.stack.length - 1; i2 >= 0; d--) {
+    for (let i2 = context2.length - 1, d = this.stack.length - 1; i2 >= 0; d--) {
       if (d < 0)
-        return matchNodeContext(this._tree, context, i2);
+        return matchNodeContext(this._tree, context2, i2);
       let type = types2[buffer.buffer[this.stack[d]]];
       if (!type.isAnonymous) {
-        if (context[i2] && context[i2] != type.name)
+        if (context2[i2] && context2[i2] != type.name)
           return false;
         i2--;
       }
@@ -32439,7 +33717,7 @@ function buildTree(data2) {
       if (nodeSize2 < 0 || startPos < minPos || fork.start < minStart)
         break;
       let localSkipped = fork.id >= minRepeatType ? 4 : 0;
-      let nodeStart = fork.start;
+      let nodeStart2 = fork.start;
       fork.next();
       while (fork.pos > startPos) {
         if (fork.size < 0) {
@@ -32452,7 +33730,7 @@ function buildTree(data2) {
         }
         fork.next();
       }
-      start = nodeStart;
+      start = nodeStart2;
       size += nodeSize2;
       skip += localSkipped;
     }
@@ -32719,8 +33997,8 @@ function parseMixed(nest) {
   return (parse, input, fragments, ranges) => new MixedParse(parse, nest, input, fragments, ranges);
 }
 var InnerParse = class {
-  constructor(parser15, parse, overlay, bracketed2, target, from) {
-    this.parser = parser15;
+  constructor(parser16, parse, overlay, bracketed2, target, from) {
+    this.parser = parser16;
     this.parse = parse;
     this.overlay = overlay;
     this.bracketed = bracketed2;
@@ -32733,8 +34011,8 @@ function checkRanges(ranges) {
     throw new RangeError("Invalid inner parse ranges given: " + JSON.stringify(ranges));
 }
 var ActiveOverlay = class {
-  constructor(parser15, predicate, mounts, index, start, bracketed2, target, prev) {
-    this.parser = parser15;
+  constructor(parser16, predicate, mounts, index, start, bracketed2, target, prev) {
+    this.parser = parser16;
     this.predicate = predicate;
     this.mounts = mounts;
     this.index = index;
@@ -32992,14 +34270,14 @@ var FragmentCursor = class {
       this.inner = new StructureCursor(frag.tree, -frag.offset);
     }
   }
-  findMounts(pos, parser15) {
+  findMounts(pos, parser16) {
     var _a2;
     let result = [];
     if (this.inner) {
       this.inner.cursor.moveTo(pos, 1);
       for (let pos2 = this.inner.cursor.node; pos2; pos2 = pos2.parent) {
         let mount = (_a2 = pos2.tree) === null || _a2 === void 0 ? void 0 : _a2.prop(NodeProp.mounted);
-        if (mount && mount.parser == parser15) {
+        if (mount && mount.parser == parser16) {
           for (let i2 = this.fragI; i2 < this.fragments.length; i2++) {
             let frag = this.fragments[i2];
             if (frag.from >= pos2.to)
@@ -33124,12 +34402,12 @@ var Tag = class _Tag {
       parent = nameOrParent;
     if (parent === null || parent === void 0 ? void 0 : parent.base)
       throw new Error("Can not derive from a modified tag");
-    let tag = new _Tag(name2, [], null, []);
-    tag.set.push(tag);
+    let tag2 = new _Tag(name2, [], null, []);
+    tag2.set.push(tag2);
     if (parent)
       for (let t2 of parent.set)
-        tag.set.push(t2);
-    return tag;
+        tag2.set.push(t2);
+    return tag2;
   }
   /**
   Define a tag _modifier_, which is a function that, given a tag,
@@ -33145,10 +34423,10 @@ var Tag = class _Tag {
   */
   static defineModifier(name2) {
     let mod = new Modifier(name2);
-    return (tag) => {
-      if (tag.modified.indexOf(mod) > -1)
-        return tag;
-      return Modifier.get(tag.base || tag, tag.modified.concat(mod).sort((a2, b2) => a2.id - b2.id));
+    return (tag2) => {
+      if (tag2.modified.indexOf(mod) > -1)
+        return tag2;
+      return Modifier.get(tag2.base || tag2, tag2.modified.concat(mod).sort((a2, b2) => a2.id - b2.id));
     };
   }
 };
@@ -33165,15 +34443,15 @@ var Modifier = class _Modifier {
     let exists = mods[0].instances.find((t2) => t2.base == base2 && sameArray2(mods, t2.modified));
     if (exists)
       return exists;
-    let set = [], tag = new Tag(base2.name, set, base2, mods);
+    let set = [], tag2 = new Tag(base2.name, set, base2, mods);
     for (let m of mods)
-      m.instances.push(tag);
+      m.instances.push(tag2);
     let configs = powerSet(mods);
     for (let parent of base2.set)
       if (!parent.modified.length)
-        for (let config of configs)
-          set.push(_Modifier.get(parent, config));
-    return tag;
+        for (let config2 of configs)
+          set.push(_Modifier.get(parent, config2));
+    return tag2;
   }
 };
 function sameArray2(a2, b2) {
@@ -33229,7 +34507,7 @@ function styleTags(spec) {
 }
 var ruleNodeProp = new NodeProp({
   combine(a2, b2) {
-    let cur, root, take;
+    let cur2, root, take;
     while (a2 || b2) {
       if (!a2 || b2 && a2.depth <= b2.depth) {
         take = b2;
@@ -33238,23 +34516,23 @@ var ruleNodeProp = new NodeProp({
         take = a2;
         a2 = a2.next;
       }
-      if (cur && cur.mode == take.mode && !take.context && !cur.context)
+      if (cur2 && cur2.mode == take.mode && !take.context && !cur2.context)
         continue;
       let copy = new Rule(take.tags, take.mode, take.context);
-      if (cur)
-        cur.next = copy;
+      if (cur2)
+        cur2.next = copy;
       else
         root = copy;
-      cur = copy;
+      cur2 = copy;
     }
     return root;
   }
 });
 var Rule = class {
-  constructor(tags3, mode, context, next) {
+  constructor(tags3, mode, context2, next) {
     this.tags = tags3;
     this.mode = mode;
-    this.context = context;
+    this.context = context2;
     this.next = next;
   }
   get opaque() {
@@ -33263,34 +34541,34 @@ var Rule = class {
   get inherit() {
     return this.mode == 1;
   }
-  sort(other) {
-    if (!other || other.depth < this.depth) {
-      this.next = other;
+  sort(other2) {
+    if (!other2 || other2.depth < this.depth) {
+      this.next = other2;
       return this;
     }
-    other.next = this.sort(other.next);
-    return other;
+    other2.next = this.sort(other2.next);
+    return other2;
   }
   get depth() {
     return this.context ? this.context.length : 0;
   }
 };
 Rule.empty = new Rule([], 2, null);
-function tagHighlighter(tags3, options) {
+function tagHighlighter(tags3, options2) {
   let map = /* @__PURE__ */ Object.create(null);
   for (let style of tags3) {
     if (!Array.isArray(style.tag))
       map[style.tag.id] = style.class;
     else
-      for (let tag of style.tag)
-        map[tag.id] = style.class;
+      for (let tag2 of style.tag)
+        map[tag2.id] = style.class;
   }
-  let { scope, all = null } = options || {};
+  let { scope, all = null } = options2 || {};
   return {
     style: (tags4) => {
       let cls = all;
-      for (let tag of tags4) {
-        for (let sub of tag.set) {
+      for (let tag2 of tags4) {
+        for (let sub of tag2.set) {
           let tagClass = map[sub.id];
           if (tagClass) {
             cls = cls ? cls + " " + tagClass : tagClass;
@@ -33316,6 +34594,29 @@ function highlightTree(tree, highlighter, putStyle, from = 0, to = tree.length) 
   let builder = new HighlightBuilder(from, Array.isArray(highlighter) ? highlighter : [highlighter], putStyle);
   builder.highlightRange(tree.cursor(), from, to, "", builder.highlighters);
   builder.flush(to);
+}
+function highlightCode(code2, tree, highlighter, putText, putBreak, from = 0, to = code2.length) {
+  let pos = from;
+  function writeTo(p, classes) {
+    if (p <= pos)
+      return;
+    for (let text = code2.slice(pos, p), i2 = 0; ; ) {
+      let nextBreak = text.indexOf("\n", i2);
+      let upto = nextBreak < 0 ? text.length : nextBreak;
+      if (upto > i2)
+        putText(text.slice(i2, upto), classes);
+      if (nextBreak < 0)
+        break;
+      putBreak();
+      i2 = nextBreak + 1;
+    }
+    pos = p;
+  }
+  highlightTree(tree, highlighter, (from2, to2, classes) => {
+    writeTo(from2, "");
+    writeTo(to2, classes);
+  }, from, to);
+  writeTo(to, "");
 }
 var HighlightBuilder = class {
   constructor(at2, highlighters, span) {
@@ -33839,14 +35140,14 @@ var Language = class {
   configure your parser to [attach](https://codemirror.net/6/docs/ref/#language.languageDataProp) it
   to the language's outer syntax node.
   */
-  constructor(data2, parser15, extraExtensions = [], name2 = "") {
+  constructor(data2, parser16, extraExtensions = [], name2 = "") {
     this.data = data2;
     this.name = name2;
     if (!EditorState.prototype.hasOwnProperty("tree"))
       Object.defineProperty(EditorState.prototype, "tree", { get() {
         return syntaxTree(this);
       } });
-    this.parser = parser15;
+    this.parser = parser16;
     this.extension = [
       language.of(this),
       EditorState.languageData.of((state, pos, side) => {
@@ -33933,9 +35234,9 @@ function topNodeAt(state, pos, side) {
   return tree;
 }
 var LRLanguage = class _LRLanguage extends Language {
-  constructor(data2, parser15, name2) {
-    super(data2, parser15, [], name2);
-    this.parser = parser15;
+  constructor(data2, parser16, name2) {
+    super(data2, parser16, [], name2);
+    this.parser = parser16;
   }
   /**
   Define a language from a parser.
@@ -33950,8 +35251,8 @@ var LRLanguage = class _LRLanguage extends Language {
   Create a new instance of this language with a reconfigured
   version of its parser and optionally a new name.
   */
-  configure(options, name2) {
-    return new _LRLanguage(this.data, this.parser.configure(options), name2 || this.name);
+  configure(options2, name2) {
+    return new _LRLanguage(this.data, this.parser.configure(options2), name2 || this.name);
   }
   get allowsNesting() {
     return this.parser.hasWrappers();
@@ -33996,8 +35297,8 @@ var DocInput = class {
 };
 var currentContext = null;
 var ParseContext = class _ParseContext {
-  constructor(parser15, state, fragments = [], tree, treeLen, viewport, skipped, scheduleOn) {
-    this.parser = parser15;
+  constructor(parser16, state, fragments = [], tree, treeLen, viewport, skipped, scheduleOn) {
+    this.parser = parser16;
     this.state = state;
     this.fragments = fragments;
     this.tree = tree;
@@ -34011,8 +35312,8 @@ var ParseContext = class _ParseContext {
   /**
   @internal
   */
-  static create(parser15, state, viewport) {
-    return new _ParseContext(parser15, state, [], Tree.empty, 0, viewport, [], null);
+  static create(parser16, state, viewport) {
+    return new _ParseContext(parser16, state, [], Tree.empty, 0, viewport, [], null);
   }
   startParse() {
     return this.parser.startParse(new DocInput(this.state.doc), this.fragments);
@@ -34160,7 +35461,7 @@ var ParseContext = class _ParseContext {
     return new class extends Parser {
       createParse(input, fragments, ranges) {
         let from = ranges[0].from, to = ranges[ranges.length - 1].to;
-        let parser15 = {
+        let parser16 = {
           parsedPos: from,
           advance() {
             let cx = currentContext;
@@ -34177,7 +35478,7 @@ var ParseContext = class _ParseContext {
           stopAt() {
           }
         };
-        return parser15;
+        return parser16;
       }
     }();
   }
@@ -34201,9 +35502,9 @@ function cutFragments(fragments, from, to) {
   return TreeFragment.applyChanges(fragments, [{ fromA: from, toA: to, fromB: from, toB: to }]);
 }
 var LanguageState = class _LanguageState {
-  constructor(context) {
-    this.context = context;
-    this.tree = context.tree;
+  constructor(context2) {
+    this.context = context2;
+    this.tree = context2.tree;
   }
   apply(tr2) {
     if (!tr2.docChanged && this.tree == this.context.tree)
@@ -34457,24 +35758,24 @@ function indentString(state, cols) {
     result += ch;
   return result;
 }
-function getIndentation(context, pos) {
-  if (context instanceof EditorState)
-    context = new IndentContext(context);
-  for (let service of context.state.facet(indentService)) {
-    let result = service(context, pos);
+function getIndentation(context2, pos) {
+  if (context2 instanceof EditorState)
+    context2 = new IndentContext(context2);
+  for (let service of context2.state.facet(indentService)) {
+    let result = service(context2, pos);
     if (result !== void 0)
       return result;
   }
-  let tree = syntaxTree(context.state);
-  return tree.length >= pos ? syntaxIndentation(context, tree, pos) : null;
+  let tree = syntaxTree(context2.state);
+  return tree.length >= pos ? syntaxIndentation(context2, tree, pos) : null;
 }
 var IndentContext = class {
   /**
   Create an indent context.
   */
-  constructor(state, options = {}) {
+  constructor(state, options2 = {}) {
     this.state = state;
-    this.options = options;
+    this.options = options2;
     this.unit = getIndentUnit(state);
   }
   /**
@@ -34554,18 +35855,18 @@ function syntaxIndentation(cx, ast, pos) {
   let inner = ast.resolveInner(pos, -1).resolve(pos, 0).enterUnfinishedNodesBefore(pos);
   if (inner != stack.node) {
     let add2 = [];
-    for (let cur = inner; cur && !(cur.from < stack.node.from || cur.to > stack.node.to || cur.from == stack.node.from && cur.type == stack.node.type); cur = cur.parent)
-      add2.push(cur);
+    for (let cur2 = inner; cur2 && !(cur2.from < stack.node.from || cur2.to > stack.node.to || cur2.from == stack.node.from && cur2.type == stack.node.type); cur2 = cur2.parent)
+      add2.push(cur2);
     for (let i2 = add2.length - 1; i2 >= 0; i2--)
       stack = { node: add2[i2], next: stack };
   }
   return indentFor(stack, cx, pos);
 }
 function indentFor(stack, cx, pos) {
-  for (let cur = stack; cur; cur = cur.next) {
-    let strategy = indentStrategy(cur.node);
+  for (let cur2 = stack; cur2; cur2 = cur2.next) {
+    let strategy = indentStrategy(cur2.node);
     if (strategy)
-      return strategy(TreeIndentContext.create(cx, pos, cur));
+      return strategy(TreeIndentContext.create(cx, pos, cur2));
   }
   return 0;
 }
@@ -34587,11 +35888,11 @@ function topIndent() {
   return 0;
 }
 var TreeIndentContext = class _TreeIndentContext extends IndentContext {
-  constructor(base2, pos, context) {
+  constructor(base2, pos, context2) {
     super(base2.state, base2.options);
     this.base = base2;
     this.pos = pos;
-    this.context = context;
+    this.context = context2;
   }
   /**
   The syntax tree node to which the indentation strategy
@@ -34603,8 +35904,8 @@ var TreeIndentContext = class _TreeIndentContext extends IndentContext {
   /**
   @internal
   */
-  static create(base2, pos, context) {
-    return new _TreeIndentContext(base2, pos, context);
+  static create(base2, pos, context2) {
+    return new _TreeIndentContext(base2, pos, context2);
   }
   /**
   Get the text directly after `this.pos`, either the entire line
@@ -34648,18 +35949,18 @@ var TreeIndentContext = class _TreeIndentContext extends IndentContext {
   }
 };
 function isParent(parent, of) {
-  for (let cur = of; cur; cur = cur.parent)
-    if (parent == cur)
+  for (let cur2 = of; cur2; cur2 = cur2.parent)
+    if (parent == cur2)
       return true;
   return false;
 }
-function bracketedAligned(context) {
-  let tree = context.node;
+function bracketedAligned(context2) {
+  let tree = context2.node;
   let openToken = tree.childAfter(tree.from), last2 = tree.lastChild;
   if (!openToken)
     return null;
-  let sim = context.options.simulateBreak;
-  let openLine = context.state.doc.lineAt(openToken.from);
+  let sim = context2.options.simulateBreak;
+  let openLine = context2.state.doc.lineAt(openToken.from);
   let lineEnd2 = sim == null || sim <= openLine.from ? openLine.to : Math.min(openLine.to, sim);
   for (let pos = openToken.to; ; ) {
     let next = tree.childAfter(pos);
@@ -34674,22 +35975,22 @@ function bracketedAligned(context) {
     pos = next.to;
   }
 }
-function delimitedIndent({ closing, align = true, units = 1 }) {
-  return (context) => delimitedStrategy(context, align, units, closing);
+function delimitedIndent({ closing: closing2, align = true, units = 1 }) {
+  return (context2) => delimitedStrategy(context2, align, units, closing2);
 }
-function delimitedStrategy(context, align, units, closing, closedAt) {
-  let after = context.textAfter, space6 = after.match(/^\s*/)[0].length;
-  let closed = closing && after.slice(space6, space6 + closing.length) == closing || closedAt == context.pos + space6;
-  let aligned = align ? bracketedAligned(context) : null;
+function delimitedStrategy(context2, align, units, closing2, closedAt) {
+  let after = context2.textAfter, space6 = after.match(/^\s*/)[0].length;
+  let closed = closing2 && after.slice(space6, space6 + closing2.length) == closing2 || closedAt == context2.pos + space6;
+  let aligned = align ? bracketedAligned(context2) : null;
   if (aligned)
-    return closed ? context.column(aligned.from) : context.column(aligned.to);
-  return context.baseIndent + (closed ? 0 : context.unit * units);
+    return closed ? context2.column(aligned.from) : context2.column(aligned.to);
+  return context2.baseIndent + (closed ? 0 : context2.unit * units);
 }
-var flatIndent = (context) => context.baseIndent;
+var flatIndent = (context2) => context2.baseIndent;
 function continuedIndent({ except, units = 1 } = {}) {
-  return (context) => {
-    let matchExcept = except && except.test(context.textAfter);
-    return context.baseIndent + (matchExcept ? 0 : units * context.unit);
+  return (context2) => {
+    let matchExcept = except && except.test(context2.textAfter);
+    return context2.baseIndent + (matchExcept ? 0 : units * context2.unit);
   };
 }
 var DontIndentBeyond = 200;
@@ -34715,10 +36016,10 @@ function indentOnInput() {
       let indent2 = getIndentation(state, line2.from);
       if (indent2 == null)
         continue;
-      let cur = /^\s*/.exec(line2.text)[0];
+      let cur2 = /^\s*/.exec(line2.text)[0];
       let norm = indentString(state, indent2);
-      if (cur != norm)
-        changes.push({ from: line2.from, to: line2.from + cur.length, insert: norm });
+      if (cur2 != norm)
+        changes.push({ from: line2.from, to: line2.from + cur2.length, insert: norm });
     }
     return changes.length ? [tr2, { changes, sequential: true }] : tr2;
   });
@@ -34730,25 +36031,25 @@ function foldInside(node) {
   return first && first.to < last2.from ? { from: first.to, to: last2.type.isError ? node.to : last2.from } : null;
 }
 var HighlightStyle = class _HighlightStyle {
-  constructor(specs, options) {
+  constructor(specs, options2) {
     this.specs = specs;
     let modSpec;
-    function def(spec) {
+    function def2(spec) {
       let cls = StyleModule.newName();
       (modSpec || (modSpec = /* @__PURE__ */ Object.create(null)))["." + cls] = spec;
       return cls;
     }
-    const all = typeof options.all == "string" ? options.all : options.all ? def(options.all) : void 0;
-    const scopeOpt = options.scope;
+    const all = typeof options2.all == "string" ? options2.all : options2.all ? def2(options2.all) : void 0;
+    const scopeOpt = options2.scope;
     this.scope = scopeOpt instanceof Language ? (type) => type.prop(languageDataProp) == scopeOpt.data : scopeOpt ? (type) => type == scopeOpt : void 0;
     this.style = tagHighlighter(specs.map((style) => ({
       tag: style.tag,
-      class: style.class || def(Object.assign({}, style, { tag: null }))
+      class: style.class || def2(Object.assign({}, style, { tag: null }))
     })), {
       all
     }).style;
     this.module = modSpec ? new StyleModule(modSpec) : null;
-    this.themeType = options.themeType;
+    this.themeType = options2.themeType;
   }
   /**
   Create a highlighter style that associates the given styles to
@@ -34765,8 +36066,8 @@ var HighlightStyle = class _HighlightStyle {
   down in the list will have a higher CSS precedence than styles
   defined earlier.
   */
-  static define(specs, options) {
-    return new _HighlightStyle(specs, options || {});
+  static define(specs, options2) {
+    return new _HighlightStyle(specs, options2 || {});
   }
 };
 var highlighterFacet = /* @__PURE__ */ Facet.define();
@@ -34779,14 +36080,14 @@ function getHighlighters(state) {
   let main = state.facet(highlighterFacet);
   return main.length ? main : state.facet(fallbackHighlighter);
 }
-function syntaxHighlighting(highlighter, options) {
+function syntaxHighlighting(highlighter, options2) {
   let ext = [treeHighlighter], themeType;
   if (highlighter instanceof HighlightStyle) {
     if (highlighter.module)
       ext.push(EditorView.styleModule.of(highlighter.module));
     themeType = highlighter.themeType;
   }
-  if (options === null || options === void 0 ? void 0 : options.fallback)
+  if (options2 === null || options2 === void 0 ? void 0 : options2.fallback)
     ext.push(fallbackHighlighter.of(highlighter));
   else if (themeType)
     ext.push(highlighterFacet.computeN([EditorView.darkTheme], (state) => {
@@ -34795,6 +36096,19 @@ function syntaxHighlighting(highlighter, options) {
   else
     ext.push(highlighterFacet.of(highlighter));
   return ext;
+}
+function highlightingFor(state, tags3, scope) {
+  let highlighters = getHighlighters(state);
+  let result = null;
+  if (highlighters)
+    for (let highlighter of highlighters) {
+      if (!highlighter.scope || scope && highlighter.scope(scope)) {
+        let cls = highlighter.style(tags3);
+        if (cls)
+          result = result ? result + " " + cls : cls;
+      }
+    }
+  return result;
 }
 var TreeHighlighter = class {
   constructor(view) {
@@ -34938,13 +36252,13 @@ function defaultRenderMatch(match) {
 }
 function bracketDeco(state) {
   let decorations2 = [];
-  let config = state.facet(bracketMatchingConfig);
+  let config2 = state.facet(bracketMatchingConfig);
   for (let range of state.selection.ranges) {
     if (!range.empty)
       continue;
-    let match = matchBrackets(state, range.head, -1, config) || range.head > 0 && matchBrackets(state, range.head - 1, 1, config) || config.afterCursor && (matchBrackets(state, range.head, 1, config) || range.head < state.doc.length && matchBrackets(state, range.head + 1, -1, config));
+    let match = matchBrackets(state, range.head, -1, config2) || range.head > 0 && matchBrackets(state, range.head - 1, 1, config2) || config2.afterCursor && (matchBrackets(state, range.head, 1, config2) || range.head < state.doc.length && matchBrackets(state, range.head + 1, -1, config2));
     if (match)
-      decorations2 = decorations2.concat(config.renderMatch(match, state));
+      decorations2 = decorations2.concat(config2.renderMatch(match, state));
   }
   return Decoration.set(decorations2, true);
 }
@@ -34971,8 +36285,8 @@ var bracketMatchingUnique = [
   bracketMatcher,
   baseTheme2
 ];
-function bracketMatching(config = {}) {
-  return [bracketMatchingConfig.of(config), bracketMatchingUnique];
+function bracketMatching(config2 = {}) {
+  return [bracketMatchingConfig.of(config2), bracketMatchingUnique];
 }
 var bracketMatchingHandle = /* @__PURE__ */ new NodeProp();
 function matchingNodes(node, dir, brackets) {
@@ -34990,15 +36304,15 @@ function findHandle(node) {
   let hasHandle = node.type.prop(bracketMatchingHandle);
   return hasHandle ? hasHandle(node.node) : node;
 }
-function matchBrackets(state, pos, dir, config = {}) {
-  let maxScanDistance = config.maxScanDistance || DefaultScanDist, brackets = config.brackets || DefaultBrackets;
+function matchBrackets(state, pos, dir, config2 = {}) {
+  let maxScanDistance = config2.maxScanDistance || DefaultScanDist, brackets = config2.brackets || DefaultBrackets;
   let tree = syntaxTree(state), node = tree.resolveInner(pos, dir);
-  for (let cur = node; cur; cur = cur.parent) {
-    let matches = matchingNodes(cur.type, dir, brackets);
-    if (matches && cur.from < cur.to) {
-      let handle = findHandle(cur);
+  for (let cur2 = node; cur2; cur2 = cur2.parent) {
+    let matches = matchingNodes(cur2.type, dir, brackets);
+    if (matches && cur2.from < cur2.to) {
+      let handle = findHandle(cur2);
       if (handle && (dir > 0 ? pos >= handle.from && pos < handle.to : pos > handle.from && pos <= handle.to))
-        return matchMarkedBrackets(state, pos, dir, cur, handle, matches, brackets);
+        return matchMarkedBrackets(state, pos, dir, cur2, handle, matches, brackets);
     }
   }
   return matchPlainBrackets(state, pos, dir, tree, node.type, maxScanDistance, brackets);
@@ -35106,8 +36420,8 @@ function createTokenType(extra, tagStr) {
           found = Array.isArray(value) ? value : [value];
       }
     }
-    for (let tag of found)
-      tags$1.push(tag);
+    for (let tag2 of found)
+      tags$1.push(tag2);
   }
   if (!tags$1.length)
     return 0;
@@ -35131,8 +36445,8 @@ var marks = {
 
 // node_modules/@codemirror/commands/dist/index.js
 var toggleComment = (target) => {
-  let { state } = target, line = state.doc.lineAt(state.selection.main.from), config = getConfig(target.state, line.from);
-  return config.line ? toggleLineComment(target) : config.block ? toggleBlockCommentByLine(target) : false;
+  let { state } = target, line = state.doc.lineAt(state.selection.main.from), config2 = getConfig(target.state, line.from);
+  return config2.line ? toggleLineComment(target) : config2.block ? toggleBlockCommentByLine(target) : false;
 };
 function command(f, option) {
   return ({ state, dispatch }) => {
@@ -35308,16 +36622,16 @@ var historyField_ = /* @__PURE__ */ StateField.define({
     return HistoryState.empty;
   },
   update(state, tr2) {
-    let config = tr2.state.facet(historyConfig);
+    let config2 = tr2.state.facet(historyConfig);
     let fromHist = tr2.annotation(fromHistory);
     if (fromHist) {
       let item = HistEvent.fromTransaction(tr2, fromHist.selection), from = fromHist.side;
-      let other = from == 0 ? state.undone : state.done;
+      let other2 = from == 0 ? state.undone : state.done;
       if (item)
-        other = updateBranch(other, other.length, config.minDepth, item);
+        other2 = updateBranch(other2, other2.length, config2.minDepth, item);
       else
-        other = addSelection(other, tr2.startState.selection);
-      return new HistoryState(from == 0 ? fromHist.rest : other, from == 0 ? other : fromHist.rest);
+        other2 = addSelection(other2, tr2.startState.selection);
+      return new HistoryState(from == 0 ? fromHist.rest : other2, from == 0 ? other2 : fromHist.rest);
     }
     let isolate = tr2.annotation(isolateHistory);
     if (isolate == "full" || isolate == "before")
@@ -35327,9 +36641,9 @@ var historyField_ = /* @__PURE__ */ StateField.define({
     let event = HistEvent.fromTransaction(tr2);
     let time = tr2.annotation(Transaction.time), userEvent = tr2.annotation(Transaction.userEvent);
     if (event)
-      state = state.addChanges(event, time, userEvent, config, tr2);
+      state = state.addChanges(event, time, userEvent, config2, tr2);
     else if (tr2.selection)
-      state = state.addSelection(tr2.startState.selection, time, userEvent, config.newGroupDelay);
+      state = state.addSelection(tr2.startState.selection, time, userEvent, config2.newGroupDelay);
     if (isolate == "full" || isolate == "after")
       state = state.isolate();
     return state;
@@ -35341,10 +36655,10 @@ var historyField_ = /* @__PURE__ */ StateField.define({
     return new HistoryState(json2.done.map(HistEvent.fromJSON), json2.undone.map(HistEvent.fromJSON));
   }
 });
-function history(config = {}) {
+function history(config2 = {}) {
   return [
     historyField_,
-    historyConfig.of(config),
+    historyConfig.of(config2),
     EditorView.domEventHandlers({
       beforeinput(e, view) {
         let command2 = e.inputType == "historyUndo" ? undo : e.inputType == "historyRedo" ? redo : null;
@@ -35496,13 +36810,13 @@ var HistoryState = class _HistoryState {
   isolate() {
     return this.prevTime ? new _HistoryState(this.done, this.undone) : this;
   }
-  addChanges(event, time, userEvent, config, tr2) {
+  addChanges(event, time, userEvent, config2, tr2) {
     let done = this.done, lastEvent = done[done.length - 1];
-    if (lastEvent && lastEvent.changes && !lastEvent.changes.empty && event.changes && (!userEvent || joinableUserEvent.test(userEvent)) && (!lastEvent.selectionsAfter.length && time - this.prevTime < config.newGroupDelay && config.joinToEvent(tr2, isAdjacent(lastEvent.changes, event.changes)) || // For compose (but not compose.start) events, always join with previous event
+    if (lastEvent && lastEvent.changes && !lastEvent.changes.empty && event.changes && (!userEvent || joinableUserEvent.test(userEvent)) && (!lastEvent.selectionsAfter.length && time - this.prevTime < config2.newGroupDelay && config2.joinToEvent(tr2, isAdjacent(lastEvent.changes, event.changes)) || // For compose (but not compose.start) events, always join with previous event
     userEvent == "input.type.compose")) {
-      done = updateBranch(done, done.length - 1, config.minDepth, new HistEvent(event.changes.compose(lastEvent.changes), conc(StateEffect.mapEffects(event.effects, lastEvent.changes), lastEvent.effects), lastEvent.mapped, lastEvent.startSelection, none2));
+      done = updateBranch(done, done.length - 1, config2.minDepth, new HistEvent(event.changes.compose(lastEvent.changes), conc(StateEffect.mapEffects(event.effects, lastEvent.changes), lastEvent.effects), lastEvent.mapped, lastEvent.startSelection, none2));
     } else {
-      done = updateBranch(done, done.length, config.minDepth, event);
+      done = updateBranch(done, done.length, config2.minDepth, event);
     }
     return new _HistoryState(done, none2, time, userEvent);
   }
@@ -35779,9 +37093,9 @@ var selectParentSyntax = ({ state, dispatch }) => {
       if (stackBefore.node.from >= stack.node.from && stackBefore.node.to <= stack.node.to)
         stack = stackBefore;
     }
-    for (let cur = stack; cur; cur = cur.next) {
-      let { node } = cur;
-      if ((node.from < range.from && node.to >= range.to || node.to > range.to && node.from <= range.from) && cur.next)
+    for (let cur2 = stack; cur2; cur2 = cur2.next) {
+      let { node } = cur2;
+      if ((node.from < range.from && node.to >= range.to || node.to > range.to && node.from <= range.from) && cur2.next)
         return EditorSelection.undirectionalRange(node.from, node.to);
     }
     return range;
@@ -35796,16 +37110,16 @@ function addCursorVertically(view, forward) {
   for (let range of state.selection.ranges) {
     let line = state.doc.lineAt(range.head);
     if (forward ? line.to < view.state.doc.length : line.from > 0)
-      for (let cur = range; ; ) {
-        let next = view.moveVertically(cur, forward);
+      for (let cur2 = range; ; ) {
+        let next = view.moveVertically(cur2, forward);
         if (next.head < line.from || next.head > line.to) {
           if (!ranges.some((r) => r.head == next.head))
             ranges.push(next);
           break;
-        } else if (next.head == cur.head) {
+        } else if (next.head == cur2.head) {
           break;
         } else {
-          cur = next;
+          cur2 = next;
         }
       }
   }
@@ -35817,11 +37131,11 @@ function addCursorVertically(view, forward) {
 var addCursorAbove = (view) => addCursorVertically(view, false);
 var addCursorBelow = (view) => addCursorVertically(view, true);
 var simplifySelection = ({ state, dispatch }) => {
-  let cur = state.selection, selection = null;
-  if (cur.ranges.length > 1)
-    selection = EditorSelection.create([cur.main]);
-  else if (!cur.main.empty)
-    selection = EditorSelection.create([EditorSelection.cursor(cur.main.head)]);
+  let cur2 = state.selection, selection = null;
+  if (cur2.ranges.length > 1)
+    selection = EditorSelection.create([cur2.main]);
+  else if (!cur2.main.empty)
+    selection = EditorSelection.create([EditorSelection.cursor(cur2.main.head)]);
   if (!selection)
     return false;
   dispatch(setSel(state, selection));
@@ -35898,11 +37212,11 @@ var deleteByGroup = (target, forward) => deleteBy(target, (range) => {
       break;
     }
     let next = findClusterBreak2(line.text, pos - line.from, forward) + line.from;
-    let nextChar = line.text.slice(Math.min(pos, next) - line.from, Math.max(pos, next) - line.from);
-    let nextCat = categorize(nextChar);
+    let nextChar2 = line.text.slice(Math.min(pos, next) - line.from, Math.max(pos, next) - line.from);
+    let nextCat = categorize(nextChar2);
     if (cat != null && nextCat != cat)
       break;
-    if (nextChar != " " || pos != range.head)
+    if (nextChar2 != " " || pos != range.head)
       cat = nextCat;
     pos = next;
   }
@@ -35974,18 +37288,18 @@ function moveLine(state, dispatch, forward) {
   if (state.readOnly)
     return false;
   let changes = [], ranges = [];
-  for (let block of selectedLineBlocks(state)) {
-    if (forward ? block.to == state.doc.length : block.from == 0)
+  for (let block2 of selectedLineBlocks(state)) {
+    if (forward ? block2.to == state.doc.length : block2.from == 0)
       continue;
-    let nextLine = state.doc.lineAt(forward ? block.to + 1 : block.from - 1);
+    let nextLine = state.doc.lineAt(forward ? block2.to + 1 : block2.from - 1);
     let size = nextLine.length + 1;
     if (forward) {
-      changes.push({ from: block.to, to: nextLine.to }, { from: block.from, insert: nextLine.text + state.lineBreak });
-      for (let r of block.ranges)
+      changes.push({ from: block2.to, to: nextLine.to }, { from: block2.from, insert: nextLine.text + state.lineBreak });
+      for (let r of block2.ranges)
         ranges.push(EditorSelection.range(Math.min(state.doc.length, r.anchor + size), Math.min(state.doc.length, r.head + size)));
     } else {
-      changes.push({ from: nextLine.from, to: block.from }, { from: block.to, insert: state.lineBreak + nextLine.text });
-      for (let r of block.ranges)
+      changes.push({ from: nextLine.from, to: block2.from }, { from: block2.to, insert: state.lineBreak + nextLine.text });
+      for (let r of block2.ranges)
         ranges.push(EditorSelection.range(r.anchor - size, r.head - size));
     }
   }
@@ -36005,11 +37319,11 @@ function copyLine(state, dispatch, forward) {
   if (state.readOnly)
     return false;
   let changes = [];
-  for (let block of selectedLineBlocks(state)) {
+  for (let block2 of selectedLineBlocks(state)) {
     if (forward)
-      changes.push({ from: block.from, insert: state.doc.slice(block.from, block.to) + state.lineBreak });
+      changes.push({ from: block2.from, insert: state.doc.slice(block2.from, block2.to) + state.lineBreak });
     else
-      changes.push({ from: block.to, insert: state.lineBreak + state.doc.slice(block.from, block.to) });
+      changes.push({ from: block2.to, insert: state.lineBreak + state.doc.slice(block2.from, block2.to) });
   }
   let changeSet = state.changes(changes);
   dispatch(state.update({
@@ -36035,9 +37349,9 @@ var deleteLine = (view) => {
   let selection = updateSel(state.selection, (range) => {
     let dist2 = void 0;
     if (view.lineWrapping) {
-      let block = view.lineBlockAt(range.head), pos = view.coordsAtPos(range.head, range.assoc || 1);
+      let block2 = view.lineBlockAt(range.head), pos = view.coordsAtPos(range.head, range.assoc || 1);
       if (pos)
-        dist2 = block.bottom + view.documentTop - pos.bottom + view.defaultLineHeight / 2;
+        dist2 = block2.bottom + view.documentTop - pos.bottom + view.defaultLineHeight / 2;
     }
     return view.moveVertically(range, true, dist2);
   }).map(changes);
@@ -36047,8 +37361,8 @@ var deleteLine = (view) => {
 function isBetweenBrackets(state, pos) {
   if (/\(\)|\[\]|\{\}/.test(state.sliceDoc(pos - 1, pos + 1)))
     return { from: pos, to: pos };
-  let context = syntaxTree(state).resolveInner(pos);
-  let before = context.childBefore(pos), after = context.childAfter(pos), closedBy;
+  let context2 = syntaxTree(state).resolveInner(pos);
+  let before = context2.childBefore(pos), after = context2.childAfter(pos), closedBy;
   if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from)))
     return { from: before.to, to: after.from };
   return null;
@@ -36109,21 +37423,21 @@ var indentSelection = ({ state, dispatch }) => {
   if (state.readOnly)
     return false;
   let updated = /* @__PURE__ */ Object.create(null);
-  let context = new IndentContext(state, { overrideIndentation: (start) => {
+  let context2 = new IndentContext(state, { overrideIndentation: (start) => {
     let found = updated[start];
     return found == null ? -1 : found;
   } });
   let changes = changeBySelectedLine(state, (line, changes2, range) => {
-    let indent2 = getIndentation(context, line.from);
+    let indent2 = getIndentation(context2, line.from);
     if (indent2 == null)
       return;
     if (!/\S/.test(line.text))
       indent2 = 0;
-    let cur = /^\s*/.exec(line.text)[0];
+    let cur2 = /^\s*/.exec(line.text)[0];
     let norm = indentString(state, indent2);
-    if (cur != norm || range.from < line.from + cur.length) {
+    if (cur2 != norm || range.from < line.from + cur2.length) {
       updated[line.from] = indent2;
-      changes2.push({ from: line.from, to: line.from + cur.length, insert: norm });
+      changes2.push({ from: line.from, to: line.from + cur2.length, insert: norm });
     }
   });
   if (!changes.changes.empty)
@@ -36223,6 +37537,1823 @@ var defaultKeymap = /* @__PURE__ */ [
   { key: "Ctrl-m", mac: "Shift-Alt-m", run: toggleTabFocusMode }
 ].concat(standardKeymap);
 var indentWithTab = { key: "Tab", run: indentMore, shift: indentLess };
+
+// node_modules/@codemirror/autocomplete/dist/index.js
+var CompletionContext = class {
+  /**
+  Create a new completion context. (Mostly useful for testing
+  completion sources—in the editor, the extension will create
+  these for you.)
+  */
+  constructor(state, pos, explicit, view) {
+    this.state = state;
+    this.pos = pos;
+    this.explicit = explicit;
+    this.view = view;
+    this.abortListeners = [];
+    this.abortOnDocChange = false;
+  }
+  /**
+  Get the extent, content, and (if there is a token) type of the
+  token before `this.pos`.
+  */
+  tokenBefore(types2) {
+    let token2 = syntaxTree(this.state).resolveInner(this.pos, -1);
+    while (token2 && types2.indexOf(token2.name) < 0)
+      token2 = token2.parent;
+    return token2 ? {
+      from: token2.from,
+      to: this.pos,
+      text: this.state.sliceDoc(token2.from, this.pos),
+      type: token2.type
+    } : null;
+  }
+  /**
+  Get the match of the given expression directly before the
+  cursor.
+  */
+  matchBefore(expr) {
+    let line = this.state.doc.lineAt(this.pos);
+    let start = Math.max(line.from, this.pos - 250);
+    let str = line.text.slice(start - line.from, this.pos - line.from);
+    let found = str.search(ensureAnchor(expr, false));
+    return found < 0 ? null : { from: start + found, to: this.pos, text: str.slice(found) };
+  }
+  /**
+  Yields true when the query has been aborted. Can be useful in
+  asynchronous queries to avoid doing work that will be ignored.
+  */
+  get aborted() {
+    return this.abortListeners == null;
+  }
+  /**
+  Allows you to register abort handlers, which will be called when
+  the query is
+  [aborted](https://codemirror.net/6/docs/ref/#autocomplete.CompletionContext.aborted).
+  
+  By default, running queries will not be aborted for regular
+  typing or backspacing, on the assumption that they are likely to
+  return a result with a
+  [`validFor`](https://codemirror.net/6/docs/ref/#autocomplete.CompletionResult.validFor) field that
+  allows the result to be used after all. Passing `onDocChange:
+  true` will cause this query to be aborted for any document
+  change.
+  */
+  addEventListener(type, listener, options2) {
+    if (type == "abort" && this.abortListeners) {
+      this.abortListeners.push(listener);
+      if (options2 && options2.onDocChange)
+        this.abortOnDocChange = true;
+    }
+  }
+};
+function toSet(chars) {
+  let flat = Object.keys(chars).join("");
+  let words = /\w/.test(flat);
+  if (words)
+    flat = flat.replace(/\w/g, "");
+  return `[${words ? "\\w" : ""}${flat.replace(/[^\w\s]/g, "\\$&")}]`;
+}
+function prefixMatch(options2) {
+  let first = /* @__PURE__ */ Object.create(null), rest = /* @__PURE__ */ Object.create(null);
+  for (let { label: label3 } of options2) {
+    first[label3[0]] = true;
+    for (let i2 = 1; i2 < label3.length; i2++)
+      rest[label3[i2]] = true;
+  }
+  let source = toSet(first) + toSet(rest) + "*$";
+  return [new RegExp("^" + source), new RegExp(source)];
+}
+function completeFromList(list2) {
+  let options2 = list2.map((o2) => typeof o2 == "string" ? { label: o2 } : o2);
+  let [validFor, match] = options2.every((o2) => /^\w+$/.test(o2.label)) ? [/\w*$/, /\w+$/] : prefixMatch(options2);
+  return (context2) => {
+    let token2 = context2.matchBefore(match);
+    return token2 || context2.explicit ? { from: token2 ? token2.from : context2.pos, options: options2, validFor } : null;
+  };
+}
+function ifNotIn(nodes, source) {
+  return (context2) => {
+    for (let pos = syntaxTree(context2.state).resolveInner(context2.pos, -1); pos; pos = pos.parent) {
+      if (nodes.indexOf(pos.name) > -1)
+        return null;
+      if (pos.type.isTop)
+        break;
+    }
+    return source(context2);
+  };
+}
+var Option = class {
+  constructor(completion, source, match, score2) {
+    this.completion = completion;
+    this.source = source;
+    this.match = match;
+    this.score = score2;
+  }
+};
+function cur(state) {
+  return state.selection.main.from;
+}
+function ensureAnchor(expr, start) {
+  var _a2;
+  let { source } = expr;
+  let addStart = start && source[0] != "^", addEnd = source[source.length - 1] != "$";
+  if (!addStart && !addEnd)
+    return expr;
+  return new RegExp(`${addStart ? "^" : ""}(?:${source})${addEnd ? "$" : ""}`, (_a2 = expr.flags) !== null && _a2 !== void 0 ? _a2 : expr.ignoreCase ? "i" : "");
+}
+var pickedCompletion = /* @__PURE__ */ Annotation.define();
+function insertCompletionText(state, text, from, to) {
+  let { main } = state.selection, fromOff = from - main.from, toOff = to - main.from;
+  return {
+    ...state.changeByRange((range) => {
+      if (range != main && from != to && state.sliceDoc(range.from + fromOff, range.from + toOff) != state.sliceDoc(from, to))
+        return { range };
+      let lines = state.toText(text);
+      return {
+        changes: { from: range.from + fromOff, to: to == main.from ? range.to : range.from + toOff, insert: lines },
+        range: EditorSelection.cursor(range.from + fromOff + lines.length)
+      };
+    }),
+    scrollIntoView: true,
+    userEvent: "input.complete"
+  };
+}
+var SourceCache = /* @__PURE__ */ new WeakMap();
+function asSource(source) {
+  if (!Array.isArray(source))
+    return source;
+  let known = SourceCache.get(source);
+  if (!known)
+    SourceCache.set(source, known = completeFromList(source));
+  return known;
+}
+var startCompletionEffect = /* @__PURE__ */ StateEffect.define();
+var closeCompletionEffect = /* @__PURE__ */ StateEffect.define();
+var FuzzyMatcher = class {
+  constructor(pattern) {
+    this.pattern = pattern;
+    this.chars = [];
+    this.folded = [];
+    this.any = [];
+    this.precise = [];
+    this.byWord = [];
+    this.score = 0;
+    this.matched = [];
+    for (let p = 0; p < pattern.length; ) {
+      let char = codePointAt2(pattern, p), size = codePointSize2(char);
+      this.chars.push(char);
+      let part = pattern.slice(p, p + size), upper = part.toUpperCase();
+      this.folded.push(codePointAt2(upper == part ? part.toLowerCase() : upper, 0));
+      p += size;
+    }
+    this.astral = pattern.length != this.chars.length;
+  }
+  ret(score2, matched) {
+    this.score = score2;
+    this.matched = matched;
+    return this;
+  }
+  // Matches a given word (completion) against the pattern (input).
+  // Will return a boolean indicating whether there was a match and,
+  // on success, set `this.score` to the score, `this.matched` to an
+  // array of `from, to` pairs indicating the matched parts of `word`.
+  //
+  // The score is a number that is more negative the worse the match
+  // is. See `Penalty` above.
+  match(word) {
+    if (this.pattern.length == 0)
+      return this.ret(-100, []);
+    if (word.length < this.pattern.length)
+      return null;
+    let { chars, folded, any, precise, byWord } = this;
+    if (chars.length == 1) {
+      let first = codePointAt2(word, 0), firstSize = codePointSize2(first);
+      let score2 = firstSize == word.length ? 0 : -100;
+      if (first == chars[0]) ;
+      else if (first == folded[0])
+        score2 += -200;
+      else
+        return null;
+      return this.ret(score2, [0, firstSize]);
+    }
+    let direct = word.indexOf(this.pattern);
+    if (direct == 0)
+      return this.ret(word.length == this.pattern.length ? 0 : -100, [0, this.pattern.length]);
+    let len = chars.length, anyTo = 0;
+    if (direct < 0) {
+      for (let i2 = 0, e = Math.min(word.length, 200); i2 < e && anyTo < len; ) {
+        let next = codePointAt2(word, i2);
+        if (next == chars[anyTo] || next == folded[anyTo])
+          any[anyTo++] = i2;
+        i2 += codePointSize2(next);
+      }
+      if (anyTo < len)
+        return null;
+    }
+    let preciseTo = 0;
+    let byWordTo = 0, byWordFolded = false;
+    let adjacentTo = 0, adjacentStart = -1, adjacentEnd = -1;
+    let hasLower = /[a-z]/.test(word), wordAdjacent = true;
+    for (let i2 = 0, e = Math.min(word.length, 200), prevType = 0; i2 < e && byWordTo < len; ) {
+      let next = codePointAt2(word, i2);
+      if (direct < 0) {
+        if (preciseTo < len && next == chars[preciseTo])
+          precise[preciseTo++] = i2;
+        if (adjacentTo < len) {
+          if (next == chars[adjacentTo] || next == folded[adjacentTo]) {
+            if (adjacentTo == 0)
+              adjacentStart = i2;
+            adjacentEnd = i2 + 1;
+            adjacentTo++;
+          } else {
+            adjacentTo = 0;
+          }
+        }
+      }
+      let ch, type = next < 255 ? next >= 48 && next <= 57 || next >= 97 && next <= 122 ? 2 : next >= 65 && next <= 90 ? 1 : 0 : (ch = fromCodePoint(next)) != ch.toLowerCase() ? 1 : ch != ch.toUpperCase() ? 2 : 0;
+      if (!i2 || type == 1 && hasLower || prevType == 0 && type != 0) {
+        if (chars[byWordTo] == next || folded[byWordTo] == next && (byWordFolded = true))
+          byWord[byWordTo++] = i2;
+        else if (byWord.length)
+          wordAdjacent = false;
+      }
+      prevType = type;
+      i2 += codePointSize2(next);
+    }
+    if (byWordTo == len && byWord[0] == 0 && wordAdjacent)
+      return this.result(-100 + (byWordFolded ? -200 : 0), byWord, word);
+    if (adjacentTo == len && adjacentStart == 0)
+      return this.ret(-200 - word.length + (adjacentEnd == word.length ? 0 : -100), [0, adjacentEnd]);
+    if (direct > -1)
+      return this.ret(-700 - word.length, [direct, direct + this.pattern.length]);
+    if (adjacentTo == len)
+      return this.ret(-200 + -700 - word.length, [adjacentStart, adjacentEnd]);
+    if (byWordTo == len)
+      return this.result(-100 + (byWordFolded ? -200 : 0) + -700 + (wordAdjacent ? 0 : -1100), byWord, word);
+    return chars.length == 2 ? null : this.result((any[0] ? -700 : 0) + -200 + -1100, any, word);
+  }
+  result(score2, positions, word) {
+    let result = [], i2 = 0;
+    for (let pos of positions) {
+      let to = pos + (this.astral ? codePointSize2(codePointAt2(word, pos)) : 1);
+      if (i2 && result[i2 - 1] == pos)
+        result[i2 - 1] = to;
+      else {
+        result[i2++] = pos;
+        result[i2++] = to;
+      }
+    }
+    return this.ret(score2 - word.length, result);
+  }
+};
+var StrictMatcher = class {
+  constructor(pattern) {
+    this.pattern = pattern;
+    this.matched = [];
+    this.score = 0;
+    this.folded = pattern.toLowerCase();
+  }
+  match(word) {
+    if (word.length < this.pattern.length)
+      return null;
+    let start = word.slice(0, this.pattern.length);
+    let match = start == this.pattern ? 0 : start.toLowerCase() == this.folded ? -200 : null;
+    if (match == null)
+      return null;
+    this.matched = [0, start.length];
+    this.score = match + (word.length == this.pattern.length ? 0 : -100);
+    return this;
+  }
+};
+var completionConfig = /* @__PURE__ */ Facet.define({
+  combine(configs) {
+    return combineConfig(configs, {
+      activateOnTyping: true,
+      activateOnCompletion: () => false,
+      activateOnTypingDelay: 100,
+      selectOnOpen: true,
+      override: null,
+      closeOnBlur: true,
+      maxRenderedOptions: 100,
+      defaultKeymap: true,
+      tooltipClass: () => "",
+      optionClass: () => "",
+      aboveCursor: false,
+      icons: true,
+      addToOptions: [],
+      positionInfo: defaultPositionInfo,
+      filterStrict: false,
+      compareCompletions: (a2, b2) => (a2.sortText || a2.label).localeCompare(b2.sortText || b2.label),
+      interactionDelay: 75,
+      updateSyncTime: 100
+    }, {
+      defaultKeymap: (a2, b2) => a2 && b2,
+      closeOnBlur: (a2, b2) => a2 && b2,
+      icons: (a2, b2) => a2 && b2,
+      tooltipClass: (a2, b2) => (c) => joinClass(a2(c), b2(c)),
+      optionClass: (a2, b2) => (c) => joinClass(a2(c), b2(c)),
+      addToOptions: (a2, b2) => a2.concat(b2),
+      filterStrict: (a2, b2) => a2 || b2
+    });
+  }
+});
+function joinClass(a2, b2) {
+  return a2 ? b2 ? a2 + " " + b2 : a2 : b2;
+}
+function defaultPositionInfo(view, list2, option, info, space6, tooltip) {
+  let rtl = view.textDirection == Direction.RTL, left = rtl, narrow = false;
+  let side = "top", offset, maxWidth;
+  let spaceLeft = list2.left - space6.left, spaceRight = space6.right - list2.right;
+  let infoWidth = info.right - info.left, infoHeight = info.bottom - info.top;
+  if (left && spaceLeft < Math.min(infoWidth, spaceRight))
+    left = false;
+  else if (!left && spaceRight < Math.min(infoWidth, spaceLeft))
+    left = true;
+  if (infoWidth <= (left ? spaceLeft : spaceRight)) {
+    offset = Math.max(space6.top, Math.min(option.top, space6.bottom - infoHeight)) - list2.top;
+    maxWidth = Math.min(400, left ? spaceLeft : spaceRight);
+  } else {
+    narrow = true;
+    maxWidth = Math.min(
+      400,
+      (rtl ? list2.right : space6.right - list2.left) - 30
+      /* Info.Margin */
+    );
+    let spaceBelow = space6.bottom - list2.bottom;
+    if (spaceBelow >= infoHeight || spaceBelow > list2.top) {
+      offset = option.bottom - list2.top;
+    } else {
+      side = "bottom";
+      offset = list2.bottom - option.top;
+    }
+  }
+  let scaleY = (list2.bottom - list2.top) / tooltip.offsetHeight;
+  let scaleX = (list2.right - list2.left) / tooltip.offsetWidth;
+  return {
+    style: `${side}: ${offset / scaleY}px; max-width: ${maxWidth / scaleX}px`,
+    class: "cm-completionInfo-" + (narrow ? rtl ? "left-narrow" : "right-narrow" : left ? "left" : "right")
+  };
+}
+var setSelectedEffect = /* @__PURE__ */ StateEffect.define();
+function optionContent(config2) {
+  let content2 = config2.addToOptions.slice();
+  if (config2.icons)
+    content2.push({
+      render(completion) {
+        let icon = document.createElement("div");
+        icon.classList.add("cm-completionIcon");
+        if (completion.type)
+          icon.classList.add(...completion.type.split(/\s+/g).map((cls) => "cm-completionIcon-" + cls));
+        icon.setAttribute("aria-hidden", "true");
+        return icon;
+      },
+      position: 20
+    });
+  content2.push({
+    render(completion, _s2, _v, match) {
+      let labelElt = document.createElement("span");
+      labelElt.className = "cm-completionLabel";
+      let label3 = completion.displayLabel || completion.label, off = 0;
+      for (let j2 = 0; j2 < match.length; ) {
+        let from = match[j2++], to = match[j2++];
+        if (from > off)
+          labelElt.appendChild(document.createTextNode(label3.slice(off, from)));
+        let span = labelElt.appendChild(document.createElement("span"));
+        span.appendChild(document.createTextNode(label3.slice(from, to)));
+        span.className = "cm-completionMatchedText";
+        off = to;
+      }
+      if (off < label3.length)
+        labelElt.appendChild(document.createTextNode(label3.slice(off)));
+      return labelElt;
+    },
+    position: 50
+  }, {
+    render(completion) {
+      if (!completion.detail)
+        return null;
+      let detailElt = document.createElement("span");
+      detailElt.className = "cm-completionDetail";
+      detailElt.textContent = completion.detail;
+      return detailElt;
+    },
+    position: 80
+  });
+  return content2.sort((a2, b2) => a2.position - b2.position).map((a2) => a2.render);
+}
+function rangeAroundSelected(total, selected, max) {
+  if (total <= max)
+    return { from: 0, to: total };
+  if (selected < 0)
+    selected = 0;
+  if (selected <= total >> 1) {
+    let off2 = Math.floor(selected / max);
+    return { from: off2 * max, to: (off2 + 1) * max };
+  }
+  let off = Math.ceil((total - selected) / max);
+  return { from: total - off * max, to: total - (off - 1) * max };
+}
+var CompletionTooltip = class {
+  constructor(view, stateField, applyCompletion2) {
+    this.view = view;
+    this.stateField = stateField;
+    this.applyCompletion = applyCompletion2;
+    this.info = null;
+    this.infoDestroy = null;
+    this.placeInfoReq = {
+      read: () => this.measureInfo(),
+      write: (pos) => this.placeInfo(pos),
+      key: this
+    };
+    this.space = null;
+    this.currentClass = "";
+    let cState = view.state.field(stateField);
+    let { options: options2, selected } = cState.open;
+    let config2 = view.state.facet(completionConfig);
+    this.optionContent = optionContent(config2);
+    this.optionClass = config2.optionClass;
+    this.tooltipClass = config2.tooltipClass;
+    this.range = rangeAroundSelected(options2.length, selected, config2.maxRenderedOptions);
+    this.dom = document.createElement("div");
+    this.dom.className = "cm-tooltip-autocomplete";
+    this.updateTooltipClass(view.state);
+    this.dom.addEventListener("mousedown", (e) => {
+      let { options: options3 } = view.state.field(stateField).open;
+      for (let dom = e.target, match; dom && dom != this.dom; dom = dom.parentNode) {
+        if (dom.nodeName == "LI" && (match = /-(\d+)$/.exec(dom.id)) && +match[1] < options3.length) {
+          this.applyCompletion(view, options3[+match[1]]);
+          e.preventDefault();
+          return;
+        }
+      }
+      if (e.target == this.list) {
+        let move = this.list.classList.contains("cm-completionListIncompleteTop") && e.clientY < this.list.firstChild.getBoundingClientRect().top ? this.range.from - 1 : this.list.classList.contains("cm-completionListIncompleteBottom") && e.clientY > this.list.lastChild.getBoundingClientRect().bottom ? this.range.to : null;
+        if (move != null) {
+          view.dispatch({ effects: setSelectedEffect.of(move) });
+          e.preventDefault();
+        }
+      }
+    });
+    this.dom.addEventListener("focusout", (e) => {
+      let state = view.state.field(this.stateField, false);
+      if (state && state.tooltip && view.state.facet(completionConfig).closeOnBlur && e.relatedTarget != view.contentDOM)
+        view.dispatch({ effects: closeCompletionEffect.of(null) });
+    });
+    this.showOptions(options2, cState.id);
+  }
+  mount() {
+    this.updateSel();
+  }
+  showOptions(options2, id2) {
+    if (this.list)
+      this.list.remove();
+    this.list = this.dom.appendChild(this.createListBox(options2, id2, this.range));
+    this.list.addEventListener("scroll", () => {
+      if (this.info)
+        this.view.requestMeasure(this.placeInfoReq);
+    });
+  }
+  update(update) {
+    var _a2;
+    let cState = update.state.field(this.stateField);
+    let prevState = update.startState.field(this.stateField);
+    this.updateTooltipClass(update.state);
+    if (cState != prevState) {
+      let { options: options2, selected, disabled } = cState.open;
+      if (!prevState.open || prevState.open.options != options2) {
+        this.range = rangeAroundSelected(options2.length, selected, update.state.facet(completionConfig).maxRenderedOptions);
+        this.showOptions(options2, cState.id);
+      }
+      this.updateSel();
+      if (disabled != ((_a2 = prevState.open) === null || _a2 === void 0 ? void 0 : _a2.disabled))
+        this.dom.classList.toggle("cm-tooltip-autocomplete-disabled", !!disabled);
+    }
+  }
+  updateTooltipClass(state) {
+    let cls = this.tooltipClass(state);
+    if (cls != this.currentClass) {
+      for (let c of this.currentClass.split(" "))
+        if (c)
+          this.dom.classList.remove(c);
+      for (let c of cls.split(" "))
+        if (c)
+          this.dom.classList.add(c);
+      this.currentClass = cls;
+    }
+  }
+  positioned(space6) {
+    this.space = space6;
+    if (this.info)
+      this.view.requestMeasure(this.placeInfoReq);
+  }
+  updateSel() {
+    let cState = this.view.state.field(this.stateField), open = cState.open;
+    if (open.selected > -1 && open.selected < this.range.from || open.selected >= this.range.to) {
+      this.range = rangeAroundSelected(open.options.length, open.selected, this.view.state.facet(completionConfig).maxRenderedOptions);
+      this.showOptions(open.options, cState.id);
+    }
+    let newSel = this.updateSelectedOption(open.selected);
+    if (newSel) {
+      this.destroyInfo();
+      let { completion } = open.options[open.selected];
+      let { info } = completion;
+      if (!info)
+        return;
+      let infoResult = typeof info === "string" ? document.createTextNode(info) : info(completion);
+      if (!infoResult)
+        return;
+      if ("then" in infoResult) {
+        infoResult.then((obj) => {
+          if (obj && this.view.state.field(this.stateField, false) == cState)
+            this.addInfoPane(obj, completion);
+        }).catch((e) => logException(this.view.state, e, "completion info"));
+      } else {
+        this.addInfoPane(infoResult, completion);
+        newSel.setAttribute("aria-describedby", this.info.id);
+      }
+    }
+  }
+  addInfoPane(content2, completion) {
+    this.destroyInfo();
+    let wrap = this.info = document.createElement("div");
+    wrap.className = "cm-tooltip cm-completionInfo";
+    wrap.id = "cm-completionInfo-" + Math.floor(Math.random() * 65535).toString(16);
+    if (content2.nodeType != null) {
+      wrap.appendChild(content2);
+      this.infoDestroy = null;
+    } else {
+      let { dom, destroy } = content2;
+      wrap.appendChild(dom);
+      this.infoDestroy = destroy || null;
+    }
+    this.dom.appendChild(wrap);
+    this.view.requestMeasure(this.placeInfoReq);
+  }
+  updateSelectedOption(selected) {
+    let set = null;
+    for (let opt = this.list.firstChild, i2 = this.range.from; opt; opt = opt.nextSibling, i2++) {
+      if (opt.nodeName != "LI" || !opt.id) {
+        i2--;
+      } else if (i2 == selected) {
+        if (!opt.hasAttribute("aria-selected")) {
+          opt.setAttribute("aria-selected", "true");
+          set = opt;
+        }
+      } else {
+        if (opt.hasAttribute("aria-selected")) {
+          opt.removeAttribute("aria-selected");
+          opt.removeAttribute("aria-describedby");
+        }
+      }
+    }
+    if (set)
+      scrollIntoView2(this.list, set);
+    return set;
+  }
+  measureInfo() {
+    let sel = this.dom.querySelector("[aria-selected]");
+    if (!sel || !this.info)
+      return null;
+    let listRect = this.dom.getBoundingClientRect();
+    let infoRect = this.info.getBoundingClientRect();
+    let selRect = sel.getBoundingClientRect();
+    let space6 = this.space;
+    if (!space6) {
+      let docElt = this.dom.ownerDocument.documentElement;
+      space6 = { left: 0, top: 0, right: docElt.clientWidth, bottom: docElt.clientHeight };
+    }
+    if (selRect.top > Math.min(space6.bottom, listRect.bottom) - 10 || selRect.bottom < Math.max(space6.top, listRect.top) + 10)
+      return null;
+    return this.view.state.facet(completionConfig).positionInfo(this.view, listRect, selRect, infoRect, space6, this.dom);
+  }
+  placeInfo(pos) {
+    if (this.info) {
+      if (pos) {
+        if (pos.style)
+          this.info.style.cssText = pos.style;
+        this.info.className = "cm-tooltip cm-completionInfo " + (pos.class || "");
+      } else {
+        this.info.style.cssText = "top: -1e6px";
+      }
+    }
+  }
+  createListBox(options2, id2, range) {
+    const ul2 = document.createElement("ul");
+    ul2.id = id2;
+    ul2.setAttribute("role", "listbox");
+    ul2.setAttribute("aria-expanded", "true");
+    ul2.setAttribute("aria-label", this.view.state.phrase("Completions"));
+    ul2.addEventListener("mousedown", (e) => {
+      if (e.target == ul2)
+        e.preventDefault();
+    });
+    let curSection = null;
+    for (let i2 = range.from; i2 < range.to; i2++) {
+      let { completion, match } = options2[i2], { section } = completion;
+      if (section) {
+        let name2 = typeof section == "string" ? section : section.name;
+        if (name2 != curSection && (i2 > range.from || range.from == 0)) {
+          curSection = name2;
+          if (typeof section != "string" && section.header) {
+            ul2.appendChild(section.header(section));
+          } else {
+            let header = ul2.appendChild(document.createElement("completion-section"));
+            header.textContent = name2;
+          }
+        }
+      }
+      const li2 = ul2.appendChild(document.createElement("li"));
+      li2.id = id2 + "-" + i2;
+      li2.setAttribute("role", "option");
+      let cls = this.optionClass(completion);
+      if (cls)
+        li2.className = cls;
+      for (let source of this.optionContent) {
+        let node = source(completion, this.view.state, this.view, match);
+        if (node)
+          li2.appendChild(node);
+      }
+    }
+    if (range.from)
+      ul2.classList.add("cm-completionListIncompleteTop");
+    if (range.to < options2.length)
+      ul2.classList.add("cm-completionListIncompleteBottom");
+    return ul2;
+  }
+  destroyInfo() {
+    if (this.info) {
+      if (this.infoDestroy)
+        this.infoDestroy();
+      this.info.remove();
+      this.info = null;
+    }
+  }
+  destroy() {
+    this.destroyInfo();
+  }
+};
+function completionTooltip(stateField, applyCompletion2) {
+  return (view) => new CompletionTooltip(view, stateField, applyCompletion2);
+}
+function scrollIntoView2(container, element) {
+  let parent = container.getBoundingClientRect();
+  let self = element.getBoundingClientRect();
+  let scaleY = parent.height / container.offsetHeight;
+  if (self.top < parent.top)
+    container.scrollTop -= (parent.top - self.top) / scaleY;
+  else if (self.bottom > parent.bottom)
+    container.scrollTop += (self.bottom - parent.bottom) / scaleY;
+}
+function score(option) {
+  return (option.boost || 0) * 100 + (option.apply ? 10 : 0) + (option.info ? 5 : 0) + (option.type ? 1 : 0);
+}
+function sortOptions(active, state) {
+  let options2 = [];
+  let sections = null, dynamicSectionScore = null;
+  let addOption = (option) => {
+    options2.push(option);
+    let { section } = option.completion;
+    if (section) {
+      if (!sections)
+        sections = [];
+      let name2 = typeof section == "string" ? section : section.name;
+      if (!sections.some((s15) => s15.name == name2))
+        sections.push(typeof section == "string" ? { name: name2 } : section);
+    }
+  };
+  let conf = state.facet(completionConfig);
+  for (let a2 of active)
+    if (a2.hasResult()) {
+      let getMatch = a2.result.getMatch;
+      if (a2.result.filter === false) {
+        for (let option of a2.result.options) {
+          addOption(new Option(option, a2.source, getMatch ? getMatch(option) : [], 1e9 - options2.length));
+        }
+      } else {
+        let pattern = state.sliceDoc(a2.from, a2.to), match;
+        let matcher = conf.filterStrict ? new StrictMatcher(pattern) : new FuzzyMatcher(pattern);
+        for (let option of a2.result.options)
+          if (match = matcher.match(option.label)) {
+            let matched = !option.displayLabel ? match.matched : getMatch ? getMatch(option, match.matched) : [];
+            let score2 = match.score + (option.boost || 0);
+            addOption(new Option(option, a2.source, matched, score2));
+            if (typeof option.section == "object" && option.section.rank === "dynamic") {
+              let { name: name2 } = option.section;
+              if (!dynamicSectionScore)
+                dynamicSectionScore = /* @__PURE__ */ Object.create(null);
+              dynamicSectionScore[name2] = Math.max(score2, dynamicSectionScore[name2] || -1e9);
+            }
+          }
+      }
+    }
+  if (sections) {
+    let sectionOrder = /* @__PURE__ */ Object.create(null), pos = 0;
+    let cmp = (a2, b2) => {
+      return (a2.rank === "dynamic" && b2.rank === "dynamic" ? dynamicSectionScore[b2.name] - dynamicSectionScore[a2.name] : 0) || (typeof a2.rank == "number" ? a2.rank : 1e9) - (typeof b2.rank == "number" ? b2.rank : 1e9) || (a2.name < b2.name ? -1 : 1);
+    };
+    for (let s15 of sections.sort(cmp)) {
+      pos -= 1e5;
+      sectionOrder[s15.name] = pos;
+    }
+    for (let option of options2) {
+      let { section } = option.completion;
+      if (section)
+        option.score += sectionOrder[typeof section == "string" ? section : section.name];
+    }
+  }
+  let result = [], prev = null;
+  let compare2 = conf.compareCompletions;
+  for (let opt of options2.sort((a2, b2) => b2.score - a2.score || compare2(a2.completion, b2.completion))) {
+    let cur2 = opt.completion;
+    if (!prev || prev.label != cur2.label || prev.detail != cur2.detail || prev.type != null && cur2.type != null && prev.type != cur2.type || prev.apply != cur2.apply || prev.boost != cur2.boost)
+      result.push(opt);
+    else if (score(opt.completion) > score(prev))
+      result[result.length - 1] = opt;
+    prev = opt.completion;
+  }
+  return result;
+}
+var CompletionDialog = class _CompletionDialog {
+  constructor(options2, attrs, tooltip, timestamp, selected, disabled) {
+    this.options = options2;
+    this.attrs = attrs;
+    this.tooltip = tooltip;
+    this.timestamp = timestamp;
+    this.selected = selected;
+    this.disabled = disabled;
+  }
+  setSelected(selected, id2) {
+    return selected == this.selected || selected >= this.options.length ? this : new _CompletionDialog(this.options, makeAttrs(id2, selected), this.tooltip, this.timestamp, selected, this.disabled);
+  }
+  static build(active, state, id2, prev, conf, didSetActive) {
+    if (prev && !didSetActive && active.some((s15) => s15.isPending))
+      return prev.setDisabled();
+    let options2 = sortOptions(active, state);
+    if (!options2.length)
+      return prev && active.some((a2) => a2.isPending) ? prev.setDisabled() : null;
+    let selected = state.facet(completionConfig).selectOnOpen ? 0 : -1;
+    if (prev && prev.selected != selected && prev.selected != -1) {
+      let selectedValue = prev.options[prev.selected].completion;
+      for (let i2 = 0; i2 < options2.length; i2++)
+        if (options2[i2].completion == selectedValue) {
+          selected = i2;
+          break;
+        }
+    }
+    return new _CompletionDialog(options2, makeAttrs(id2, selected), {
+      pos: active.reduce((a2, b2) => b2.hasResult() ? Math.min(a2, b2.from) : a2, 1e8),
+      create: createTooltip,
+      above: conf.aboveCursor
+    }, prev ? prev.timestamp : Date.now(), selected, false);
+  }
+  map(changes) {
+    return new _CompletionDialog(this.options, this.attrs, { ...this.tooltip, pos: changes.mapPos(this.tooltip.pos) }, this.timestamp, this.selected, this.disabled);
+  }
+  setDisabled() {
+    return new _CompletionDialog(this.options, this.attrs, this.tooltip, this.timestamp, this.selected, true);
+  }
+};
+var CompletionState = class _CompletionState {
+  constructor(active, id2, open) {
+    this.active = active;
+    this.id = id2;
+    this.open = open;
+  }
+  static start() {
+    return new _CompletionState(none3, "cm-ac-" + Math.floor(Math.random() * 2e6).toString(36), null);
+  }
+  update(tr2) {
+    let { state } = tr2, conf = state.facet(completionConfig);
+    let sources = conf.override || state.languageDataAt("autocomplete", cur(state)).map(asSource);
+    let active = sources.map((source) => {
+      let value = this.active.find((s15) => s15.source == source) || new ActiveSource(
+        source,
+        this.active.some(
+          (a2) => a2.state != 0
+          /* State.Inactive */
+        ) ? 1 : 0
+        /* State.Inactive */
+      );
+      return value.update(tr2, conf);
+    });
+    if (active.length == this.active.length && active.every((a2, i2) => a2 == this.active[i2]))
+      active = this.active;
+    let open = this.open, didSet = tr2.effects.some((e) => e.is(setActiveEffect));
+    if (open && tr2.docChanged)
+      open = open.map(tr2.changes);
+    if (tr2.selection || active.some((a2) => a2.hasResult() && tr2.changes.touchesRange(a2.from, a2.to)) || !sameResults(active, this.active) || didSet)
+      open = CompletionDialog.build(active, state, this.id, open, conf, didSet);
+    else if (open && open.disabled && !active.some((a2) => a2.isPending))
+      open = null;
+    if (!open && active.every((a2) => !a2.isPending) && active.some((a2) => a2.hasResult()))
+      active = active.map((a2) => a2.hasResult() ? new ActiveSource(
+        a2.source,
+        0
+        /* State.Inactive */
+      ) : a2);
+    for (let effect of tr2.effects)
+      if (effect.is(setSelectedEffect))
+        open = open && open.setSelected(effect.value, this.id);
+    return active == this.active && open == this.open ? this : new _CompletionState(active, this.id, open);
+  }
+  get tooltip() {
+    return this.open ? this.open.tooltip : null;
+  }
+  get attrs() {
+    return this.open ? this.open.attrs : this.active.length ? baseAttrs : noAttrs2;
+  }
+};
+function sameResults(a2, b2) {
+  if (a2 == b2)
+    return true;
+  for (let iA = 0, iB = 0; ; ) {
+    while (iA < a2.length && !a2[iA].hasResult())
+      iA++;
+    while (iB < b2.length && !b2[iB].hasResult())
+      iB++;
+    let endA = iA == a2.length, endB = iB == b2.length;
+    if (endA || endB)
+      return endA == endB;
+    if (a2[iA++].result != b2[iB++].result)
+      return false;
+  }
+}
+var baseAttrs = {
+  "aria-autocomplete": "list"
+};
+var noAttrs2 = {};
+function makeAttrs(id2, selected) {
+  let result = {
+    "aria-autocomplete": "list",
+    "aria-haspopup": "listbox",
+    "aria-controls": id2
+  };
+  if (selected > -1)
+    result["aria-activedescendant"] = id2 + "-" + selected;
+  return result;
+}
+var none3 = [];
+function getUpdateType(tr2, conf) {
+  if (tr2.isUserEvent("input.complete")) {
+    let completion = tr2.annotation(pickedCompletion);
+    if (completion && conf.activateOnCompletion(completion))
+      return 4 | 8;
+  }
+  let typing = tr2.isUserEvent("input.type");
+  return typing && conf.activateOnTyping ? 4 | 1 : typing ? 1 : tr2.isUserEvent("delete.backward") ? 2 : tr2.selection ? 8 : tr2.docChanged ? 16 : 0;
+}
+var ActiveSource = class _ActiveSource {
+  constructor(source, state, explicit = false) {
+    this.source = source;
+    this.state = state;
+    this.explicit = explicit;
+  }
+  hasResult() {
+    return false;
+  }
+  get isPending() {
+    return this.state == 1;
+  }
+  update(tr2, conf) {
+    let type = getUpdateType(tr2, conf), value = this;
+    if (type & 8 || type & 16 && this.touches(tr2))
+      value = new _ActiveSource(
+        value.source,
+        0
+        /* State.Inactive */
+      );
+    if (type & 4 && value.state == 0)
+      value = new _ActiveSource(
+        this.source,
+        1
+        /* State.Pending */
+      );
+    value = value.updateFor(tr2, type);
+    for (let effect of tr2.effects) {
+      if (effect.is(startCompletionEffect))
+        value = new _ActiveSource(value.source, 1, effect.value);
+      else if (effect.is(closeCompletionEffect))
+        value = new _ActiveSource(
+          value.source,
+          0
+          /* State.Inactive */
+        );
+      else if (effect.is(setActiveEffect)) {
+        for (let active of effect.value)
+          if (active.source == value.source)
+            value = active;
+      }
+    }
+    return value;
+  }
+  updateFor(tr2, type) {
+    return this.map(tr2.changes);
+  }
+  map(changes) {
+    return this;
+  }
+  touches(tr2) {
+    return tr2.changes.touchesRange(cur(tr2.state));
+  }
+};
+var ActiveResult = class _ActiveResult extends ActiveSource {
+  constructor(source, explicit, limit, result, from, to) {
+    super(source, 3, explicit);
+    this.limit = limit;
+    this.result = result;
+    this.from = from;
+    this.to = to;
+  }
+  hasResult() {
+    return true;
+  }
+  updateFor(tr2, type) {
+    var _a2;
+    if (!(type & 3))
+      return this.map(tr2.changes);
+    let result = this.result;
+    if (result.map && !tr2.changes.empty)
+      result = result.map(result, tr2.changes);
+    let from = tr2.changes.mapPos(this.from), to = tr2.changes.mapPos(this.to, 1);
+    let pos = cur(tr2.state);
+    if (pos > to || !result || type & 2 && (cur(tr2.startState) == this.from || pos < this.limit))
+      return new ActiveSource(
+        this.source,
+        type & 4 ? 1 : 0
+        /* State.Inactive */
+      );
+    let limit = tr2.changes.mapPos(this.limit);
+    if (checkValid(result.validFor, tr2.state, from, to))
+      return new _ActiveResult(this.source, this.explicit, limit, result, from, to);
+    if (result.update && (result = result.update(result, from, to, new CompletionContext(tr2.state, pos, false))))
+      return new _ActiveResult(this.source, this.explicit, limit, result, result.from, (_a2 = result.to) !== null && _a2 !== void 0 ? _a2 : cur(tr2.state));
+    return new ActiveSource(this.source, 1, this.explicit);
+  }
+  map(mapping) {
+    if (mapping.empty)
+      return this;
+    let result = this.result.map ? this.result.map(this.result, mapping) : this.result;
+    if (!result)
+      return new ActiveSource(
+        this.source,
+        0
+        /* State.Inactive */
+      );
+    return new _ActiveResult(this.source, this.explicit, mapping.mapPos(this.limit), result, mapping.mapPos(this.from), mapping.mapPos(this.to, 1));
+  }
+  touches(tr2) {
+    return tr2.changes.touchesRange(this.from, this.to);
+  }
+};
+function checkValid(validFor, state, from, to) {
+  if (!validFor)
+    return false;
+  let text = state.sliceDoc(from, to);
+  return typeof validFor == "function" ? validFor(text, from, to, state) : ensureAnchor(validFor, true).test(text);
+}
+var setActiveEffect = /* @__PURE__ */ StateEffect.define({
+  map(sources, mapping) {
+    return sources.map((s15) => s15.map(mapping));
+  }
+});
+var completionState = /* @__PURE__ */ StateField.define({
+  create() {
+    return CompletionState.start();
+  },
+  update(value, tr2) {
+    return value.update(tr2);
+  },
+  provide: (f) => [
+    showTooltip.from(f, (val) => val.tooltip),
+    EditorView.contentAttributes.from(f, (state) => state.attrs)
+  ]
+});
+function applyCompletion(view, option) {
+  const apply2 = option.completion.apply || option.completion.label;
+  let result = view.state.field(completionState).active.find((a2) => a2.source == option.source);
+  if (!(result instanceof ActiveResult))
+    return false;
+  if (typeof apply2 == "string")
+    view.dispatch({
+      ...insertCompletionText(view.state, apply2, result.from, result.to),
+      annotations: pickedCompletion.of(option.completion)
+    });
+  else
+    apply2(view, option.completion, result.from, result.to);
+  return true;
+}
+var createTooltip = /* @__PURE__ */ completionTooltip(completionState, applyCompletion);
+function moveCompletionSelection(forward, by = "option") {
+  return (view) => {
+    let cState = view.state.field(completionState, false);
+    if (!cState || !cState.open || cState.open.disabled || Date.now() - cState.open.timestamp < view.state.facet(completionConfig).interactionDelay)
+      return false;
+    let step = 1, tooltip;
+    if (by == "page" && (tooltip = getTooltip(view, cState.open.tooltip)))
+      step = Math.max(2, Math.floor(tooltip.dom.offsetHeight / tooltip.dom.querySelector("li").offsetHeight) - 1);
+    let { length } = cState.open.options;
+    let selected = cState.open.selected > -1 ? cState.open.selected + step * (forward ? 1 : -1) : forward ? 0 : length - 1;
+    if (selected < 0)
+      selected = by == "page" ? 0 : length - 1;
+    else if (selected >= length)
+      selected = by == "page" ? length - 1 : 0;
+    view.dispatch({ effects: setSelectedEffect.of(selected) });
+    return true;
+  };
+}
+var acceptCompletion = (view) => {
+  let cState = view.state.field(completionState, false);
+  if (view.state.readOnly || !cState || !cState.open || cState.open.selected < 0 || cState.open.disabled || Date.now() - cState.open.timestamp < view.state.facet(completionConfig).interactionDelay)
+    return false;
+  return applyCompletion(view, cState.open.options[cState.open.selected]);
+};
+var startCompletion = (view) => {
+  let cState = view.state.field(completionState, false);
+  if (!cState)
+    return false;
+  view.dispatch({ effects: startCompletionEffect.of(true) });
+  return true;
+};
+var closeCompletion = (view) => {
+  let cState = view.state.field(completionState, false);
+  if (!cState || !cState.active.some(
+    (a2) => a2.state != 0
+    /* State.Inactive */
+  ))
+    return false;
+  view.dispatch({ effects: closeCompletionEffect.of(null) });
+  return true;
+};
+var RunningQuery = class {
+  constructor(active, context2) {
+    this.active = active;
+    this.context = context2;
+    this.time = Date.now();
+    this.updates = [];
+    this.done = void 0;
+  }
+};
+var MaxUpdateCount = 50;
+var MinAbortTime = 1e3;
+var completionPlugin = /* @__PURE__ */ ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.view = view;
+    this.debounceUpdate = -1;
+    this.running = [];
+    this.debounceAccept = -1;
+    this.pendingStart = false;
+    this.composing = 0;
+    for (let active of view.state.field(completionState).active)
+      if (active.isPending)
+        this.startQuery(active);
+  }
+  update(update) {
+    let cState = update.state.field(completionState);
+    let conf = update.state.facet(completionConfig);
+    if (!update.selectionSet && !update.docChanged && update.startState.field(completionState) == cState)
+      return;
+    let doesReset = update.transactions.some((tr2) => {
+      let type = getUpdateType(tr2, conf);
+      return type & 8 || (tr2.selection || tr2.docChanged) && !(type & 3);
+    });
+    for (let i2 = 0; i2 < this.running.length; i2++) {
+      let query = this.running[i2];
+      if (doesReset || query.context.abortOnDocChange && update.docChanged || query.updates.length + update.transactions.length > MaxUpdateCount && Date.now() - query.time > MinAbortTime) {
+        for (let handler of query.context.abortListeners) {
+          try {
+            handler();
+          } catch (e) {
+            logException(this.view.state, e);
+          }
+        }
+        query.context.abortListeners = null;
+        this.running.splice(i2--, 1);
+      } else {
+        query.updates.push(...update.transactions);
+      }
+    }
+    if (this.debounceUpdate > -1)
+      clearTimeout(this.debounceUpdate);
+    if (update.transactions.some((tr2) => tr2.effects.some((e) => e.is(startCompletionEffect))))
+      this.pendingStart = true;
+    let delay = this.pendingStart ? 50 : conf.activateOnTypingDelay;
+    this.debounceUpdate = cState.active.some((a2) => a2.isPending && !this.running.some((q2) => q2.active.source == a2.source)) ? setTimeout(() => this.startUpdate(), delay) : -1;
+    if (this.composing != 0)
+      for (let tr2 of update.transactions) {
+        if (tr2.isUserEvent("input.type"))
+          this.composing = 2;
+        else if (this.composing == 2 && tr2.selection)
+          this.composing = 3;
+      }
+  }
+  startUpdate() {
+    this.debounceUpdate = -1;
+    this.pendingStart = false;
+    let { state } = this.view, cState = state.field(completionState);
+    for (let active of cState.active) {
+      if (active.isPending && !this.running.some((r) => r.active.source == active.source))
+        this.startQuery(active);
+    }
+    if (this.running.length && cState.open && cState.open.disabled)
+      this.debounceAccept = setTimeout(() => this.accept(), this.view.state.facet(completionConfig).updateSyncTime);
+  }
+  startQuery(active) {
+    let { state } = this.view, pos = cur(state);
+    let context2 = new CompletionContext(state, pos, active.explicit, this.view);
+    let pending = new RunningQuery(active, context2);
+    this.running.push(pending);
+    Promise.resolve(active.source(context2)).then((result) => {
+      if (!pending.context.aborted) {
+        pending.done = result || null;
+        this.scheduleAccept();
+      }
+    }, (err) => {
+      this.view.dispatch({ effects: closeCompletionEffect.of(null) });
+      logException(this.view.state, err);
+    });
+  }
+  scheduleAccept() {
+    if (this.running.every((q2) => q2.done !== void 0))
+      this.accept();
+    else if (this.debounceAccept < 0)
+      this.debounceAccept = setTimeout(() => this.accept(), this.view.state.facet(completionConfig).updateSyncTime);
+  }
+  // For each finished query in this.running, try to create a result
+  // or, if appropriate, restart the query.
+  accept() {
+    var _a2;
+    if (this.debounceAccept > -1)
+      clearTimeout(this.debounceAccept);
+    this.debounceAccept = -1;
+    let updated = [];
+    let conf = this.view.state.facet(completionConfig), cState = this.view.state.field(completionState);
+    for (let i2 = 0; i2 < this.running.length; i2++) {
+      let query = this.running[i2];
+      if (query.done === void 0)
+        continue;
+      this.running.splice(i2--, 1);
+      if (query.done) {
+        let pos = cur(query.updates.length ? query.updates[0].startState : this.view.state);
+        let limit = Math.min(pos, query.done.from + (query.active.explicit ? 0 : 1));
+        let active = new ActiveResult(query.active.source, query.active.explicit, limit, query.done, query.done.from, (_a2 = query.done.to) !== null && _a2 !== void 0 ? _a2 : pos);
+        for (let tr2 of query.updates)
+          active = active.update(tr2, conf);
+        if (active.hasResult()) {
+          updated.push(active);
+          continue;
+        }
+      }
+      let current = cState.active.find((a2) => a2.source == query.active.source);
+      if (current && current.isPending) {
+        if (query.done == null) {
+          let active = new ActiveSource(
+            query.active.source,
+            0
+            /* State.Inactive */
+          );
+          for (let tr2 of query.updates)
+            active = active.update(tr2, conf);
+          if (!active.isPending)
+            updated.push(active);
+        } else {
+          this.startQuery(current);
+        }
+      }
+    }
+    if (updated.length || cState.open && cState.open.disabled)
+      this.view.dispatch({ effects: setActiveEffect.of(updated) });
+  }
+}, {
+  eventHandlers: {
+    blur(event) {
+      let state = this.view.state.field(completionState, false);
+      if (state && state.tooltip && this.view.state.facet(completionConfig).closeOnBlur) {
+        let dialog = state.open && getTooltip(this.view, state.open.tooltip);
+        if (!dialog || !dialog.dom.contains(event.relatedTarget))
+          setTimeout(() => this.view.dispatch({ effects: closeCompletionEffect.of(null) }), 10);
+      }
+    },
+    compositionstart() {
+      this.composing = 1;
+    },
+    compositionend() {
+      if (this.composing == 3) {
+        setTimeout(() => this.view.dispatch({ effects: startCompletionEffect.of(false) }), 20);
+      }
+      this.composing = 0;
+    }
+  }
+});
+var windows = typeof navigator == "object" && /* @__PURE__ */ /Win/.test(navigator.platform);
+var commitCharacters = /* @__PURE__ */ Prec.highest(/* @__PURE__ */ EditorView.domEventHandlers({
+  keydown(event, view) {
+    let field = view.state.field(completionState, false);
+    if (!field || !field.open || field.open.disabled || field.open.selected < 0 || !event.key || event.key.length > 1 || event.ctrlKey && !(windows && event.altKey) || event.metaKey)
+      return false;
+    let option = field.open.options[field.open.selected];
+    let result = field.active.find((a2) => a2.source == option.source);
+    let commitChars = option.completion.commitCharacters || result.result.commitCharacters;
+    if (commitChars && commitChars.indexOf(event.key) > -1)
+      applyCompletion(view, option);
+    return false;
+  }
+}));
+var baseTheme3 = /* @__PURE__ */ EditorView.baseTheme({
+  ".cm-tooltip.cm-tooltip-autocomplete": {
+    "& > ul": {
+      fontFamily: "monospace",
+      whiteSpace: "nowrap",
+      overflow: "hidden auto",
+      maxWidth_fallback: "700px",
+      maxWidth: "min(700px, 95vw)",
+      minWidth: "250px",
+      maxHeight: "10em",
+      height: "100%",
+      listStyle: "none",
+      margin: 0,
+      padding: 0,
+      "& > li, & > completion-section": {
+        padding: "1px 3px",
+        lineHeight: 1.2
+      },
+      "& > li": {
+        overflowX: "hidden",
+        textOverflow: "ellipsis",
+        cursor: "pointer"
+      },
+      "& > completion-section": {
+        display: "list-item",
+        borderBottom: "1px solid silver",
+        paddingLeft: "0.5em",
+        opacity: 0.7
+      }
+    }
+  },
+  "&light .cm-tooltip-autocomplete ul li[aria-selected]": {
+    background: "#17c",
+    color: "white"
+  },
+  "&light .cm-tooltip-autocomplete-disabled ul li[aria-selected]": {
+    background: "#777"
+  },
+  "&dark .cm-tooltip-autocomplete ul li[aria-selected]": {
+    background: "#347",
+    color: "white"
+  },
+  "&dark .cm-tooltip-autocomplete-disabled ul li[aria-selected]": {
+    background: "#444"
+  },
+  ".cm-completionListIncompleteTop:before, .cm-completionListIncompleteBottom:after": {
+    content: '"\xB7\xB7\xB7"',
+    opacity: 0.5,
+    display: "block",
+    textAlign: "center",
+    cursor: "pointer"
+  },
+  ".cm-tooltip.cm-completionInfo": {
+    position: "absolute",
+    padding: "3px 9px",
+    width: "max-content",
+    maxWidth: `${400}px`,
+    boxSizing: "border-box",
+    whiteSpace: "pre-line"
+  },
+  ".cm-completionInfo.cm-completionInfo-left": { right: "100%" },
+  ".cm-completionInfo.cm-completionInfo-right": { left: "100%" },
+  ".cm-completionInfo.cm-completionInfo-left-narrow": { right: `${30}px` },
+  ".cm-completionInfo.cm-completionInfo-right-narrow": { left: `${30}px` },
+  "&light .cm-snippetField": { backgroundColor: "#00000022" },
+  "&dark .cm-snippetField": { backgroundColor: "#ffffff22" },
+  ".cm-snippetFieldPosition": {
+    verticalAlign: "text-top",
+    width: 0,
+    height: "1.15em",
+    display: "inline-block",
+    margin: "0 -0.7px -.7em",
+    borderLeft: "1.4px dotted #888"
+  },
+  ".cm-completionMatchedText": {
+    textDecoration: "underline"
+  },
+  ".cm-completionDetail": {
+    marginLeft: "0.5em",
+    fontStyle: "italic"
+  },
+  ".cm-completionIcon": {
+    fontSize: "90%",
+    width: ".8em",
+    display: "inline-block",
+    textAlign: "center",
+    paddingRight: ".6em",
+    opacity: "0.6",
+    boxSizing: "content-box"
+  },
+  ".cm-completionIcon-function, .cm-completionIcon-method": {
+    "&:after": { content: "'\u0192'" }
+  },
+  ".cm-completionIcon-class": {
+    "&:after": { content: "'\u25CB'" }
+  },
+  ".cm-completionIcon-interface": {
+    "&:after": { content: "'\u25CC'" }
+  },
+  ".cm-completionIcon-variable": {
+    "&:after": { content: "'\u{1D465}'" }
+  },
+  ".cm-completionIcon-constant": {
+    "&:after": { content: "'\u{1D436}'" }
+  },
+  ".cm-completionIcon-type": {
+    "&:after": { content: "'\u{1D461}'" }
+  },
+  ".cm-completionIcon-enum": {
+    "&:after": { content: "'\u222A'" }
+  },
+  ".cm-completionIcon-property": {
+    "&:after": { content: "'\u25A1'" }
+  },
+  ".cm-completionIcon-keyword": {
+    "&:after": { content: "'\u{1F511}\uFE0E'" }
+    // Disable emoji rendering
+  },
+  ".cm-completionIcon-namespace": {
+    "&:after": { content: "'\u25A2'" }
+  },
+  ".cm-completionIcon-text": {
+    "&:after": { content: "'abc'", fontSize: "50%", verticalAlign: "middle" }
+  }
+});
+var FieldPos = class {
+  constructor(field, line, from, to) {
+    this.field = field;
+    this.line = line;
+    this.from = from;
+    this.to = to;
+  }
+};
+var FieldRange = class _FieldRange {
+  constructor(field, from, to) {
+    this.field = field;
+    this.from = from;
+    this.to = to;
+  }
+  map(changes) {
+    let from = changes.mapPos(this.from, -1, MapMode.TrackDel);
+    let to = changes.mapPos(this.to, 1, MapMode.TrackDel);
+    return from == null || to == null ? null : new _FieldRange(this.field, from, to);
+  }
+};
+var Snippet = class _Snippet {
+  constructor(lines, fieldPositions) {
+    this.lines = lines;
+    this.fieldPositions = fieldPositions;
+  }
+  instantiate(state, pos) {
+    let text = [], lineStart = [pos];
+    let lineObj = state.doc.lineAt(pos), baseIndent = /^\s*/.exec(lineObj.text)[0];
+    for (let line of this.lines) {
+      if (text.length) {
+        let indent2 = baseIndent, tabs = /^\t*/.exec(line)[0].length;
+        for (let i2 = 0; i2 < tabs; i2++)
+          indent2 += state.facet(indentUnit);
+        lineStart.push(pos + indent2.length - tabs);
+        line = indent2 + line.slice(tabs);
+      }
+      text.push(line);
+      pos += line.length + 1;
+    }
+    let ranges = this.fieldPositions.map((pos2) => new FieldRange(pos2.field, lineStart[pos2.line] + pos2.from, lineStart[pos2.line] + pos2.to));
+    return { text, ranges };
+  }
+  static parse(template) {
+    let fields = [];
+    let lines = [], positions = [], m;
+    for (let line of template.split(/\r\n?|\n/)) {
+      while (m = /[#$]\{(?:(\d+)(?::([^{}]*))?|((?:\\[{}]|[^{}])*))\}/.exec(line)) {
+        let seq = m[1] ? +m[1] : null, rawName = m[2] || m[3] || "", found = -1;
+        if (seq === 0)
+          seq = 1e9;
+        let name2 = rawName.replace(/\\[{}]/g, (m2) => m2[1]);
+        for (let i2 = 0; i2 < fields.length; i2++) {
+          if (seq != null ? fields[i2].seq == seq : name2 ? fields[i2].name == name2 : false)
+            found = i2;
+        }
+        if (found < 0) {
+          let i2 = 0;
+          while (i2 < fields.length && (seq == null || fields[i2].seq != null && fields[i2].seq < seq))
+            i2++;
+          fields.splice(i2, 0, { seq, name: name2 });
+          found = i2;
+          for (let pos of positions)
+            if (pos.field >= found)
+              pos.field++;
+        }
+        for (let pos of positions)
+          if (pos.line == lines.length && pos.from > m.index) {
+            let snip = m[2] ? 3 + (m[1] || "").length : 2;
+            pos.from -= snip;
+            pos.to -= snip;
+          }
+        positions.push(new FieldPos(found, lines.length, m.index, m.index + name2.length));
+        line = line.slice(0, m.index) + rawName + line.slice(m.index + m[0].length);
+      }
+      line = line.replace(/\\([{}])/g, (_2, brace, index) => {
+        for (let pos of positions)
+          if (pos.line == lines.length && pos.from > index) {
+            pos.from--;
+            pos.to--;
+          }
+        return brace;
+      });
+      lines.push(line);
+    }
+    return new _Snippet(lines, positions);
+  }
+};
+var fieldMarker = /* @__PURE__ */ Decoration.widget({ widget: /* @__PURE__ */ new class extends WidgetType {
+  toDOM() {
+    let span = document.createElement("span");
+    span.className = "cm-snippetFieldPosition";
+    return span;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}() });
+var fieldRange = /* @__PURE__ */ Decoration.mark({ class: "cm-snippetField" });
+var ActiveSnippet = class _ActiveSnippet {
+  constructor(ranges, active) {
+    this.ranges = ranges;
+    this.active = active;
+    this.deco = Decoration.set(ranges.map((r) => (r.from == r.to ? fieldMarker : fieldRange).range(r.from, r.to)), true);
+  }
+  map(changes) {
+    let ranges = [];
+    for (let r of this.ranges) {
+      let mapped = r.map(changes);
+      if (!mapped)
+        return null;
+      ranges.push(mapped);
+    }
+    return new _ActiveSnippet(ranges, this.active);
+  }
+  selectionInsideField(sel) {
+    return sel.ranges.every((range) => this.ranges.some((r) => r.field == this.active && r.from <= range.from && r.to >= range.to));
+  }
+};
+var setActive = /* @__PURE__ */ StateEffect.define({
+  map(value, changes) {
+    return value && value.map(changes);
+  }
+});
+var moveToField = /* @__PURE__ */ StateEffect.define();
+var snippetState = /* @__PURE__ */ StateField.define({
+  create() {
+    return null;
+  },
+  update(value, tr2) {
+    for (let effect of tr2.effects) {
+      if (effect.is(setActive))
+        return effect.value;
+      if (effect.is(moveToField) && value)
+        return new ActiveSnippet(value.ranges, effect.value);
+    }
+    if (value && tr2.docChanged)
+      value = value.map(tr2.changes);
+    if (value && tr2.selection && !value.selectionInsideField(tr2.selection))
+      value = null;
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f, (val) => val ? val.deco : Decoration.none)
+});
+function fieldSelection(ranges, field) {
+  return EditorSelection.create(ranges.filter((r) => r.field == field).map((r) => EditorSelection.range(r.from, r.to)));
+}
+function snippet(template) {
+  let snippet2 = Snippet.parse(template);
+  return (editor, completion, from, to) => {
+    let { text, ranges } = snippet2.instantiate(editor.state, from);
+    let { main } = editor.state.selection;
+    let spec = {
+      changes: { from, to: to == main.from ? main.to : to, insert: Text2.of(text) },
+      scrollIntoView: true,
+      annotations: completion ? [pickedCompletion.of(completion), Transaction.userEvent.of("input.complete")] : void 0
+    };
+    if (ranges.length)
+      spec.selection = fieldSelection(ranges, 0);
+    if (ranges.some((r) => r.field > 0)) {
+      let active = new ActiveSnippet(ranges, 0);
+      let effects = spec.effects = [setActive.of(active)];
+      if (editor.state.field(snippetState, false) === void 0)
+        effects.push(StateEffect.appendConfig.of([snippetState, addSnippetKeymap, snippetPointerHandler, baseTheme3]));
+    }
+    editor.dispatch(editor.state.update(spec));
+  };
+}
+function moveField(dir) {
+  return ({ state, dispatch }) => {
+    let active = state.field(snippetState, false);
+    if (!active || dir < 0 && active.active == 0)
+      return false;
+    let next = active.active + dir, last2 = dir > 0 && !active.ranges.some((r) => r.field == next + dir);
+    dispatch(state.update({
+      selection: fieldSelection(active.ranges, next),
+      effects: setActive.of(last2 ? null : new ActiveSnippet(active.ranges, next)),
+      scrollIntoView: true
+    }));
+    return true;
+  };
+}
+var clearSnippet = ({ state, dispatch }) => {
+  let active = state.field(snippetState, false);
+  if (!active)
+    return false;
+  dispatch(state.update({ effects: setActive.of(null) }));
+  return true;
+};
+var nextSnippetField = /* @__PURE__ */ moveField(1);
+var prevSnippetField = /* @__PURE__ */ moveField(-1);
+var defaultSnippetKeymap = [
+  { key: "Tab", run: nextSnippetField, shift: prevSnippetField },
+  { key: "Escape", run: clearSnippet }
+];
+var snippetKeymap = /* @__PURE__ */ Facet.define({
+  combine(maps) {
+    return maps.length ? maps[0] : defaultSnippetKeymap;
+  }
+});
+var addSnippetKeymap = /* @__PURE__ */ Prec.highest(/* @__PURE__ */ keymap.compute([snippetKeymap], (state) => state.facet(snippetKeymap)));
+function snippetCompletion(template, completion) {
+  return { ...completion, apply: snippet(template) };
+}
+var snippetPointerHandler = /* @__PURE__ */ EditorView.domEventHandlers({
+  mousedown(event, view) {
+    let active = view.state.field(snippetState, false), pos;
+    if (!active || (pos = view.posAtCoords({ x: event.clientX, y: event.clientY })) == null)
+      return false;
+    let match = active.ranges.find((r) => r.from <= pos && r.to >= pos);
+    if (!match || match.field == active.active)
+      return false;
+    view.dispatch({
+      selection: fieldSelection(active.ranges, match.field),
+      effects: setActive.of(active.ranges.some((r) => r.field > match.field) ? new ActiveSnippet(active.ranges, match.field) : null),
+      scrollIntoView: true
+    });
+    return true;
+  }
+});
+var defaults = {
+  brackets: ["(", "[", "{", "'", '"'],
+  before: ")]}:;>",
+  stringPrefixes: []
+};
+var closeBracketEffect = /* @__PURE__ */ StateEffect.define({
+  map(value, mapping) {
+    let mapped = mapping.mapPos(value, -1, MapMode.TrackAfter);
+    return mapped == null ? void 0 : mapped;
+  }
+});
+var closedBracket = /* @__PURE__ */ new class extends RangeValue {
+}();
+closedBracket.startSide = 1;
+closedBracket.endSide = -1;
+var bracketState = /* @__PURE__ */ StateField.define({
+  create() {
+    return RangeSet.empty;
+  },
+  update(value, tr2) {
+    value = value.map(tr2.changes);
+    if (tr2.selection) {
+      let line = tr2.state.doc.lineAt(tr2.selection.main.head);
+      value = value.update({ filter: (from) => from >= line.from && from <= line.to });
+    }
+    for (let effect of tr2.effects)
+      if (effect.is(closeBracketEffect))
+        value = value.update({ add: [closedBracket.range(effect.value, effect.value + 1)] });
+    return value;
+  }
+});
+function closeBrackets() {
+  return [inputHandler2, bracketState];
+}
+var definedClosing = "()[]{}<>\xAB\xBB\xBB\xAB\uFF3B\uFF3D\uFF5B\uFF5D";
+function closing(ch) {
+  for (let i2 = 0; i2 < definedClosing.length; i2 += 2)
+    if (definedClosing.charCodeAt(i2) == ch)
+      return definedClosing.charAt(i2 + 1);
+  return fromCodePoint(ch < 128 ? ch : ch + 1);
+}
+function config(state, pos) {
+  return state.languageDataAt("closeBrackets", pos)[0] || defaults;
+}
+var android = typeof navigator == "object" && /* @__PURE__ */ /Android\b/.test(navigator.userAgent);
+var inputHandler2 = /* @__PURE__ */ EditorView.inputHandler.of((view, from, to, insert2) => {
+  if ((android ? view.composing : view.compositionStarted) || view.state.readOnly)
+    return false;
+  let sel = view.state.selection.main;
+  if (insert2.length > 2 || insert2.length == 2 && codePointSize2(codePointAt2(insert2, 0)) == 1 || from != sel.from || to != sel.to)
+    return false;
+  let tr2 = insertBracket(view.state, insert2);
+  if (!tr2)
+    return false;
+  view.dispatch(tr2);
+  return true;
+});
+var deleteBracketPair = ({ state, dispatch }) => {
+  if (state.readOnly)
+    return false;
+  let conf = config(state, state.selection.main.head);
+  let tokens2 = conf.brackets || defaults.brackets;
+  let dont = null, changes = state.changeByRange((range) => {
+    if (range.empty) {
+      let before = prevChar(state.doc, range.head);
+      for (let token2 of tokens2) {
+        if (token2 == before && nextChar(state.doc, range.head) == closing(codePointAt2(token2, 0)))
+          return {
+            changes: { from: range.head - token2.length, to: range.head + token2.length },
+            range: EditorSelection.cursor(range.head - token2.length)
+          };
+      }
+    }
+    return { range: dont = range };
+  });
+  if (!dont)
+    dispatch(state.update(changes, { scrollIntoView: true, userEvent: "delete.backward" }));
+  return !dont;
+};
+var closeBracketsKeymap = [
+  { key: "Backspace", run: deleteBracketPair }
+];
+function insertBracket(state, bracket2) {
+  let conf = config(state, state.selection.main.head);
+  let tokens2 = conf.brackets || defaults.brackets;
+  for (let tok of tokens2) {
+    let closed = closing(codePointAt2(tok, 0));
+    if (bracket2 == tok)
+      return closed == tok ? handleSame(state, tok, tokens2.indexOf(tok + tok + tok) > -1, conf) : handleOpen(state, tok, closed, conf.before || defaults.before);
+    if (bracket2 == closed && closedBracketAt(state, state.selection.main.from))
+      return handleClose(state, tok, closed);
+  }
+  return null;
+}
+function closedBracketAt(state, pos) {
+  let found = false;
+  state.field(bracketState).between(0, state.doc.length, (from) => {
+    if (from == pos)
+      found = true;
+  });
+  return found;
+}
+function nextChar(doc2, pos) {
+  let next = doc2.sliceString(pos, pos + 2);
+  return next.slice(0, codePointSize2(codePointAt2(next, 0)));
+}
+function prevChar(doc2, pos) {
+  let prev = doc2.sliceString(pos - 2, pos);
+  return codePointSize2(codePointAt2(prev, 0)) == prev.length ? prev : prev.slice(1);
+}
+function handleOpen(state, open, close, closeBefore) {
+  let dont = null, changes = state.changeByRange((range) => {
+    if (!range.empty)
+      return {
+        changes: [{ insert: open, from: range.from }, { insert: close, from: range.to }],
+        effects: closeBracketEffect.of(range.to + open.length),
+        range: EditorSelection.range(range.anchor + open.length, range.head + open.length)
+      };
+    let next = nextChar(state.doc, range.head);
+    if (!next || /\s/.test(next) || closeBefore.indexOf(next) > -1)
+      return {
+        changes: { insert: open + close, from: range.head },
+        effects: closeBracketEffect.of(range.head + open.length),
+        range: EditorSelection.cursor(range.head + open.length)
+      };
+    return { range: dont = range };
+  });
+  return dont ? null : state.update(changes, {
+    scrollIntoView: true,
+    userEvent: "input.type"
+  });
+}
+function handleClose(state, _open, close) {
+  let dont = null, changes = state.changeByRange((range) => {
+    if (range.empty && nextChar(state.doc, range.head) == close)
+      return {
+        changes: { from: range.head, to: range.head + close.length, insert: close },
+        range: EditorSelection.cursor(range.head + close.length)
+      };
+    return dont = { range };
+  });
+  return dont ? null : state.update(changes, {
+    scrollIntoView: true,
+    userEvent: "input.type"
+  });
+}
+function handleSame(state, token2, allowTriple, config2) {
+  let stringPrefixes = config2.stringPrefixes || defaults.stringPrefixes;
+  let dont = null, changes = state.changeByRange((range) => {
+    if (!range.empty)
+      return {
+        changes: [{ insert: token2, from: range.from }, { insert: token2, from: range.to }],
+        effects: closeBracketEffect.of(range.to + token2.length),
+        range: EditorSelection.range(range.anchor + token2.length, range.head + token2.length)
+      };
+    let pos = range.head, next = nextChar(state.doc, pos), start;
+    if (next == token2) {
+      if (nodeStart(state, pos)) {
+        return {
+          changes: { insert: token2 + token2, from: pos },
+          effects: closeBracketEffect.of(pos + token2.length),
+          range: EditorSelection.cursor(pos + token2.length)
+        };
+      } else if (closedBracketAt(state, pos)) {
+        let isTriple = allowTriple && state.sliceDoc(pos, pos + token2.length * 3) == token2 + token2 + token2;
+        let content2 = isTriple ? token2 + token2 + token2 : token2;
+        return {
+          changes: { from: pos, to: pos + content2.length, insert: content2 },
+          range: EditorSelection.cursor(pos + content2.length)
+        };
+      }
+    } else if (allowTriple && state.sliceDoc(pos - 2 * token2.length, pos) == token2 + token2 && (start = canStartStringAt(state, pos - 2 * token2.length, stringPrefixes)) > -1 && nodeStart(state, start)) {
+      return {
+        changes: { insert: token2 + token2 + token2 + token2, from: pos },
+        effects: closeBracketEffect.of(pos + token2.length),
+        range: EditorSelection.cursor(pos + token2.length)
+      };
+    } else if (state.charCategorizer(pos)(next) != CharCategory.Word) {
+      if (canStartStringAt(state, pos, stringPrefixes) > -1 && !probablyInString(state, pos, token2, stringPrefixes))
+        return {
+          changes: { insert: token2 + token2, from: pos },
+          effects: closeBracketEffect.of(pos + token2.length),
+          range: EditorSelection.cursor(pos + token2.length)
+        };
+    }
+    return { range: dont = range };
+  });
+  return dont ? null : state.update(changes, {
+    scrollIntoView: true,
+    userEvent: "input.type"
+  });
+}
+function nodeStart(state, pos) {
+  let tree = syntaxTree(state).resolveInner(pos + 1);
+  return tree.parent && tree.from == pos;
+}
+function probablyInString(state, pos, quoteToken, prefixes) {
+  let node = syntaxTree(state).resolveInner(pos, -1);
+  let maxPrefix = prefixes.reduce((m, p) => Math.max(m, p.length), 0);
+  for (let i2 = 0; i2 < 5; i2++) {
+    let start = state.sliceDoc(node.from, Math.min(node.to, node.from + quoteToken.length + maxPrefix));
+    let quotePos = start.indexOf(quoteToken);
+    if (!quotePos || quotePos > -1 && prefixes.indexOf(start.slice(0, quotePos)) > -1) {
+      let first = node.firstChild;
+      while (first && first.from == node.from && first.to - first.from > quoteToken.length + quotePos) {
+        if (state.sliceDoc(first.to - quoteToken.length, first.to) == quoteToken)
+          return false;
+        first = first.firstChild;
+      }
+      return true;
+    }
+    let parent = node.to == pos && node.parent;
+    if (!parent)
+      break;
+    node = parent;
+  }
+  return false;
+}
+function canStartStringAt(state, pos, prefixes) {
+  let charCat = state.charCategorizer(pos);
+  if (charCat(state.sliceDoc(pos - 1, pos)) != CharCategory.Word)
+    return pos;
+  for (let prefix of prefixes) {
+    let start = pos - prefix.length;
+    if (state.sliceDoc(start, pos) == prefix && charCat(state.sliceDoc(start - 1, start)) != CharCategory.Word)
+      return start;
+  }
+  return -1;
+}
+function autocompletion(config2 = {}) {
+  return [
+    commitCharacters,
+    completionState,
+    completionConfig.of(config2),
+    completionPlugin,
+    completionKeymapExt,
+    baseTheme3
+  ];
+}
+var completionKeymap = [
+  { key: "Ctrl-Space", run: startCompletion },
+  { mac: "Alt-`", run: startCompletion },
+  { mac: "Alt-i", run: startCompletion },
+  { key: "Escape", run: closeCompletion },
+  { key: "ArrowDown", run: /* @__PURE__ */ moveCompletionSelection(true) },
+  { key: "ArrowUp", run: /* @__PURE__ */ moveCompletionSelection(false) },
+  { key: "PageDown", run: /* @__PURE__ */ moveCompletionSelection(true, "page") },
+  { key: "PageUp", run: /* @__PURE__ */ moveCompletionSelection(false, "page") },
+  { key: "Enter", run: acceptCompletion }
+];
+var completionKeymapExt = /* @__PURE__ */ Prec.highest(/* @__PURE__ */ keymap.computeN([completionConfig], (state) => state.facet(completionConfig).defaultKeymap ? [completionKeymap] : []));
 
 // node_modules/@codemirror/search/dist/index.js
 var basicNormalize = typeof String.prototype.normalize == "function" ? (x) => x.normalize("NFKD") : (x) => x;
@@ -36346,16 +39477,16 @@ var RegExpCursor = class {
   document. `query` should be the raw pattern (as you'd pass it to
   `new RegExp`).
   */
-  constructor(text, query, options, from = 0, to = text.length) {
+  constructor(text, query, options2, from = 0, to = text.length) {
     this.text = text;
     this.to = to;
     this.curLine = "";
     this.done = false;
     this.value = empty;
     if (/\\[sWDnr]|\n|\r|\[\^/.test(query))
-      return new MultilineRegExpCursor(text, query, options, from, to);
-    this.re = new RegExp(query, baseFlags + ((options === null || options === void 0 ? void 0 : options.ignoreCase) ? "i" : ""));
-    this.test = options === null || options === void 0 ? void 0 : options.test;
+      return new MultilineRegExpCursor(text, query, options2, from, to);
+    this.re = new RegExp(query, baseFlags + ((options2 === null || options2 === void 0 ? void 0 : options2.ignoreCase) ? "i" : ""));
+    this.test = options2 === null || options2 === void 0 ? void 0 : options2.test;
     this.iter = text.iter();
     let startLine = text.lineAt(from);
     this.curLineStart = startLine.from;
@@ -36437,14 +39568,14 @@ var FlattenedDoc = class _FlattenedDoc {
   }
 };
 var MultilineRegExpCursor = class {
-  constructor(text, query, options, from, to) {
+  constructor(text, query, options2, from, to) {
     this.text = text;
     this.to = to;
     this.done = false;
     this.value = empty;
     this.matchPos = toCharEnd(text, from);
-    this.re = new RegExp(query, baseFlags + ((options === null || options === void 0 ? void 0 : options.ignoreCase) ? "i" : ""));
-    this.test = options === null || options === void 0 ? void 0 : options.test;
+    this.re = new RegExp(query, baseFlags + ((options2 === null || options2 === void 0 ? void 0 : options2.ignoreCase) ? "i" : ""));
+    this.test = options2 === null || options2 === void 0 ? void 0 : options2.test;
     this.flat = FlattenedDoc.get(text, from, this.chunkEnd(
       from + 5e3
       /* Chunk.Base */
@@ -36511,23 +39642,23 @@ var searchConfigFacet = /* @__PURE__ */ Facet.define({
     });
   }
 });
-function search(config) {
-  return config ? [searchConfigFacet.of(config), searchExtensions] : searchExtensions;
+function search(config2) {
+  return config2 ? [searchConfigFacet.of(config2), searchExtensions] : searchExtensions;
 }
 var SearchQuery = class {
   /**
   Create a query object.
   */
-  constructor(config) {
-    this.search = config.search;
-    this.caseSensitive = !!config.caseSensitive;
-    this.literal = !!config.literal;
-    this.regexp = !!config.regexp;
-    this.replace = config.replace || "";
+  constructor(config2) {
+    this.search = config2.search;
+    this.caseSensitive = !!config2.caseSensitive;
+    this.literal = !!config2.literal;
+    this.regexp = !!config2.regexp;
+    this.replace = config2.replace || "";
     this.valid = !!this.search && (!this.regexp || validRegExp(this.search));
     this.unquoted = this.unquote(this.search);
-    this.wholeWord = !!config.wholeWord;
-    this.test = config.test;
+    this.wholeWord = !!config2.wholeWord;
+    this.test = config2.test;
   }
   /**
   @internal
@@ -36538,8 +39669,8 @@ var SearchQuery = class {
   /**
   Compare this query to another query.
   */
-  eq(other) {
-    return this.search == other.search && this.replace == other.replace && this.caseSensitive == other.caseSensitive && this.regexp == other.regexp && this.wholeWord == other.wholeWord && this.test == other.test;
+  eq(other2) {
+    return this.search == other2.search && this.replace == other2.replace && this.caseSensitive == other2.caseSensitive && this.regexp == other2.regexp && this.wholeWord == other2.wholeWord && this.test == other2.test;
   }
   /**
   @internal
@@ -36786,10 +39917,10 @@ var findNext = /* @__PURE__ */ searchCommand((view, { query }) => {
   if (!next)
     return false;
   let selection = EditorSelection.single(next.from, next.to);
-  let config = view.state.facet(searchConfigFacet);
+  let config2 = view.state.facet(searchConfigFacet);
   view.dispatch({
     selection,
-    effects: [announceMatch(view, next), config.scrollToMatch(selection.main, view)],
+    effects: [announceMatch(view, next), config2.scrollToMatch(selection.main, view)],
     userEvent: "select.search"
   });
   selectSearchInput(view);
@@ -36801,10 +39932,10 @@ var findPrevious = /* @__PURE__ */ searchCommand((view, { query }) => {
   if (!prev)
     return false;
   let selection = EditorSelection.single(prev.from, prev.to);
-  let config = view.state.facet(searchConfigFacet);
+  let config2 = view.state.facet(searchConfigFacet);
   view.dispatch({
     selection,
-    effects: [announceMatch(view, prev), config.scrollToMatch(selection.main, view)],
+    effects: [announceMatch(view, prev), config2.scrollToMatch(selection.main, view)],
     userEvent: "select.search"
   });
   selectSearchInput(view);
@@ -36880,13 +40011,13 @@ function defaultQuery(state, fallback2) {
   let selText = sel.empty || sel.to > sel.from + 100 ? "" : state.sliceDoc(sel.from, sel.to);
   if (fallback2 && !selText)
     return fallback2;
-  let config = state.facet(searchConfigFacet);
+  let config2 = state.facet(searchConfigFacet);
   return new SearchQuery({
-    search: ((_a2 = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.literal) !== null && _a2 !== void 0 ? _a2 : config.literal) ? selText : selText.replace(/\n/g, "\\n"),
-    caseSensitive: (_b2 = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.caseSensitive) !== null && _b2 !== void 0 ? _b2 : config.caseSensitive,
-    literal: (_c2 = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.literal) !== null && _c2 !== void 0 ? _c2 : config.literal,
-    regexp: (_d = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.regexp) !== null && _d !== void 0 ? _d : config.regexp,
-    wholeWord: (_e4 = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.wholeWord) !== null && _e4 !== void 0 ? _e4 : config.wholeWord
+    search: ((_a2 = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.literal) !== null && _a2 !== void 0 ? _a2 : config2.literal) ? selText : selText.replace(/\n/g, "\\n"),
+    caseSensitive: (_b2 = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.caseSensitive) !== null && _b2 !== void 0 ? _b2 : config2.caseSensitive,
+    literal: (_c2 = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.literal) !== null && _c2 !== void 0 ? _c2 : config2.literal,
+    regexp: (_d = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.regexp) !== null && _d !== void 0 ? _d : config2.regexp,
+    wholeWord: (_e4 = fallback2 === null || fallback2 === void 0 ? void 0 : fallback2.wholeWord) !== null && _e4 !== void 0 ? _e4 : config2.wholeWord
   });
 }
 function getSearchInput(view) {
@@ -37073,7 +40204,7 @@ function announceMatch(view, { from, to }) {
   }
   return EditorView.announce.of(`${view.state.phrase("current match")}. ${text} ${view.state.phrase("on line")} ${line.number}.`);
 }
-var baseTheme3 = /* @__PURE__ */ EditorView.baseTheme({
+var baseTheme4 = /* @__PURE__ */ EditorView.baseTheme({
   ".cm-panel.cm-search": {
     padding: "2px 6px 4px",
     position: "relative",
@@ -37106,7 +40237,7 @@ var baseTheme3 = /* @__PURE__ */ EditorView.baseTheme({
 var searchExtensions = [
   searchState,
   /* @__PURE__ */ Prec.low(searchHighlighter),
-  baseTheme3
+  baseTheme4
 ];
 
 // node_modules/@lezer/lr/dist/index.js
@@ -37114,13 +40245,13 @@ var Stack = class _Stack {
   /**
   @internal
   */
-  constructor(p, stack, state, reducePos, pos, score, buffer, bufferBase, curContext, lookAhead = 0, parent) {
+  constructor(p, stack, state, reducePos, pos, score2, buffer, bufferBase, curContext, lookAhead = 0, parent) {
     this.p = p;
     this.stack = stack;
     this.state = state;
     this.reducePos = reducePos;
     this.pos = pos;
-    this.score = score;
+    this.score = score2;
     this.buffer = buffer;
     this.bufferBase = bufferBase;
     this.curContext = curContext;
@@ -37166,23 +40297,23 @@ var Stack = class _Stack {
   reduce(action) {
     var _a2;
     let depth = action >> 19, type = action & 65535;
-    let { parser: parser15 } = this.p;
+    let { parser: parser16 } = this.p;
     let lookaheadRecord = this.reducePos < this.pos - 25 && this.setLookAhead(this.pos);
-    let dPrec = parser15.dynamicPrecedence(type);
+    let dPrec = parser16.dynamicPrecedence(type);
     if (dPrec)
       this.score += dPrec;
     if (depth == 0) {
-      if (type < parser15.minRepeatTerm && this.reducePos < this.pos)
+      if (type < parser16.minRepeatTerm && this.reducePos < this.pos)
         this.reducePos = this.pos;
-      this.pushState(parser15.getGoto(this.state, type, true), this.reducePos);
-      if (type < parser15.minRepeatTerm)
+      this.pushState(parser16.getGoto(this.state, type, true), this.reducePos);
+      if (type < parser16.minRepeatTerm)
         this.storeNode(type, this.reducePos, this.reducePos, lookaheadRecord ? 8 : 4, true);
       this.reduceContext(type, this.reducePos);
       return;
     }
     let base2 = this.stack.length - (depth - 1) * 3 - (action & 262144 ? 6 : 0);
     let start = base2 ? this.stack[base2 - 2] : this.p.ranges[0].from;
-    if (type < parser15.minRepeatTerm && start == this.reducePos && this.reducePos < this.pos)
+    if (type < parser16.minRepeatTerm && start == this.reducePos && this.reducePos < this.pos)
       this.reducePos = this.pos;
     let size = this.reducePos - start;
     if (size >= 2e3 && !((_a2 = this.p.parser.nodeSet.types[type]) === null || _a2 === void 0 ? void 0 : _a2.isAnonymous)) {
@@ -37196,8 +40327,8 @@ var Stack = class _Stack {
       }
     }
     let bufferBase = base2 ? this.stack[base2 - 1] : 0, count2 = this.bufferBase + this.buffer.length - bufferBase;
-    if (type < parser15.minRepeatTerm || action & 131072) {
-      let pos = parser15.stateFlag(
+    if (type < parser16.minRepeatTerm || action & 131072) {
+      let pos = parser16.stateFlag(
         this.state,
         1
         /* StateFlag.Skipped */
@@ -37208,7 +40339,7 @@ var Stack = class _Stack {
       this.state = this.stack[base2];
     } else {
       let baseStateID = this.stack[base2 - 3];
-      this.state = parser15.getGoto(baseStateID, type, true);
+      this.state = parser16.getGoto(baseStateID, type, true);
     }
     while (this.stack.length > base2)
       this.stack.pop();
@@ -37267,18 +40398,18 @@ var Stack = class _Stack {
     if (action & 131072) {
       this.pushState(action & 65535, this.pos);
     } else if ((action & 262144) == 0) {
-      let nextState = action, { parser: parser15 } = this.p;
+      let nextState = action, { parser: parser16 } = this.p;
       this.pos = end;
-      let skipped = parser15.stateFlag(
+      let skipped = parser16.stateFlag(
         nextState,
         1
         /* StateFlag.Skipped */
       );
-      if (!skipped && (end > start || type <= parser15.maxNode))
+      if (!skipped && (end > start || type <= parser16.maxNode))
         this.reducePos = end;
       this.pushState(nextState, skipped ? start : Math.min(start, this.reducePos));
       this.shiftContext(type, start);
-      if (type <= parser15.maxNode)
+      if (type <= parser16.maxNode)
         this.buffer.push(type, start, end, 4);
     } else {
       this.pos = end;
@@ -37413,18 +40544,18 @@ var Stack = class _Stack {
   @internal
   */
   forceReduce() {
-    let { parser: parser15 } = this.p;
-    let reduce = parser15.stateSlot(
+    let { parser: parser16 } = this.p;
+    let reduce = parser16.stateSlot(
       this.state,
       5
       /* ParseState.ForcedReduce */
     );
     if ((reduce & 65536) == 0)
       return false;
-    if (!parser15.validAction(this.state, reduce)) {
+    if (!parser16.validAction(this.state, reduce)) {
       let depth = reduce >> 19, term = reduce & 65535;
       let target = this.stack.length - depth * 3;
-      if (target < 0 || parser15.getGoto(this.stack[target], term, false) < 0) {
+      if (target < 0 || parser16.getGoto(this.stack[target], term, false) < 0) {
         let backup = this.findForcedReduction();
         if (backup == null)
           return false;
@@ -37443,18 +40574,18 @@ var Stack = class _Stack {
   isn't a valid action. @internal
   */
   findForcedReduction() {
-    let { parser: parser15 } = this.p, seen = [];
+    let { parser: parser16 } = this.p, seen = [];
     let explore = (state, depth) => {
       if (seen.includes(state))
         return;
       seen.push(state);
-      return parser15.allActions(state, (action) => {
+      return parser16.allActions(state, (action) => {
         if (action & (262144 | 131072)) ;
         else if (action & 65536) {
           let rDepth = (action >> 19) - depth;
           if (rDepth > 1) {
             let term = action & 65535, target = this.stack.length - rDepth * 3;
-            if (target >= 0 && parser15.getGoto(this.stack[target], term, false) >= 0)
+            if (target >= 0 && parser16.getGoto(this.stack[target], term, false) >= 0)
               return rDepth << 19 | 65536 | term;
           }
         } else {
@@ -37490,12 +40621,12 @@ var Stack = class _Stack {
   get deadEnd() {
     if (this.stack.length != 3)
       return false;
-    let { parser: parser15 } = this.p;
-    return parser15.data[parser15.stateSlot(
+    let { parser: parser16 } = this.p;
+    return parser16.data[parser16.stateSlot(
       this.state,
       1
       /* ParseState.Actions */
-    )] == 65535 && !parser15.stateSlot(
+    )] == 65535 && !parser16.stateSlot(
       this.state,
       4
       /* ParseState.DefaultReduce */
@@ -37514,11 +40645,11 @@ var Stack = class _Stack {
   /**
   @internal
   */
-  sameState(other) {
-    if (this.state != other.state || this.stack.length != other.stack.length)
+  sameState(other2) {
+    if (this.state != other2.state || this.stack.length != other2.stack.length)
       return false;
     for (let i2 = 0; i2 < this.stack.length; i2 += 3)
-      if (this.stack[i2] != other.stack[i2])
+      if (this.stack[i2] != other2.stack[i2])
         return false;
     return true;
   }
@@ -37559,9 +40690,9 @@ var Stack = class _Stack {
     if (last2 < 0 || this.buffer[last2] != -4)
       this.buffer.push(this.lookAhead, this.pos, this.pos, -4);
   }
-  updateContext(context) {
-    if (context != this.curContext.context) {
-      let newCx = new StackContext(this.curContext.tracker, context);
+  updateContext(context2) {
+    if (context2 != this.curContext.context) {
+      let newCx = new StackContext(this.curContext.tracker, context2);
       if (newCx.hash != this.curContext.hash)
         this.emitContext();
       this.curContext = newCx;
@@ -37588,10 +40719,10 @@ var Stack = class _Stack {
   }
 };
 var StackContext = class {
-  constructor(tracker, context) {
+  constructor(tracker, context2) {
     this.tracker = tracker;
-    this.context = context;
-    this.hash = tracker.strict ? tracker.hash(context) : 0;
+    this.context = context2;
+    this.hash = tracker.strict ? tracker.hash(context2) : 0;
   }
 };
 var SimulatedStack = class {
@@ -37918,8 +41049,8 @@ var TokenGroup = class {
     this.id = id2;
   }
   token(input, stack) {
-    let { parser: parser15 } = stack.p;
-    readToken(this.data, input, stack, this.id, parser15.data, parser15.tokenPrecTable);
+    let { parser: parser16 } = stack.p;
+    readToken(this.data, input, stack, this.id, parser16.data, parser16.tokenPrecTable);
   }
 };
 TokenGroup.prototype.contextual = TokenGroup.prototype.fallback = TokenGroup.prototype.extend = false;
@@ -37959,11 +41090,11 @@ var ExternalTokenizer = class {
   [`acceptToken`](#lr.InputStream.acceptToken) when it finds
   one.
   */
-  constructor(token2, options = {}) {
+  constructor(token2, options2 = {}) {
     this.token = token2;
-    this.contextual = !!options.contextual;
-    this.fallback = !!options.fallback;
-    this.extend = !!options.extend;
+    this.contextual = !!options2.contextual;
+    this.fallback = !!options2.fallback;
+    this.extend = !!options2.extend;
   }
 };
 function readToken(data2, input, stack, group, precTable, precOffset) {
@@ -38126,23 +41257,23 @@ var FragmentCursor2 = class {
   }
 };
 var TokenCache = class {
-  constructor(parser15, stream) {
+  constructor(parser16, stream) {
     this.stream = stream;
     this.tokens = [];
     this.mainToken = null;
     this.actions = [];
-    this.tokens = parser15.tokenizers.map((_2) => new CachedToken());
+    this.tokens = parser16.tokenizers.map((_2) => new CachedToken());
   }
   getActions(stack) {
     let actionIndex = 0;
     let main = null;
-    let { parser: parser15 } = stack.p, { tokenizers } = parser15;
-    let mask = parser15.stateSlot(
+    let { parser: parser16 } = stack.p, { tokenizers } = parser16;
+    let mask = parser16.stateSlot(
       stack.state,
       3
       /* ParseState.TokenizerMask */
     );
-    let context = stack.curContext ? stack.curContext.hash : 0;
+    let context2 = stack.curContext ? stack.curContext.hash : 0;
     let lookAhead = 0;
     for (let i2 = 0; i2 < tokenizers.length; i2++) {
       if ((1 << i2 & mask) == 0)
@@ -38150,10 +41281,10 @@ var TokenCache = class {
       let tokenizer = tokenizers[i2], token2 = this.tokens[i2];
       if (main && !tokenizer.fallback)
         continue;
-      if (tokenizer.contextual || token2.start != stack.pos || token2.mask != mask || token2.context != context) {
+      if (tokenizer.contextual || token2.start != stack.pos || token2.mask != mask || token2.context != context2) {
         this.updateCachedToken(token2, tokenizer, stack);
         token2.mask = mask;
-        token2.context = context;
+        token2.context = context2;
       }
       if (token2.lookAhead > token2.end + 25)
         lookAhead = Math.max(token2.lookAhead, lookAhead);
@@ -38195,10 +41326,10 @@ var TokenCache = class {
     let start = this.stream.clipPos(stack.pos);
     tokenizer.token(this.stream.reset(start, token2), stack);
     if (token2.value > -1) {
-      let { parser: parser15 } = stack.p;
-      for (let i2 = 0; i2 < parser15.specialized.length; i2++)
-        if (parser15.specialized[i2] == token2.value) {
-          let result = parser15.specializers[i2](this.stream.read(token2.start, token2.end), stack);
+      let { parser: parser16 } = stack.p;
+      for (let i2 = 0; i2 < parser16.specialized.length; i2++)
+        if (parser16.specialized[i2] == token2.value) {
+          let result = parser16.specializers[i2](this.stream.read(token2.start, token2.end), stack);
           if (result >= 0 && stack.p.parser.dialect.allows(result >> 1)) {
             if ((result & 1) == 0)
               token2.value = result >> 1;
@@ -38222,9 +41353,9 @@ var TokenCache = class {
     return index;
   }
   addActions(stack, token2, end, index) {
-    let { state } = stack, { parser: parser15 } = stack.p, { data: data2 } = parser15;
+    let { state } = stack, { parser: parser16 } = stack.p, { data: data2 } = parser16;
     for (let set = 0; set < 2; set++) {
-      for (let i2 = parser15.stateSlot(
+      for (let i2 = parser16.stateSlot(
         state,
         set ? 2 : 1
         /* ParseState.Actions */
@@ -38246,8 +41377,8 @@ var TokenCache = class {
   }
 };
 var Parse = class {
-  constructor(parser15, input, fragments, ranges) {
-    this.parser = parser15;
+  constructor(parser16, input, fragments, ranges) {
+    this.parser = parser16;
     this.input = input;
     this.ranges = ranges;
     this.recovering = 0;
@@ -38259,11 +41390,11 @@ var Parse = class {
     this.lastBigReductionSize = 0;
     this.bigReductionCount = 0;
     this.stream = new InputStream(input, ranges);
-    this.tokens = new TokenCache(parser15, this.stream);
-    this.topTerm = parser15.top[1];
+    this.tokens = new TokenCache(parser16, this.stream);
+    this.topTerm = parser16.top[1];
     let { from } = ranges[0];
-    this.stacks = [Stack.start(this, parser15.top[0], from)];
-    this.fragments = fragments.length && this.stream.end - from > parser15.bufferLength * 4 ? new FragmentCursor2(fragments, parser15.minRepeatTerm) : null;
+    this.stacks = [Stack.start(this, parser16.top[0], from)];
+    this.fragments = fragments.length && this.stream.end - from > parser16.bufferLength * 4 ? new FragmentCursor2(fragments, parser16.minRepeatTerm) : null;
   }
   get parsedPos() {
     return this.minStackPos;
@@ -38340,9 +41471,9 @@ var Parse = class {
       outer: for (let i2 = 0; i2 < newStacks.length - 1; i2++) {
         let stack = newStacks[i2];
         for (let j2 = i2 + 1; j2 < newStacks.length; j2++) {
-          let other = newStacks[j2];
-          if (stack.sameState(other) || stack.buffer.length > 500 && other.buffer.length > 500) {
-            if ((stack.score - other.score || stack.buffer.length - other.buffer.length) > 0) {
+          let other2 = newStacks[j2];
+          if (stack.sameState(other2) || stack.buffer.length > 500 && other2.buffer.length > 500) {
+            if ((stack.score - other2.score || stack.buffer.length - other2.buffer.length) > 0) {
               newStacks.splice(j2--, 1);
             } else {
               newStacks.splice(i2--, 1);
@@ -38398,7 +41529,7 @@ var Parse = class {
   // given, stacks split off by ambiguous operations will be pushed to
   // `split`, or added to `stacks` if they move `pos` forward.
   advanceStack(stack, stacks, split) {
-    let start = stack.pos, { parser: parser15 } = this;
+    let start = stack.pos, { parser: parser16 } = this;
     let base2 = verbose ? this.stackID(stack) + " -> " : "";
     if (this.stoppedAt != null && start > this.stoppedAt)
       return stack.forceReduce() ? stack : null;
@@ -38406,11 +41537,11 @@ var Parse = class {
       let reused = stack.reducePos < start && stack.buffer.length && stack.buffer[stack.buffer.length - 2] <= stack.reducePos && this.fragments.lastRepeatPos == stack.reducePos && this.tryReuse(stack, stack.reducePos, this.fragments.lastRepeat, true) || this.tryReuse(stack, start, this.fragments.nodeAt(start), false);
       if (reused) {
         if (verbose)
-          console.log(base2 + this.stackID(stack) + ` (via reuse of ${parser15.getName(reused.type.id)})`);
+          console.log(base2 + this.stackID(stack) + ` (via reuse of ${parser16.getName(reused.type.id)})`);
         return true;
       }
     }
-    let defaultReduce = parser15.stateSlot(
+    let defaultReduce = parser16.stateSlot(
       stack.state,
       4
       /* ParseState.DefaultReduce */
@@ -38418,7 +41549,7 @@ var Parse = class {
     if (defaultReduce > 0) {
       stack.reduce(defaultReduce);
       if (verbose)
-        console.log(base2 + this.stackID(stack) + ` (via always-reduce ${parser15.getName(
+        console.log(base2 + this.stackID(stack) + ` (via always-reduce ${parser16.getName(
           defaultReduce & 65535
           /* Action.ValueMask */
         )})`);
@@ -38436,10 +41567,10 @@ var Parse = class {
       let main = this.tokens.mainToken;
       localStack.apply(action, term, main ? main.start : localStack.pos, end);
       if (verbose)
-        console.log(base2 + this.stackID(localStack) + ` (via ${(action & 65536) == 0 ? "shift" : `reduce of ${parser15.getName(
+        console.log(base2 + this.stackID(localStack) + ` (via ${(action & 65536) == 0 ? "shift" : `reduce of ${parser16.getName(
           action & 65535
           /* Action.ValueMask */
-        )}`} for ${parser15.getName(term)} @ ${start}${localStack == stack ? "" : ", split"})`);
+        )}`} for ${parser16.getName(term)} @ ${start}${localStack == stack ? "" : ", split"})`);
       if (last2)
         return true;
       else if (localStack.pos > start)
@@ -38532,8 +41663,8 @@ var Parse = class {
 };
 function pushStackDedup(stack, newStacks) {
   for (let i2 = 0; i2 < newStacks.length; i2++) {
-    let other = newStacks[i2];
-    if (other.pos == stack.pos && other.sameState(stack)) {
+    let other2 = newStacks[i2];
+    if (other2.pos == stack.pos && other2.sameState(stack)) {
       if (newStacks[i2].score < stack.score)
         newStacks[i2] = stack;
       return;
@@ -38762,25 +41893,25 @@ var LRParser = class _LRParser extends Parser {
   given settings modified. Settings not provided in `config` are
   kept from the original parser.
   */
-  configure(config) {
+  configure(config2) {
     let copy = Object.assign(Object.create(_LRParser.prototype), this);
-    if (config.props)
-      copy.nodeSet = this.nodeSet.extend(...config.props);
-    if (config.top) {
-      let info = this.topRules[config.top];
+    if (config2.props)
+      copy.nodeSet = this.nodeSet.extend(...config2.props);
+    if (config2.top) {
+      let info = this.topRules[config2.top];
       if (!info)
-        throw new RangeError(`Invalid top rule name ${config.top}`);
+        throw new RangeError(`Invalid top rule name ${config2.top}`);
       copy.top = info;
     }
-    if (config.tokenizers)
+    if (config2.tokenizers)
       copy.tokenizers = this.tokenizers.map((t2) => {
-        let found = config.tokenizers.find((r) => r.from == t2);
+        let found = config2.tokenizers.find((r) => r.from == t2);
         return found ? found.to : t2;
       });
-    if (config.specializers) {
+    if (config2.specializers) {
       copy.specializers = this.specializers.slice();
       copy.specializerSpecs = this.specializerSpecs.map((s15, i2) => {
-        let found = config.specializers.find((r) => r.from == s15.external);
+        let found = config2.specializers.find((r) => r.from == s15.external);
         if (!found)
           return s15;
         let spec = Object.assign(Object.assign({}, s15), { external: found.to });
@@ -38788,16 +41919,16 @@ var LRParser = class _LRParser extends Parser {
         return spec;
       });
     }
-    if (config.contextTracker)
-      copy.context = config.contextTracker;
-    if (config.dialect)
-      copy.dialect = this.parseDialect(config.dialect);
-    if (config.strict != null)
-      copy.strict = config.strict;
-    if (config.wrap)
-      copy.wrappers = copy.wrappers.concat(config.wrap);
-    if (config.bufferLength != null)
-      copy.bufferLength = config.bufferLength;
+    if (config2.contextTracker)
+      copy.context = config2.contextTracker;
+    if (config2.dialect)
+      copy.dialect = this.parseDialect(config2.dialect);
+    if (config2.strict != null)
+      copy.strict = config2.strict;
+    if (config2.wrap)
+      copy.wrappers = copy.wrappers.concat(config2.wrap);
+    if (config2.bufferLength != null)
+      copy.bufferLength = config2.bufferLength;
     return copy;
   }
   /**
@@ -38940,8 +42071,8 @@ var dot = 46;
 var bracketL = 91;
 var trackNewline = new ContextTracker({
   start: false,
-  shift(context, term) {
-    return term == LineComment || term == BlockComment || term == spaces ? context : term == newline;
+  shift(context2, term) {
+    return term == LineComment || term == BlockComment || term == spaces ? context2 : term == newline;
   },
   strict: false
 });
@@ -39099,471 +42230,6 @@ var parser = LRParser.deserialize({
   tokenPrec: 15205
 });
 
-// node_modules/@codemirror/autocomplete/dist/index.js
-var CompletionContext = class {
-  /**
-  Create a new completion context. (Mostly useful for testing
-  completion sources—in the editor, the extension will create
-  these for you.)
-  */
-  constructor(state, pos, explicit, view) {
-    this.state = state;
-    this.pos = pos;
-    this.explicit = explicit;
-    this.view = view;
-    this.abortListeners = [];
-    this.abortOnDocChange = false;
-  }
-  /**
-  Get the extent, content, and (if there is a token) type of the
-  token before `this.pos`.
-  */
-  tokenBefore(types2) {
-    let token2 = syntaxTree(this.state).resolveInner(this.pos, -1);
-    while (token2 && types2.indexOf(token2.name) < 0)
-      token2 = token2.parent;
-    return token2 ? {
-      from: token2.from,
-      to: this.pos,
-      text: this.state.sliceDoc(token2.from, this.pos),
-      type: token2.type
-    } : null;
-  }
-  /**
-  Get the match of the given expression directly before the
-  cursor.
-  */
-  matchBefore(expr) {
-    let line = this.state.doc.lineAt(this.pos);
-    let start = Math.max(line.from, this.pos - 250);
-    let str = line.text.slice(start - line.from, this.pos - line.from);
-    let found = str.search(ensureAnchor(expr, false));
-    return found < 0 ? null : { from: start + found, to: this.pos, text: str.slice(found) };
-  }
-  /**
-  Yields true when the query has been aborted. Can be useful in
-  asynchronous queries to avoid doing work that will be ignored.
-  */
-  get aborted() {
-    return this.abortListeners == null;
-  }
-  /**
-  Allows you to register abort handlers, which will be called when
-  the query is
-  [aborted](https://codemirror.net/6/docs/ref/#autocomplete.CompletionContext.aborted).
-  
-  By default, running queries will not be aborted for regular
-  typing or backspacing, on the assumption that they are likely to
-  return a result with a
-  [`validFor`](https://codemirror.net/6/docs/ref/#autocomplete.CompletionResult.validFor) field that
-  allows the result to be used after all. Passing `onDocChange:
-  true` will cause this query to be aborted for any document
-  change.
-  */
-  addEventListener(type, listener, options) {
-    if (type == "abort" && this.abortListeners) {
-      this.abortListeners.push(listener);
-      if (options && options.onDocChange)
-        this.abortOnDocChange = true;
-    }
-  }
-};
-function toSet(chars) {
-  let flat = Object.keys(chars).join("");
-  let words = /\w/.test(flat);
-  if (words)
-    flat = flat.replace(/\w/g, "");
-  return `[${words ? "\\w" : ""}${flat.replace(/[^\w\s]/g, "\\$&")}]`;
-}
-function prefixMatch(options) {
-  let first = /* @__PURE__ */ Object.create(null), rest = /* @__PURE__ */ Object.create(null);
-  for (let { label: label3 } of options) {
-    first[label3[0]] = true;
-    for (let i2 = 1; i2 < label3.length; i2++)
-      rest[label3[i2]] = true;
-  }
-  let source = toSet(first) + toSet(rest) + "*$";
-  return [new RegExp("^" + source), new RegExp(source)];
-}
-function completeFromList(list) {
-  let options = list.map((o2) => typeof o2 == "string" ? { label: o2 } : o2);
-  let [validFor, match] = options.every((o2) => /^\w+$/.test(o2.label)) ? [/\w*$/, /\w+$/] : prefixMatch(options);
-  return (context) => {
-    let token2 = context.matchBefore(match);
-    return token2 || context.explicit ? { from: token2 ? token2.from : context.pos, options, validFor } : null;
-  };
-}
-function ifNotIn(nodes, source) {
-  return (context) => {
-    for (let pos = syntaxTree(context.state).resolveInner(context.pos, -1); pos; pos = pos.parent) {
-      if (nodes.indexOf(pos.name) > -1)
-        return null;
-      if (pos.type.isTop)
-        break;
-    }
-    return source(context);
-  };
-}
-function ensureAnchor(expr, start) {
-  var _a2;
-  let { source } = expr;
-  let addStart = start && source[0] != "^", addEnd = source[source.length - 1] != "$";
-  if (!addStart && !addEnd)
-    return expr;
-  return new RegExp(`${addStart ? "^" : ""}(?:${source})${addEnd ? "$" : ""}`, (_a2 = expr.flags) !== null && _a2 !== void 0 ? _a2 : expr.ignoreCase ? "i" : "");
-}
-var pickedCompletion = /* @__PURE__ */ Annotation.define();
-var windows = typeof navigator == "object" && /* @__PURE__ */ /Win/.test(navigator.platform);
-var baseTheme4 = /* @__PURE__ */ EditorView.baseTheme({
-  ".cm-tooltip.cm-tooltip-autocomplete": {
-    "& > ul": {
-      fontFamily: "monospace",
-      whiteSpace: "nowrap",
-      overflow: "hidden auto",
-      maxWidth_fallback: "700px",
-      maxWidth: "min(700px, 95vw)",
-      minWidth: "250px",
-      maxHeight: "10em",
-      height: "100%",
-      listStyle: "none",
-      margin: 0,
-      padding: 0,
-      "& > li, & > completion-section": {
-        padding: "1px 3px",
-        lineHeight: 1.2
-      },
-      "& > li": {
-        overflowX: "hidden",
-        textOverflow: "ellipsis",
-        cursor: "pointer"
-      },
-      "& > completion-section": {
-        display: "list-item",
-        borderBottom: "1px solid silver",
-        paddingLeft: "0.5em",
-        opacity: 0.7
-      }
-    }
-  },
-  "&light .cm-tooltip-autocomplete ul li[aria-selected]": {
-    background: "#17c",
-    color: "white"
-  },
-  "&light .cm-tooltip-autocomplete-disabled ul li[aria-selected]": {
-    background: "#777"
-  },
-  "&dark .cm-tooltip-autocomplete ul li[aria-selected]": {
-    background: "#347",
-    color: "white"
-  },
-  "&dark .cm-tooltip-autocomplete-disabled ul li[aria-selected]": {
-    background: "#444"
-  },
-  ".cm-completionListIncompleteTop:before, .cm-completionListIncompleteBottom:after": {
-    content: '"\xB7\xB7\xB7"',
-    opacity: 0.5,
-    display: "block",
-    textAlign: "center",
-    cursor: "pointer"
-  },
-  ".cm-tooltip.cm-completionInfo": {
-    position: "absolute",
-    padding: "3px 9px",
-    width: "max-content",
-    maxWidth: `${400}px`,
-    boxSizing: "border-box",
-    whiteSpace: "pre-line"
-  },
-  ".cm-completionInfo.cm-completionInfo-left": { right: "100%" },
-  ".cm-completionInfo.cm-completionInfo-right": { left: "100%" },
-  ".cm-completionInfo.cm-completionInfo-left-narrow": { right: `${30}px` },
-  ".cm-completionInfo.cm-completionInfo-right-narrow": { left: `${30}px` },
-  "&light .cm-snippetField": { backgroundColor: "#00000022" },
-  "&dark .cm-snippetField": { backgroundColor: "#ffffff22" },
-  ".cm-snippetFieldPosition": {
-    verticalAlign: "text-top",
-    width: 0,
-    height: "1.15em",
-    display: "inline-block",
-    margin: "0 -0.7px -.7em",
-    borderLeft: "1.4px dotted #888"
-  },
-  ".cm-completionMatchedText": {
-    textDecoration: "underline"
-  },
-  ".cm-completionDetail": {
-    marginLeft: "0.5em",
-    fontStyle: "italic"
-  },
-  ".cm-completionIcon": {
-    fontSize: "90%",
-    width: ".8em",
-    display: "inline-block",
-    textAlign: "center",
-    paddingRight: ".6em",
-    opacity: "0.6",
-    boxSizing: "content-box"
-  },
-  ".cm-completionIcon-function, .cm-completionIcon-method": {
-    "&:after": { content: "'\u0192'" }
-  },
-  ".cm-completionIcon-class": {
-    "&:after": { content: "'\u25CB'" }
-  },
-  ".cm-completionIcon-interface": {
-    "&:after": { content: "'\u25CC'" }
-  },
-  ".cm-completionIcon-variable": {
-    "&:after": { content: "'\u{1D465}'" }
-  },
-  ".cm-completionIcon-constant": {
-    "&:after": { content: "'\u{1D436}'" }
-  },
-  ".cm-completionIcon-type": {
-    "&:after": { content: "'\u{1D461}'" }
-  },
-  ".cm-completionIcon-enum": {
-    "&:after": { content: "'\u222A'" }
-  },
-  ".cm-completionIcon-property": {
-    "&:after": { content: "'\u25A1'" }
-  },
-  ".cm-completionIcon-keyword": {
-    "&:after": { content: "'\u{1F511}\uFE0E'" }
-    // Disable emoji rendering
-  },
-  ".cm-completionIcon-namespace": {
-    "&:after": { content: "'\u25A2'" }
-  },
-  ".cm-completionIcon-text": {
-    "&:after": { content: "'abc'", fontSize: "50%", verticalAlign: "middle" }
-  }
-});
-var FieldPos = class {
-  constructor(field, line, from, to) {
-    this.field = field;
-    this.line = line;
-    this.from = from;
-    this.to = to;
-  }
-};
-var FieldRange = class _FieldRange {
-  constructor(field, from, to) {
-    this.field = field;
-    this.from = from;
-    this.to = to;
-  }
-  map(changes) {
-    let from = changes.mapPos(this.from, -1, MapMode.TrackDel);
-    let to = changes.mapPos(this.to, 1, MapMode.TrackDel);
-    return from == null || to == null ? null : new _FieldRange(this.field, from, to);
-  }
-};
-var Snippet = class _Snippet {
-  constructor(lines, fieldPositions) {
-    this.lines = lines;
-    this.fieldPositions = fieldPositions;
-  }
-  instantiate(state, pos) {
-    let text = [], lineStart = [pos];
-    let lineObj = state.doc.lineAt(pos), baseIndent = /^\s*/.exec(lineObj.text)[0];
-    for (let line of this.lines) {
-      if (text.length) {
-        let indent2 = baseIndent, tabs = /^\t*/.exec(line)[0].length;
-        for (let i2 = 0; i2 < tabs; i2++)
-          indent2 += state.facet(indentUnit);
-        lineStart.push(pos + indent2.length - tabs);
-        line = indent2 + line.slice(tabs);
-      }
-      text.push(line);
-      pos += line.length + 1;
-    }
-    let ranges = this.fieldPositions.map((pos2) => new FieldRange(pos2.field, lineStart[pos2.line] + pos2.from, lineStart[pos2.line] + pos2.to));
-    return { text, ranges };
-  }
-  static parse(template) {
-    let fields = [];
-    let lines = [], positions = [], m;
-    for (let line of template.split(/\r\n?|\n/)) {
-      while (m = /[#$]\{(?:(\d+)(?::([^{}]*))?|((?:\\[{}]|[^{}])*))\}/.exec(line)) {
-        let seq = m[1] ? +m[1] : null, rawName = m[2] || m[3] || "", found = -1;
-        if (seq === 0)
-          seq = 1e9;
-        let name2 = rawName.replace(/\\[{}]/g, (m2) => m2[1]);
-        for (let i2 = 0; i2 < fields.length; i2++) {
-          if (seq != null ? fields[i2].seq == seq : name2 ? fields[i2].name == name2 : false)
-            found = i2;
-        }
-        if (found < 0) {
-          let i2 = 0;
-          while (i2 < fields.length && (seq == null || fields[i2].seq != null && fields[i2].seq < seq))
-            i2++;
-          fields.splice(i2, 0, { seq, name: name2 });
-          found = i2;
-          for (let pos of positions)
-            if (pos.field >= found)
-              pos.field++;
-        }
-        for (let pos of positions)
-          if (pos.line == lines.length && pos.from > m.index) {
-            let snip = m[2] ? 3 + (m[1] || "").length : 2;
-            pos.from -= snip;
-            pos.to -= snip;
-          }
-        positions.push(new FieldPos(found, lines.length, m.index, m.index + name2.length));
-        line = line.slice(0, m.index) + rawName + line.slice(m.index + m[0].length);
-      }
-      line = line.replace(/\\([{}])/g, (_2, brace, index) => {
-        for (let pos of positions)
-          if (pos.line == lines.length && pos.from > index) {
-            pos.from--;
-            pos.to--;
-          }
-        return brace;
-      });
-      lines.push(line);
-    }
-    return new _Snippet(lines, positions);
-  }
-};
-var fieldMarker = /* @__PURE__ */ Decoration.widget({ widget: /* @__PURE__ */ new class extends WidgetType {
-  toDOM() {
-    let span = document.createElement("span");
-    span.className = "cm-snippetFieldPosition";
-    return span;
-  }
-  ignoreEvent() {
-    return false;
-  }
-}() });
-var fieldRange = /* @__PURE__ */ Decoration.mark({ class: "cm-snippetField" });
-var ActiveSnippet = class _ActiveSnippet {
-  constructor(ranges, active) {
-    this.ranges = ranges;
-    this.active = active;
-    this.deco = Decoration.set(ranges.map((r) => (r.from == r.to ? fieldMarker : fieldRange).range(r.from, r.to)), true);
-  }
-  map(changes) {
-    let ranges = [];
-    for (let r of this.ranges) {
-      let mapped = r.map(changes);
-      if (!mapped)
-        return null;
-      ranges.push(mapped);
-    }
-    return new _ActiveSnippet(ranges, this.active);
-  }
-  selectionInsideField(sel) {
-    return sel.ranges.every((range) => this.ranges.some((r) => r.field == this.active && r.from <= range.from && r.to >= range.to));
-  }
-};
-var setActive = /* @__PURE__ */ StateEffect.define({
-  map(value, changes) {
-    return value && value.map(changes);
-  }
-});
-var moveToField = /* @__PURE__ */ StateEffect.define();
-var snippetState = /* @__PURE__ */ StateField.define({
-  create() {
-    return null;
-  },
-  update(value, tr2) {
-    for (let effect of tr2.effects) {
-      if (effect.is(setActive))
-        return effect.value;
-      if (effect.is(moveToField) && value)
-        return new ActiveSnippet(value.ranges, effect.value);
-    }
-    if (value && tr2.docChanged)
-      value = value.map(tr2.changes);
-    if (value && tr2.selection && !value.selectionInsideField(tr2.selection))
-      value = null;
-    return value;
-  },
-  provide: (f) => EditorView.decorations.from(f, (val) => val ? val.deco : Decoration.none)
-});
-function fieldSelection(ranges, field) {
-  return EditorSelection.create(ranges.filter((r) => r.field == field).map((r) => EditorSelection.range(r.from, r.to)));
-}
-function snippet(template) {
-  let snippet2 = Snippet.parse(template);
-  return (editor, completion, from, to) => {
-    let { text, ranges } = snippet2.instantiate(editor.state, from);
-    let { main } = editor.state.selection;
-    let spec = {
-      changes: { from, to: to == main.from ? main.to : to, insert: Text2.of(text) },
-      scrollIntoView: true,
-      annotations: completion ? [pickedCompletion.of(completion), Transaction.userEvent.of("input.complete")] : void 0
-    };
-    if (ranges.length)
-      spec.selection = fieldSelection(ranges, 0);
-    if (ranges.some((r) => r.field > 0)) {
-      let active = new ActiveSnippet(ranges, 0);
-      let effects = spec.effects = [setActive.of(active)];
-      if (editor.state.field(snippetState, false) === void 0)
-        effects.push(StateEffect.appendConfig.of([snippetState, addSnippetKeymap, snippetPointerHandler, baseTheme4]));
-    }
-    editor.dispatch(editor.state.update(spec));
-  };
-}
-function moveField(dir) {
-  return ({ state, dispatch }) => {
-    let active = state.field(snippetState, false);
-    if (!active || dir < 0 && active.active == 0)
-      return false;
-    let next = active.active + dir, last2 = dir > 0 && !active.ranges.some((r) => r.field == next + dir);
-    dispatch(state.update({
-      selection: fieldSelection(active.ranges, next),
-      effects: setActive.of(last2 ? null : new ActiveSnippet(active.ranges, next)),
-      scrollIntoView: true
-    }));
-    return true;
-  };
-}
-var clearSnippet = ({ state, dispatch }) => {
-  let active = state.field(snippetState, false);
-  if (!active)
-    return false;
-  dispatch(state.update({ effects: setActive.of(null) }));
-  return true;
-};
-var nextSnippetField = /* @__PURE__ */ moveField(1);
-var prevSnippetField = /* @__PURE__ */ moveField(-1);
-var defaultSnippetKeymap = [
-  { key: "Tab", run: nextSnippetField, shift: prevSnippetField },
-  { key: "Escape", run: clearSnippet }
-];
-var snippetKeymap = /* @__PURE__ */ Facet.define({
-  combine(maps) {
-    return maps.length ? maps[0] : defaultSnippetKeymap;
-  }
-});
-var addSnippetKeymap = /* @__PURE__ */ Prec.highest(/* @__PURE__ */ keymap.compute([snippetKeymap], (state) => state.facet(snippetKeymap)));
-function snippetCompletion(template, completion) {
-  return { ...completion, apply: snippet(template) };
-}
-var snippetPointerHandler = /* @__PURE__ */ EditorView.domEventHandlers({
-  mousedown(event, view) {
-    let active = view.state.field(snippetState, false), pos;
-    if (!active || (pos = view.posAtCoords({ x: event.clientX, y: event.clientY })) == null)
-      return false;
-    let match = active.ranges.find((r) => r.from <= pos && r.to >= pos);
-    if (!match || match.field == active.active)
-      return false;
-    view.dispatch({
-      selection: fieldSelection(active.ranges, match.field),
-      effects: setActive.of(active.ranges.some((r) => r.field > match.field) ? new ActiveSnippet(active.ranges, match.field) : null),
-      scrollIntoView: true
-    });
-    return true;
-  }
-});
-var closedBracket = /* @__PURE__ */ new class extends RangeValue {
-}();
-closedBracket.startSide = 1;
-closedBracket.endSide = -1;
-var android = typeof navigator == "object" && /* @__PURE__ */ /Android\b/.test(navigator.userAgent);
-
 // node_modules/@codemirror/lang-javascript/dist/index.js
 var snippets = [
   /* @__PURE__ */ snippetCompletion("function ${name}(${params}) {\n	${}\n}", {
@@ -39650,10 +42316,10 @@ var ScopeNodes = /* @__PURE__ */ new Set([
   "ForStatement"
 ]);
 function defID(type) {
-  return (node, def) => {
+  return (node, def2) => {
     let id2 = node.node.getChild("VariableDefinition");
     if (id2)
-      def(id2, type);
+      def2(id2, type);
     return true;
   };
 }
@@ -39665,12 +42331,12 @@ var gatherCompletions = {
   EnumDeclaration: /* @__PURE__ */ defID("constant"),
   TypeAliasDeclaration: /* @__PURE__ */ defID("type"),
   NamespaceDeclaration: /* @__PURE__ */ defID("namespace"),
-  VariableDefinition(node, def) {
+  VariableDefinition(node, def2) {
     if (!node.matchContext(functionContext))
-      def(node, "variable");
+      def2(node, "variable");
   },
-  TypeDefinition(node, def) {
-    def(node, "type");
+  TypeDefinition(node, def2) {
+    def2(node, "type");
   },
   __proto__: null
 };
@@ -39679,7 +42345,7 @@ function getScope(doc2, node) {
   if (cached)
     return cached;
   let completions = [], top2 = true;
-  function def(node2, type) {
+  function def2(node2, type) {
     let name2 = doc2.sliceString(node2.from, node2.to);
     completions.push({ label: name2, type });
   }
@@ -39688,7 +42354,7 @@ function getScope(doc2, node) {
       top2 = false;
     } else if (node2.name) {
       let gather = gatherCompletions[node2.name];
-      if (gather && gather(node2, def) || ScopeNodes.has(node2.name))
+      if (gather && gather(node2, def2) || ScopeNodes.has(node2.name))
         return false;
     } else if (node2.to - node2.from > 8192) {
       for (let c of getScope(doc2, node2.node))
@@ -39721,21 +42387,21 @@ var dontComplete = [
   ".",
   "?."
 ];
-function localCompletionSource(context) {
-  let inner = syntaxTree(context.state).resolveInner(context.pos, -1);
+function localCompletionSource(context2) {
+  let inner = syntaxTree(context2.state).resolveInner(context2.pos, -1);
   if (dontComplete.indexOf(inner.name) > -1)
     return null;
-  let isWord = inner.name == "VariableName" || inner.to - inner.from < 20 && Identifier.test(context.state.sliceDoc(inner.from, inner.to));
-  if (!isWord && !context.explicit)
+  let isWord = inner.name == "VariableName" || inner.to - inner.from < 20 && Identifier.test(context2.state.sliceDoc(inner.from, inner.to));
+  if (!isWord && !context2.explicit)
     return null;
-  let options = [];
+  let options2 = [];
   for (let pos = inner; pos; pos = pos.parent) {
     if (ScopeNodes.has(pos.name))
-      options = options.concat(getScope(context.state.doc, pos));
+      options2 = options2.concat(getScope(context2.state.doc, pos));
   }
   return {
-    options,
-    from: isWord ? inner.from : context.pos,
+    options: options2,
+    from: isWord ? inner.from : context2.pos,
     validFor: Identifier
   };
 }
@@ -39747,24 +42413,24 @@ var javascriptLanguage = /* @__PURE__ */ LRLanguage.define({
         IfStatement: /* @__PURE__ */ continuedIndent({ except: /^\s*({|else\b)/ }),
         TryStatement: /* @__PURE__ */ continuedIndent({ except: /^\s*({|catch\b|finally\b)/ }),
         LabeledStatement: flatIndent,
-        SwitchBody: (context) => {
-          let after = context.textAfter, closed = /^\s*\}/.test(after), isCase = /^\s*(case|default)\b/.test(after);
-          return context.baseIndent + (closed ? 0 : isCase ? 1 : 2) * context.unit;
+        SwitchBody: (context2) => {
+          let after = context2.textAfter, closed = /^\s*\}/.test(after), isCase = /^\s*(case|default)\b/.test(after);
+          return context2.baseIndent + (closed ? 0 : isCase ? 1 : 2) * context2.unit;
         },
         Block: /* @__PURE__ */ delimitedIndent({ closing: "}" }),
         ArrowFunction: (cx) => cx.baseIndent + cx.unit,
         "TemplateString BlockComment": () => null,
         "Statement Property": /* @__PURE__ */ continuedIndent({ except: /^\s*{/ }),
-        JSXElement(context) {
-          let closed = /^\s*<\//.test(context.textAfter);
-          return context.lineIndent(context.node.from) + (closed ? 0 : context.unit);
+        JSXElement(context2) {
+          let closed = /^\s*<\//.test(context2.textAfter);
+          return context2.lineIndent(context2.node.from) + (closed ? 0 : context2.unit);
         },
-        JSXEscape(context) {
-          let closed = /\s*\}/.test(context.textAfter);
-          return context.lineIndent(context.node.from) + (closed ? 0 : context.unit);
+        JSXEscape(context2) {
+          let closed = /\s*\}/.test(context2.textAfter);
+          return context2.lineIndent(context2.node.from) + (closed ? 0 : context2.unit);
         },
-        "JSXOpenTag JSXSelfClosingTag"(context) {
-          return context.column(context.node.from) + context.unit;
+        "JSXOpenTag JSXSelfClosingTag"(context2) {
+          return context2.column(context2.node.from) + context2.unit;
         }
       }),
       /* @__PURE__ */ foldNodeProp.add({
@@ -39812,9 +42478,9 @@ var tsxLanguage = /* @__PURE__ */ javascriptLanguage.configure({
 var kwCompletion = (name2) => ({ label: name2, type: "keyword" });
 var keywords = /* @__PURE__ */ "break case const continue default delete export extends false finally in instanceof let new return static super switch this throw true typeof var yield".split(" ").map(kwCompletion);
 var typescriptKeywords = /* @__PURE__ */ keywords.concat(/* @__PURE__ */ ["declare", "implements", "private", "protected", "public"].map(kwCompletion));
-function javascript(config = {}) {
-  let lang = config.jsx ? config.typescript ? tsxLanguage : jsxLanguage : config.typescript ? typescriptLanguage : javascriptLanguage;
-  let completions = config.typescript ? typescriptSnippets.concat(typescriptKeywords) : snippets.concat(keywords);
+function javascript(config2 = {}) {
+  let lang = config2.jsx ? config2.typescript ? tsxLanguage : jsxLanguage : config2.typescript ? typescriptLanguage : javascriptLanguage;
+  let completions = config2.typescript ? typescriptSnippets.concat(typescriptKeywords) : snippets.concat(keywords);
   return new LanguageSupport(lang, [
     javascriptLanguage.data.of({
       autocomplete: ifNotIn(dontComplete, completeFromList(completions))
@@ -39822,7 +42488,7 @@ function javascript(config = {}) {
     javascriptLanguage.data.of({
       autocomplete: localCompletionSource
     }),
-    config.jsx ? autoCloseTags : []
+    config2.jsx ? autoCloseTags : []
   ]);
 }
 function findOpenTag(node) {
@@ -40568,8 +43234,8 @@ var BlockContext = class {
   /**
   @internal
   */
-  constructor(parser15, input, fragments, ranges) {
-    this.parser = parser15;
+  constructor(parser16, input, fragments, ranges) {
+    this.parser = parser16;
     this.input = input;
     this.ranges = ranges;
     this.line = new Line2();
@@ -40627,9 +43293,9 @@ var BlockContext = class {
     let leaf = new LeafBlock(this.lineStart + line.pos, line.text.slice(line.pos));
     for (let parse of this.parser.leafBlockParsers)
       if (parse) {
-        let parser15 = parse(this, leaf);
-        if (parser15)
-          leaf.parsers.push(parser15);
+        let parser16 = parse(this, leaf);
+        if (parser16)
+          leaf.parsers.push(parser16);
       }
     lines: while (this.nextLine()) {
       if (line.pos == line.text.length)
@@ -40639,8 +43305,8 @@ var BlockContext = class {
           if (stop(this, line, leaf))
             break lines;
       }
-      for (let parser15 of leaf.parsers)
-        if (parser15.nextLine(this, line, leaf))
+      for (let parser16 of leaf.parsers)
+        if (parser16.nextLine(this, line, leaf))
           return null;
       leaf.content += "\n" + line.scrub();
       for (let m of line.markers)
@@ -40803,10 +43469,10 @@ var BlockContext = class {
   /**
   @internal
   */
-  addNode(block, from, to) {
-    if (typeof block == "number")
-      block = new Tree(this.parser.nodeSet.types[block], none3, none3, (to !== null && to !== void 0 ? to : this.prevLineEnd()) - from);
-    this.block.addChild(block, from - this.block.from);
+  addNode(block2, from, to) {
+    if (typeof block2 == "number")
+      block2 = new Tree(this.parser.nodeSet.types[block2], none4, none4, (to !== null && to !== void 0 ? to : this.prevLineEnd()) - from);
+    this.block.addChild(block2, from - this.block.from);
   }
   /**
   Add a block element. Can be called by [block
@@ -40844,11 +43510,11 @@ var BlockContext = class {
   @internal
   */
   finishLeaf(leaf) {
-    for (let parser15 of leaf.parsers)
-      if (parser15.finish(this, leaf))
+    for (let parser16 of leaf.parsers)
+      if (parser16.finish(this, leaf))
         return;
-    let inline = injectMarks(this.parser.parseInline(leaf.content, leaf.start), leaf.marks);
-    this.addNode(this.buffer.writeElements(inline, -leaf.start).finish(Type.Paragraph, leaf.content.length), leaf.start);
+    let inline2 = injectMarks(this.parser.parseInline(leaf.content, leaf.start), leaf.marks);
+    this.addNode(this.buffer.writeElements(inline2, -leaf.start).finish(Type.Paragraph, leaf.content.length), leaf.start);
   }
   elt(type, from, to, children) {
     if (typeof type == "string")
@@ -40920,22 +43586,22 @@ var MarkdownParser = class _MarkdownParser extends Parser {
   Reconfigure the parser.
   */
   configure(spec) {
-    let config = resolveConfig(spec);
-    if (!config)
+    let config2 = resolveConfig(spec);
+    if (!config2)
       return this;
     let { nodeSet, skipContextMarkup } = this;
     let blockParsers = this.blockParsers.slice(), leafBlockParsers = this.leafBlockParsers.slice(), blockNames = this.blockNames.slice(), inlineParsers = this.inlineParsers.slice(), inlineNames = this.inlineNames.slice(), endLeafBlock = this.endLeafBlock.slice(), wrappers = this.wrappers;
-    if (nonEmpty(config.defineNodes)) {
+    if (nonEmpty(config2.defineNodes)) {
       skipContextMarkup = Object.assign({}, skipContextMarkup);
       let nodeTypes2 = nodeSet.types.slice(), styles;
-      for (let s15 of config.defineNodes) {
-        let { name: name2, block, composite, style } = typeof s15 == "string" ? { name: s15 } : s15;
+      for (let s15 of config2.defineNodes) {
+        let { name: name2, block: block2, composite, style } = typeof s15 == "string" ? { name: s15 } : s15;
         if (nodeTypes2.some((t2) => t2.name == name2))
           continue;
         if (composite)
           skipContextMarkup[nodeTypes2.length] = (bl2, cx, line) => composite(cx, line, bl2.value);
         let id2 = nodeTypes2.length;
-        let group = composite ? ["Block", "BlockContext"] : !block ? void 0 : id2 >= Type.ATXHeading1 && id2 <= Type.SetextHeading2 ? ["Block", "LeafBlock", "Heading"] : ["Block", "LeafBlock"];
+        let group = composite ? ["Block", "BlockContext"] : !block2 ? void 0 : id2 >= Type.ATXHeading1 && id2 <= Type.SetextHeading2 ? ["Block", "LeafBlock", "Heading"] : ["Block", "LeafBlock"];
         nodeTypes2.push(NodeType.define({
           id: id2,
           name: name2,
@@ -40954,19 +43620,19 @@ var MarkdownParser = class _MarkdownParser extends Parser {
       if (styles)
         nodeSet = nodeSet.extend(styleTags(styles));
     }
-    if (nonEmpty(config.props))
-      nodeSet = nodeSet.extend(...config.props);
-    if (nonEmpty(config.remove)) {
-      for (let rm2 of config.remove) {
-        let block = this.blockNames.indexOf(rm2), inline = this.inlineNames.indexOf(rm2);
-        if (block > -1)
-          blockParsers[block] = leafBlockParsers[block] = void 0;
-        if (inline > -1)
-          inlineParsers[inline] = void 0;
+    if (nonEmpty(config2.props))
+      nodeSet = nodeSet.extend(...config2.props);
+    if (nonEmpty(config2.remove)) {
+      for (let rm2 of config2.remove) {
+        let block2 = this.blockNames.indexOf(rm2), inline2 = this.inlineNames.indexOf(rm2);
+        if (block2 > -1)
+          blockParsers[block2] = leafBlockParsers[block2] = void 0;
+        if (inline2 > -1)
+          inlineParsers[inline2] = void 0;
       }
     }
-    if (nonEmpty(config.parseBlock)) {
-      for (let spec2 of config.parseBlock) {
+    if (nonEmpty(config2.parseBlock)) {
+      for (let spec2 of config2.parseBlock) {
         let found = blockNames.indexOf(spec2.name);
         if (found > -1) {
           blockParsers[found] = spec2.parse;
@@ -40981,8 +43647,8 @@ var MarkdownParser = class _MarkdownParser extends Parser {
           endLeafBlock.push(spec2.endLeaf);
       }
     }
-    if (nonEmpty(config.parseInline)) {
-      for (let spec2 of config.parseInline) {
+    if (nonEmpty(config2.parseInline)) {
+      for (let spec2 of config2.parseInline) {
         let found = inlineNames.indexOf(spec2.name);
         if (found > -1) {
           inlineParsers[found] = spec2.parse;
@@ -40993,8 +43659,8 @@ var MarkdownParser = class _MarkdownParser extends Parser {
         }
       }
     }
-    if (config.wrap)
-      wrappers = wrappers.concat(config.wrap);
+    if (config2.wrap)
+      wrappers = wrappers.concat(config2.wrap);
     return new _MarkdownParser(nodeSet, blockParsers, leafBlockParsers, blockNames, endLeafBlock, skipContextMarkup, inlineParsers, inlineNames, wrappers);
   }
   /**
@@ -41042,7 +43708,7 @@ function resolveConfig(spec) {
   let rest = resolveConfig(spec.slice(1));
   if (!rest || !conf)
     return conf || rest;
-  let conc2 = (a2, b2) => (a2 || none3).concat(b2 || none3);
+  let conc2 = (a2, b2) => (a2 || none4).concat(b2 || none4);
   let wrapA = conf.wrap, wrapB = rest.wrap;
   return {
     props: conc2(conf.props, rest.props),
@@ -41068,7 +43734,7 @@ for (let i2 = 1, name2; name2 = Type[i2]; i2++) {
     top: name2 == "Document"
   });
 }
-var none3 = [];
+var none4 = [];
 var Buffer2 = class {
   constructor(nodeSet) {
     this.nodeSet = nodeSet;
@@ -41098,7 +43764,7 @@ var Element2 = class {
   /**
   @internal
   */
-  constructor(type, from, to, children = none3) {
+  constructor(type, from, to, children = none4) {
     this.type = type;
     this.from = from;
     this.to = to;
@@ -41131,7 +43797,7 @@ var TreeElement = class {
     return this.tree.type.id;
   }
   get children() {
-    return none3;
+    return none4;
   }
   writeTo(buf, offset) {
     buf.nodes.push(this.tree);
@@ -41280,14 +43946,14 @@ var DefaultInline = {
           return -1;
         }
         let content2 = cx.takeContent(i2);
-        let link = cx.parts[i2] = finishLink(cx, content2, part.type == LinkStart ? Type.Link : Type.Image, part.from, start + 1);
+        let link2 = cx.parts[i2] = finishLink(cx, content2, part.type == LinkStart ? Type.Link : Type.Image, part.from, start + 1);
         if (part.type == LinkStart)
           for (let j2 = 0; j2 < i2; j2++) {
             let p = cx.parts[j2];
             if (p instanceof InlineDelimiter && p.type == LinkStart)
               p.side = 0;
           }
-        return link.to;
+        return link2.to;
       }
     }
     return -1;
@@ -41397,8 +44063,8 @@ var InlineContext = class {
   /**
   @internal
   */
-  constructor(parser15, text, offset) {
-    this.parser = parser15;
+  constructor(parser16, text, offset) {
+    this.parser = parser16;
     this.text = text;
     this.offset = offset;
     this.parts = [];
@@ -41635,39 +44301,39 @@ var FragmentCursor3 = class {
     return tree && tree.prop(NodeProp.contextHash) == hash3;
   }
   takeNodes(cx) {
-    let cur = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
+    let cur2 = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
     let start = cx.absoluteLineStart, end = start, blockI = cx.block.children.length;
     let maxAnonSize = cx.lineStart - cx.block.from >> 2;
     let prevEnd = end, prevI = blockI;
     scan: for (; ; ) {
-      if (cur.to - off > Math.min(fragEnd, cx.to) || cur.type.isAnonymous && cur.tree && (cur.to - cur.from > maxAnonSize || !canStopAfterLastChild(cur.tree))) {
-        if (cur.type.isAnonymous && cur.firstChild())
+      if (cur2.to - off > Math.min(fragEnd, cx.to) || cur2.type.isAnonymous && cur2.tree && (cur2.to - cur2.from > maxAnonSize || !canStopAfterLastChild(cur2.tree))) {
+        if (cur2.type.isAnonymous && cur2.firstChild())
           continue;
         break;
       }
-      let pos = toRelative(cur.from - off, cx.ranges);
-      if (cur.to - off <= cx.ranges[cx.rangeI].to) {
-        cx.addNode(cur.tree, pos);
+      let pos = toRelative(cur2.from - off, cx.ranges);
+      if (cur2.to - off <= cx.ranges[cx.rangeI].to) {
+        cx.addNode(cur2.tree, pos);
       } else {
         let dummy = new Tree(cx.parser.nodeSet.types[Type.Paragraph], [], [], 0, cx.block.hashProp);
-        cx.reusePlaceholders.set(dummy, cur.tree);
+        cx.reusePlaceholders.set(dummy, cur2.tree);
         cx.addNode(dummy, pos);
       }
-      if (cur.type.isAnonymous || cur.type.is("Block")) {
-        if (cur.type.isAnonymous || NotLast.indexOf(cur.type.id) < 0) {
-          end = cur.to - off;
+      if (cur2.type.isAnonymous || cur2.type.is("Block")) {
+        if (cur2.type.isAnonymous || NotLast.indexOf(cur2.type.id) < 0) {
+          end = cur2.to - off;
           blockI = cx.block.children.length;
         } else {
           end = prevEnd;
           blockI = prevI;
         }
-        prevEnd = cur.to - off;
+        prevEnd = cur2.to - off;
         prevI = cx.block.children.length;
       }
       for (; ; ) {
-        if (cur.nextSibling())
+        if (cur2.nextSibling())
           continue scan;
-        if (!cur.parent() || !cur.type.isAnonymous)
+        if (!cur2.parent() || !cur2.type.isAnonymous)
           break scan;
       }
     }
@@ -41734,8 +44400,8 @@ function leftOverSpace(node, from, to) {
   }
   return ranges;
 }
-function parseCode(config) {
-  let { codeParser, htmlParser } = config;
+function parseCode(config2) {
+  let { codeParser, htmlParser } = config2;
   let wrap = parseMixed((node, input) => {
     let id2 = node.type.id;
     if (codeParser && (id2 == Type.CodeBlock || id2 == Type.FencedCode)) {
@@ -41745,9 +44411,9 @@ function parseCode(config) {
         if (infoNode)
           info = input.read(infoNode.from, infoNode.to);
       }
-      let parser15 = codeParser(info);
-      if (parser15)
-        return { parser: parser15, overlay: (node2) => node2.type.id == Type.CodeText, bracketed: id2 == Type.FencedCode };
+      let parser16 = codeParser(info);
+      if (parser16)
+        return { parser: parser16, overlay: (node2) => node2.type.id == Type.CodeText, bracketed: id2 == Type.FencedCode };
     } else if (htmlParser && (id2 == Type.HTMLBlock || id2 == Type.HTMLTag || id2 == Type.CommentBlock)) {
       return { parser: htmlParser, overlay: leftOverSpace(node.node, node.from, node.to) };
     }
@@ -42163,15 +44829,15 @@ function ElementContext(name2, parent) {
 var startTagTerms = [StartTag, StartSelfClosingTag, StartScriptTag, StartStyleTag, StartTextareaTag];
 var elementContext = new ContextTracker({
   start: null,
-  shift(context, term, stack, input) {
-    return startTagTerms.indexOf(term) > -1 ? new ElementContext(tagNameAfter(input, 1) || "", context) : context;
+  shift(context2, term, stack, input) {
+    return startTagTerms.indexOf(term) > -1 ? new ElementContext(tagNameAfter(input, 1) || "", context2) : context2;
   },
-  reduce(context, term) {
-    return term == Element3 && context ? context.parent : context;
+  reduce(context2, term) {
+    return term == Element3 && context2 ? context2.parent : context2;
   },
-  reuse(context, node, stack, input) {
+  reuse(context2, node, stack, input) {
     let type = node.type.id;
-    return type == StartTag || type == OpenTag ? new ElementContext(tagNameAfter(input, 1) || "", context) : context;
+    return type == StartTag || type == OpenTag ? new ElementContext(tagNameAfter(input, 1) || "", context2) : context2;
   },
   strict: false
 });
@@ -42219,9 +44885,9 @@ var commentContent = new ExternalTokenizer((input) => {
     input.advance();
   }
 });
-function inForeignElement(context) {
-  for (; context; context = context.parent)
-    if (context.name == "svg" || context.name == "math") return true;
+function inForeignElement(context2) {
+  for (; context2; context2 = context2.parent)
+    if (context2.name == "svg" || context2.name == "math") return true;
   return false;
 }
 var endTag = new ExternalTokenizer((input, stack) => {
@@ -42232,15 +44898,15 @@ var endTag = new ExternalTokenizer((input, stack) => {
     input.acceptToken(EndTag, 1);
   }
 });
-function contentTokenizer(tag, textToken, endToken) {
-  let lastState = 2 + tag.length;
+function contentTokenizer(tag2, textToken, endToken) {
+  let lastState = 2 + tag2.length;
   return new ExternalTokenizer((input) => {
     for (let state = 0, matchedLen = 0, i2 = 0; ; i2++) {
       if (input.next < 0) {
         if (i2) input.acceptToken(textToken);
         break;
       }
-      if (state == 0 && input.next == lessThan || state == 1 && input.next == slash2 || state >= 2 && state < lastState && input.next == tag.charCodeAt(state - 2)) {
+      if (state == 0 && input.next == lessThan || state == 1 && input.next == slash2 || state >= 2 && state < lastState && input.next == tag2.charCodeAt(state - 2)) {
         state++;
         matchedLen++;
       } else if (state == lastState && input.next == greaterThan) {
@@ -42312,17 +44978,17 @@ function findTagName(openTag, input) {
 }
 function maybeNest(node, input, tags3) {
   let attrs;
-  for (let tag of tags3) {
-    if (!tag.attrs || tag.attrs(attrs || (attrs = getAttrs2(node.node.parent.firstChild, input))))
-      return { parser: tag.parser, bracketed: true };
+  for (let tag2 of tags3) {
+    if (!tag2.attrs || tag2.attrs(attrs || (attrs = getAttrs2(node.node.parent.firstChild, input))))
+      return { parser: tag2.parser, bracketed: true };
   }
   return null;
 }
 function configureNesting(tags3 = [], attributes = []) {
-  let script = [], style = [], textarea = [], other = [];
-  for (let tag of tags3) {
-    let array = tag.tag == "script" ? script : tag.tag == "style" ? style : tag.tag == "textarea" ? textarea : other;
-    array.push(tag);
+  let script = [], style = [], textarea = [], other2 = [];
+  for (let tag2 of tags3) {
+    let array = tag2.tag == "script" ? script : tag2.tag == "style" ? style : tag2.tag == "textarea" ? textarea : other2;
+    array.push(tag2);
   }
   let attrs = attributes.length ? /* @__PURE__ */ Object.create(null) : null;
   for (let attr of attributes) (attrs[attr.name] || (attrs[attr.name] = [])).push(attr);
@@ -42331,14 +44997,14 @@ function configureNesting(tags3 = [], attributes = []) {
     if (id2 == ScriptText) return maybeNest(node, input, script);
     if (id2 == StyleText) return maybeNest(node, input, style);
     if (id2 == TextareaText) return maybeNest(node, input, textarea);
-    if (id2 == Element3 && other.length) {
+    if (id2 == Element3 && other2.length) {
       let n = node.node, open = n.firstChild, tagName2 = open && findTagName(open, input), attrs2;
-      if (tagName2) for (let tag of other) {
-        if (tag.tag == tagName2 && (!tag.attrs || tag.attrs(attrs2 || (attrs2 = getAttrs2(open, input))))) {
+      if (tagName2) for (let tag2 of other2) {
+        if (tag2.tag == tagName2 && (!tag2.attrs || tag2.attrs(attrs2 || (attrs2 = getAttrs2(open, input))))) {
           let close = n.lastChild;
           let to = close.type.id == CloseTag ? close.from : n.to;
           if (to > open.to)
-            return { parser: tag.parser, overlay: [{ from: open.to, to }] };
+            return { parser: tag2.parser, overlay: [{ from: open.to, to }] };
         }
       }
     }
@@ -43309,10 +45975,10 @@ function isVarArg(node, doc2) {
 var VariablesByNode = /* @__PURE__ */ new NodeWeakMap();
 var declSelector = ["Declaration"];
 function astTop(node) {
-  for (let cur = node; ; ) {
-    if (cur.type.isTop)
-      return cur;
-    if (!(cur = cur.parent))
+  for (let cur2 = node; ; ) {
+    if (cur2.type.isTop)
+      return cur2;
+    if (!(cur2 = cur2.parent))
       return node;
   }
 }
@@ -43347,8 +46013,8 @@ function variableNames(doc2, node, isVariable) {
     return result;
   }
 }
-var defineCSSCompletionSource = (isVariable) => (context) => {
-  let { state, pos } = context, node = syntaxTree(state).resolveInner(pos, -1);
+var defineCSSCompletionSource = (isVariable) => (context2) => {
+  let { state, pos } = context2, node = syntaxTree(state).resolveInner(pos, -1);
   let isDash = node.type.isError && node.from == node.to - 1 && state.doc.sliceString(node.from, node.to) == "-";
   if (node.name == "PropertyName" || (isDash || node.name == "TagName") && /^(Block|Styles)$/.test(node.resolve(node.to).name))
     return { from: node.from, options: properties(), validFor: identifier2 };
@@ -43356,7 +46022,7 @@ var defineCSSCompletionSource = (isVariable) => (context) => {
     return { from: node.from, options: values, validFor: identifier2 };
   if (node.name == "PseudoClassName")
     return { from: node.from, options: pseudoClasses, validFor: identifier2 };
-  if (isVariable(node) || (context.explicit || isDash) && isVarArg(node, state.doc))
+  if (isVariable(node) || (context2.explicit || isDash) && isVarArg(node, state.doc))
     return {
       from: isVariable(node) || isDash ? node.from : pos,
       options: variableNames(state.doc, astTop(node), isVariable),
@@ -43370,7 +46036,7 @@ var defineCSSCompletionSource = (isVariable) => (context) => {
   }
   if (node.name == "AtKeyword")
     return { from: node.from, options: atRules, validFor: identifier2 };
-  if (!context.explicit)
+  if (!context2.explicit)
     return null;
   let above = node.resolve(pos), before = above.childBefore(pos);
   if (before && before.name == ":" && above.name == "PseudoClassSelector")
@@ -43846,8 +46512,8 @@ Schema.default = /* @__PURE__ */ new Schema();
 function elementName2(doc2, tree, max = doc2.length) {
   if (!tree)
     return "";
-  let tag = tree.firstChild;
-  let name2 = tag && tag.getChild("TagName");
+  let tag2 = tree.firstChild;
+  let name2 = tag2 && tag2.getChild("TagName");
   return name2 ? doc2.sliceString(name2.from, Math.min(name2.to, max)) : "";
 }
 function findParentElement(tree, skip = false) {
@@ -43882,9 +46548,9 @@ function completeTag(state, schema, tree, from, to) {
   return {
     from,
     to,
-    options: allowedChildren(state.doc, parent, schema).map((tagName2) => ({ label: tagName2, type: "type" })).concat(openTags(state.doc, tree).map((tag, i2) => ({
-      label: "/" + tag,
-      apply: "/" + tag + end,
+    options: allowedChildren(state.doc, parent, schema).map((tagName2) => ({ label: tagName2, type: "type" })).concat(openTags(state.doc, tree).map((tag2, i2) => ({
+      label: "/" + tag2,
+      apply: "/" + tag2 + end,
       type: "type",
       boost: 99 - i2
     }))),
@@ -43896,17 +46562,17 @@ function completeCloseTag(state, tree, from, to) {
   return {
     from,
     to,
-    options: openTags(state.doc, tree).map((tag, i2) => ({ label: tag, apply: tag + end, type: "type", boost: 99 - i2 })),
+    options: openTags(state.doc, tree).map((tag2, i2) => ({ label: tag2, apply: tag2 + end, type: "type", boost: 99 - i2 })),
     validFor: identifier3
   };
 }
 function completeStartTag(state, schema, tree, pos) {
-  let options = [], level = 0;
+  let options2 = [], level = 0;
   for (let tagName2 of allowedChildren(state.doc, tree, schema))
-    options.push({ label: "<" + tagName2, type: "type" });
+    options2.push({ label: "<" + tagName2, type: "type" });
   for (let open of openTags(state.doc, tree))
-    options.push({ label: "</" + open + ">", type: "type", boost: 99 - level++ });
-  return { from: pos, to: pos, options, validFor: /^<\/?[:\-\.\w\u00b7-\uffff]*$/ };
+    options2.push({ label: "</" + open + ">", type: "type", boost: 99 - level++ });
+  return { from: pos, to: pos, options: options2, validFor: /^<\/?[:\-\.\w\u00b7-\uffff]*$/ };
 }
 function completeAttrName(state, schema, tree, from, to) {
   let elt2 = findParentElement(tree), info = elt2 ? schema.tags[elementName2(state.doc, elt2)] : null;
@@ -43922,7 +46588,7 @@ function completeAttrName(state, schema, tree, from, to) {
 function completeAttrValue(state, schema, tree, from, to) {
   var _a2;
   let nameNode = (_a2 = tree.parent) === null || _a2 === void 0 ? void 0 : _a2.getChild("AttributeName");
-  let options = [], token2 = void 0;
+  let options2 = [], token2 = void 0;
   if (nameNode) {
     let attrName2 = state.sliceDoc(nameNode.from, nameNode.to);
     let attrs = schema.globalAttrs[attrName2];
@@ -43942,13 +46608,13 @@ function completeAttrValue(state, schema, tree, from, to) {
         token2 = /^[^\s<>='"]*$/;
       }
       for (let value of attrs)
-        options.push({ label: value, apply: quoteStart + value + quoteEnd, type: "constant" });
+        options2.push({ label: value, apply: quoteStart + value + quoteEnd, type: "constant" });
     }
   }
-  return { from, to, options, validFor: token2 };
+  return { from, to, options: options2, validFor: token2 };
 }
-function htmlCompletionFor(schema, context) {
-  let { state, pos } = context, tree = syntaxTree(state).resolveInner(pos, -1), around = tree.resolve(pos);
+function htmlCompletionFor(schema, context2) {
+  let { state, pos } = context2, tree = syntaxTree(state).resolveInner(pos, -1), around = tree.resolve(pos);
   for (let scan = pos, before; around == tree && (before = tree.childBefore(scan)); ) {
     let last2 = before.lastChild;
     if (!last2 || !last2.type.isError || last2.from < last2.to)
@@ -43966,19 +46632,19 @@ function htmlCompletionFor(schema, context) {
     return completeAttrName(state, schema, tree, tree.name == "AttributeName" ? tree.from : pos, pos);
   } else if (tree.name == "Is" || tree.name == "AttributeValue" || tree.name == "UnquotedAttributeValue") {
     return completeAttrValue(state, schema, tree, tree.name == "Is" ? pos : tree.from, pos);
-  } else if (context.explicit && (around.name == "Element" || around.name == "Text" || around.name == "Document")) {
+  } else if (context2.explicit && (around.name == "Element" || around.name == "Text" || around.name == "Document")) {
     return completeStartTag(state, schema, tree, pos);
   } else {
     return null;
   }
 }
-function htmlCompletionSource(context) {
-  return htmlCompletionFor(Schema.default, context);
+function htmlCompletionSource(context2) {
+  return htmlCompletionFor(Schema.default, context2);
 }
-function htmlCompletionSourceWith(config) {
-  let { extraTags, extraGlobalAttributes: extraAttrs } = config;
+function htmlCompletionSourceWith(config2) {
+  let { extraTags, extraGlobalAttributes: extraAttrs } = config2;
   let schema = extraAttrs || extraTags ? new Schema(extraTags, extraAttrs) : Schema.default;
-  return (context) => htmlCompletionFor(schema, context);
+  return (context2) => htmlCompletionFor(schema, context2);
 }
 var jsonParser = /* @__PURE__ */ javascriptLanguage.parser.configure({ top: "SingleExpression" });
 var defaultNesting = [
@@ -44030,27 +46696,27 @@ var htmlPlain = /* @__PURE__ */ LRLanguage.define({
   parser: /* @__PURE__ */ parser4.configure({
     props: [
       /* @__PURE__ */ indentNodeProp.add({
-        Element(context) {
-          let after = /^(\s*)(<\/)?/.exec(context.textAfter);
-          if (context.node.to <= context.pos + after[0].length)
-            return context.continue();
-          return context.lineIndent(context.node.from) + (after[2] ? 0 : context.unit);
+        Element(context2) {
+          let after = /^(\s*)(<\/)?/.exec(context2.textAfter);
+          if (context2.node.to <= context2.pos + after[0].length)
+            return context2.continue();
+          return context2.lineIndent(context2.node.from) + (after[2] ? 0 : context2.unit);
         },
-        "OpenTag CloseTag SelfClosingTag"(context) {
-          return context.column(context.node.from) + context.unit;
+        "OpenTag CloseTag SelfClosingTag"(context2) {
+          return context2.column(context2.node.from) + context2.unit;
         },
-        Document(context) {
-          if (context.pos + /\s*/.exec(context.textAfter)[0].length < context.node.to)
-            return context.continue();
+        Document(context2) {
+          if (context2.pos + /\s*/.exec(context2.textAfter)[0].length < context2.node.to)
+            return context2.continue();
           let endElt = null, close;
-          for (let cur = context.node; ; ) {
-            let last2 = cur.lastChild;
-            if (!last2 || last2.name != "Element" || last2.to != cur.to)
+          for (let cur2 = context2.node; ; ) {
+            let last2 = cur2.lastChild;
+            if (!last2 || last2.name != "Element" || last2.to != cur2.to)
               break;
-            endElt = cur = last2;
+            endElt = cur2 = last2;
           }
           if (endElt && !((close = endElt.lastChild) && (close.name == "CloseTag" || close.name == "SelfClosingTag")))
-            return context.lineIndent(endElt.from) + context.unit;
+            return context2.lineIndent(endElt.from) + context2.unit;
           return null;
         }
       }),
@@ -44076,18 +46742,18 @@ var htmlPlain = /* @__PURE__ */ LRLanguage.define({
 var htmlLanguage = /* @__PURE__ */ htmlPlain.configure({
   wrap: /* @__PURE__ */ configureNesting(defaultNesting, defaultAttrs)
 });
-function html(config = {}) {
+function html(config2 = {}) {
   let dialect2 = "", wrap;
-  if (config.matchClosingTags === false)
+  if (config2.matchClosingTags === false)
     dialect2 = "noMatch";
-  if (config.selfClosingTags === true)
+  if (config2.selfClosingTags === true)
     dialect2 = (dialect2 ? dialect2 + " " : "") + "selfClosing";
-  if (config.nestedLanguages && config.nestedLanguages.length || config.nestedAttributes && config.nestedAttributes.length)
-    wrap = configureNesting((config.nestedLanguages || []).concat(defaultNesting), (config.nestedAttributes || []).concat(defaultAttrs));
+  if (config2.nestedLanguages && config2.nestedLanguages.length || config2.nestedAttributes && config2.nestedAttributes.length)
+    wrap = configureNesting((config2.nestedLanguages || []).concat(defaultNesting), (config2.nestedAttributes || []).concat(defaultAttrs));
   let lang = wrap ? htmlPlain.configure({ wrap, dialect: dialect2 }) : dialect2 ? htmlLanguage.configure({ dialect: dialect2 }) : htmlLanguage;
   return new LanguageSupport(lang, [
-    htmlLanguage.data.of({ autocomplete: htmlCompletionSourceWith(config) }),
-    config.autoCloseTags !== false ? autoCloseTags2 : [],
+    htmlLanguage.data.of({ autocomplete: htmlCompletionSourceWith(config2) }),
+    config2.autoCloseTags !== false ? autoCloseTags2 : [],
     javascript().support,
     css().support
   ]);
@@ -44113,15 +46779,15 @@ var autoCloseTags2 = /* @__PURE__ */ EditorView.inputHandler.of((view, from, to,
     let didType = state.doc.sliceString(range.from - 1, range.to) == text;
     let { head } = range, after = syntaxTree(state).resolveInner(head, -1), name2;
     if (didType && text == ">" && after.name == "EndTag") {
-      let tag = after.parent;
-      if ((name2 = elementName2(state.doc, tag.parent, head)) && !selfClosers2.has(name2) && !isClosed(state.doc, tag.parent, name2)) {
+      let tag2 = after.parent;
+      if ((name2 = elementName2(state.doc, tag2.parent, head)) && !selfClosers2.has(name2) && !isClosed(state.doc, tag2.parent, name2)) {
         let to2 = head + (state.doc.sliceString(head, head + 1) === ">" ? 1 : 0);
         let insert2 = `</${name2}>`;
         return { range, changes: { from: head, to: to2, insert: insert2 } };
       }
     } else if (didType && text == "/" && after.name == "IncompleteCloseTag") {
-      let tag = after.parent;
-      if (after.from == head - 2 && ((_a2 = tag.lastChild) === null || _a2 === void 0 ? void 0 : _a2.name) != "CloseTag" && (name2 = elementName2(state.doc, tag, head)) && !selfClosers2.has(name2)) {
+      let tag2 = after.parent;
+      if (after.from == head - 2 && ((_a2 = tag2.lastChild) === null || _a2 === void 0 ? void 0 : _a2.name) != "CloseTag" && (name2 = elementName2(state.doc, tag2, head)) && !selfClosers2.has(name2)) {
         let to2 = head + (state.doc.sliceString(head, head + 1) === ">" ? 1 : 0);
         let insert2 = `${name2}>`;
         return {
@@ -44171,8 +46837,8 @@ function isList(type) {
 function findSectionEnd(headerNode, level) {
   let last2 = headerNode;
   for (; ; ) {
-    let next = last2.nextSibling, heading2;
-    if (!next || (heading2 = isHeading(next.type)) != null && heading2 <= level)
+    let next = last2.nextSibling, heading3;
+    if (!next || (heading3 = isHeading(next.type)) != null && heading3 <= level)
       break;
     last2 = next;
   }
@@ -44182,17 +46848,17 @@ var headerIndent = /* @__PURE__ */ foldService.of((state, start, end) => {
   for (let node = syntaxTree(state).resolveInner(end, -1); node; node = node.parent) {
     if (node.from < start)
       break;
-    let heading2 = node.type.prop(headingProp);
-    if (heading2 == null)
+    let heading3 = node.type.prop(headingProp);
+    if (heading3 == null)
       continue;
-    let upto = findSectionEnd(node, heading2);
+    let upto = findSectionEnd(node, heading3);
     if (upto > end)
       return { from: end, to: upto };
   }
   return null;
 });
-function mkLang(parser15) {
-  return new Language(data, parser15, [], "markdown");
+function mkLang(parser16) {
+  return new Language(data, parser16, [], "markdown");
 }
 var commonmarkLanguage = /* @__PURE__ */ mkLang(commonmark);
 var extended = /* @__PURE__ */ commonmark.configure([GFM, Subscript, Superscript, Emoji, {
@@ -44248,25 +46914,25 @@ var Context = class {
   }
 };
 function getContext(node, doc2) {
-  let nodes = [], context = [];
-  for (let cur = node; cur; cur = cur.parent) {
-    if (cur.name == "FencedCode")
-      return context;
-    if (cur.name == "ListItem" || cur.name == "Blockquote")
-      nodes.push(cur);
+  let nodes = [], context2 = [];
+  for (let cur2 = node; cur2; cur2 = cur2.parent) {
+    if (cur2.name == "FencedCode")
+      return context2;
+    if (cur2.name == "ListItem" || cur2.name == "Blockquote")
+      nodes.push(cur2);
   }
   for (let i2 = nodes.length - 1; i2 >= 0; i2--) {
     let node2 = nodes[i2], match;
     let line = doc2.lineAt(node2.from), startPos = node2.from - line.from;
     if (node2.name == "Blockquote" && (match = /^ *>( ?)/.exec(line.text.slice(startPos)))) {
-      context.push(new Context(node2, startPos, startPos + match[0].length, "", match[1], ">", null));
+      context2.push(new Context(node2, startPos, startPos + match[0].length, "", match[1], ">", null));
     } else if (node2.name == "ListItem" && node2.parent.name == "OrderedList" && (match = /^( *)\d+([.)])( *)/.exec(line.text.slice(startPos)))) {
       let after = match[3], len = match[0].length;
       if (after.length >= 4) {
         after = after.slice(0, after.length - 4);
         len -= 4;
       }
-      context.push(new Context(node2.parent, startPos, startPos + len, match[1], after, match[2], node2));
+      context2.push(new Context(node2.parent, startPos, startPos + len, match[1], after, match[2], node2));
     } else if (node2.name == "ListItem" && node2.parent.name == "BulletList" && (match = /^( *)([-+*])( {1,4}\[[ xX]\])?( +)/.exec(line.text.slice(startPos)))) {
       let after = match[4], len = match[0].length;
       if (after.length > 4) {
@@ -44276,10 +46942,10 @@ function getContext(node, doc2) {
       let type = match[2];
       if (match[3])
         type += match[3].replace(/[xX]/, " ");
-      context.push(new Context(node2.parent, startPos, startPos + len, match[1], after, type, node2));
+      context2.push(new Context(node2.parent, startPos, startPos + len, match[1], after, type, node2));
     }
   }
-  return context;
+  return context2;
 }
 function itemNumber(item, doc2) {
   return /^(\s*)(\d+)(?=[.)])/.exec(doc2.sliceString(item.from, item.from + 10));
@@ -44319,18 +46985,18 @@ function normalizeIndent(content2, state) {
   }
   return space6 + content2.slice(blank);
 }
-var insertNewlineContinueMarkupCommand = (config = {}) => ({ state, dispatch }) => {
+var insertNewlineContinueMarkupCommand = (config2 = {}) => ({ state, dispatch }) => {
   let tree = syntaxTree(state), { doc: doc2 } = state;
   let dont = null, changes = state.changeByRange((range) => {
     if (!range.empty || !markdownLanguage.isActiveAt(state, range.from, -1) && !markdownLanguage.isActiveAt(state, range.from, 1))
       return dont = { range };
     let pos = range.from, line = doc2.lineAt(pos);
-    let context = getContext(tree.resolveInner(pos, -1), doc2);
-    while (context.length && context[context.length - 1].from > pos - line.from)
-      context.pop();
-    if (!context.length)
+    let context2 = getContext(tree.resolveInner(pos, -1), doc2);
+    while (context2.length && context2[context2.length - 1].from > pos - line.from)
+      context2.pop();
+    if (!context2.length)
       return dont = { range };
-    let inner = context[context.length - 1];
+    let inner = context2[context2.length - 1];
     if (inner.to - inner.spaceAfter.length > pos - line.from)
       return dont = { range };
     let emptyLine = pos >= inner.to - inner.spaceAfter.length && !/\S/.test(line.text.slice(inner.to));
@@ -44338,8 +47004,8 @@ var insertNewlineContinueMarkupCommand = (config = {}) => ({ state, dispatch }) 
       if (inner.item.from < line.from && !/^[\s>]*$/.test(line.text.slice(0, inner.to)))
         return dont = { range };
       let first = inner.node.firstChild, second = inner.node.getChild("ListItem", "ListItem");
-      if (first.to >= pos || second && second.to < pos || line.from > 0 && !/[^\s>]/.test(doc2.lineAt(line.from - 1).text) || config.nonTightLists === false) {
-        let next = context.length > 1 ? context[context.length - 2] : null;
+      if (first.to >= pos || second && second.to < pos || line.from > 0 && !/[^\s>]/.test(doc2.lineAt(line.from - 1).text) || config2.nonTightLists === false) {
+        let next = context2.length > 1 ? context2[context2.length - 2] : null;
         let delTo, insert3 = "";
         if (next && next.item) {
           delTo = line.from + next.from;
@@ -44354,7 +47020,7 @@ var insertNewlineContinueMarkupCommand = (config = {}) => ({ state, dispatch }) 
           renumberList(next.item, doc2, changes3);
         return { range: EditorSelection.cursor(delTo + insert3.length), changes: changes3 };
       } else {
-        let insert3 = blankLine(context, state, line);
+        let insert3 = blankLine(context2, state, line);
         return {
           range: EditorSelection.cursor(pos + insert3.length + 1),
           changes: { from: line.from, insert: insert3 + state.lineBreak }
@@ -44377,8 +47043,8 @@ var insertNewlineContinueMarkupCommand = (config = {}) => ({ state, dispatch }) 
     let continued = inner.item && inner.item.from < line.from;
     let insert2 = "";
     if (!continued || /^[\s\d.)\-+*>]*/.exec(line.text)[0].length >= inner.to) {
-      for (let i2 = 0, e = context.length - 1; i2 <= e; i2++) {
-        insert2 += i2 == e && !continued ? context[i2].marker(doc2, 1) : context[i2].blank(i2 < e ? countColumn(line.text, 4, context[i2 + 1].from) - insert2.length : null);
+      for (let i2 = 0, e = context2.length - 1; i2 <= e; i2++) {
+        insert2 += i2 == e && !continued ? context2[i2].marker(doc2, 1) : context2[i2].blank(i2 < e ? countColumn(line.text, 4, context2[i2 + 1].from) - insert2.length : null);
       }
     }
     let from = pos;
@@ -44386,7 +47052,7 @@ var insertNewlineContinueMarkupCommand = (config = {}) => ({ state, dispatch }) 
       from--;
     insert2 = normalizeIndent(insert2, state);
     if (nonTightList(inner.node, state.doc))
-      insert2 = blankLine(context, state, line) + state.lineBreak + insert2;
+      insert2 = blankLine(context2, state, line) + state.lineBreak + insert2;
     changes2.push({ from, to: pos, insert: state.lineBreak + insert2 });
     return { range: EditorSelection.cursor(from + insert2.length + 1), changes: changes2 };
   });
@@ -44409,10 +47075,10 @@ function nonTightList(node, doc2) {
   let empty2 = /^[\s>]*$/.test(line1.text);
   return line1.number + (empty2 ? 0 : 1) < line2.number;
 }
-function blankLine(context, state, line) {
+function blankLine(context2, state, line) {
   let insert2 = "";
-  for (let i2 = 0, e = context.length - 2; i2 <= e; i2++) {
-    insert2 += context[i2].blank(i2 < e ? countColumn(line.text, 4, context[i2 + 1].from) - insert2.length : null, i2 < e);
+  for (let i2 = 0, e = context2.length - 2; i2 <= e; i2++) {
+    insert2 += context2[i2].blank(i2 < e ? countColumn(line.text, 4, context2[i2 + 1].from) - insert2.length : null, i2 < e);
   }
   return normalizeIndent(insert2, state);
 }
@@ -44440,9 +47106,9 @@ var deleteMarkupBackward = ({ state, dispatch }) => {
     let pos = range.from, { doc: doc2 } = state;
     if (range.empty && markdownLanguage.isActiveAt(state, range.from)) {
       let line = doc2.lineAt(pos);
-      let context = getContext(contextNodeForDelete(tree, pos), doc2);
-      if (context.length) {
-        let inner = context[context.length - 1];
+      let context2 = getContext(contextNodeForDelete(tree, pos), doc2);
+      if (context2.length) {
+        let inner = context2[context2.length - 1];
         let spaceEnd = inner.to - inner.spaceAfter.length + (inner.spaceAfter ? 1 : 0);
         if (pos - line.from > spaceEnd && !/\S/.test(line.text.slice(spaceEnd, pos - line.from)))
           return {
@@ -44480,11 +47146,11 @@ var markdownKeymap = [
   { key: "Backspace", run: deleteMarkupBackward }
 ];
 var htmlNoMatch = /* @__PURE__ */ html({ matchClosingTags: false });
-function markdown(config = {}) {
-  let { codeLanguages, defaultCodeLanguage, addKeymap = true, base: { parser: parser15 } = commonmarkLanguage, completeHTMLTags = true, pasteURLAsLink: pasteURL = true, htmlTagLanguage = htmlNoMatch } = config;
-  if (!(parser15 instanceof MarkdownParser))
+function markdown(config2 = {}) {
+  let { codeLanguages, defaultCodeLanguage, addKeymap = true, base: { parser: parser16 } = commonmarkLanguage, completeHTMLTags = true, pasteURLAsLink: pasteURL = true, htmlTagLanguage = htmlNoMatch } = config2;
+  if (!(parser16 instanceof MarkdownParser))
     throw new RangeError("Base parser provided to `markdown` should be a Markdown parser");
-  let extensions = config.extensions ? [config.extensions] : [];
+  let extensions = config2.extensions ? [config2.extensions] : [];
   let support = [htmlTagLanguage.support, headerIndent], defaultCode;
   if (pasteURL)
     support.push(pasteURLAsLink);
@@ -44498,13 +47164,13 @@ function markdown(config = {}) {
   extensions.push(parseCode({ codeParser, htmlParser: htmlTagLanguage.language.parser }));
   if (addKeymap)
     support.push(Prec.high(keymap.of(markdownKeymap)));
-  let lang = mkLang(parser15.configure(extensions));
+  let lang = mkLang(parser16.configure(extensions));
   if (completeHTMLTags)
     support.push(lang.data.of({ autocomplete: htmlTagCompletion }));
   return new LanguageSupport(lang, support);
 }
-function htmlTagCompletion(context) {
-  let { state, pos } = context, m = /<[:\-\.\w\u00b7-\uffff]*$/.exec(state.sliceDoc(pos - 25, pos));
+function htmlTagCompletion(context2) {
+  let { state, pos } = context2, m = /<[:\-\.\w\u00b7-\uffff]*$/.exec(state.sliceDoc(pos - 25, pos));
   if (!m)
     return null;
   let tree = syntaxTree(state).resolveInner(pos, -1);
@@ -44534,11 +47200,11 @@ var pasteURLAsLink = /* @__PURE__ */ EditorView.domEventHandlers({
     let { main } = view.state.selection;
     if (main.empty)
       return false;
-    let link = (_a2 = event.clipboardData) === null || _a2 === void 0 ? void 0 : _a2.getData("text/plain");
-    if (!link || !/^(https?:\/\/|mailto:|xmpp:|www\.)/.test(link))
+    let link2 = (_a2 = event.clipboardData) === null || _a2 === void 0 ? void 0 : _a2.getData("text/plain");
+    if (!link2 || !/^(https?:\/\/|mailto:|xmpp:|www\.)/.test(link2))
       return false;
-    if (/^www\./.test(link))
-      link = "https://" + link;
+    if (/^www\./.test(link2))
+      link2 = "https://" + link2;
     if (!markdownLanguage.isActiveAt(view.state, main.from, 1))
       return false;
     let tree = syntaxTree(view.state), crossesNode = false;
@@ -44557,7 +47223,7 @@ var pasteURLAsLink = /* @__PURE__ */ EditorView.domEventHandlers({
     if (crossesNode)
       return false;
     view.dispatch({
-      changes: [{ from: main.from, insert: "[" }, { from: main.to, insert: `](${link})` }],
+      changes: [{ from: main.from, insert: "[" }, { from: main.to, insert: `](${link2})` }],
       userEvent: "input.paste",
       scrollIntoView: true
     });
@@ -44681,8 +47347,8 @@ var newlines = new ExternalTokenizer((input, stack) => {
   }
 }, { contextual: true });
 var indentation = new ExternalTokenizer((input, stack) => {
-  let context = stack.context;
-  if (context.flags) return;
+  let context2 = stack.context;
+  if (context2.flags) return;
   let prev = input.peek(-1);
   if (prev == newline3 || prev == carriageReturn) {
     let depth = 0, chars = 0;
@@ -44693,8 +47359,8 @@ var indentation = new ExternalTokenizer((input, stack) => {
       input.advance();
       chars++;
     }
-    if (depth != context.indent && input.next != newline3 && input.next != carriageReturn && input.next != hash2) {
-      if (depth < context.indent) input.acceptToken(dedent, -chars);
+    if (depth != context2.indent && input.next != newline3 && input.next != carriageReturn && input.next != hash2) {
+      if (depth < context2.indent) input.acceptToken(dedent, -chars);
       else input.acceptToken(indent);
     }
   }
@@ -44738,24 +47404,24 @@ var stringFlags = new Map([
 ].map(([term, flags]) => [term, flags | cx_String]));
 var trackIndent = new ContextTracker({
   start: topIndent2,
-  reduce(context, term, _2, input) {
-    if (context.flags & cx_Bracketed && bracketed.has(term) || (term == String$1 || term == FormatString) && context.flags & cx_String)
-      return context.parent;
-    return context;
+  reduce(context2, term, _2, input) {
+    if (context2.flags & cx_Bracketed && bracketed.has(term) || (term == String$1 || term == FormatString) && context2.flags & cx_String)
+      return context2.parent;
+    return context2;
   },
-  shift(context, term, stack, input) {
+  shift(context2, term, stack, input) {
     if (term == indent)
-      return new Context2(context, countIndent(input.read(input.pos, stack.pos)), 0);
+      return new Context2(context2, countIndent(input.read(input.pos, stack.pos)), 0);
     if (term == dedent)
-      return context.parent;
+      return context2.parent;
     if (term == ParenL || term == BracketL || term == BraceL || term == replacementStart)
-      return new Context2(context, 0, cx_Bracketed);
+      return new Context2(context2, 0, cx_Bracketed);
     if (stringFlags.has(term))
-      return new Context2(context, 0, stringFlags.get(term) | context.flags & cx_Bracketed);
-    return context;
+      return new Context2(context2, 0, stringFlags.get(term) | context2.flags & cx_Bracketed);
+    return context2;
   },
-  hash(context) {
-    return context.hash;
+  hash(context2) {
+    return context2.hash;
   }
 });
 var legacyPrint = new ExternalTokenizer((input) => {
@@ -44913,48 +47579,48 @@ var ScopeNodes2 = /* @__PURE__ */ new Set([
   "MatchClause"
 ]);
 function defID2(type) {
-  return (node, def, outer) => {
+  return (node, def2, outer) => {
     if (outer)
       return false;
     let id2 = node.node.getChild("VariableName");
     if (id2)
-      def(id2, type);
+      def2(id2, type);
     return true;
   };
 }
 var gatherCompletions2 = {
   FunctionDefinition: /* @__PURE__ */ defID2("function"),
   ClassDefinition: /* @__PURE__ */ defID2("class"),
-  ForStatement(node, def, outer) {
+  ForStatement(node, def2, outer) {
     if (outer)
       for (let child = node.node.firstChild; child; child = child.nextSibling) {
         if (child.name == "VariableName")
-          def(child, "variable");
+          def2(child, "variable");
         else if (child.name == "in")
           break;
       }
   },
-  ImportStatement(_node, def) {
+  ImportStatement(_node, def2) {
     var _a2, _b2;
     let { node } = _node;
     let isFrom = ((_a2 = node.firstChild) === null || _a2 === void 0 ? void 0 : _a2.name) == "from";
     for (let ch = node.getChild("import"); ch; ch = ch.nextSibling) {
       if (ch.name == "VariableName" && ((_b2 = ch.nextSibling) === null || _b2 === void 0 ? void 0 : _b2.name) != "as")
-        def(ch, isFrom ? "variable" : "namespace");
+        def2(ch, isFrom ? "variable" : "namespace");
     }
   },
-  AssignStatement(node, def) {
+  AssignStatement(node, def2) {
     for (let child = node.node.firstChild; child; child = child.nextSibling) {
       if (child.name == "VariableName")
-        def(child, "variable");
+        def2(child, "variable");
       else if (child.name == ":" || child.name == "AssignOp")
         break;
     }
   },
-  ParamList(node, def) {
+  ParamList(node, def2) {
     for (let prev = null, child = node.node.firstChild; child; child = child.nextSibling) {
       if (child.name == "VariableName" && (!prev || !/\*|AssignOp/.test(prev.name)))
-        def(child, "variable");
+        def2(child, "variable");
       prev = child;
     }
   },
@@ -44967,14 +47633,14 @@ function getScope2(doc2, node) {
   if (cached)
     return cached;
   let completions = [], top2 = true;
-  function def(node2, type) {
+  function def2(node2, type) {
     let name2 = doc2.sliceString(node2.from, node2.to);
     completions.push({ label: name2, type });
   }
   node.cursor(IterMode.IncludeAnonymous).iterate((node2) => {
     if (node2.name) {
       let gather = gatherCompletions2[node2.name];
-      if (gather && gather(node2, def, top2) || !top2 && ScopeNodes2.has(node2.name))
+      if (gather && gather(node2, def2, top2) || !top2 && ScopeNodes2.has(node2.name))
         return false;
       top2 = false;
     } else if (node2.to - node2.from > 8192) {
@@ -44988,21 +47654,21 @@ function getScope2(doc2, node) {
 }
 var Identifier2 = /^[\w\xa1-\uffff][\w\d\xa1-\uffff]*$/;
 var dontComplete2 = ["String", "FormatString", "Comment", "PropertyName"];
-function localCompletionSource2(context) {
-  let inner = syntaxTree(context.state).resolveInner(context.pos, -1);
+function localCompletionSource2(context2) {
+  let inner = syntaxTree(context2.state).resolveInner(context2.pos, -1);
   if (dontComplete2.indexOf(inner.name) > -1)
     return null;
-  let isWord = inner.name == "VariableName" || inner.to - inner.from < 20 && Identifier2.test(context.state.sliceDoc(inner.from, inner.to));
-  if (!isWord && !context.explicit)
+  let isWord = inner.name == "VariableName" || inner.to - inner.from < 20 && Identifier2.test(context2.state.sliceDoc(inner.from, inner.to));
+  if (!isWord && !context2.explicit)
     return null;
-  let options = [];
+  let options2 = [];
   for (let pos = inner; pos; pos = pos.parent) {
     if (ScopeNodes2.has(pos.name))
-      options = options.concat(getScope2(context.state.doc, pos));
+      options2 = options2.concat(getScope2(context2.state.doc, pos));
   }
   return {
-    options,
-    from: isWord ? inner.from : context.pos,
+    options: options2,
+    from: isWord ? inner.from : context2.pos,
     validFor: Identifier2
   };
 }
@@ -45213,9 +47879,9 @@ var snippets2 = [
   })
 ];
 var globalCompletion = /* @__PURE__ */ ifNotIn(dontComplete2, /* @__PURE__ */ completeFromList(/* @__PURE__ */ globals.concat(snippets2)));
-function innerBody(context) {
-  let { node, pos } = context;
-  let lineIndent = context.lineIndent(pos, -1);
+function innerBody(context2) {
+  let { node, pos } = context2;
+  let lineIndent = context2.lineIndent(pos, -1);
   let found = null;
   for (; ; ) {
     let before = node.childBefore(pos);
@@ -45224,7 +47890,7 @@ function innerBody(context) {
     } else if (before.name == "Comment") {
       pos = before.from;
     } else if (before.name == "Body" || before.name == "MatchBody") {
-      if (context.baseIndentFor(before) + context.unit <= lineIndent)
+      if (context2.baseIndentFor(before) + context2.unit <= lineIndent)
         found = before;
       node = before;
     } else if (before.name == "MatchClause") {
@@ -45237,29 +47903,29 @@ function innerBody(context) {
   }
   return found;
 }
-function indentBody(context, node) {
-  let base2 = context.baseIndentFor(node);
-  let line = context.lineAt(context.pos, -1), to = line.from + line.text.length;
-  if (/^\s*($|#)/.test(line.text) && context.node.to < to + 100 && !/\S/.test(context.state.sliceDoc(to, context.node.to)) && context.lineIndent(context.pos, -1) <= base2)
+function indentBody(context2, node) {
+  let base2 = context2.baseIndentFor(node);
+  let line = context2.lineAt(context2.pos, -1), to = line.from + line.text.length;
+  if (/^\s*($|#)/.test(line.text) && context2.node.to < to + 100 && !/\S/.test(context2.state.sliceDoc(to, context2.node.to)) && context2.lineIndent(context2.pos, -1) <= base2)
     return null;
-  if (/^\s*(else:|elif |except |finally:|case\s+[^=:]+:)/.test(context.textAfter) && context.lineIndent(context.pos, -1) > base2)
+  if (/^\s*(else:|elif |except |finally:|case\s+[^=:]+:)/.test(context2.textAfter) && context2.lineIndent(context2.pos, -1) > base2)
     return null;
-  return base2 + context.unit;
+  return base2 + context2.unit;
 }
 var pythonLanguage = /* @__PURE__ */ LRLanguage.define({
   name: "python",
   parser: /* @__PURE__ */ parser6.configure({
     props: [
       /* @__PURE__ */ indentNodeProp.add({
-        Body: (context) => {
+        Body: (context2) => {
           var _a2;
-          let body = /^\s*(#|$)/.test(context.textAfter) && innerBody(context) || context.node;
-          return (_a2 = indentBody(context, body)) !== null && _a2 !== void 0 ? _a2 : context.continue();
+          let body = /^\s*(#|$)/.test(context2.textAfter) && innerBody(context2) || context2.node;
+          return (_a2 = indentBody(context2, body)) !== null && _a2 !== void 0 ? _a2 : context2.continue();
         },
-        MatchBody: (context) => {
+        MatchBody: (context2) => {
           var _a2;
-          let inner = innerBody(context);
-          return (_a2 = indentBody(context, inner || context.node)) !== null && _a2 !== void 0 ? _a2 : context.continue();
+          let inner = innerBody(context2);
+          return (_a2 = indentBody(context2, inner || context2.node)) !== null && _a2 !== void 0 ? _a2 : context2.continue();
         },
         IfStatement: (cx) => /^\s*(else:|elif )/.test(cx.textAfter) ? cx.baseIndent : cx.continue(),
         "ForStatement WhileStatement": (cx) => /^\s*else:/.test(cx.textAfter) ? cx.baseIndent : cx.continue(),
@@ -45274,10 +47940,10 @@ var pythonLanguage = /* @__PURE__ */ LRLanguage.define({
         "ArrayExpression ArrayComprehensionExpression": /* @__PURE__ */ delimitedIndent({ closing: "]" }),
         MemberExpression: (cx) => cx.baseIndent + cx.unit,
         "String FormatString": () => null,
-        Script: (context) => {
+        Script: (context2) => {
           var _a2;
-          let inner = innerBody(context);
-          return (_a2 = inner && indentBody(context, inner)) !== null && _a2 !== void 0 ? _a2 : context.continue();
+          let inner = innerBody(context2);
+          return (_a2 = inner && indentBody(context2, inner)) !== null && _a2 !== void 0 ? _a2 : context2.continue();
         }
       }),
       /* @__PURE__ */ foldNodeProp.add({
@@ -45391,9 +48057,9 @@ var javaLanguage = /* @__PURE__ */ LRLanguage.define({
         IfStatement: /* @__PURE__ */ continuedIndent({ except: /^\s*({|else\b)/ }),
         TryStatement: /* @__PURE__ */ continuedIndent({ except: /^\s*({|catch|finally)\b/ }),
         LabeledStatement: flatIndent,
-        SwitchBlock: (context) => {
-          let after = context.textAfter, closed = /^\s*\}/.test(after), isCase = /^\s*(case|default)\b/.test(after);
-          return context.baseIndent + (closed ? 0 : isCase ? 1 : 2) * context.unit;
+        SwitchBlock: (context2) => {
+          let after = context2.textAfter, closed = /^\s*\}/.test(after), isCase = /^\s*(case|default)\b/.test(after);
+          return context2.baseIndent + (closed ? 0 : isCase ? 1 : 2) * context2.unit;
         },
         Block: /* @__PURE__ */ delimitedIndent({ closing: "}" }),
         BlockComment: () => null,
@@ -45460,14 +48126,14 @@ function readLiteral(input, endQuote, backslashEscapes) {
     input.advance();
   }
 }
-function readDoubleDollarLiteral(input, tag) {
+function readDoubleDollarLiteral(input, tag2) {
   scan: for (; ; ) {
     if (input.next < 0)
       return;
     if (input.next == 36) {
       input.advance();
-      for (let i2 = 0; i2 < tag.length; i2++) {
-        if (input.next != tag.charCodeAt(i2))
+      for (let i2 = 0; i2 < tag2.length; i2++) {
+        if (input.next != tag2.charCodeAt(i2))
           continue scan;
         input.advance();
       }
@@ -45565,7 +48231,7 @@ function keywords2(keywords4, types2, builtin) {
 }
 var SQLTypes = "array binary bit boolean char character clob date decimal double float int integer interval large national nchar nclob numeric object precision real smallint time timestamp varchar varying ";
 var SQLKeywords = "absolute action add after all allocate alter and any are as asc assertion at authorization before begin between both breadth by call cascade cascaded case cast catalog check close collate collation column commit condition connect connection constraint constraints constructor continue corresponding count create cross cube current current_date current_default_transform_group current_transform_group_for_type current_path current_role current_time current_timestamp current_user cursor cycle data day deallocate declare default deferrable deferred delete depth deref desc describe descriptor deterministic diagnostics disconnect distinct do domain drop dynamic each else elseif end end-exec equals escape except exception exec execute exists exit external fetch first for foreign found from free full function general get global go goto grant group grouping handle having hold hour identity if immediate in indicator initially inner inout input insert intersect into is isolation join key language last lateral leading leave left level like limit local localtime localtimestamp locator loop map match method minute modifies module month names natural nesting new next no none not of old on only open option or order ordinality out outer output overlaps pad parameter partial path prepare preserve primary prior privileges procedure public read reads recursive redo ref references referencing relative release repeat resignal restrict result return returns revoke right role rollback rollup routine row rows savepoint schema scroll search second section select session session_user set sets signal similar size some space specific specifictype sql sqlexception sqlstate sqlwarning start state static system_user table temporary then timezone_hour timezone_minute to trailing transaction translation treat trigger under undo union unique unnest until update usage user using value values view when whenever where while with without work write year zone ";
-var defaults = {
+var defaults2 = {
   backslashEscapes: false,
   hashComments: false,
   spaceAfterDashes: false,
@@ -45584,8 +48250,8 @@ var defaults = {
 };
 function dialect(spec, kws, types2, builtin) {
   let dialect2 = {};
-  for (let prop in defaults)
-    dialect2[prop] = (spec.hasOwnProperty(prop) ? spec : defaults)[prop];
+  for (let prop in defaults2)
+    dialect2[prop] = (spec.hasOwnProperty(prop) ? spec : defaults2)[prop];
   if (kws)
     dialect2.words = keywords2(kws, types2 || "", builtin);
   return dialect2;
@@ -45600,10 +48266,10 @@ function tokensFor(d) {
         input.advance();
       input.acceptToken(whitespace);
     } else if (next == 36 && d.doubleDollarQuotedStrings) {
-      let tag = readWord(input, "");
+      let tag2 = readWord(input, "");
       if (input.next == 36) {
         input.advance();
-        readDoubleDollarLiteral(input, tag);
+        readDoubleDollarLiteral(input, tag2);
         input.acceptToken(String$12);
       }
     } else if (next == 39 || next == 34 && d.doubleQuotedStrings) {
@@ -45618,16 +48284,16 @@ function tokensFor(d) {
     } else if (next == 47 && input.next == 42) {
       input.advance();
       for (let depth = 1; ; ) {
-        let cur = input.next;
+        let cur2 = input.next;
         if (input.next < 0)
           break;
         input.advance();
-        if (cur == 42 && input.next == 47) {
+        if (cur2 == 42 && input.next == 47) {
           depth--;
           input.advance();
           if (!depth)
             break;
-        } else if (cur == 47 && input.next == 42) {
+        } else if (cur2 == 47 && input.next == 42) {
           depth++;
           input.advance();
         }
@@ -45723,7 +48389,7 @@ function tokensFor(d) {
     }
   });
 }
-var tokens = /* @__PURE__ */ tokensFor(defaults);
+var tokens = /* @__PURE__ */ tokensFor(defaults2);
 var parser$1 = /* @__PURE__ */ LRParser.deserialize({
   version: 14,
   states: "%vQ]QQOOO#wQRO'#DSO$OQQO'#CwO%eQQO'#CxO%lQQO'#CyO%sQQO'#CzOOQQ'#DS'#DSOOQQ'#C}'#C}O'UQRO'#C{OOQQ'#Cv'#CvOOQQ'#C|'#C|Q]QQOOQOQQOOO'`QQO'#DOO(xQRO,59cO)PQQO,59cO)UQQO'#DSOOQQ,59d,59dO)cQQO,59dOOQQ,59e,59eO)jQQO,59eOOQQ,59f,59fO)qQQO,59fOOQQ-E6{-E6{OOQQ,59b,59bOOQQ-E6z-E6zOOQQ,59j,59jOOQQ-E6|-E6|O+VQRO1G.}O+^QQO,59cOOQQ1G/O1G/OOOQQ1G/P1G/POOQQ1G/Q1G/QP+kQQO'#C}O+rQQO1G.}O)PQQO,59cO,PQQO'#Cw",
@@ -45911,9 +48577,9 @@ function completeFromSchema(schema, tables, schemas, defaultTableName, defaultSc
     top2.addCompletions(defaultSchema.list);
   if (defaultTableName)
     top2.addCompletions((defaultSchema || top2).child(defaultTableName).list);
-  return (context) => {
-    let { parents, from, quoted, empty: empty2, aliases } = sourceContext(context.state, context.pos);
-    if (empty2 && !context.explicit)
+  return (context2) => {
+    let { parents, from, quoted, empty: empty2, aliases } = sourceContext(context2.state, context2.pos);
+    if (empty2 && !context2.explicit)
       return null;
     if (aliases && parents.length == 1)
       parents = aliases[parents[0]] || parents;
@@ -45932,23 +48598,23 @@ function completeFromSchema(schema, tables, schemas, defaultTableName, defaultSc
         return null;
       level = next;
     }
-    let options = level.list;
+    let options2 = level.list;
     if (level == top2 && aliases)
-      options = options.concat(Object.keys(aliases).map((name2) => ({ label: name2, type: "constant" })));
+      options2 = options2.concat(Object.keys(aliases).map((name2) => ({ label: name2, type: "constant" })));
     if (quoted) {
       let openingQuote = quoted[0];
       let closingQuote = getClosingQuote(openingQuote);
-      let quoteAfter = context.state.sliceDoc(context.pos, context.pos + 1) == closingQuote;
+      let quoteAfter = context2.state.sliceDoc(context2.pos, context2.pos + 1) == closingQuote;
       return {
         from,
-        to: quoteAfter ? context.pos + 1 : void 0,
-        options: maybeQuoteCompletions(openingQuote, closingQuote, options),
+        to: quoteAfter ? context2.pos + 1 : void 0,
+        options: maybeQuoteCompletions(openingQuote, closingQuote, options2),
         validFor: QuotedSpan
       };
     } else {
       return {
         from,
-        options,
+        options: options2,
         validFor: Span
       };
     }
@@ -46013,8 +48679,8 @@ var SQLDialect = class _SQLDialect {
   Reconfigure the parser used by this dialect. Returns a new
   dialect object.
   */
-  configureLanguage(options, name2) {
-    return new _SQLDialect(this.dialect, this.language.configure(options, name2), this.spec);
+  configureLanguage(options2, name2) {
+    return new _SQLDialect(this.dialect, this.language.configure(options2, name2), this.spec);
   }
   /**
   Define a new dialect.
@@ -46040,20 +48706,20 @@ function defaultKeyword(label3, type) {
 function keywordCompletionSource(dialect2, upperCase = false, build) {
   return completeKeywords(dialect2.dialect.words, upperCase, build || defaultKeyword);
 }
-function schemaCompletionSource(config) {
-  return config.schema ? completeFromSchema(config.schema, config.tables, config.schemas, config.defaultTable, config.defaultSchema, config.dialect || StandardSQL) : () => null;
+function schemaCompletionSource(config2) {
+  return config2.schema ? completeFromSchema(config2.schema, config2.tables, config2.schemas, config2.defaultTable, config2.defaultSchema, config2.dialect || StandardSQL) : () => null;
 }
-function schemaCompletion(config) {
-  return config.schema ? (config.dialect || StandardSQL).language.data.of({
-    autocomplete: schemaCompletionSource(config)
+function schemaCompletion(config2) {
+  return config2.schema ? (config2.dialect || StandardSQL).language.data.of({
+    autocomplete: schemaCompletionSource(config2)
   }) : [];
 }
-function sql(config = {}) {
-  let lang = config.dialect || StandardSQL;
+function sql(config2 = {}) {
+  let lang = config2.dialect || StandardSQL;
   return new LanguageSupport(lang.language, [
-    schemaCompletion(config),
+    schemaCompletion(config2),
     lang.language.data.of({
-      autocomplete: keywordCompletionSource(lang, config.upperCaseKeywords, config.keywordCompletion)
+      autocomplete: keywordCompletionSource(lang, config2.upperCaseKeywords, config2.keywordCompletion)
     })
   ]);
 }
@@ -46189,28 +48855,28 @@ function isSep(ch) {
 }
 var indentation2 = new ContextTracker({
   start: Context3.top,
-  reduce(context, term) {
-    return context.type == type_Flow && (term == FlowSequence || term == FlowMapping) ? context.parent : context;
+  reduce(context2, term) {
+    return context2.type == type_Flow && (term == FlowSequence || term == FlowMapping) ? context2.parent : context2;
   },
-  shift(context, term, stack, input) {
+  shift(context2, term, stack, input) {
     if (term == sequenceStartMark)
-      return new Context3(context, findColumn2(input, input.pos), type_Seq);
+      return new Context3(context2, findColumn2(input, input.pos), type_Seq);
     if (term == mapStartMark || term == explicitMapStartMark)
-      return new Context3(context, findColumn2(input, input.pos), type_Map);
+      return new Context3(context2, findColumn2(input, input.pos), type_Map);
     if (term == blockEnd)
-      return context.parent;
+      return context2.parent;
     if (term == BracketL3 || term == BraceL3)
-      return new Context3(context, 0, type_Flow);
-    if (term == BlockLiteralContent && context.type == type_Lit)
-      return context.parent;
+      return new Context3(context2, 0, type_Flow);
+    if (term == BlockLiteralContent && context2.type == type_Lit)
+      return context2.parent;
     if (term == BlockLiteralHeader) {
       let indent2 = /[1-9]/.exec(input.read(input.pos, stack.pos));
-      if (indent2) return new Context3(context, context.depth + +indent2[0], type_Lit);
+      if (indent2) return new Context3(context2, context2.depth + +indent2[0], type_Lit);
     }
-    return context;
+    return context2;
   },
-  hash(context) {
-    return context.hash;
+  hash(context2) {
+    return context2.hash;
   }
 });
 function three(input, ch, off = 0) {
@@ -46384,8 +49050,8 @@ function charTag(ch) {
   return charTable[ch - 33];
 }
 function isSafe(ch, inFlow) {
-  let tag = charTag(ch);
-  return tag != "u" && !(inFlow && tag == "f");
+  let tag2 = charTag(ch);
+  return tag2 != "u" && !(inFlow && tag2 == "f");
 }
 function readPlain(input, scan, inFlow, indent2) {
   if (charTag(input.next) == "s" || (input.next == 63 || input.next == 58 || input.next == 45) && isSafe(input.peek(1), inFlow)) {
@@ -46593,15 +49259,15 @@ function ElementContext2(name2, parent) {
 }
 var elementContext2 = new ContextTracker({
   start: null,
-  shift(context, term, stack, input) {
-    return term == StartTag2 ? new ElementContext2(tagNameAfter2(input, 1) || "", context) : context;
+  shift(context2, term, stack, input) {
+    return term == StartTag2 ? new ElementContext2(tagNameAfter2(input, 1) || "", context2) : context2;
   },
-  reduce(context, term) {
-    return term == Element4 && context ? context.parent : context;
+  reduce(context2, term) {
+    return term == Element4 && context2 ? context2.parent : context2;
   },
-  reuse(context, node, _stack, input) {
+  reuse(context2, node, _stack, input) {
     let type = node.type.id;
-    return type == StartTag2 || type == OpenTag2 ? new ElementContext2(tagNameAfter2(input, 1) || "", context) : context;
+    return type == StartTag2 || type == OpenTag2 ? new ElementContext2(tagNameAfter2(input, 1) || "", context2) : context2;
   },
   strict: false
 });
@@ -46673,31 +49339,31 @@ var parser11 = LRParser.deserialize({
 });
 
 // node_modules/@codemirror/lang-xml/dist/index.js
-function tagName(doc2, tag) {
-  let name2 = tag && tag.getChild("TagName");
+function tagName(doc2, tag2) {
+  let name2 = tag2 && tag2.getChild("TagName");
   return name2 ? doc2.sliceString(name2.from, name2.to) : "";
 }
 function elementName$1(doc2, tree) {
-  let tag = tree && tree.firstChild;
-  return !tag || tag.name != "OpenTag" ? "" : tagName(doc2, tag);
+  let tag2 = tree && tree.firstChild;
+  return !tag2 || tag2.name != "OpenTag" ? "" : tagName(doc2, tag2);
 }
-function attrName(doc2, tag, pos) {
-  let attr = tag && tag.getChildren("Attribute").find((a2) => a2.from <= pos && a2.to >= pos);
+function attrName(doc2, tag2, pos) {
+  let attr = tag2 && tag2.getChildren("Attribute").find((a2) => a2.from <= pos && a2.to >= pos);
   let name2 = attr && attr.getChild("AttributeName");
   return name2 ? doc2.sliceString(name2.from, name2.to) : "";
 }
 function findParentElement2(tree) {
-  for (let cur = tree && tree.parent; cur; cur = cur.parent)
-    if (cur.name == "Element")
-      return cur;
+  for (let cur2 = tree && tree.parent; cur2; cur2 = cur2.parent)
+    if (cur2.name == "Element")
+      return cur2;
   return null;
 }
 function findLocation(state, pos) {
   var _a2;
   let at2 = syntaxTree(state).resolveInner(pos, -1), inTag = null;
-  for (let cur = at2; !inTag && cur.parent; cur = cur.parent)
-    if (cur.name == "OpenTag" || cur.name == "CloseTag" || cur.name == "SelfClosingTag" || cur.name == "MismatchedCloseTag")
-      inTag = cur;
+  for (let cur2 = at2; !inTag && cur2.parent; cur2 = cur2.parent)
+    if (cur2.name == "OpenTag" || cur2.name == "CloseTag" || cur2.name == "SelfClosingTag" || cur2.name == "MismatchedCloseTag")
+      inTag = cur2;
   if (inTag && (inTag.to > pos || inTag.lastChild.type.isError)) {
     let elt2 = inTag.parent;
     if (at2.name == "TagName")
@@ -46794,10 +49460,10 @@ function completeFromSchema2(eltSpecs, attrSpecs) {
     let { doc: doc2 } = cx.state, loc = findLocation(cx.state, cx.pos);
     if (!loc || loc.type == "tag" && !cx.explicit)
       return null;
-    let { type, from, context } = loc;
+    let { type, from, context: context2 } = loc;
     if (type == "openTag") {
       let children = topElements;
-      let parentName = elementName$1(doc2, context);
+      let parentName = elementName$1(doc2, context2);
       if (parentName) {
         let parent = byName[parentName];
         children = (parent === null || parent === void 0 ? void 0 : parent.children) || allElements;
@@ -46808,7 +49474,7 @@ function completeFromSchema2(eltSpecs, attrSpecs) {
         validFor: Identifier4
       };
     } else if (type == "closeTag") {
-      let parentName = elementName$1(doc2, context);
+      let parentName = elementName$1(doc2, context2);
       return parentName ? {
         from,
         to: cx.pos + (doc2.sliceString(cx.pos, cx.pos + 1) == ">" ? 1 : 0),
@@ -46816,17 +49482,17 @@ function completeFromSchema2(eltSpecs, attrSpecs) {
         validFor: Identifier4
       } : null;
     } else if (type == "attrName") {
-      let parent = byName[tagName(doc2, context)];
+      let parent = byName[tagName(doc2, context2)];
       return {
         from,
         options: (parent === null || parent === void 0 ? void 0 : parent.attrs) || globalAttrs,
         validFor: Identifier4
       };
     } else if (type == "attrValue") {
-      let attr = attrName(doc2, context, from);
+      let attr = attrName(doc2, context2, from);
       if (!attr)
         return null;
-      let parent = byName[tagName(doc2, context)];
+      let parent = byName[tagName(doc2, context2)];
       let values2 = ((parent === null || parent === void 0 ? void 0 : parent.attrValues) || attrValues)[attr];
       if (!values2 || !values2.length)
         return null;
@@ -46837,19 +49503,19 @@ function completeFromSchema2(eltSpecs, attrSpecs) {
         validFor: /^"[^"]*"?$/
       };
     } else if (type == "tag") {
-      let parentName = elementName$1(doc2, context), parent = byName[parentName];
-      let closing = [], last2 = context && context.lastChild;
+      let parentName = elementName$1(doc2, context2), parent = byName[parentName];
+      let closing2 = [], last2 = context2 && context2.lastChild;
       if (parentName && (!last2 || last2.name != "CloseTag" || tagName(doc2, last2) != parentName))
-        closing.push(parent ? parent.closeCompletion : { label: "</" + parentName + ">", type: "type", boost: 2 });
-      let options = closing.concat(((parent === null || parent === void 0 ? void 0 : parent.children) || (context ? allElements : topElements)).map((e) => e.openCompletion));
-      if (context && (parent === null || parent === void 0 ? void 0 : parent.text.length)) {
-        let openTag = context.firstChild;
+        closing2.push(parent ? parent.closeCompletion : { label: "</" + parentName + ">", type: "type", boost: 2 });
+      let options2 = closing2.concat(((parent === null || parent === void 0 ? void 0 : parent.children) || (context2 ? allElements : topElements)).map((e) => e.openCompletion));
+      if (context2 && (parent === null || parent === void 0 ? void 0 : parent.text.length)) {
+        let openTag = context2.firstChild;
         if (openTag.to > cx.pos - 20 && !/\S/.test(cx.state.sliceDoc(openTag.to, cx.pos)))
-          options = options.concat(parent.text);
+          options2 = options2.concat(parent.text);
       }
       return {
         from,
-        options,
+        options: options2,
         validFor: /^<\/?[:\-\.\w\u00b7-\uffff]*$/
       };
     } else {
@@ -46862,12 +49528,12 @@ var xmlLanguage = /* @__PURE__ */ LRLanguage.define({
   parser: /* @__PURE__ */ parser11.configure({
     props: [
       /* @__PURE__ */ indentNodeProp.add({
-        Element(context) {
-          let closed = /^\s*<\//.test(context.textAfter);
-          return context.lineIndent(context.node.from) + (closed ? 0 : context.unit);
+        Element(context2) {
+          let closed = /^\s*<\//.test(context2.textAfter);
+          return context2.lineIndent(context2.node.from) + (closed ? 0 : context2.unit);
         },
-        "OpenTag CloseTag SelfClosingTag"(context) {
-          return context.column(context.node.from) + context.unit;
+        "OpenTag CloseTag SelfClosingTag"(context2) {
+          return context2.column(context2.node.from) + context2.unit;
         }
       }),
       /* @__PURE__ */ foldNodeProp.add({
@@ -46899,8 +49565,8 @@ function xml(conf = {}) {
 function elementName3(doc2, tree, max = doc2.length) {
   if (!tree)
     return "";
-  let tag = tree.firstChild;
-  let name2 = tag && tag.getChild("TagName");
+  let tag2 = tree.firstChild;
+  let name2 = tag2 && tag2.getChild("TagName");
   return name2 ? doc2.sliceString(name2.from, Math.min(name2.to, max)) : "";
 }
 var autoCloseTags3 = /* @__PURE__ */ EditorView.inputHandler.of((view, from, to, text, insertTransaction) => {
@@ -46913,8 +49579,8 @@ var autoCloseTags3 = /* @__PURE__ */ EditorView.inputHandler.of((view, from, to,
     let didType = state.doc.sliceString(head - 1, head) == text;
     let after = syntaxTree(state).resolveInner(head, -1), name2;
     if (didType && text == ">" && after.name == "EndTag") {
-      let tag = after.parent;
-      if (((_b2 = (_a2 = tag.parent) === null || _a2 === void 0 ? void 0 : _a2.lastChild) === null || _b2 === void 0 ? void 0 : _b2.name) != "CloseTag" && (name2 = elementName3(state.doc, tag.parent, head))) {
+      let tag2 = after.parent;
+      if (((_b2 = (_a2 = tag2.parent) === null || _a2 === void 0 ? void 0 : _a2.lastChild) === null || _b2 === void 0 ? void 0 : _b2.name) != "CloseTag" && (name2 = elementName3(state.doc, tag2.parent, head))) {
         let to2 = head + (state.doc.sliceString(head, head + 1) === ">" ? 1 : 0);
         let insert2 = `</${name2}>`;
         return { range, changes: { from: head, to: to2, insert: insert2 } };
@@ -47092,7 +49758,7 @@ var cppLanguage = /* @__PURE__ */ LRLanguage.define({
         IfStatement: /* @__PURE__ */ continuedIndent({ except: /^\s*({|else\b)/ }),
         TryStatement: /* @__PURE__ */ continuedIndent({ except: /^\s*({|catch)\b/ }),
         LabeledStatement: flatIndent,
-        CaseStatement: (context) => context.baseIndent + context.unit,
+        CaseStatement: (context2) => context2.baseIndent + context2.unit,
         BlockComment: () => null,
         CompoundStatement: /* @__PURE__ */ delimitedIndent({ closing: "}" }),
         Statement: /* @__PURE__ */ continuedIndent({ except: /^{/ })
@@ -47161,7 +49827,7 @@ var trackedTokens = /* @__PURE__ */ new Set([
 ]);
 var trackTokens = new ContextTracker({
   start: false,
-  shift: (context, term) => term == space$1 ? context : trackedTokens.has(term)
+  shift: (context2, term) => term == space$1 ? context2 : trackedTokens.has(term)
 });
 var goHighlighting = styleTags({
   "func interface struct chan map const type var": tags.definitionKeyword,
@@ -47314,23 +49980,23 @@ var ScopeNodes3 = /* @__PURE__ */ new Set([
   "IfStatement"
 ]);
 function defIDs(type, spec) {
-  return (node, def) => {
-    outer: for (let cur = node.node.firstChild, depth = 0, parent = null; ; ) {
-      while (!cur) {
+  return (node, def2) => {
+    outer: for (let cur2 = node.node.firstChild, depth = 0, parent = null; ; ) {
+      while (!cur2) {
         if (!depth)
           break outer;
         depth--;
-        cur = parent.nextSibling;
+        cur2 = parent.nextSibling;
         parent = parent.parent;
       }
-      if (spec && cur.name == spec || cur.name == "SpecList") {
+      if (spec && cur2.name == spec || cur2.name == "SpecList") {
         depth++;
-        parent = cur;
-        cur = cur.firstChild;
+        parent = cur2;
+        cur2 = cur2.firstChild;
       } else {
-        if (cur.name == "DefName")
-          def(cur, type);
-        cur = cur.nextSibling;
+        if (cur2.name == "DefName")
+          def2(cur2, type);
+        cur2 = cur2.nextSibling;
       }
     }
     return true;
@@ -47350,7 +50016,7 @@ function getScope3(doc2, node) {
   if (cached)
     return cached;
   let completions = [], top2 = true;
-  function def(node2, type) {
+  function def2(node2, type) {
     let name2 = doc2.sliceString(node2.from, node2.to);
     completions.push({ label: name2, type });
   }
@@ -47359,7 +50025,7 @@ function getScope3(doc2, node) {
       top2 = false;
     } else if (node2.name) {
       let gather = gatherCompletions3[node2.name];
-      if (gather && gather(node2, def) || ScopeNodes3.has(node2.name))
+      if (gather && gather(node2, def2) || ScopeNodes3.has(node2.name))
         return false;
     } else if (node2.to - node2.from > 8192) {
       for (let c of getScope3(doc2, node2.node))
@@ -47381,21 +50047,21 @@ var dontComplete3 = [
   ".",
   "?."
 ];
-var localCompletionSource3 = (context) => {
-  let inner = syntaxTree(context.state).resolveInner(context.pos, -1);
+var localCompletionSource3 = (context2) => {
+  let inner = syntaxTree(context2.state).resolveInner(context2.pos, -1);
   if (dontComplete3.indexOf(inner.name) > -1)
     return null;
-  let isWord = inner.name == "VariableName" || inner.to - inner.from < 20 && Identifier5.test(context.state.sliceDoc(inner.from, inner.to));
-  if (!isWord && !context.explicit)
+  let isWord = inner.name == "VariableName" || inner.to - inner.from < 20 && Identifier5.test(context2.state.sliceDoc(inner.from, inner.to));
+  if (!isWord && !context2.explicit)
     return null;
-  let options = [];
+  let options2 = [];
   for (let pos = inner; pos; pos = pos.parent) {
     if (ScopeNodes3.has(pos.name))
-      options = options.concat(getScope3(context.state.doc, pos));
+      options2 = options2.concat(getScope3(context2.state.doc, pos));
   }
   return {
-    options,
-    from: isWord ? inner.from : context.pos,
+    options: options2,
+    from: isWord ? inner.from : context2.pos,
     validFor: Identifier5
   };
 };
@@ -47406,9 +50072,9 @@ var goLanguage = /* @__PURE__ */ LRLanguage.define({
       /* @__PURE__ */ indentNodeProp.add({
         IfStatement: /* @__PURE__ */ continuedIndent({ except: /^\s*({|else\b)/ }),
         LabeledStatement: flatIndent,
-        "SwitchBlock SelectBlock": (context) => {
-          let after = context.textAfter, closed = /^\s*\}/.test(after), isCase = /^\s*(case|default)\b/.test(after);
-          return context.baseIndent + (closed || isCase ? 0 : context.unit);
+        "SwitchBlock SelectBlock": (context2) => {
+          let after = context2.textAfter, closed = /^\s*\}/.test(after), isCase = /^\s*(case|default)\b/.test(after);
+          return context2.baseIndent + (closed || isCase ? 0 : context2.unit);
         },
         Block: /* @__PURE__ */ delimitedIndent({ closing: "}" }),
         BlockComment: () => null,
@@ -47642,19 +50308,3645 @@ function rust() {
   return new LanguageSupport(rustLanguage);
 }
 
+// node_modules/marked/lib/marked.esm.js
+function _getDefaults() {
+  return {
+    async: false,
+    breaks: false,
+    extensions: null,
+    gfm: true,
+    hooks: null,
+    pedantic: false,
+    renderer: null,
+    silent: false,
+    tokenizer: null,
+    walkTokens: null
+  };
+}
+var _defaults = _getDefaults();
+function changeDefaults(newDefaults) {
+  _defaults = newDefaults;
+}
+var noopTest = { exec: () => null };
+function edit(regex, opt = "") {
+  let source = typeof regex === "string" ? regex : regex.source;
+  const obj = {
+    replace: (name2, val) => {
+      let valSource = typeof val === "string" ? val : val.source;
+      valSource = valSource.replace(other.caret, "$1");
+      source = source.replace(name2, valSource);
+      return obj;
+    },
+    getRegex: () => {
+      return new RegExp(source, opt);
+    }
+  };
+  return obj;
+}
+var other = {
+  codeRemoveIndent: /^(?: {1,4}| {0,3}\t)/gm,
+  outputLinkReplace: /\\([\[\]])/g,
+  indentCodeCompensation: /^(\s+)(?:```)/,
+  beginningSpace: /^\s+/,
+  endingHash: /#$/,
+  startingSpaceChar: /^ /,
+  endingSpaceChar: / $/,
+  nonSpaceChar: /[^ ]/,
+  newLineCharGlobal: /\n/g,
+  tabCharGlobal: /\t/g,
+  multipleSpaceGlobal: /\s+/g,
+  blankLine: /^[ \t]*$/,
+  doubleBlankLine: /\n[ \t]*\n[ \t]*$/,
+  blockquoteStart: /^ {0,3}>/,
+  blockquoteSetextReplace: /\n {0,3}((?:=+|-+) *)(?=\n|$)/g,
+  blockquoteSetextReplace2: /^ {0,3}>[ \t]?/gm,
+  listReplaceTabs: /^\t+/,
+  listReplaceNesting: /^ {1,4}(?=( {4})*[^ ])/g,
+  listIsTask: /^\[[ xX]\] /,
+  listReplaceTask: /^\[[ xX]\] +/,
+  anyLine: /\n.*\n/,
+  hrefBrackets: /^<(.*)>$/,
+  tableDelimiter: /[:|]/,
+  tableAlignChars: /^\||\| *$/g,
+  tableRowBlankLine: /\n[ \t]*$/,
+  tableAlignRight: /^ *-+: *$/,
+  tableAlignCenter: /^ *:-+: *$/,
+  tableAlignLeft: /^ *:-+ *$/,
+  startATag: /^<a /i,
+  endATag: /^<\/a>/i,
+  startPreScriptTag: /^<(pre|code|kbd|script)(\s|>)/i,
+  endPreScriptTag: /^<\/(pre|code|kbd|script)(\s|>)/i,
+  startAngleBracket: /^</,
+  endAngleBracket: />$/,
+  pedanticHrefTitle: /^([^'"]*[^\s])\s+(['"])(.*)\2/,
+  unicodeAlphaNumeric: /[\p{L}\p{N}]/u,
+  escapeTest: /[&<>"']/,
+  escapeReplace: /[&<>"']/g,
+  escapeTestNoEncode: /[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/,
+  escapeReplaceNoEncode: /[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/g,
+  unescapeTest: /&(#(?:\d+)|(?:#x[0-9A-Fa-f]+)|(?:\w+));?/ig,
+  caret: /(^|[^\[])\^/g,
+  percentDecode: /%25/g,
+  findPipe: /\|/g,
+  splitPipe: / \|/,
+  slashPipe: /\\\|/g,
+  carriageReturn: /\r\n|\r/g,
+  spaceLine: /^ +$/gm,
+  notSpaceStart: /^\S*/,
+  endingNewline: /\n$/,
+  listItemRegex: (bull) => new RegExp(`^( {0,3}${bull})((?:[	 ][^\\n]*)?(?:\\n|$))`),
+  nextBulletRegex: (indent2) => new RegExp(`^ {0,${Math.min(3, indent2 - 1)}}(?:[*+-]|\\d{1,9}[.)])((?:[ 	][^\\n]*)?(?:\\n|$))`),
+  hrRegex: (indent2) => new RegExp(`^ {0,${Math.min(3, indent2 - 1)}}((?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$)`),
+  fencesBeginRegex: (indent2) => new RegExp(`^ {0,${Math.min(3, indent2 - 1)}}(?:\`\`\`|~~~)`),
+  headingBeginRegex: (indent2) => new RegExp(`^ {0,${Math.min(3, indent2 - 1)}}#`),
+  htmlBeginRegex: (indent2) => new RegExp(`^ {0,${Math.min(3, indent2 - 1)}}<(?:[a-z].*>|!--)`, "i")
+};
+var newline5 = /^(?:[ \t]*(?:\n|$))+/;
+var blockCode = /^((?: {4}| {0,3}\t)[^\n]+(?:\n(?:[ \t]*(?:\n|$))*)?)+/;
+var fences = /^ {0,3}(`{3,}(?=[^`\n]*(?:\n|$))|~{3,})([^\n]*)(?:\n|$)(?:|([\s\S]*?)(?:\n|$))(?: {0,3}\1[~`]* *(?=\n|$)|$)/;
+var hr3 = /^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/;
+var heading2 = /^ {0,3}(#{1,6})(?=\s|$)(.*)(?:\n+|$)/;
+var bullet = /(?:[*+-]|\d{1,9}[.)])/;
+var lheadingCore = /^(?!bull |blockCode|fences|blockquote|heading|html|table)((?:.|\n(?!\s*?\n|bull |blockCode|fences|blockquote|heading|html|table))+?)\n {0,3}(=+|-+) *(?:\n+|$)/;
+var lheading = edit(lheadingCore).replace(/bull/g, bullet).replace(/blockCode/g, /(?: {4}| {0,3}\t)/).replace(/fences/g, / {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g, / {0,3}>/).replace(/heading/g, / {0,3}#{1,6}/).replace(/html/g, / {0,3}<[^\n>]+>\n/).replace(/\|table/g, "").getRegex();
+var lheadingGfm = edit(lheadingCore).replace(/bull/g, bullet).replace(/blockCode/g, /(?: {4}| {0,3}\t)/).replace(/fences/g, / {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g, / {0,3}>/).replace(/heading/g, / {0,3}#{1,6}/).replace(/html/g, / {0,3}<[^\n>]+>\n/).replace(/table/g, / {0,3}\|?(?:[:\- ]*\|)+[\:\- ]*\n/).getRegex();
+var _paragraph = /^([^\n]+(?:\n(?!hr|heading|lheading|blockquote|fences|list|html|table| +\n)[^\n]+)*)/;
+var blockText = /^[^\n]+/;
+var _blockLabel = /(?!\s*\])(?:\\.|[^\[\]\\])+/;
+var def = edit(/^ {0,3}\[(label)\]: *(?:\n[ \t]*)?([^<\s][^\s]*|<.*?>)(?:(?: +(?:\n[ \t]*)?| *\n[ \t]*)(title))? *(?:\n+|$)/).replace("label", _blockLabel).replace("title", /(?:"(?:\\"?|[^"\\])*"|'[^'\n]*(?:\n[^'\n]+)*\n?'|\([^()]*\))/).getRegex();
+var list = edit(/^( {0,3}bull)([ \t][^\n]+?)?(?:\n|$)/).replace(/bull/g, bullet).getRegex();
+var _tag = "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul";
+var _comment = /<!--(?:-?>|[\s\S]*?(?:-->|$))/;
+var html2 = edit(
+  "^ {0,3}(?:<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n+|$)|comment[^\\n]*(\\n+|$)|<\\?[\\s\\S]*?(?:\\?>\\n*|$)|<![A-Z][\\s\\S]*?(?:>\\n*|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>\\n*|$)|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|<(?!script|pre|style|textarea)([a-z][\\w-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|</(?!script|pre|style|textarea)[a-z][\\w-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$))",
+  "i"
+).replace("comment", _comment).replace("tag", _tag).replace("attribute", / +[a-zA-Z:_][\w.:-]*(?: *= *"[^"\n]*"| *= *'[^'\n]*'| *= *[^\s"'=<>`]+)?/).getRegex();
+var paragraph = edit(_paragraph).replace("hr", hr3).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("|lheading", "").replace("|table", "").replace("blockquote", " {0,3}>").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list", " {0,3}(?:[*+-]|1[.)]) ").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", _tag).getRegex();
+var blockquote = edit(/^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/).replace("paragraph", paragraph).getRegex();
+var blockNormal = {
+  blockquote,
+  code: blockCode,
+  def,
+  fences,
+  heading: heading2,
+  hr: hr3,
+  html: html2,
+  lheading,
+  list,
+  newline: newline5,
+  paragraph,
+  table: noopTest,
+  text: blockText
+};
+var gfmTable = edit(
+  "^ *([^\\n ].*)\\n {0,3}((?:\\| *)?:?-+:? *(?:\\| *:?-+:? *)*(?:\\| *)?)(?:\\n((?:(?! *\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)"
+).replace("hr", hr3).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("blockquote", " {0,3}>").replace("code", "(?: {4}| {0,3}	)[^\\n]").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list", " {0,3}(?:[*+-]|1[.)]) ").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", _tag).getRegex();
+var blockGfm = {
+  ...blockNormal,
+  lheading: lheadingGfm,
+  table: gfmTable,
+  paragraph: edit(_paragraph).replace("hr", hr3).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("|lheading", "").replace("table", gfmTable).replace("blockquote", " {0,3}>").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list", " {0,3}(?:[*+-]|1[.)]) ").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", _tag).getRegex()
+};
+var blockPedantic = {
+  ...blockNormal,
+  html: edit(
+    `^ *(?:comment *(?:\\n|\\s*$)|<(tag)[\\s\\S]+?</\\1> *(?:\\n{2,}|\\s*$)|<tag(?:"[^"]*"|'[^']*'|\\s[^'"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))`
+  ).replace("comment", _comment).replace(/tag/g, "(?!(?:a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)\\b)\\w+(?!:|[^\\w\\s@]*@)\\b").getRegex(),
+  def: /^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +(["(][^\n]+[")]))? *(?:\n+|$)/,
+  heading: /^(#{1,6})(.*)(?:\n+|$)/,
+  fences: noopTest,
+  // fences not supported
+  lheading: /^(.+?)\n {0,3}(=+|-+) *(?:\n+|$)/,
+  paragraph: edit(_paragraph).replace("hr", hr3).replace("heading", " *#{1,6} *[^\n]").replace("lheading", lheading).replace("|table", "").replace("blockquote", " {0,3}>").replace("|fences", "").replace("|list", "").replace("|html", "").replace("|tag", "").getRegex()
+};
+var escape = /^\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])/;
+var inlineCode = /^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/;
+var br3 = /^( {2,}|\\)\n(?!\s*$)/;
+var inlineText = /^(`+|[^`])(?:(?= {2,}\n)|[\s\S]*?(?:(?=[\\<!\[`*_]|\b_|$)|[^ ](?= {2,}\n)))/;
+var _punctuation = /[\p{P}\p{S}]/u;
+var _punctuationOrSpace = /[\s\p{P}\p{S}]/u;
+var _notPunctuationOrSpace = /[^\s\p{P}\p{S}]/u;
+var punctuation2 = edit(/^((?![*_])punctSpace)/, "u").replace(/punctSpace/g, _punctuationOrSpace).getRegex();
+var _punctuationGfmStrongEm = /(?!~)[\p{P}\p{S}]/u;
+var _punctuationOrSpaceGfmStrongEm = /(?!~)[\s\p{P}\p{S}]/u;
+var _notPunctuationOrSpaceGfmStrongEm = /(?:[^\s\p{P}\p{S}]|~)/u;
+var blockSkip = /\[[^[\]]*?\]\((?:\\.|[^\\\(\)]|\((?:\\.|[^\\\(\)])*\))*\)|`[^`]*?`|<[^<>]*?>/g;
+var emStrongLDelimCore = /^(?:\*+(?:((?!\*)punct)|[^\s*]))|^_+(?:((?!_)punct)|([^\s_]))/;
+var emStrongLDelim = edit(emStrongLDelimCore, "u").replace(/punct/g, _punctuation).getRegex();
+var emStrongLDelimGfm = edit(emStrongLDelimCore, "u").replace(/punct/g, _punctuationGfmStrongEm).getRegex();
+var emStrongRDelimAstCore = "^[^_*]*?__[^_*]*?\\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\\*)punct(\\*+)(?=[\\s]|$)|notPunctSpace(\\*+)(?!\\*)(?=punctSpace|$)|(?!\\*)punctSpace(\\*+)(?=notPunctSpace)|[\\s](\\*+)(?!\\*)(?=punct)|(?!\\*)punct(\\*+)(?!\\*)(?=punct)|notPunctSpace(\\*+)(?=notPunctSpace)";
+var emStrongRDelimAst = edit(emStrongRDelimAstCore, "gu").replace(/notPunctSpace/g, _notPunctuationOrSpace).replace(/punctSpace/g, _punctuationOrSpace).replace(/punct/g, _punctuation).getRegex();
+var emStrongRDelimAstGfm = edit(emStrongRDelimAstCore, "gu").replace(/notPunctSpace/g, _notPunctuationOrSpaceGfmStrongEm).replace(/punctSpace/g, _punctuationOrSpaceGfmStrongEm).replace(/punct/g, _punctuationGfmStrongEm).getRegex();
+var emStrongRDelimUnd = edit(
+  "^[^_*]*?\\*\\*[^_*]*?_[^_*]*?(?=\\*\\*)|[^_]+(?=[^_])|(?!_)punct(_+)(?=[\\s]|$)|notPunctSpace(_+)(?!_)(?=punctSpace|$)|(?!_)punctSpace(_+)(?=notPunctSpace)|[\\s](_+)(?!_)(?=punct)|(?!_)punct(_+)(?!_)(?=punct)",
+  "gu"
+).replace(/notPunctSpace/g, _notPunctuationOrSpace).replace(/punctSpace/g, _punctuationOrSpace).replace(/punct/g, _punctuation).getRegex();
+var anyPunctuation = edit(/\\(punct)/, "gu").replace(/punct/g, _punctuation).getRegex();
+var autolink = edit(/^<(scheme:[^\s\x00-\x1f<>]*|email)>/).replace("scheme", /[a-zA-Z][a-zA-Z0-9+.-]{1,31}/).replace("email", /[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+(@)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?![-_])/).getRegex();
+var _inlineComment = edit(_comment).replace("(?:-->|$)", "-->").getRegex();
+var tag = edit(
+  "^comment|^</[a-zA-Z][\\w:-]*\\s*>|^<[a-zA-Z][\\w-]*(?:attribute)*?\\s*/?>|^<\\?[\\s\\S]*?\\?>|^<![a-zA-Z]+\\s[\\s\\S]*?>|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>"
+).replace("comment", _inlineComment).replace("attribute", /\s+[a-zA-Z:_][\w.:-]*(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s"'=<>`]+)?/).getRegex();
+var _inlineLabel = /(?:\[(?:\\.|[^\[\]\\])*\]|\\.|`[^`]*`|[^\[\]\\`])*?/;
+var link = edit(/^!?\[(label)\]\(\s*(href)(?:(?:[ \t]*(?:\n[ \t]*)?)(title))?\s*\)/).replace("label", _inlineLabel).replace("href", /<(?:\\.|[^\n<>\\])+>|[^ \t\n\x00-\x1f]*/).replace("title", /"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)/).getRegex();
+var reflink = edit(/^!?\[(label)\]\[(ref)\]/).replace("label", _inlineLabel).replace("ref", _blockLabel).getRegex();
+var nolink = edit(/^!?\[(ref)\](?:\[\])?/).replace("ref", _blockLabel).getRegex();
+var reflinkSearch = edit("reflink|nolink(?!\\()", "g").replace("reflink", reflink).replace("nolink", nolink).getRegex();
+var inlineNormal = {
+  _backpedal: noopTest,
+  // only used for GFM url
+  anyPunctuation,
+  autolink,
+  blockSkip,
+  br: br3,
+  code: inlineCode,
+  del: noopTest,
+  emStrongLDelim,
+  emStrongRDelimAst,
+  emStrongRDelimUnd,
+  escape,
+  link,
+  nolink,
+  punctuation: punctuation2,
+  reflink,
+  reflinkSearch,
+  tag,
+  text: inlineText,
+  url: noopTest
+};
+var inlinePedantic = {
+  ...inlineNormal,
+  link: edit(/^!?\[(label)\]\((.*?)\)/).replace("label", _inlineLabel).getRegex(),
+  reflink: edit(/^!?\[(label)\]\s*\[([^\]]*)\]/).replace("label", _inlineLabel).getRegex()
+};
+var inlineGfm = {
+  ...inlineNormal,
+  emStrongRDelimAst: emStrongRDelimAstGfm,
+  emStrongLDelim: emStrongLDelimGfm,
+  url: edit(/^((?:ftp|https?):\/\/|www\.)(?:[a-zA-Z0-9\-]+\.?)+[^\s<]*|^email/, "i").replace("email", /[A-Za-z0-9._+-]+(@)[a-zA-Z0-9-_]+(?:\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![-_])/).getRegex(),
+  _backpedal: /(?:[^?!.,:;*_'"~()&]+|\([^)]*\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_'"~)]+(?!$))+/,
+  del: /^(~~?)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/,
+  text: /^([`~]+|[^`~])(?:(?= {2,}\n)|(?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)|[\s\S]*?(?:(?=[\\<!\[`*~_]|\b_|https?:\/\/|ftp:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)))/
+};
+var inlineBreaks = {
+  ...inlineGfm,
+  br: edit(br3).replace("{2,}", "*").getRegex(),
+  text: edit(inlineGfm.text).replace("\\b_", "\\b_| {2,}\\n").replace(/\{2,\}/g, "*").getRegex()
+};
+var block = {
+  normal: blockNormal,
+  gfm: blockGfm,
+  pedantic: blockPedantic
+};
+var inline = {
+  normal: inlineNormal,
+  gfm: inlineGfm,
+  breaks: inlineBreaks,
+  pedantic: inlinePedantic
+};
+var escapeReplacements = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;"
+};
+var getEscapeReplacement = (ch) => escapeReplacements[ch];
+function escape2(html22, encode) {
+  if (encode) {
+    if (other.escapeTest.test(html22)) {
+      return html22.replace(other.escapeReplace, getEscapeReplacement);
+    }
+  } else {
+    if (other.escapeTestNoEncode.test(html22)) {
+      return html22.replace(other.escapeReplaceNoEncode, getEscapeReplacement);
+    }
+  }
+  return html22;
+}
+function cleanUrl(href) {
+  try {
+    href = encodeURI(href).replace(other.percentDecode, "%");
+  } catch {
+    return null;
+  }
+  return href;
+}
+function splitCells(tableRow, count2) {
+  const row = tableRow.replace(other.findPipe, (match, offset, str) => {
+    let escaped = false;
+    let curr = offset;
+    while (--curr >= 0 && str[curr] === "\\") escaped = !escaped;
+    if (escaped) {
+      return "|";
+    } else {
+      return " |";
+    }
+  }), cells = row.split(other.splitPipe);
+  let i2 = 0;
+  if (!cells[0].trim()) {
+    cells.shift();
+  }
+  if (cells.length > 0 && !cells.at(-1)?.trim()) {
+    cells.pop();
+  }
+  if (count2) {
+    if (cells.length > count2) {
+      cells.splice(count2);
+    } else {
+      while (cells.length < count2) cells.push("");
+    }
+  }
+  for (; i2 < cells.length; i2++) {
+    cells[i2] = cells[i2].trim().replace(other.slashPipe, "|");
+  }
+  return cells;
+}
+function rtrim(str, c, invert) {
+  const l = str.length;
+  if (l === 0) {
+    return "";
+  }
+  let suffLen = 0;
+  while (suffLen < l) {
+    const currChar = str.charAt(l - suffLen - 1);
+    if (currChar === c && !invert) {
+      suffLen++;
+    } else if (currChar !== c && invert) {
+      suffLen++;
+    } else {
+      break;
+    }
+  }
+  return str.slice(0, l - suffLen);
+}
+function findClosingBracket(str, b2) {
+  if (str.indexOf(b2[1]) === -1) {
+    return -1;
+  }
+  let level = 0;
+  for (let i2 = 0; i2 < str.length; i2++) {
+    if (str[i2] === "\\") {
+      i2++;
+    } else if (str[i2] === b2[0]) {
+      level++;
+    } else if (str[i2] === b2[1]) {
+      level--;
+      if (level < 0) {
+        return i2;
+      }
+    }
+  }
+  if (level > 0) {
+    return -2;
+  }
+  return -1;
+}
+function outputLink(cap, link2, raw, lexer2, rules) {
+  const href = link2.href;
+  const title = link2.title || null;
+  const text = cap[1].replace(rules.other.outputLinkReplace, "$1");
+  lexer2.state.inLink = true;
+  const token2 = {
+    type: cap[0].charAt(0) === "!" ? "image" : "link",
+    raw,
+    href,
+    title,
+    text,
+    tokens: lexer2.inlineTokens(text)
+  };
+  lexer2.state.inLink = false;
+  return token2;
+}
+function indentCodeCompensation(raw, text, rules) {
+  const matchIndentToCode = raw.match(rules.other.indentCodeCompensation);
+  if (matchIndentToCode === null) {
+    return text;
+  }
+  const indentToCode = matchIndentToCode[1];
+  return text.split("\n").map((node) => {
+    const matchIndentInNode = node.match(rules.other.beginningSpace);
+    if (matchIndentInNode === null) {
+      return node;
+    }
+    const [indentInNode] = matchIndentInNode;
+    if (indentInNode.length >= indentToCode.length) {
+      return node.slice(indentToCode.length);
+    }
+    return node;
+  }).join("\n");
+}
+var _Tokenizer = class {
+  options;
+  rules;
+  // set by the lexer
+  lexer;
+  // set by the lexer
+  constructor(options2) {
+    this.options = options2 || _defaults;
+  }
+  space(src) {
+    const cap = this.rules.block.newline.exec(src);
+    if (cap && cap[0].length > 0) {
+      return {
+        type: "space",
+        raw: cap[0]
+      };
+    }
+  }
+  code(src) {
+    const cap = this.rules.block.code.exec(src);
+    if (cap) {
+      const text = cap[0].replace(this.rules.other.codeRemoveIndent, "");
+      return {
+        type: "code",
+        raw: cap[0],
+        codeBlockStyle: "indented",
+        text: !this.options.pedantic ? rtrim(text, "\n") : text
+      };
+    }
+  }
+  fences(src) {
+    const cap = this.rules.block.fences.exec(src);
+    if (cap) {
+      const raw = cap[0];
+      const text = indentCodeCompensation(raw, cap[3] || "", this.rules);
+      return {
+        type: "code",
+        raw,
+        lang: cap[2] ? cap[2].trim().replace(this.rules.inline.anyPunctuation, "$1") : cap[2],
+        text
+      };
+    }
+  }
+  heading(src) {
+    const cap = this.rules.block.heading.exec(src);
+    if (cap) {
+      let text = cap[2].trim();
+      if (this.rules.other.endingHash.test(text)) {
+        const trimmed = rtrim(text, "#");
+        if (this.options.pedantic) {
+          text = trimmed.trim();
+        } else if (!trimmed || this.rules.other.endingSpaceChar.test(trimmed)) {
+          text = trimmed.trim();
+        }
+      }
+      return {
+        type: "heading",
+        raw: cap[0],
+        depth: cap[1].length,
+        text,
+        tokens: this.lexer.inline(text)
+      };
+    }
+  }
+  hr(src) {
+    const cap = this.rules.block.hr.exec(src);
+    if (cap) {
+      return {
+        type: "hr",
+        raw: rtrim(cap[0], "\n")
+      };
+    }
+  }
+  blockquote(src) {
+    const cap = this.rules.block.blockquote.exec(src);
+    if (cap) {
+      let lines = rtrim(cap[0], "\n").split("\n");
+      let raw = "";
+      let text = "";
+      const tokens2 = [];
+      while (lines.length > 0) {
+        let inBlockquote = false;
+        const currentLines = [];
+        let i2;
+        for (i2 = 0; i2 < lines.length; i2++) {
+          if (this.rules.other.blockquoteStart.test(lines[i2])) {
+            currentLines.push(lines[i2]);
+            inBlockquote = true;
+          } else if (!inBlockquote) {
+            currentLines.push(lines[i2]);
+          } else {
+            break;
+          }
+        }
+        lines = lines.slice(i2);
+        const currentRaw = currentLines.join("\n");
+        const currentText = currentRaw.replace(this.rules.other.blockquoteSetextReplace, "\n    $1").replace(this.rules.other.blockquoteSetextReplace2, "");
+        raw = raw ? `${raw}
+${currentRaw}` : currentRaw;
+        text = text ? `${text}
+${currentText}` : currentText;
+        const top2 = this.lexer.state.top;
+        this.lexer.state.top = true;
+        this.lexer.blockTokens(currentText, tokens2, true);
+        this.lexer.state.top = top2;
+        if (lines.length === 0) {
+          break;
+        }
+        const lastToken = tokens2.at(-1);
+        if (lastToken?.type === "code") {
+          break;
+        } else if (lastToken?.type === "blockquote") {
+          const oldToken = lastToken;
+          const newText = oldToken.raw + "\n" + lines.join("\n");
+          const newToken = this.blockquote(newText);
+          tokens2[tokens2.length - 1] = newToken;
+          raw = raw.substring(0, raw.length - oldToken.raw.length) + newToken.raw;
+          text = text.substring(0, text.length - oldToken.text.length) + newToken.text;
+          break;
+        } else if (lastToken?.type === "list") {
+          const oldToken = lastToken;
+          const newText = oldToken.raw + "\n" + lines.join("\n");
+          const newToken = this.list(newText);
+          tokens2[tokens2.length - 1] = newToken;
+          raw = raw.substring(0, raw.length - lastToken.raw.length) + newToken.raw;
+          text = text.substring(0, text.length - oldToken.raw.length) + newToken.raw;
+          lines = newText.substring(tokens2.at(-1).raw.length).split("\n");
+          continue;
+        }
+      }
+      return {
+        type: "blockquote",
+        raw,
+        tokens: tokens2,
+        text
+      };
+    }
+  }
+  list(src) {
+    let cap = this.rules.block.list.exec(src);
+    if (cap) {
+      let bull = cap[1].trim();
+      const isordered = bull.length > 1;
+      const list2 = {
+        type: "list",
+        raw: "",
+        ordered: isordered,
+        start: isordered ? +bull.slice(0, -1) : "",
+        loose: false,
+        items: []
+      };
+      bull = isordered ? `\\d{1,9}\\${bull.slice(-1)}` : `\\${bull}`;
+      if (this.options.pedantic) {
+        bull = isordered ? bull : "[*+-]";
+      }
+      const itemRegex = this.rules.other.listItemRegex(bull);
+      let endsWithBlankLine = false;
+      while (src) {
+        let endEarly = false;
+        let raw = "";
+        let itemContents = "";
+        if (!(cap = itemRegex.exec(src))) {
+          break;
+        }
+        if (this.rules.block.hr.test(src)) {
+          break;
+        }
+        raw = cap[0];
+        src = src.substring(raw.length);
+        let line = cap[2].split("\n", 1)[0].replace(this.rules.other.listReplaceTabs, (t2) => " ".repeat(3 * t2.length));
+        let nextLine = src.split("\n", 1)[0];
+        let blankLine2 = !line.trim();
+        let indent2 = 0;
+        if (this.options.pedantic) {
+          indent2 = 2;
+          itemContents = line.trimStart();
+        } else if (blankLine2) {
+          indent2 = cap[1].length + 1;
+        } else {
+          indent2 = cap[2].search(this.rules.other.nonSpaceChar);
+          indent2 = indent2 > 4 ? 1 : indent2;
+          itemContents = line.slice(indent2);
+          indent2 += cap[1].length;
+        }
+        if (blankLine2 && this.rules.other.blankLine.test(nextLine)) {
+          raw += nextLine + "\n";
+          src = src.substring(nextLine.length + 1);
+          endEarly = true;
+        }
+        if (!endEarly) {
+          const nextBulletRegex = this.rules.other.nextBulletRegex(indent2);
+          const hrRegex = this.rules.other.hrRegex(indent2);
+          const fencesBeginRegex = this.rules.other.fencesBeginRegex(indent2);
+          const headingBeginRegex = this.rules.other.headingBeginRegex(indent2);
+          const htmlBeginRegex = this.rules.other.htmlBeginRegex(indent2);
+          while (src) {
+            const rawLine = src.split("\n", 1)[0];
+            let nextLineWithoutTabs;
+            nextLine = rawLine;
+            if (this.options.pedantic) {
+              nextLine = nextLine.replace(this.rules.other.listReplaceNesting, "  ");
+              nextLineWithoutTabs = nextLine;
+            } else {
+              nextLineWithoutTabs = nextLine.replace(this.rules.other.tabCharGlobal, "    ");
+            }
+            if (fencesBeginRegex.test(nextLine)) {
+              break;
+            }
+            if (headingBeginRegex.test(nextLine)) {
+              break;
+            }
+            if (htmlBeginRegex.test(nextLine)) {
+              break;
+            }
+            if (nextBulletRegex.test(nextLine)) {
+              break;
+            }
+            if (hrRegex.test(nextLine)) {
+              break;
+            }
+            if (nextLineWithoutTabs.search(this.rules.other.nonSpaceChar) >= indent2 || !nextLine.trim()) {
+              itemContents += "\n" + nextLineWithoutTabs.slice(indent2);
+            } else {
+              if (blankLine2) {
+                break;
+              }
+              if (line.replace(this.rules.other.tabCharGlobal, "    ").search(this.rules.other.nonSpaceChar) >= 4) {
+                break;
+              }
+              if (fencesBeginRegex.test(line)) {
+                break;
+              }
+              if (headingBeginRegex.test(line)) {
+                break;
+              }
+              if (hrRegex.test(line)) {
+                break;
+              }
+              itemContents += "\n" + nextLine;
+            }
+            if (!blankLine2 && !nextLine.trim()) {
+              blankLine2 = true;
+            }
+            raw += rawLine + "\n";
+            src = src.substring(rawLine.length + 1);
+            line = nextLineWithoutTabs.slice(indent2);
+          }
+        }
+        if (!list2.loose) {
+          if (endsWithBlankLine) {
+            list2.loose = true;
+          } else if (this.rules.other.doubleBlankLine.test(raw)) {
+            endsWithBlankLine = true;
+          }
+        }
+        let istask = null;
+        let ischecked;
+        if (this.options.gfm) {
+          istask = this.rules.other.listIsTask.exec(itemContents);
+          if (istask) {
+            ischecked = istask[0] !== "[ ] ";
+            itemContents = itemContents.replace(this.rules.other.listReplaceTask, "");
+          }
+        }
+        list2.items.push({
+          type: "list_item",
+          raw,
+          task: !!istask,
+          checked: ischecked,
+          loose: false,
+          text: itemContents,
+          tokens: []
+        });
+        list2.raw += raw;
+      }
+      const lastItem = list2.items.at(-1);
+      if (lastItem) {
+        lastItem.raw = lastItem.raw.trimEnd();
+        lastItem.text = lastItem.text.trimEnd();
+      } else {
+        return;
+      }
+      list2.raw = list2.raw.trimEnd();
+      for (let i2 = 0; i2 < list2.items.length; i2++) {
+        this.lexer.state.top = false;
+        list2.items[i2].tokens = this.lexer.blockTokens(list2.items[i2].text, []);
+        if (!list2.loose) {
+          const spacers = list2.items[i2].tokens.filter((t2) => t2.type === "space");
+          const hasMultipleLineBreaks = spacers.length > 0 && spacers.some((t2) => this.rules.other.anyLine.test(t2.raw));
+          list2.loose = hasMultipleLineBreaks;
+        }
+      }
+      if (list2.loose) {
+        for (let i2 = 0; i2 < list2.items.length; i2++) {
+          list2.items[i2].loose = true;
+        }
+      }
+      return list2;
+    }
+  }
+  html(src) {
+    const cap = this.rules.block.html.exec(src);
+    if (cap) {
+      const token2 = {
+        type: "html",
+        block: true,
+        raw: cap[0],
+        pre: cap[1] === "pre" || cap[1] === "script" || cap[1] === "style",
+        text: cap[0]
+      };
+      return token2;
+    }
+  }
+  def(src) {
+    const cap = this.rules.block.def.exec(src);
+    if (cap) {
+      const tag2 = cap[1].toLowerCase().replace(this.rules.other.multipleSpaceGlobal, " ");
+      const href = cap[2] ? cap[2].replace(this.rules.other.hrefBrackets, "$1").replace(this.rules.inline.anyPunctuation, "$1") : "";
+      const title = cap[3] ? cap[3].substring(1, cap[3].length - 1).replace(this.rules.inline.anyPunctuation, "$1") : cap[3];
+      return {
+        type: "def",
+        tag: tag2,
+        raw: cap[0],
+        href,
+        title
+      };
+    }
+  }
+  table(src) {
+    const cap = this.rules.block.table.exec(src);
+    if (!cap) {
+      return;
+    }
+    if (!this.rules.other.tableDelimiter.test(cap[2])) {
+      return;
+    }
+    const headers = splitCells(cap[1]);
+    const aligns = cap[2].replace(this.rules.other.tableAlignChars, "").split("|");
+    const rows = cap[3]?.trim() ? cap[3].replace(this.rules.other.tableRowBlankLine, "").split("\n") : [];
+    const item = {
+      type: "table",
+      raw: cap[0],
+      header: [],
+      align: [],
+      rows: []
+    };
+    if (headers.length !== aligns.length) {
+      return;
+    }
+    for (const align of aligns) {
+      if (this.rules.other.tableAlignRight.test(align)) {
+        item.align.push("right");
+      } else if (this.rules.other.tableAlignCenter.test(align)) {
+        item.align.push("center");
+      } else if (this.rules.other.tableAlignLeft.test(align)) {
+        item.align.push("left");
+      } else {
+        item.align.push(null);
+      }
+    }
+    for (let i2 = 0; i2 < headers.length; i2++) {
+      item.header.push({
+        text: headers[i2],
+        tokens: this.lexer.inline(headers[i2]),
+        header: true,
+        align: item.align[i2]
+      });
+    }
+    for (const row of rows) {
+      item.rows.push(splitCells(row, item.header.length).map((cell, i2) => {
+        return {
+          text: cell,
+          tokens: this.lexer.inline(cell),
+          header: false,
+          align: item.align[i2]
+        };
+      }));
+    }
+    return item;
+  }
+  lheading(src) {
+    const cap = this.rules.block.lheading.exec(src);
+    if (cap) {
+      return {
+        type: "heading",
+        raw: cap[0],
+        depth: cap[2].charAt(0) === "=" ? 1 : 2,
+        text: cap[1],
+        tokens: this.lexer.inline(cap[1])
+      };
+    }
+  }
+  paragraph(src) {
+    const cap = this.rules.block.paragraph.exec(src);
+    if (cap) {
+      const text = cap[1].charAt(cap[1].length - 1) === "\n" ? cap[1].slice(0, -1) : cap[1];
+      return {
+        type: "paragraph",
+        raw: cap[0],
+        text,
+        tokens: this.lexer.inline(text)
+      };
+    }
+  }
+  text(src) {
+    const cap = this.rules.block.text.exec(src);
+    if (cap) {
+      return {
+        type: "text",
+        raw: cap[0],
+        text: cap[0],
+        tokens: this.lexer.inline(cap[0])
+      };
+    }
+  }
+  escape(src) {
+    const cap = this.rules.inline.escape.exec(src);
+    if (cap) {
+      return {
+        type: "escape",
+        raw: cap[0],
+        text: cap[1]
+      };
+    }
+  }
+  tag(src) {
+    const cap = this.rules.inline.tag.exec(src);
+    if (cap) {
+      if (!this.lexer.state.inLink && this.rules.other.startATag.test(cap[0])) {
+        this.lexer.state.inLink = true;
+      } else if (this.lexer.state.inLink && this.rules.other.endATag.test(cap[0])) {
+        this.lexer.state.inLink = false;
+      }
+      if (!this.lexer.state.inRawBlock && this.rules.other.startPreScriptTag.test(cap[0])) {
+        this.lexer.state.inRawBlock = true;
+      } else if (this.lexer.state.inRawBlock && this.rules.other.endPreScriptTag.test(cap[0])) {
+        this.lexer.state.inRawBlock = false;
+      }
+      return {
+        type: "html",
+        raw: cap[0],
+        inLink: this.lexer.state.inLink,
+        inRawBlock: this.lexer.state.inRawBlock,
+        block: false,
+        text: cap[0]
+      };
+    }
+  }
+  link(src) {
+    const cap = this.rules.inline.link.exec(src);
+    if (cap) {
+      const trimmedUrl = cap[2].trim();
+      if (!this.options.pedantic && this.rules.other.startAngleBracket.test(trimmedUrl)) {
+        if (!this.rules.other.endAngleBracket.test(trimmedUrl)) {
+          return;
+        }
+        const rtrimSlash = rtrim(trimmedUrl.slice(0, -1), "\\");
+        if ((trimmedUrl.length - rtrimSlash.length) % 2 === 0) {
+          return;
+        }
+      } else {
+        const lastParenIndex = findClosingBracket(cap[2], "()");
+        if (lastParenIndex === -2) {
+          return;
+        }
+        if (lastParenIndex > -1) {
+          const start = cap[0].indexOf("!") === 0 ? 5 : 4;
+          const linkLen = start + cap[1].length + lastParenIndex;
+          cap[2] = cap[2].substring(0, lastParenIndex);
+          cap[0] = cap[0].substring(0, linkLen).trim();
+          cap[3] = "";
+        }
+      }
+      let href = cap[2];
+      let title = "";
+      if (this.options.pedantic) {
+        const link2 = this.rules.other.pedanticHrefTitle.exec(href);
+        if (link2) {
+          href = link2[1];
+          title = link2[3];
+        }
+      } else {
+        title = cap[3] ? cap[3].slice(1, -1) : "";
+      }
+      href = href.trim();
+      if (this.rules.other.startAngleBracket.test(href)) {
+        if (this.options.pedantic && !this.rules.other.endAngleBracket.test(trimmedUrl)) {
+          href = href.slice(1);
+        } else {
+          href = href.slice(1, -1);
+        }
+      }
+      return outputLink(cap, {
+        href: href ? href.replace(this.rules.inline.anyPunctuation, "$1") : href,
+        title: title ? title.replace(this.rules.inline.anyPunctuation, "$1") : title
+      }, cap[0], this.lexer, this.rules);
+    }
+  }
+  reflink(src, links) {
+    let cap;
+    if ((cap = this.rules.inline.reflink.exec(src)) || (cap = this.rules.inline.nolink.exec(src))) {
+      const linkString = (cap[2] || cap[1]).replace(this.rules.other.multipleSpaceGlobal, " ");
+      const link2 = links[linkString.toLowerCase()];
+      if (!link2) {
+        const text = cap[0].charAt(0);
+        return {
+          type: "text",
+          raw: text,
+          text
+        };
+      }
+      return outputLink(cap, link2, cap[0], this.lexer, this.rules);
+    }
+  }
+  emStrong(src, maskedSrc, prevChar2 = "") {
+    let match = this.rules.inline.emStrongLDelim.exec(src);
+    if (!match) return;
+    if (match[3] && prevChar2.match(this.rules.other.unicodeAlphaNumeric)) return;
+    const nextChar2 = match[1] || match[2] || "";
+    if (!nextChar2 || !prevChar2 || this.rules.inline.punctuation.exec(prevChar2)) {
+      const lLength = [...match[0]].length - 1;
+      let rDelim, rLength, delimTotal = lLength, midDelimTotal = 0;
+      const endReg = match[0][0] === "*" ? this.rules.inline.emStrongRDelimAst : this.rules.inline.emStrongRDelimUnd;
+      endReg.lastIndex = 0;
+      maskedSrc = maskedSrc.slice(-1 * src.length + lLength);
+      while ((match = endReg.exec(maskedSrc)) != null) {
+        rDelim = match[1] || match[2] || match[3] || match[4] || match[5] || match[6];
+        if (!rDelim) continue;
+        rLength = [...rDelim].length;
+        if (match[3] || match[4]) {
+          delimTotal += rLength;
+          continue;
+        } else if (match[5] || match[6]) {
+          if (lLength % 3 && !((lLength + rLength) % 3)) {
+            midDelimTotal += rLength;
+            continue;
+          }
+        }
+        delimTotal -= rLength;
+        if (delimTotal > 0) continue;
+        rLength = Math.min(rLength, rLength + delimTotal + midDelimTotal);
+        const lastCharLength = [...match[0]][0].length;
+        const raw = src.slice(0, lLength + match.index + lastCharLength + rLength);
+        if (Math.min(lLength, rLength) % 2) {
+          const text2 = raw.slice(1, -1);
+          return {
+            type: "em",
+            raw,
+            text: text2,
+            tokens: this.lexer.inlineTokens(text2)
+          };
+        }
+        const text = raw.slice(2, -2);
+        return {
+          type: "strong",
+          raw,
+          text,
+          tokens: this.lexer.inlineTokens(text)
+        };
+      }
+    }
+  }
+  codespan(src) {
+    const cap = this.rules.inline.code.exec(src);
+    if (cap) {
+      let text = cap[2].replace(this.rules.other.newLineCharGlobal, " ");
+      const hasNonSpaceChars = this.rules.other.nonSpaceChar.test(text);
+      const hasSpaceCharsOnBothEnds = this.rules.other.startingSpaceChar.test(text) && this.rules.other.endingSpaceChar.test(text);
+      if (hasNonSpaceChars && hasSpaceCharsOnBothEnds) {
+        text = text.substring(1, text.length - 1);
+      }
+      return {
+        type: "codespan",
+        raw: cap[0],
+        text
+      };
+    }
+  }
+  br(src) {
+    const cap = this.rules.inline.br.exec(src);
+    if (cap) {
+      return {
+        type: "br",
+        raw: cap[0]
+      };
+    }
+  }
+  del(src) {
+    const cap = this.rules.inline.del.exec(src);
+    if (cap) {
+      return {
+        type: "del",
+        raw: cap[0],
+        text: cap[2],
+        tokens: this.lexer.inlineTokens(cap[2])
+      };
+    }
+  }
+  autolink(src) {
+    const cap = this.rules.inline.autolink.exec(src);
+    if (cap) {
+      let text, href;
+      if (cap[2] === "@") {
+        text = cap[1];
+        href = "mailto:" + text;
+      } else {
+        text = cap[1];
+        href = text;
+      }
+      return {
+        type: "link",
+        raw: cap[0],
+        text,
+        href,
+        tokens: [
+          {
+            type: "text",
+            raw: text,
+            text
+          }
+        ]
+      };
+    }
+  }
+  url(src) {
+    let cap;
+    if (cap = this.rules.inline.url.exec(src)) {
+      let text, href;
+      if (cap[2] === "@") {
+        text = cap[0];
+        href = "mailto:" + text;
+      } else {
+        let prevCapZero;
+        do {
+          prevCapZero = cap[0];
+          cap[0] = this.rules.inline._backpedal.exec(cap[0])?.[0] ?? "";
+        } while (prevCapZero !== cap[0]);
+        text = cap[0];
+        if (cap[1] === "www.") {
+          href = "http://" + cap[0];
+        } else {
+          href = cap[0];
+        }
+      }
+      return {
+        type: "link",
+        raw: cap[0],
+        text,
+        href,
+        tokens: [
+          {
+            type: "text",
+            raw: text,
+            text
+          }
+        ]
+      };
+    }
+  }
+  inlineText(src) {
+    const cap = this.rules.inline.text.exec(src);
+    if (cap) {
+      const escaped = this.lexer.state.inRawBlock;
+      return {
+        type: "text",
+        raw: cap[0],
+        text: cap[0],
+        escaped
+      };
+    }
+  }
+};
+var _Lexer = class __Lexer {
+  tokens;
+  options;
+  state;
+  tokenizer;
+  inlineQueue;
+  constructor(options2) {
+    this.tokens = [];
+    this.tokens.links = /* @__PURE__ */ Object.create(null);
+    this.options = options2 || _defaults;
+    this.options.tokenizer = this.options.tokenizer || new _Tokenizer();
+    this.tokenizer = this.options.tokenizer;
+    this.tokenizer.options = this.options;
+    this.tokenizer.lexer = this;
+    this.inlineQueue = [];
+    this.state = {
+      inLink: false,
+      inRawBlock: false,
+      top: true
+    };
+    const rules = {
+      other,
+      block: block.normal,
+      inline: inline.normal
+    };
+    if (this.options.pedantic) {
+      rules.block = block.pedantic;
+      rules.inline = inline.pedantic;
+    } else if (this.options.gfm) {
+      rules.block = block.gfm;
+      if (this.options.breaks) {
+        rules.inline = inline.breaks;
+      } else {
+        rules.inline = inline.gfm;
+      }
+    }
+    this.tokenizer.rules = rules;
+  }
+  /**
+   * Expose Rules
+   */
+  static get rules() {
+    return {
+      block,
+      inline
+    };
+  }
+  /**
+   * Static Lex Method
+   */
+  static lex(src, options2) {
+    const lexer2 = new __Lexer(options2);
+    return lexer2.lex(src);
+  }
+  /**
+   * Static Lex Inline Method
+   */
+  static lexInline(src, options2) {
+    const lexer2 = new __Lexer(options2);
+    return lexer2.inlineTokens(src);
+  }
+  /**
+   * Preprocessing
+   */
+  lex(src) {
+    src = src.replace(other.carriageReturn, "\n");
+    this.blockTokens(src, this.tokens);
+    for (let i2 = 0; i2 < this.inlineQueue.length; i2++) {
+      const next = this.inlineQueue[i2];
+      this.inlineTokens(next.src, next.tokens);
+    }
+    this.inlineQueue = [];
+    return this.tokens;
+  }
+  blockTokens(src, tokens2 = [], lastParagraphClipped = false) {
+    if (this.options.pedantic) {
+      src = src.replace(other.tabCharGlobal, "    ").replace(other.spaceLine, "");
+    }
+    while (src) {
+      let token2;
+      if (this.options.extensions?.block?.some((extTokenizer) => {
+        if (token2 = extTokenizer.call({ lexer: this }, src, tokens2)) {
+          src = src.substring(token2.raw.length);
+          tokens2.push(token2);
+          return true;
+        }
+        return false;
+      })) {
+        continue;
+      }
+      if (token2 = this.tokenizer.space(src)) {
+        src = src.substring(token2.raw.length);
+        const lastToken = tokens2.at(-1);
+        if (token2.raw.length === 1 && lastToken !== void 0) {
+          lastToken.raw += "\n";
+        } else {
+          tokens2.push(token2);
+        }
+        continue;
+      }
+      if (token2 = this.tokenizer.code(src)) {
+        src = src.substring(token2.raw.length);
+        const lastToken = tokens2.at(-1);
+        if (lastToken?.type === "paragraph" || lastToken?.type === "text") {
+          lastToken.raw += "\n" + token2.raw;
+          lastToken.text += "\n" + token2.text;
+          this.inlineQueue.at(-1).src = lastToken.text;
+        } else {
+          tokens2.push(token2);
+        }
+        continue;
+      }
+      if (token2 = this.tokenizer.fences(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.heading(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.hr(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.blockquote(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.list(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.html(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.def(src)) {
+        src = src.substring(token2.raw.length);
+        const lastToken = tokens2.at(-1);
+        if (lastToken?.type === "paragraph" || lastToken?.type === "text") {
+          lastToken.raw += "\n" + token2.raw;
+          lastToken.text += "\n" + token2.raw;
+          this.inlineQueue.at(-1).src = lastToken.text;
+        } else if (!this.tokens.links[token2.tag]) {
+          this.tokens.links[token2.tag] = {
+            href: token2.href,
+            title: token2.title
+          };
+        }
+        continue;
+      }
+      if (token2 = this.tokenizer.table(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.lheading(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      let cutSrc = src;
+      if (this.options.extensions?.startBlock) {
+        let startIndex = Infinity;
+        const tempSrc = src.slice(1);
+        let tempStart;
+        this.options.extensions.startBlock.forEach((getStartIndex) => {
+          tempStart = getStartIndex.call({ lexer: this }, tempSrc);
+          if (typeof tempStart === "number" && tempStart >= 0) {
+            startIndex = Math.min(startIndex, tempStart);
+          }
+        });
+        if (startIndex < Infinity && startIndex >= 0) {
+          cutSrc = src.substring(0, startIndex + 1);
+        }
+      }
+      if (this.state.top && (token2 = this.tokenizer.paragraph(cutSrc))) {
+        const lastToken = tokens2.at(-1);
+        if (lastParagraphClipped && lastToken?.type === "paragraph") {
+          lastToken.raw += "\n" + token2.raw;
+          lastToken.text += "\n" + token2.text;
+          this.inlineQueue.pop();
+          this.inlineQueue.at(-1).src = lastToken.text;
+        } else {
+          tokens2.push(token2);
+        }
+        lastParagraphClipped = cutSrc.length !== src.length;
+        src = src.substring(token2.raw.length);
+        continue;
+      }
+      if (token2 = this.tokenizer.text(src)) {
+        src = src.substring(token2.raw.length);
+        const lastToken = tokens2.at(-1);
+        if (lastToken?.type === "text") {
+          lastToken.raw += "\n" + token2.raw;
+          lastToken.text += "\n" + token2.text;
+          this.inlineQueue.pop();
+          this.inlineQueue.at(-1).src = lastToken.text;
+        } else {
+          tokens2.push(token2);
+        }
+        continue;
+      }
+      if (src) {
+        const errMsg = "Infinite loop on byte: " + src.charCodeAt(0);
+        if (this.options.silent) {
+          console.error(errMsg);
+          break;
+        } else {
+          throw new Error(errMsg);
+        }
+      }
+    }
+    this.state.top = true;
+    return tokens2;
+  }
+  inline(src, tokens2 = []) {
+    this.inlineQueue.push({ src, tokens: tokens2 });
+    return tokens2;
+  }
+  /**
+   * Lexing/Compiling
+   */
+  inlineTokens(src, tokens2 = []) {
+    let maskedSrc = src;
+    let match = null;
+    if (this.tokens.links) {
+      const links = Object.keys(this.tokens.links);
+      if (links.length > 0) {
+        while ((match = this.tokenizer.rules.inline.reflinkSearch.exec(maskedSrc)) != null) {
+          if (links.includes(match[0].slice(match[0].lastIndexOf("[") + 1, -1))) {
+            maskedSrc = maskedSrc.slice(0, match.index) + "[" + "a".repeat(match[0].length - 2) + "]" + maskedSrc.slice(this.tokenizer.rules.inline.reflinkSearch.lastIndex);
+          }
+        }
+      }
+    }
+    while ((match = this.tokenizer.rules.inline.anyPunctuation.exec(maskedSrc)) != null) {
+      maskedSrc = maskedSrc.slice(0, match.index) + "++" + maskedSrc.slice(this.tokenizer.rules.inline.anyPunctuation.lastIndex);
+    }
+    while ((match = this.tokenizer.rules.inline.blockSkip.exec(maskedSrc)) != null) {
+      maskedSrc = maskedSrc.slice(0, match.index) + "[" + "a".repeat(match[0].length - 2) + "]" + maskedSrc.slice(this.tokenizer.rules.inline.blockSkip.lastIndex);
+    }
+    let keepPrevChar = false;
+    let prevChar2 = "";
+    while (src) {
+      if (!keepPrevChar) {
+        prevChar2 = "";
+      }
+      keepPrevChar = false;
+      let token2;
+      if (this.options.extensions?.inline?.some((extTokenizer) => {
+        if (token2 = extTokenizer.call({ lexer: this }, src, tokens2)) {
+          src = src.substring(token2.raw.length);
+          tokens2.push(token2);
+          return true;
+        }
+        return false;
+      })) {
+        continue;
+      }
+      if (token2 = this.tokenizer.escape(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.tag(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.link(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.reflink(src, this.tokens.links)) {
+        src = src.substring(token2.raw.length);
+        const lastToken = tokens2.at(-1);
+        if (token2.type === "text" && lastToken?.type === "text") {
+          lastToken.raw += token2.raw;
+          lastToken.text += token2.text;
+        } else {
+          tokens2.push(token2);
+        }
+        continue;
+      }
+      if (token2 = this.tokenizer.emStrong(src, maskedSrc, prevChar2)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.codespan(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.br(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.del(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (token2 = this.tokenizer.autolink(src)) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      if (!this.state.inLink && (token2 = this.tokenizer.url(src))) {
+        src = src.substring(token2.raw.length);
+        tokens2.push(token2);
+        continue;
+      }
+      let cutSrc = src;
+      if (this.options.extensions?.startInline) {
+        let startIndex = Infinity;
+        const tempSrc = src.slice(1);
+        let tempStart;
+        this.options.extensions.startInline.forEach((getStartIndex) => {
+          tempStart = getStartIndex.call({ lexer: this }, tempSrc);
+          if (typeof tempStart === "number" && tempStart >= 0) {
+            startIndex = Math.min(startIndex, tempStart);
+          }
+        });
+        if (startIndex < Infinity && startIndex >= 0) {
+          cutSrc = src.substring(0, startIndex + 1);
+        }
+      }
+      if (token2 = this.tokenizer.inlineText(cutSrc)) {
+        src = src.substring(token2.raw.length);
+        if (token2.raw.slice(-1) !== "_") {
+          prevChar2 = token2.raw.slice(-1);
+        }
+        keepPrevChar = true;
+        const lastToken = tokens2.at(-1);
+        if (lastToken?.type === "text") {
+          lastToken.raw += token2.raw;
+          lastToken.text += token2.text;
+        } else {
+          tokens2.push(token2);
+        }
+        continue;
+      }
+      if (src) {
+        const errMsg = "Infinite loop on byte: " + src.charCodeAt(0);
+        if (this.options.silent) {
+          console.error(errMsg);
+          break;
+        } else {
+          throw new Error(errMsg);
+        }
+      }
+    }
+    return tokens2;
+  }
+};
+var _Renderer = class {
+  options;
+  parser;
+  // set by the parser
+  constructor(options2) {
+    this.options = options2 || _defaults;
+  }
+  space(token2) {
+    return "";
+  }
+  code({ text, lang, escaped }) {
+    const langString = (lang || "").match(other.notSpaceStart)?.[0];
+    const code2 = text.replace(other.endingNewline, "") + "\n";
+    if (!langString) {
+      return "<pre><code>" + (escaped ? code2 : escape2(code2, true)) + "</code></pre>\n";
+    }
+    return '<pre><code class="language-' + escape2(langString) + '">' + (escaped ? code2 : escape2(code2, true)) + "</code></pre>\n";
+  }
+  blockquote({ tokens: tokens2 }) {
+    const body = this.parser.parse(tokens2);
+    return `<blockquote>
+${body}</blockquote>
+`;
+  }
+  html({ text }) {
+    return text;
+  }
+  heading({ tokens: tokens2, depth }) {
+    return `<h${depth}>${this.parser.parseInline(tokens2)}</h${depth}>
+`;
+  }
+  hr(token2) {
+    return "<hr>\n";
+  }
+  list(token2) {
+    const ordered = token2.ordered;
+    const start = token2.start;
+    let body = "";
+    for (let j2 = 0; j2 < token2.items.length; j2++) {
+      const item = token2.items[j2];
+      body += this.listitem(item);
+    }
+    const type = ordered ? "ol" : "ul";
+    const startAttr = ordered && start !== 1 ? ' start="' + start + '"' : "";
+    return "<" + type + startAttr + ">\n" + body + "</" + type + ">\n";
+  }
+  listitem(item) {
+    let itemBody = "";
+    if (item.task) {
+      const checkbox = this.checkbox({ checked: !!item.checked });
+      if (item.loose) {
+        if (item.tokens[0]?.type === "paragraph") {
+          item.tokens[0].text = checkbox + " " + item.tokens[0].text;
+          if (item.tokens[0].tokens && item.tokens[0].tokens.length > 0 && item.tokens[0].tokens[0].type === "text") {
+            item.tokens[0].tokens[0].text = checkbox + " " + escape2(item.tokens[0].tokens[0].text);
+            item.tokens[0].tokens[0].escaped = true;
+          }
+        } else {
+          item.tokens.unshift({
+            type: "text",
+            raw: checkbox + " ",
+            text: checkbox + " ",
+            escaped: true
+          });
+        }
+      } else {
+        itemBody += checkbox + " ";
+      }
+    }
+    itemBody += this.parser.parse(item.tokens, !!item.loose);
+    return `<li>${itemBody}</li>
+`;
+  }
+  checkbox({ checked }) {
+    return "<input " + (checked ? 'checked="" ' : "") + 'disabled="" type="checkbox">';
+  }
+  paragraph({ tokens: tokens2 }) {
+    return `<p>${this.parser.parseInline(tokens2)}</p>
+`;
+  }
+  table(token2) {
+    let header = "";
+    let cell = "";
+    for (let j2 = 0; j2 < token2.header.length; j2++) {
+      cell += this.tablecell(token2.header[j2]);
+    }
+    header += this.tablerow({ text: cell });
+    let body = "";
+    for (let j2 = 0; j2 < token2.rows.length; j2++) {
+      const row = token2.rows[j2];
+      cell = "";
+      for (let k = 0; k < row.length; k++) {
+        cell += this.tablecell(row[k]);
+      }
+      body += this.tablerow({ text: cell });
+    }
+    if (body) body = `<tbody>${body}</tbody>`;
+    return "<table>\n<thead>\n" + header + "</thead>\n" + body + "</table>\n";
+  }
+  tablerow({ text }) {
+    return `<tr>
+${text}</tr>
+`;
+  }
+  tablecell(token2) {
+    const content2 = this.parser.parseInline(token2.tokens);
+    const type = token2.header ? "th" : "td";
+    const tag2 = token2.align ? `<${type} align="${token2.align}">` : `<${type}>`;
+    return tag2 + content2 + `</${type}>
+`;
+  }
+  /**
+   * span level renderer
+   */
+  strong({ tokens: tokens2 }) {
+    return `<strong>${this.parser.parseInline(tokens2)}</strong>`;
+  }
+  em({ tokens: tokens2 }) {
+    return `<em>${this.parser.parseInline(tokens2)}</em>`;
+  }
+  codespan({ text }) {
+    return `<code>${escape2(text, true)}</code>`;
+  }
+  br(token2) {
+    return "<br>";
+  }
+  del({ tokens: tokens2 }) {
+    return `<del>${this.parser.parseInline(tokens2)}</del>`;
+  }
+  link({ href, title, tokens: tokens2 }) {
+    const text = this.parser.parseInline(tokens2);
+    const cleanHref = cleanUrl(href);
+    if (cleanHref === null) {
+      return text;
+    }
+    href = cleanHref;
+    let out = '<a href="' + href + '"';
+    if (title) {
+      out += ' title="' + escape2(title) + '"';
+    }
+    out += ">" + text + "</a>";
+    return out;
+  }
+  image({ href, title, text, tokens: tokens2 }) {
+    if (tokens2) {
+      text = this.parser.parseInline(tokens2, this.parser.textRenderer);
+    }
+    const cleanHref = cleanUrl(href);
+    if (cleanHref === null) {
+      return escape2(text);
+    }
+    href = cleanHref;
+    let out = `<img src="${href}" alt="${text}"`;
+    if (title) {
+      out += ` title="${escape2(title)}"`;
+    }
+    out += ">";
+    return out;
+  }
+  text(token2) {
+    return "tokens" in token2 && token2.tokens ? this.parser.parseInline(token2.tokens) : "escaped" in token2 && token2.escaped ? token2.text : escape2(token2.text);
+  }
+};
+var _TextRenderer = class {
+  // no need for block level renderers
+  strong({ text }) {
+    return text;
+  }
+  em({ text }) {
+    return text;
+  }
+  codespan({ text }) {
+    return text;
+  }
+  del({ text }) {
+    return text;
+  }
+  html({ text }) {
+    return text;
+  }
+  text({ text }) {
+    return text;
+  }
+  link({ text }) {
+    return "" + text;
+  }
+  image({ text }) {
+    return "" + text;
+  }
+  br() {
+    return "";
+  }
+};
+var _Parser = class __Parser {
+  options;
+  renderer;
+  textRenderer;
+  constructor(options2) {
+    this.options = options2 || _defaults;
+    this.options.renderer = this.options.renderer || new _Renderer();
+    this.renderer = this.options.renderer;
+    this.renderer.options = this.options;
+    this.renderer.parser = this;
+    this.textRenderer = new _TextRenderer();
+  }
+  /**
+   * Static Parse Method
+   */
+  static parse(tokens2, options2) {
+    const parser22 = new __Parser(options2);
+    return parser22.parse(tokens2);
+  }
+  /**
+   * Static Parse Inline Method
+   */
+  static parseInline(tokens2, options2) {
+    const parser22 = new __Parser(options2);
+    return parser22.parseInline(tokens2);
+  }
+  /**
+   * Parse Loop
+   */
+  parse(tokens2, top2 = true) {
+    let out = "";
+    for (let i2 = 0; i2 < tokens2.length; i2++) {
+      const anyToken = tokens2[i2];
+      if (this.options.extensions?.renderers?.[anyToken.type]) {
+        const genericToken = anyToken;
+        const ret = this.options.extensions.renderers[genericToken.type].call({ parser: this }, genericToken);
+        if (ret !== false || !["space", "hr", "heading", "code", "table", "blockquote", "list", "html", "paragraph", "text"].includes(genericToken.type)) {
+          out += ret || "";
+          continue;
+        }
+      }
+      const token2 = anyToken;
+      switch (token2.type) {
+        case "space": {
+          out += this.renderer.space(token2);
+          continue;
+        }
+        case "hr": {
+          out += this.renderer.hr(token2);
+          continue;
+        }
+        case "heading": {
+          out += this.renderer.heading(token2);
+          continue;
+        }
+        case "code": {
+          out += this.renderer.code(token2);
+          continue;
+        }
+        case "table": {
+          out += this.renderer.table(token2);
+          continue;
+        }
+        case "blockquote": {
+          out += this.renderer.blockquote(token2);
+          continue;
+        }
+        case "list": {
+          out += this.renderer.list(token2);
+          continue;
+        }
+        case "html": {
+          out += this.renderer.html(token2);
+          continue;
+        }
+        case "paragraph": {
+          out += this.renderer.paragraph(token2);
+          continue;
+        }
+        case "text": {
+          let textToken = token2;
+          let body = this.renderer.text(textToken);
+          while (i2 + 1 < tokens2.length && tokens2[i2 + 1].type === "text") {
+            textToken = tokens2[++i2];
+            body += "\n" + this.renderer.text(textToken);
+          }
+          if (top2) {
+            out += this.renderer.paragraph({
+              type: "paragraph",
+              raw: body,
+              text: body,
+              tokens: [{ type: "text", raw: body, text: body, escaped: true }]
+            });
+          } else {
+            out += body;
+          }
+          continue;
+        }
+        default: {
+          const errMsg = 'Token with "' + token2.type + '" type was not found.';
+          if (this.options.silent) {
+            console.error(errMsg);
+            return "";
+          } else {
+            throw new Error(errMsg);
+          }
+        }
+      }
+    }
+    return out;
+  }
+  /**
+   * Parse Inline Tokens
+   */
+  parseInline(tokens2, renderer = this.renderer) {
+    let out = "";
+    for (let i2 = 0; i2 < tokens2.length; i2++) {
+      const anyToken = tokens2[i2];
+      if (this.options.extensions?.renderers?.[anyToken.type]) {
+        const ret = this.options.extensions.renderers[anyToken.type].call({ parser: this }, anyToken);
+        if (ret !== false || !["escape", "html", "link", "image", "strong", "em", "codespan", "br", "del", "text"].includes(anyToken.type)) {
+          out += ret || "";
+          continue;
+        }
+      }
+      const token2 = anyToken;
+      switch (token2.type) {
+        case "escape": {
+          out += renderer.text(token2);
+          break;
+        }
+        case "html": {
+          out += renderer.html(token2);
+          break;
+        }
+        case "link": {
+          out += renderer.link(token2);
+          break;
+        }
+        case "image": {
+          out += renderer.image(token2);
+          break;
+        }
+        case "strong": {
+          out += renderer.strong(token2);
+          break;
+        }
+        case "em": {
+          out += renderer.em(token2);
+          break;
+        }
+        case "codespan": {
+          out += renderer.codespan(token2);
+          break;
+        }
+        case "br": {
+          out += renderer.br(token2);
+          break;
+        }
+        case "del": {
+          out += renderer.del(token2);
+          break;
+        }
+        case "text": {
+          out += renderer.text(token2);
+          break;
+        }
+        default: {
+          const errMsg = 'Token with "' + token2.type + '" type was not found.';
+          if (this.options.silent) {
+            console.error(errMsg);
+            return "";
+          } else {
+            throw new Error(errMsg);
+          }
+        }
+      }
+    }
+    return out;
+  }
+};
+var _Hooks = class {
+  options;
+  block;
+  constructor(options2) {
+    this.options = options2 || _defaults;
+  }
+  static passThroughHooks = /* @__PURE__ */ new Set([
+    "preprocess",
+    "postprocess",
+    "processAllTokens"
+  ]);
+  /**
+   * Process markdown before marked
+   */
+  preprocess(markdown2) {
+    return markdown2;
+  }
+  /**
+   * Process HTML after marked is finished
+   */
+  postprocess(html22) {
+    return html22;
+  }
+  /**
+   * Process all tokens before walk tokens
+   */
+  processAllTokens(tokens2) {
+    return tokens2;
+  }
+  /**
+   * Provide function to tokenize markdown
+   */
+  provideLexer() {
+    return this.block ? _Lexer.lex : _Lexer.lexInline;
+  }
+  /**
+   * Provide function to parse tokens
+   */
+  provideParser() {
+    return this.block ? _Parser.parse : _Parser.parseInline;
+  }
+};
+var Marked = class {
+  defaults = _getDefaults();
+  options = this.setOptions;
+  parse = this.parseMarkdown(true);
+  parseInline = this.parseMarkdown(false);
+  Parser = _Parser;
+  Renderer = _Renderer;
+  TextRenderer = _TextRenderer;
+  Lexer = _Lexer;
+  Tokenizer = _Tokenizer;
+  Hooks = _Hooks;
+  constructor(...args) {
+    this.use(...args);
+  }
+  /**
+   * Run callback for every token
+   */
+  walkTokens(tokens2, callback) {
+    let values2 = [];
+    for (const token2 of tokens2) {
+      values2 = values2.concat(callback.call(this, token2));
+      switch (token2.type) {
+        case "table": {
+          const tableToken = token2;
+          for (const cell of tableToken.header) {
+            values2 = values2.concat(this.walkTokens(cell.tokens, callback));
+          }
+          for (const row of tableToken.rows) {
+            for (const cell of row) {
+              values2 = values2.concat(this.walkTokens(cell.tokens, callback));
+            }
+          }
+          break;
+        }
+        case "list": {
+          const listToken = token2;
+          values2 = values2.concat(this.walkTokens(listToken.items, callback));
+          break;
+        }
+        default: {
+          const genericToken = token2;
+          if (this.defaults.extensions?.childTokens?.[genericToken.type]) {
+            this.defaults.extensions.childTokens[genericToken.type].forEach((childTokens) => {
+              const tokens22 = genericToken[childTokens].flat(Infinity);
+              values2 = values2.concat(this.walkTokens(tokens22, callback));
+            });
+          } else if (genericToken.tokens) {
+            values2 = values2.concat(this.walkTokens(genericToken.tokens, callback));
+          }
+        }
+      }
+    }
+    return values2;
+  }
+  use(...args) {
+    const extensions = this.defaults.extensions || { renderers: {}, childTokens: {} };
+    args.forEach((pack) => {
+      const opts = { ...pack };
+      opts.async = this.defaults.async || opts.async || false;
+      if (pack.extensions) {
+        pack.extensions.forEach((ext) => {
+          if (!ext.name) {
+            throw new Error("extension name required");
+          }
+          if ("renderer" in ext) {
+            const prevRenderer = extensions.renderers[ext.name];
+            if (prevRenderer) {
+              extensions.renderers[ext.name] = function(...args2) {
+                let ret = ext.renderer.apply(this, args2);
+                if (ret === false) {
+                  ret = prevRenderer.apply(this, args2);
+                }
+                return ret;
+              };
+            } else {
+              extensions.renderers[ext.name] = ext.renderer;
+            }
+          }
+          if ("tokenizer" in ext) {
+            if (!ext.level || ext.level !== "block" && ext.level !== "inline") {
+              throw new Error("extension level must be 'block' or 'inline'");
+            }
+            const extLevel = extensions[ext.level];
+            if (extLevel) {
+              extLevel.unshift(ext.tokenizer);
+            } else {
+              extensions[ext.level] = [ext.tokenizer];
+            }
+            if (ext.start) {
+              if (ext.level === "block") {
+                if (extensions.startBlock) {
+                  extensions.startBlock.push(ext.start);
+                } else {
+                  extensions.startBlock = [ext.start];
+                }
+              } else if (ext.level === "inline") {
+                if (extensions.startInline) {
+                  extensions.startInline.push(ext.start);
+                } else {
+                  extensions.startInline = [ext.start];
+                }
+              }
+            }
+          }
+          if ("childTokens" in ext && ext.childTokens) {
+            extensions.childTokens[ext.name] = ext.childTokens;
+          }
+        });
+        opts.extensions = extensions;
+      }
+      if (pack.renderer) {
+        const renderer = this.defaults.renderer || new _Renderer(this.defaults);
+        for (const prop in pack.renderer) {
+          if (!(prop in renderer)) {
+            throw new Error(`renderer '${prop}' does not exist`);
+          }
+          if (["options", "parser"].includes(prop)) {
+            continue;
+          }
+          const rendererProp = prop;
+          const rendererFunc = pack.renderer[rendererProp];
+          const prevRenderer = renderer[rendererProp];
+          renderer[rendererProp] = (...args2) => {
+            let ret = rendererFunc.apply(renderer, args2);
+            if (ret === false) {
+              ret = prevRenderer.apply(renderer, args2);
+            }
+            return ret || "";
+          };
+        }
+        opts.renderer = renderer;
+      }
+      if (pack.tokenizer) {
+        const tokenizer = this.defaults.tokenizer || new _Tokenizer(this.defaults);
+        for (const prop in pack.tokenizer) {
+          if (!(prop in tokenizer)) {
+            throw new Error(`tokenizer '${prop}' does not exist`);
+          }
+          if (["options", "rules", "lexer"].includes(prop)) {
+            continue;
+          }
+          const tokenizerProp = prop;
+          const tokenizerFunc = pack.tokenizer[tokenizerProp];
+          const prevTokenizer = tokenizer[tokenizerProp];
+          tokenizer[tokenizerProp] = (...args2) => {
+            let ret = tokenizerFunc.apply(tokenizer, args2);
+            if (ret === false) {
+              ret = prevTokenizer.apply(tokenizer, args2);
+            }
+            return ret;
+          };
+        }
+        opts.tokenizer = tokenizer;
+      }
+      if (pack.hooks) {
+        const hooks = this.defaults.hooks || new _Hooks();
+        for (const prop in pack.hooks) {
+          if (!(prop in hooks)) {
+            throw new Error(`hook '${prop}' does not exist`);
+          }
+          if (["options", "block"].includes(prop)) {
+            continue;
+          }
+          const hooksProp = prop;
+          const hooksFunc = pack.hooks[hooksProp];
+          const prevHook = hooks[hooksProp];
+          if (_Hooks.passThroughHooks.has(prop)) {
+            hooks[hooksProp] = (arg) => {
+              if (this.defaults.async) {
+                return Promise.resolve(hooksFunc.call(hooks, arg)).then((ret2) => {
+                  return prevHook.call(hooks, ret2);
+                });
+              }
+              const ret = hooksFunc.call(hooks, arg);
+              return prevHook.call(hooks, ret);
+            };
+          } else {
+            hooks[hooksProp] = (...args2) => {
+              let ret = hooksFunc.apply(hooks, args2);
+              if (ret === false) {
+                ret = prevHook.apply(hooks, args2);
+              }
+              return ret;
+            };
+          }
+        }
+        opts.hooks = hooks;
+      }
+      if (pack.walkTokens) {
+        const walkTokens2 = this.defaults.walkTokens;
+        const packWalktokens = pack.walkTokens;
+        opts.walkTokens = function(token2) {
+          let values2 = [];
+          values2.push(packWalktokens.call(this, token2));
+          if (walkTokens2) {
+            values2 = values2.concat(walkTokens2.call(this, token2));
+          }
+          return values2;
+        };
+      }
+      this.defaults = { ...this.defaults, ...opts };
+    });
+    return this;
+  }
+  setOptions(opt) {
+    this.defaults = { ...this.defaults, ...opt };
+    return this;
+  }
+  lexer(src, options2) {
+    return _Lexer.lex(src, options2 ?? this.defaults);
+  }
+  parser(tokens2, options2) {
+    return _Parser.parse(tokens2, options2 ?? this.defaults);
+  }
+  parseMarkdown(blockType) {
+    const parse2 = (src, options2) => {
+      const origOpt = { ...options2 };
+      const opt = { ...this.defaults, ...origOpt };
+      const throwError = this.onError(!!opt.silent, !!opt.async);
+      if (this.defaults.async === true && origOpt.async === false) {
+        return throwError(new Error("marked(): The async option was set to true by an extension. Remove async: false from the parse options object to return a Promise."));
+      }
+      if (typeof src === "undefined" || src === null) {
+        return throwError(new Error("marked(): input parameter is undefined or null"));
+      }
+      if (typeof src !== "string") {
+        return throwError(new Error("marked(): input parameter is of type " + Object.prototype.toString.call(src) + ", string expected"));
+      }
+      if (opt.hooks) {
+        opt.hooks.options = opt;
+        opt.hooks.block = blockType;
+      }
+      const lexer2 = opt.hooks ? opt.hooks.provideLexer() : blockType ? _Lexer.lex : _Lexer.lexInline;
+      const parser22 = opt.hooks ? opt.hooks.provideParser() : blockType ? _Parser.parse : _Parser.parseInline;
+      if (opt.async) {
+        return Promise.resolve(opt.hooks ? opt.hooks.preprocess(src) : src).then((src2) => lexer2(src2, opt)).then((tokens2) => opt.hooks ? opt.hooks.processAllTokens(tokens2) : tokens2).then((tokens2) => opt.walkTokens ? Promise.all(this.walkTokens(tokens2, opt.walkTokens)).then(() => tokens2) : tokens2).then((tokens2) => parser22(tokens2, opt)).then((html22) => opt.hooks ? opt.hooks.postprocess(html22) : html22).catch(throwError);
+      }
+      try {
+        if (opt.hooks) {
+          src = opt.hooks.preprocess(src);
+        }
+        let tokens2 = lexer2(src, opt);
+        if (opt.hooks) {
+          tokens2 = opt.hooks.processAllTokens(tokens2);
+        }
+        if (opt.walkTokens) {
+          this.walkTokens(tokens2, opt.walkTokens);
+        }
+        let html22 = parser22(tokens2, opt);
+        if (opt.hooks) {
+          html22 = opt.hooks.postprocess(html22);
+        }
+        return html22;
+      } catch (e) {
+        return throwError(e);
+      }
+    };
+    return parse2;
+  }
+  onError(silent, async) {
+    return (e) => {
+      e.message += "\nPlease report this to https://github.com/markedjs/marked.";
+      if (silent) {
+        const msg = "<p>An error occurred:</p><pre>" + escape2(e.message + "", true) + "</pre>";
+        if (async) {
+          return Promise.resolve(msg);
+        }
+        return msg;
+      }
+      if (async) {
+        return Promise.reject(e);
+      }
+      throw e;
+    };
+  }
+};
+var markedInstance = new Marked();
+function marked(src, opt) {
+  return markedInstance.parse(src, opt);
+}
+marked.options = marked.setOptions = function(options2) {
+  markedInstance.setOptions(options2);
+  marked.defaults = markedInstance.defaults;
+  changeDefaults(marked.defaults);
+  return marked;
+};
+marked.getDefaults = _getDefaults;
+marked.defaults = _defaults;
+marked.use = function(...args) {
+  markedInstance.use(...args);
+  marked.defaults = markedInstance.defaults;
+  changeDefaults(marked.defaults);
+  return marked;
+};
+marked.walkTokens = function(tokens2, callback) {
+  return markedInstance.walkTokens(tokens2, callback);
+};
+marked.parseInline = markedInstance.parseInline;
+marked.Parser = _Parser;
+marked.parser = _Parser.parse;
+marked.Renderer = _Renderer;
+marked.TextRenderer = _TextRenderer;
+marked.Lexer = _Lexer;
+marked.lexer = _Lexer.lex;
+marked.Tokenizer = _Tokenizer;
+marked.Hooks = _Hooks;
+marked.parse = marked;
+var options = marked.options;
+var setOptions = marked.setOptions;
+var use = marked.use;
+var walkTokens = marked.walkTokens;
+var parseInline = marked.parseInline;
+var parser15 = _Parser.parse;
+var lexer = _Lexer.lex;
+
+// node_modules/@codemirror/lsp-client/dist/index.js
+var context = null;
+function withContext(view, language2, f) {
+  let prev = context;
+  try {
+    context = { view, language: language2 };
+    return f();
+  } finally {
+    context = prev;
+  }
+}
+var marked2 = /* @__PURE__ */ new Marked({
+  walkTokens(token2) {
+    if (!context || token2.type != "code")
+      return;
+    let lang = context.language && context.language(token2.lang);
+    if (!lang) {
+      let viewLang = context.view.state.facet(language);
+      if (viewLang && viewLang.name == token2.lang)
+        lang = viewLang;
+    }
+    if (!lang)
+      return;
+    let highlighter = { style: (tags3) => highlightingFor(context.view.state, tags3) };
+    let result = "";
+    highlightCode(token2.text, lang.parser.parse(token2.text), highlighter, (text, cls) => {
+      result += cls ? `<span class="${cls}">${escHTML(text)}</span>` : escHTML(text);
+    }, () => {
+      result += "<br>";
+    });
+    token2.escaped = true;
+    token2.text = result;
+  }
+});
+function escHTML(text) {
+  return text.replace(/[\n<&]/g, (ch) => ch == "\n" ? "<br>" : ch == "<" ? "&lt;" : "&amp;");
+}
+function docToHTML(value, defaultKind) {
+  let kind = defaultKind, text = value;
+  if (typeof text != "string") {
+    kind = text.kind;
+    text = text.value;
+  }
+  if (kind == "plaintext") {
+    return escHTML(text);
+  } else {
+    return marked2.parse(text, { async: false });
+  }
+}
+function toPosition(doc2, pos) {
+  let line = doc2.lineAt(pos);
+  return { line: line.number - 1, character: pos - line.from };
+}
+function fromPosition(doc2, pos) {
+  let line = doc2.line(pos.line + 1);
+  return line.from + pos.character;
+}
+function fromPositionChecked(doc2, pos) {
+  if (pos.line < 0 || pos.line >= doc2.lines)
+    return null;
+  let line = doc2.line(pos.line + 1);
+  if (pos.character < 0 || pos.character > line.length)
+    return null;
+  return line.from + pos.character;
+}
+var LSPPlugin = class {
+  /**
+  @internal
+  */
+  constructor(view, { client, uri, languageID }) {
+    this.view = view;
+    this.client = client;
+    this.uri = uri;
+    if (!languageID) {
+      let lang = view.state.facet(language);
+      languageID = lang ? lang.name : "";
+    }
+    client.workspace.openFile(uri, languageID, view);
+    this.syncedDoc = view.state.doc;
+    this.unsyncedChanges = ChangeSet.empty(view.state.doc.length);
+  }
+  /**
+  Render a doc string from the server to HTML.
+  */
+  docToHTML(value, defaultKind = "plaintext") {
+    let html3 = withContext(this.view, this.client.config.highlightLanguage, () => docToHTML(value, defaultKind));
+    return this.client.config.sanitizeHTML ? this.client.config.sanitizeHTML(html3) : html3;
+  }
+  /**
+  Convert a CodeMirror document offset into an LSP `{line,
+  character}` object. Defaults to using the view's current
+  document, but can be given another one.
+  */
+  toPosition(pos, doc2 = this.view.state.doc) {
+    return toPosition(doc2, pos);
+  }
+  /**
+  Convert an LSP `{line, character}` object to a CodeMirror
+  document offset.
+  */
+  fromPosition(pos, doc2 = this.view.state.doc) {
+    return fromPosition(doc2, pos);
+  }
+  /**
+  Display an error in this plugin's editor.
+  */
+  reportError(message, err) {
+    showDialog(this.view, {
+      label: this.view.state.phrase(message) + ": " + (err.message || err),
+      class: "cm-lsp-message cm-lsp-message-error",
+      top: true
+    });
+  }
+  /**
+  Reset the [unsynced
+  changes](https://codemirror.net/6/docs/ref/#lsp-client.LSPPlugin.unsyncedChanges). Should probably
+  only be called by a [workspace](https://codemirror.net/6/docs/ref/#lsp-client.Workspace).
+  */
+  clear() {
+    this.syncedDoc = this.view.state.doc;
+    this.unsyncedChanges = ChangeSet.empty(this.view.state.doc.length);
+  }
+  /**
+  @internal
+  */
+  update(update) {
+    if (update.docChanged)
+      this.unsyncedChanges = this.unsyncedChanges.compose(update.changes);
+  }
+  /**
+  @internal
+  */
+  destroy() {
+    this.client.workspace.closeFile(this.uri, this.view);
+  }
+  /**
+  Get the LSP plugin associated with an editor, if any.
+  */
+  static get(view) {
+    return view.plugin(lspPlugin);
+  }
+  /**
+  Deprecated. Use
+  [`LSPClient.plugin`](https://codemirror.net/6/docs/ref/#lsp-client.LSPClient.plugin) instead.
+  */
+  static create(client, fileURI, languageID) {
+    return client.plugin(fileURI, languageID);
+  }
+};
+var lspPlugin = /* @__PURE__ */ ViewPlugin.fromClass(LSPPlugin);
+var Workspace = class {
+  /**
+  The constructor, as called by the client when creating a
+  workspace.
+  */
+  constructor(client) {
+    this.client = client;
+  }
+  /**
+  Find the open file with the given URI, if it exists. The default
+  implementation just looks it up in `this.files`.
+  */
+  getFile(uri) {
+    return this.files.find((f) => f.uri == uri) || null;
+  }
+  /**
+  Called to request that the workspace open a file. The default
+  implementation simply returns the file if it is open, null
+  otherwise.
+  */
+  requestFile(uri) {
+    return Promise.resolve(this.getFile(uri));
+  }
+  /**
+  Called when the client for this workspace is connected. The
+  default implementation calls
+  [`LSPClient.didOpen`](https://codemirror.net/6/docs/ref/#lsp-client.LSPClient.didOpen) on all open
+  files.
+  */
+  connected() {
+    for (let file of this.files)
+      this.client.didOpen(file);
+  }
+  /**
+  Called when the client for this workspace is disconnected. The
+  default implementation does nothing.
+  */
+  disconnected() {
+  }
+  /**
+  Called when a server-initiated change to a file is applied. The
+  default implementation simply dispatches the update to the
+  file's view, if the file is open and has a view.
+  */
+  updateFile(uri, update) {
+    var _a2;
+    let file = this.getFile(uri);
+    if (file)
+      (_a2 = file.getView()) === null || _a2 === void 0 ? void 0 : _a2.dispatch(update);
+  }
+  /**
+  When the client needs to put a file other than the one loaded in
+  the current editor in front of the user, for example in
+  [`jumpToDefinition`](https://codemirror.net/6/docs/ref/#lsp-client.jumpToDefinition), it will call
+  this function. It should make sure to create or find an editor
+  with the file and make it visible to the user, or return null if
+  this isn't possible.
+  */
+  displayFile(uri) {
+    let file = this.getFile(uri);
+    return Promise.resolve(file ? file.getView() : null);
+  }
+};
+var DefaultWorkspaceFile = class {
+  constructor(uri, languageId, version, doc2, view) {
+    this.uri = uri;
+    this.languageId = languageId;
+    this.version = version;
+    this.doc = doc2;
+    this.view = view;
+  }
+  getView() {
+    return this.view;
+  }
+};
+var DefaultWorkspace = class extends Workspace {
+  constructor() {
+    super(...arguments);
+    this.files = [];
+    this.fileVersions = /* @__PURE__ */ Object.create(null);
+  }
+  nextFileVersion(uri) {
+    var _a2;
+    return this.fileVersions[uri] = ((_a2 = this.fileVersions[uri]) !== null && _a2 !== void 0 ? _a2 : -1) + 1;
+  }
+  syncFiles() {
+    let result = [];
+    for (let file of this.files) {
+      let plugin = LSPPlugin.get(file.view);
+      if (!plugin)
+        continue;
+      let changes = plugin.unsyncedChanges;
+      if (!changes.empty) {
+        result.push({ changes, file, prevDoc: file.doc });
+        file.doc = file.view.state.doc;
+        file.version = this.nextFileVersion(file.uri);
+        plugin.clear();
+      }
+    }
+    return result;
+  }
+  openFile(uri, languageId, view) {
+    if (this.getFile(uri))
+      throw new Error("Default workspace implementation doesn't support multiple views on the same file");
+    let file = new DefaultWorkspaceFile(uri, languageId, this.nextFileVersion(uri), view.state.doc, view);
+    this.files.push(file);
+    this.client.didOpen(file);
+  }
+  closeFile(uri) {
+    let file = this.getFile(uri);
+    if (file) {
+      this.files = this.files.filter((f) => f != file);
+      this.client.didClose(uri);
+    }
+  }
+};
+var lspTheme = /* @__PURE__ */ EditorView.baseTheme({
+  ".cm-lsp-documentation": {
+    padding: "0 7px",
+    "& p, & pre": {
+      margin: "2px 0"
+    }
+  },
+  ".cm-lsp-signature-tooltip": {
+    padding: "2px 6px",
+    borderRadius: "2.5px",
+    position: "relative",
+    maxWidth: "30em",
+    maxHeight: "10em",
+    overflowY: "scroll",
+    "& .cm-lsp-documentation": {
+      padding: "0",
+      fontSize: "80%"
+    },
+    "& .cm-lsp-signature-num": {
+      fontFamily: "monospace",
+      position: "absolute",
+      left: "2px",
+      top: "4px",
+      fontSize: "70%",
+      lineHeight: "1.3"
+    },
+    "& .cm-lsp-signature": {
+      fontFamily: "monospace",
+      textIndent: "1em hanging"
+    },
+    "& .cm-lsp-active-parameter": {
+      fontWeight: "bold"
+    }
+  },
+  ".cm-lsp-signature-multiple": {
+    paddingLeft: "1.5em"
+  },
+  ".cm-panel.cm-lsp-rename-panel": {
+    padding: "2px 6px 4px",
+    position: "relative",
+    "& label": { fontSize: "80%" },
+    "& [name=close]": {
+      position: "absolute",
+      top: "0",
+      bottom: "0",
+      right: "4px",
+      backgroundColor: "inherit",
+      border: "none",
+      font: "inherit",
+      padding: "0"
+    }
+  },
+  ".cm-lsp-message button[type=submit]": {
+    display: "block"
+  },
+  ".cm-lsp-reference-panel": {
+    fontFamily: "monospace",
+    whiteSpace: "pre",
+    padding: "3px 6px",
+    maxHeight: "120px",
+    overflow: "auto",
+    "& .cm-lsp-reference-file": {
+      fontWeight: "bold"
+    },
+    "& .cm-lsp-reference": {
+      cursor: "pointer",
+      "&[aria-selected]": {
+        backgroundColor: "#0077ee44"
+      }
+    },
+    "& .cm-lsp-reference-line": {
+      opacity: "0.7"
+    }
+  }
+});
+var Request = class {
+  constructor(id2, params, timeout) {
+    this.id = id2;
+    this.params = params;
+    this.timeout = timeout;
+    this.promise = new Promise((resolve, reject) => {
+      this.resolve = resolve;
+      this.reject = reject;
+    });
+  }
+};
+var clientCapabilities = {
+  general: {
+    markdown: {
+      parser: "marked"
+    }
+  },
+  textDocument: {
+    completion: {
+      completionItem: {
+        snippetSupport: true,
+        documentationFormat: ["markdown", "plaintext"],
+        insertReplaceSupport: false
+      },
+      completionList: {
+        itemDefaults: ["commitCharacters", "editRange", "insertTextFormat"]
+      },
+      completionItemKind: { valueSet: [] },
+      contextSupport: true
+    },
+    hover: {
+      contentFormat: ["markdown", "plaintext"]
+    },
+    formatting: {},
+    rename: {},
+    signatureHelp: {
+      contextSupport: true,
+      signatureInformation: {
+        documentationFormat: ["markdown", "plaintext"],
+        parameterInformation: { labelOffsetSupport: true },
+        activeParameterSupport: true
+      }
+    },
+    definition: {},
+    declaration: {},
+    implementation: {},
+    typeDefinition: {},
+    references: {},
+    diagnostic: {}
+  },
+  window: {
+    showMessage: {}
+  }
+};
+var WorkspaceMapping = class {
+  /**
+  @internal
+  */
+  constructor(client) {
+    this.client = client;
+    this.mappings = /* @__PURE__ */ new Map();
+    this.startDocs = /* @__PURE__ */ new Map();
+    for (let file of client.workspace.files) {
+      this.mappings.set(file.uri, ChangeSet.empty(file.doc.length));
+      this.startDocs.set(file.uri, file.doc);
+    }
+  }
+  /**
+  @internal
+  */
+  addChanges(uri, changes) {
+    let known = this.mappings.get(uri);
+    if (known)
+      this.mappings.set(uri, known.composeDesc(changes));
+  }
+  /**
+  Get the changes made to the document with the given URI since
+  the mapping was created. Returns null for documents that aren't
+  open.
+  */
+  getMapping(uri) {
+    let known = this.mappings.get(uri);
+    if (!known)
+      return null;
+    let file = this.client.workspace.getFile(uri), view = file === null || file === void 0 ? void 0 : file.getView(), plugin = view && LSPPlugin.get(view);
+    return plugin ? known.composeDesc(plugin.unsyncedChanges) : known;
+  }
+  mapPos(uri, pos, assoc = -1, mode = MapMode.Simple) {
+    let changes = this.getMapping(uri);
+    return changes ? changes.mapPos(pos, assoc, mode) : pos;
+  }
+  mapPosition(uri, pos, assoc = -1, mode = MapMode.Simple) {
+    let start = this.startDocs.get(uri);
+    if (!start)
+      throw new Error("Cannot map from a file that's not in the workspace");
+    let off = fromPosition(start, pos);
+    let changes = this.getMapping(uri);
+    return changes ? changes.mapPos(off, assoc, mode) : off;
+  }
+  /**
+  Disconnect this mapping from the client so that it will no
+  longer be notified of new changes. You must make sure to call
+  this on every mapping you create, except when you use
+  [`withMapping`](https://codemirror.net/6/docs/ref/#lsp-client.LSPClient.withMapping), which will
+  automatically schedule a disconnect when the given promise
+  resolves or aborts.
+  */
+  destroy() {
+    this.client.activeMappings = this.client.activeMappings.filter((m) => m != this);
+  }
+};
+var defaultNotificationHandlers = {
+  "window/logMessage": (client, params) => {
+    if (params.type == 1)
+      console.error("[lsp] " + params.message);
+    else if (params.type == 2)
+      console.warn("[lsp] " + params.message);
+  },
+  "window/showMessage": (client, params) => {
+    if (params.type > 3)
+      return;
+    let view;
+    for (let f of client.workspace.files)
+      if (view = f.getView())
+        break;
+    if (view)
+      showDialog(view, {
+        label: params.message,
+        class: "cm-lsp-message cm-lsp-message-" + (params.type == 1 ? "error" : params.type == 2 ? "warning" : "info"),
+        top: true
+      });
+  }
+};
+var LSPClient = class {
+  /**
+  Create a client object.
+  */
+  constructor(config2 = {}) {
+    var _a2;
+    this.config = config2;
+    this.transport = null;
+    this.nextReqID = 0;
+    this.requests = [];
+    this.activeMappings = [];
+    this.serverCapabilities = null;
+    this.supportSync = -1;
+    this.extensions = [];
+    this.receiveMessage = this.receiveMessage.bind(this);
+    this.initializing = new Promise((resolve, reject) => this.init = { resolve, reject });
+    this.timeout = (_a2 = config2.timeout) !== null && _a2 !== void 0 ? _a2 : 3e3;
+    this.workspace = config2.workspace ? config2.workspace(this) : new DefaultWorkspace(this);
+    if (config2.extensions)
+      for (let ext of config2.extensions) {
+        if (Array.isArray(ext) || ext.extension)
+          this.extensions.push(ext);
+        else if (ext.editorExtension)
+          this.extensions.push(ext.editorExtension);
+      }
+  }
+  /**
+  Whether this client is connected (has a transport).
+  */
+  get connected() {
+    return !!this.transport;
+  }
+  /**
+  Connect this client to a server over the given transport. Will
+  immediately start the initialization exchange with the server,
+  and resolve `this.initializing` (which it also returns) when
+  successful.
+  */
+  connect(transport) {
+    if (this.transport)
+      this.transport.unsubscribe(this.receiveMessage);
+    this.transport = transport;
+    transport.subscribe(this.receiveMessage);
+    let capabilities = clientCapabilities;
+    if (this.config.extensions)
+      for (let ext of this.config.extensions) {
+        let { clientCapabilities: clientCapabilities2 } = ext;
+        if (clientCapabilities2)
+          capabilities = mergeCapabilities(capabilities, clientCapabilities2);
+      }
+    this.requestInner("initialize", {
+      processId: null,
+      clientInfo: { name: "@codemirror/lsp-client" },
+      rootUri: this.config.rootUri || null,
+      initializationOptions: this.config.initializationOptions,
+      capabilities
+    }).promise.then((resp) => {
+      var _a2;
+      this.serverCapabilities = resp.capabilities;
+      let sync = resp.capabilities.textDocumentSync;
+      this.supportSync = sync == null ? 0 : typeof sync == "number" ? sync : (_a2 = sync.change) !== null && _a2 !== void 0 ? _a2 : 0;
+      transport.send(JSON.stringify({ jsonrpc: "2.0", method: "initialized", params: {} }));
+      this.init.resolve(null);
+    }, this.init.reject);
+    this.workspace.connected();
+    return this;
+  }
+  /**
+  Disconnect the client from the server.
+  */
+  disconnect() {
+    if (this.transport)
+      this.transport.unsubscribe(this.receiveMessage);
+    this.serverCapabilities = null;
+    this.initializing = new Promise((resolve, reject) => this.init = { resolve, reject });
+    this.workspace.disconnected();
+  }
+  /**
+  Create a plugin for this client, to add to an editor
+  configuration. This extension is necessary to use LSP-related
+  functionality exported by this package. The returned extension
+  will include the editor
+  extensions included in this client's
+  [configuration](https://codemirror.net/6/docs/ref/#lsp-client.LSPClientConfig.extensions).
+  
+  Creating an editor with this plugin will cause
+  [`openFile`](https://codemirror.net/6/docs/ref/#lsp-client.Workspace.openFile) to be called on the
+  workspace.
+  
+  By default, the language ID given to the server for this file is
+  derived from the editor's language configuration via
+  [`Language.name`](https://codemirror.net/6/docs/ref/#language.Language.name). You can pass in
+  a specific ID as a third parameter.
+  */
+  plugin(fileURI, languageID) {
+    return [
+      lspPlugin.of({ client: this, uri: fileURI, languageID }),
+      lspTheme,
+      this.extensions
+    ];
+  }
+  /**
+  Send a `textDocument/didOpen` notification to the server.
+  */
+  didOpen(file) {
+    this.notification("textDocument/didOpen", {
+      textDocument: {
+        uri: file.uri,
+        languageId: file.languageId,
+        text: file.doc.toString(),
+        version: file.version
+      }
+    });
+  }
+  /**
+  Send a `textDocument/didClose` notification to the server.
+  */
+  didClose(uri) {
+    this.notification("textDocument/didClose", { textDocument: { uri } });
+  }
+  receiveMessage(msg) {
+    var _a2;
+    const value = JSON.parse(msg);
+    if ("id" in value && !("method" in value)) {
+      let index = this.requests.findIndex((r) => r.id == value.id);
+      if (index < 0) {
+        console.warn(`[lsp] Received a response for non-existent request ${value.id}`);
+      } else {
+        let req = this.requests[index];
+        clearTimeout(req.timeout);
+        this.requests.splice(index, 1);
+        if (value.error)
+          req.reject(value.error);
+        else
+          req.resolve(value.result);
+      }
+    } else if (!("id" in value)) {
+      let handler = (_a2 = this.config.notificationHandlers) === null || _a2 === void 0 ? void 0 : _a2[value.method];
+      if (handler && handler(this, value.params))
+        return;
+      if (this.config.extensions)
+        for (let ext of this.config.extensions) {
+          let { notificationHandlers } = ext;
+          let handler2 = notificationHandlers === null || notificationHandlers === void 0 ? void 0 : notificationHandlers[value.method];
+          if (handler2 && handler2(this, value.params))
+            return;
+        }
+      let deflt = defaultNotificationHandlers[value.method];
+      if (deflt)
+        deflt(this, value.params);
+      else if (this.config.unhandledNotification)
+        this.config.unhandledNotification(this, value.method, value.params);
+    } else {
+      let resp = {
+        jsonrpc: "2.0",
+        id: value.id,
+        error: { code: -32601, message: "Method not implemented" }
+      };
+      this.transport.send(JSON.stringify(resp));
+    }
+  }
+  /**
+  Make a request to the server. Returns a promise that resolves to
+  the response or rejects with a failure message. You'll probably
+  want to use types from the `vscode-languageserver-protocol`
+  package for the type parameters.
+  
+  The caller is responsible for
+  [synchronizing](https://codemirror.net/6/docs/ref/#lsp-client.LSPClient.sync) state before the
+  request and correctly handling state drift caused by local
+  changes that happend during the request.
+  */
+  request(method, params) {
+    if (!this.transport)
+      return Promise.reject(new Error("Client not connected"));
+    return this.initializing.then(() => this.requestInner(method, params).promise);
+  }
+  requestInner(method, params, mapped = false) {
+    let id2 = ++this.nextReqID, data2 = {
+      jsonrpc: "2.0",
+      id: id2,
+      method,
+      params
+    };
+    let req = new Request(id2, params, setTimeout(() => this.timeoutRequest(req), this.timeout));
+    this.requests.push(req);
+    try {
+      this.transport.send(JSON.stringify(data2));
+    } catch (e) {
+      req.reject(e);
+    }
+    return req;
+  }
+  /**
+  Send a notification to the server.
+  */
+  notification(method, params) {
+    if (!this.transport)
+      return;
+    this.initializing.then(() => {
+      let data2 = {
+        jsonrpc: "2.0",
+        method,
+        params
+      };
+      this.transport.send(JSON.stringify(data2));
+    });
+  }
+  /**
+  Cancel the in-progress request with the given parameter value
+  (which is compared by identity).
+  */
+  cancelRequest(params) {
+    let found = this.requests.find((r) => r.params === params);
+    if (found)
+      this.notification("$/cancelRequest", { id: found.id });
+  }
+  /**
+  @internal
+  */
+  hasCapability(name2) {
+    return this.serverCapabilities ? !!this.serverCapabilities[name2] : null;
+  }
+  /**
+  Create a [workspace mapping](https://codemirror.net/6/docs/ref/#lsp-client.WorkspaceMapping) that
+  tracks changes to files in this client's workspace, relative to
+  the moment where it was created. Make sure you call
+  [`destroy`](https://codemirror.net/6/docs/ref/#lsp-client.WorkspaceMapping.destroy) on the mapping
+  when you're done with it.
+  */
+  workspaceMapping() {
+    let mapping = new WorkspaceMapping(this);
+    this.activeMappings.push(mapping);
+    return mapping;
+  }
+  /**
+  Run the given promise with a [workspace
+  mapping](https://codemirror.net/6/docs/ref/#lsp-client.WorkspaceMapping) active. Automatically
+  release the mapping when the promise resolves or rejects.
+  */
+  withMapping(f) {
+    let mapping = this.workspaceMapping();
+    return f(mapping).finally(() => mapping.destroy());
+  }
+  /**
+  Push any [pending changes](https://codemirror.net/6/docs/ref/#lsp-client.Workspace.syncFiles) in
+  the open files to the server. You'll want to call this before
+  most types of requests, to make sure the server isn't working
+  with outdated information.
+  */
+  sync() {
+    for (let { file, changes, prevDoc } of this.workspace.syncFiles()) {
+      for (let mapping of this.activeMappings)
+        mapping.addChanges(file.uri, changes);
+      if (this.supportSync)
+        this.notification("textDocument/didChange", {
+          textDocument: { uri: file.uri, version: file.version },
+          contentChanges: contentChangesFor(
+            file,
+            prevDoc,
+            changes,
+            this.supportSync == 2
+            /* Incremental */
+          )
+        });
+    }
+  }
+  timeoutRequest(req) {
+    let index = this.requests.indexOf(req);
+    if (index > -1) {
+      req.reject(new Error("Request timed out"));
+      this.requests.splice(index, 1);
+    }
+  }
+};
+function contentChangesFor(file, startDoc, changes, supportInc) {
+  if (!supportInc || file.doc.length < 1024)
+    return [{ text: file.doc.toString() }];
+  let events = [];
+  changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+    events.push({
+      range: { start: toPosition(startDoc, fromA), end: toPosition(startDoc, toA) },
+      text: inserted.toString()
+    });
+  });
+  return events.reverse();
+}
+function mergeCapabilities(base2, add2) {
+  if (add2 == null)
+    return base2;
+  if (typeof base2 != "object" || typeof add2 != "object")
+    return add2;
+  let result = {};
+  let baseProps = Object.keys(base2), addProps = Object.keys(add2);
+  for (let prop of baseProps)
+    result[prop] = addProps.indexOf(prop) > -1 ? mergeCapabilities(base2[prop], add2[prop]) : base2[prop];
+  for (let prop of addProps)
+    if (baseProps.indexOf(prop) < 0)
+      result[prop] = add2[prop];
+  return result;
+}
+function lspToSnippet(text) {
+  return text.replace(/\\([$}\\])|\$(\d+)/g, (_m, esc, field) => esc || `\${${field}}`);
+}
+function serverCompletion(config2 = {}) {
+  let result;
+  if (config2.override) {
+    result = [autocompletion({ override: [serverCompletionSource] })];
+  } else {
+    let data2 = [{ autocomplete: serverCompletionSource }];
+    result = [autocompletion(), EditorState.languageData.of(() => data2)];
+  }
+  if (config2.validFor)
+    result.push(completionConfig2.of({ validFor: config2.validFor }));
+  return result;
+}
+var completionConfig2 = /* @__PURE__ */ Facet.define({
+  combine: (results) => results.length ? results[0] : { validFor: null }
+});
+function getCompletions(plugin, pos, context2, abort) {
+  if (plugin.client.hasCapability("completionProvider") === false)
+    return Promise.resolve(null);
+  plugin.client.sync();
+  let params = {
+    position: plugin.toPosition(pos),
+    textDocument: { uri: plugin.uri },
+    context: context2
+  };
+  if (abort)
+    abort.addEventListener("abort", () => plugin.client.cancelRequest(params));
+  return plugin.client.request("textDocument/completion", params);
+}
+function prefixRegexp(items) {
+  var _a2;
+  let step = Math.ceil(items.length / 50), prefixes = [];
+  for (let i2 = 0; i2 < items.length; i2 += step) {
+    let item = items[i2], text = ((_a2 = item.textEdit) === null || _a2 === void 0 ? void 0 : _a2.newText) || item.textEditText || item.insertText || item.label;
+    if (!/^\w/.test(text)) {
+      let prefix = /^[^\w]*/.exec(text)[0];
+      if (prefixes.indexOf(prefix) < 0)
+        prefixes.push(prefix);
+    }
+  }
+  if (!prefixes.length)
+    return /^\w*$/;
+  return new RegExp("^(?:" + prefixes.map(RegExp.escape || ((s15) => s15.replace(/[^\w\s]/g, "\\$&"))).join("|") + ")?\\w*$");
+}
+function shouldTriggerCompletion(plugin, character) {
+  var _a2, _b2;
+  let triggers = (_b2 = (_a2 = plugin.client.serverCapabilities) === null || _a2 === void 0 ? void 0 : _a2.completionProvider) === null || _b2 === void 0 ? void 0 : _b2.triggerCharacters;
+  if (triggers && triggers.indexOf(character) > -1)
+    return "triggerCharacter";
+  if (/[a-zA-Z_]/.test(character))
+    return "identifier";
+  return null;
+}
+function resultMapper(changes, extraEdits) {
+  return (result, newChanges) => {
+    changes = changes ? changes.composeDesc(newChanges) : newChanges;
+    let options2 = result.options.slice();
+    for (let { index, edits, text } of extraEdits)
+      options2[index] = { ...options2[index], apply: applyEdits(edits, text, changes) };
+    return {
+      ...result,
+      options: options2,
+      map: resultMapper(changes, extraEdits)
+    };
+  };
+}
+function applyEdits(edits, text, mapped) {
+  return (view, completion, from, to) => {
+    let base2 = insertCompletionText(view.state, text, from, to);
+    let changes = [];
+    for (let { from: from2, to: to2, text: text2 } of edits) {
+      if (mapped) {
+        if (mapped.touchesRange(from2, to2))
+          continue;
+        let len = to2 - from2;
+        from2 = mapped.mapPos(from2, 1);
+        to2 = from2 + len;
+      }
+      changes.push({ from: from2, to: to2, insert: text2 });
+    }
+    view.dispatch(base2, { changes });
+  };
+}
+var serverCompletionSource = (context2) => {
+  const plugin = context2.view && LSPPlugin.get(context2.view);
+  if (!plugin)
+    return null;
+  let triggerChar = context2.state.sliceDoc(context2.pos - 1, context2.pos);
+  let triggerReason = context2.explicit ? "invoked" : shouldTriggerCompletion(plugin, triggerChar);
+  if (!triggerReason)
+    return null;
+  let completionContext = triggerReason == "triggerCharacter" ? { triggerKind: 2, triggerCharacter: triggerChar } : {
+    triggerKind: 1
+    /* Invoked */
+  };
+  return getCompletions(plugin, context2.pos, completionContext, context2).then((result) => {
+    var _a2, _b2;
+    if (!result)
+      return null;
+    if (Array.isArray(result))
+      result = { items: result };
+    let { from, to } = completionResultRange(context2, result);
+    let defaultCommitChars = (_a2 = result.itemDefaults) === null || _a2 === void 0 ? void 0 : _a2.commitCharacters;
+    let config2 = context2.state.facet(completionConfig2);
+    let extraEdits = [];
+    return {
+      from,
+      to,
+      options: result.items.map((item, i2) => {
+        var _a3, _b3, _c2;
+        let text = ((_a3 = item.textEdit) === null || _a3 === void 0 ? void 0 : _a3.newText) || item.textEditText || item.insertText || item.label;
+        let option = {
+          label: item.filterText || item.label,
+          displayLabel: item.label,
+          type: item.kind && kindToType[item.kind]
+        };
+        let insertTextFormat = (_b3 = item.insertTextFormat) !== null && _b3 !== void 0 ? _b3 : (_c2 = result.itemDefaults) === null || _c2 === void 0 ? void 0 : _c2.insertTextFormat;
+        if (item.commitCharacters && item.commitCharacters != defaultCommitChars)
+          option.commitCharacters = item.commitCharacters;
+        if (item.detail)
+          option.detail = item.detail;
+        if (item.sortText)
+          option.sortText = item.sortText;
+        if (insertTextFormat == 2) {
+          option.apply = (view, c, from2, to2) => snippet(lspToSnippet(text))(view, c, from2, to2);
+        } else if (item.additionalTextEdits) {
+          let edits = [];
+          for (let edit2 of item.additionalTextEdits) {
+            let from2 = fromPositionChecked(context2.state.doc, edit2.range.start);
+            let to2 = fromPositionChecked(context2.state.doc, edit2.range.end);
+            if (from2 != null && to2 != null)
+              edits.push({ from: from2, to: to2, text: edit2.newText });
+          }
+          extraEdits.push({ index: i2, text, edits });
+          option.apply = applyEdits(edits, text, null);
+        } else if (option.label != text) {
+          option.apply = text;
+        }
+        if (item.documentation)
+          option.info = () => renderDocInfo(plugin, item.documentation);
+        return option;
+      }),
+      commitCharacters: defaultCommitChars,
+      validFor: result.isIncomplete ? void 0 : (_b2 = config2.validFor) !== null && _b2 !== void 0 ? _b2 : prefixRegexp(result.items),
+      map: extraEdits.length ? resultMapper(null, extraEdits) : void 0
+    };
+  }, (err) => {
+    if ("code" in err && err.code == -32800)
+      return null;
+    throw err;
+  });
+};
+function completionResultRange(cx, result) {
+  var _a2;
+  if (!result.items.length)
+    return { from: cx.pos, to: cx.pos };
+  let defaultRange = (_a2 = result.itemDefaults) === null || _a2 === void 0 ? void 0 : _a2.editRange, item0 = result.items[0];
+  let range = defaultRange ? "insert" in defaultRange ? defaultRange.insert : defaultRange : item0.textEdit ? "range" in item0.textEdit ? item0.textEdit.range : item0.textEdit.insert : null;
+  if (!range)
+    return cx.state.wordAt(cx.pos) || { from: cx.pos, to: cx.pos };
+  let line = cx.state.doc.lineAt(cx.pos);
+  return { from: line.from + range.start.character, to: line.from + range.end.character };
+}
+function renderDocInfo(plugin, doc2) {
+  let elt2 = document.createElement("div");
+  elt2.className = "cm-lsp-documentation cm-lsp-completion-documentation";
+  elt2.innerHTML = plugin.docToHTML(doc2);
+  return elt2;
+}
+var kindToType = {
+  1: "text",
+  // Text
+  2: "method",
+  // Method
+  3: "function",
+  // Function
+  4: "class",
+  // Constructor
+  5: "property",
+  // Field
+  6: "variable",
+  // Variable
+  7: "class",
+  // Class
+  8: "interface",
+  // Interface
+  9: "namespace",
+  // Module
+  10: "property",
+  // Property
+  11: "keyword",
+  // Unit
+  12: "constant",
+  // Value
+  13: "constant",
+  // Enum
+  14: "keyword",
+  // Keyword
+  16: "constant",
+  // Color
+  20: "constant",
+  // EnumMember
+  21: "constant",
+  // Constant
+  22: "class",
+  // Struct
+  25: "type"
+  // TypeParameter
+};
+function hoverTooltips(config2 = {}) {
+  return hoverTooltip(lspTooltipSource, {
+    hideOn: (tr2) => tr2.docChanged,
+    hoverTime: config2.hoverTime
+  });
+}
+function hoverRequest(plugin, pos) {
+  if (plugin.client.hasCapability("hoverProvider") === false)
+    return Promise.resolve(null);
+  plugin.client.sync();
+  return plugin.client.request("textDocument/hover", {
+    position: plugin.toPosition(pos),
+    textDocument: { uri: plugin.uri }
+  });
+}
+function lspTooltipSource(view, pos) {
+  const plugin = LSPPlugin.get(view);
+  if (!plugin)
+    return Promise.resolve(null);
+  return hoverRequest(plugin, pos).then((result) => {
+    if (!result)
+      return null;
+    return {
+      pos: result.range ? fromPosition(view.state.doc, result.range.start) : pos,
+      end: result.range ? fromPosition(view.state.doc, result.range.end) : pos,
+      create() {
+        let elt2 = document.createElement("div");
+        elt2.className = "cm-lsp-hover-tooltip cm-lsp-documentation";
+        elt2.innerHTML = renderTooltipContent(plugin, result.contents);
+        return { dom: elt2 };
+      },
+      above: true
+    };
+  });
+}
+function renderTooltipContent(plugin, value) {
+  if (Array.isArray(value))
+    return value.map((m) => renderCode(plugin, m)).join("<br>");
+  if (typeof value == "string" || typeof value == "object" && "language" in value)
+    return renderCode(plugin, value);
+  return plugin.docToHTML(value);
+}
+function renderCode(plugin, code2) {
+  if (typeof code2 == "string")
+    return plugin.docToHTML(code2, "markdown");
+  let { language: language$1, value } = code2;
+  let lang = plugin.client.config.highlightLanguage && plugin.client.config.highlightLanguage(language$1 || "");
+  if (!lang) {
+    let viewLang = plugin.view.state.facet(language);
+    if (viewLang && (!language$1 || viewLang.name == language$1))
+      lang = viewLang;
+  }
+  if (!lang)
+    return escHTML(value);
+  let result = "";
+  highlightCode(value, lang.parser.parse(value), { style: (tags3) => highlightingFor(plugin.view.state, tags3) }, (text, cls) => {
+    result += cls ? `<span class="${cls}">${escHTML(text)}</span>` : escHTML(text);
+  }, () => {
+    result += "<br>";
+  });
+  return result;
+}
+function getSignatureHelp(plugin, pos, context2) {
+  if (plugin.client.hasCapability("signatureHelpProvider") === false)
+    return Promise.resolve(null);
+  plugin.client.sync();
+  return plugin.client.request("textDocument/signatureHelp", {
+    context: context2,
+    position: plugin.toPosition(pos),
+    textDocument: { uri: plugin.uri }
+  });
+}
+var signaturePlugin = /* @__PURE__ */ ViewPlugin.fromClass(class {
+  constructor() {
+    this.activeRequest = null;
+    this.delayedRequest = 0;
+  }
+  update(update) {
+    var _a2;
+    if (this.activeRequest) {
+      if (update.selectionSet) {
+        this.activeRequest.drop = true;
+        this.activeRequest = null;
+      } else if (update.docChanged) {
+        this.activeRequest.pos = update.changes.mapPos(this.activeRequest.pos);
+      }
+    }
+    const plugin = LSPPlugin.get(update.view);
+    if (!plugin)
+      return;
+    const sigState = update.view.state.field(signatureState);
+    let triggerCharacter = "";
+    if (update.docChanged && update.transactions.some((tr2) => tr2.isUserEvent("input.type"))) {
+      const serverConf = (_a2 = plugin.client.serverCapabilities) === null || _a2 === void 0 ? void 0 : _a2.signatureHelpProvider;
+      const triggers = ((serverConf === null || serverConf === void 0 ? void 0 : serverConf.triggerCharacters) || []).concat(sigState && (serverConf === null || serverConf === void 0 ? void 0 : serverConf.retriggerCharacters) || []);
+      if (triggers) {
+        update.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+          let ins = inserted.toString();
+          if (ins)
+            for (let ch of triggers) {
+              if (ins.indexOf(ch) > -1)
+                triggerCharacter = ch;
+            }
+        });
+      }
+    }
+    if (triggerCharacter) {
+      this.startRequest(plugin, {
+        triggerKind: 2,
+        isRetrigger: !!sigState,
+        triggerCharacter,
+        activeSignatureHelp: sigState ? sigState.data : void 0
+      });
+    } else if (sigState && update.selectionSet) {
+      if (this.delayedRequest)
+        clearTimeout(this.delayedRequest);
+      this.delayedRequest = setTimeout(() => {
+        this.startRequest(plugin, {
+          triggerKind: 3,
+          isRetrigger: true,
+          activeSignatureHelp: sigState.data
+        });
+      }, 250);
+    }
+  }
+  startRequest(plugin, context2) {
+    if (this.delayedRequest)
+      clearTimeout(this.delayedRequest);
+    let { view } = plugin, pos = view.state.selection.main.head;
+    if (this.activeRequest)
+      this.activeRequest.drop = true;
+    let req = this.activeRequest = { pos, drop: false };
+    getSignatureHelp(plugin, pos, context2).then((result) => {
+      var _a2;
+      if (req.drop)
+        return;
+      if (result && result.signatures.length) {
+        let cur2 = view.state.field(signatureState);
+        let same = cur2 && sameSignatures(cur2.data, result);
+        let active = same && context2.triggerKind == 3 ? cur2.active : (_a2 = result.activeSignature) !== null && _a2 !== void 0 ? _a2 : 0;
+        if (same && sameActiveParam(cur2.data, result, active))
+          return;
+        view.dispatch({ effects: signatureEffect.of({
+          data: result,
+          active,
+          pos: same ? cur2.tooltip.pos : req.pos
+        }) });
+      } else if (view.state.field(signatureState)) {
+        view.dispatch({ effects: signatureEffect.of(null) });
+      }
+    }, context2.triggerKind == 1 ? (err) => plugin.reportError("Signature request failed", err) : void 0);
+  }
+  destroy() {
+    if (this.delayedRequest)
+      clearTimeout(this.delayedRequest);
+    if (this.activeRequest)
+      this.activeRequest.drop = true;
+  }
+});
+function sameSignatures(a2, b2) {
+  if (a2.signatures.length != b2.signatures.length)
+    return false;
+  return a2.signatures.every((s15, i2) => s15.label == b2.signatures[i2].label);
+}
+function sameActiveParam(a2, b2, active) {
+  var _a2, _b2;
+  return ((_a2 = a2.signatures[active].activeParameter) !== null && _a2 !== void 0 ? _a2 : a2.activeParameter) == ((_b2 = b2.signatures[active].activeParameter) !== null && _b2 !== void 0 ? _b2 : b2.activeParameter);
+}
+var SignatureState = class {
+  constructor(data2, active, tooltip) {
+    this.data = data2;
+    this.active = active;
+    this.tooltip = tooltip;
+  }
+};
+var signatureState = /* @__PURE__ */ StateField.define({
+  create() {
+    return null;
+  },
+  update(sig, tr2) {
+    for (let e of tr2.effects)
+      if (e.is(signatureEffect)) {
+        if (e.value) {
+          return new SignatureState(e.value.data, e.value.active, signatureTooltip(e.value.data, e.value.active, e.value.pos));
+        } else {
+          return null;
+        }
+      }
+    if (sig && tr2.docChanged)
+      return new SignatureState(sig.data, sig.active, { ...sig.tooltip, pos: tr2.changes.mapPos(sig.tooltip.pos) });
+    return sig;
+  },
+  provide: (f) => showTooltip.from(f, (sig) => sig && sig.tooltip)
+});
+var signatureEffect = /* @__PURE__ */ StateEffect.define();
+function signatureTooltip(data2, active, pos) {
+  return {
+    pos,
+    above: true,
+    create: (view) => drawSignatureTooltip(view, data2, active)
+  };
+}
+function drawSignatureTooltip(view, data2, active) {
+  var _a2;
+  let dom = document.createElement("div");
+  dom.className = "cm-lsp-signature-tooltip";
+  if (data2.signatures.length > 1) {
+    dom.classList.add("cm-lsp-signature-multiple");
+    let num = dom.appendChild(document.createElement("div"));
+    num.className = "cm-lsp-signature-num";
+    num.textContent = `${active + 1}/${data2.signatures.length}`;
+  }
+  let signature = data2.signatures[active];
+  let sig = dom.appendChild(document.createElement("div"));
+  sig.className = "cm-lsp-signature";
+  let activeFrom = 0, activeTo = 0;
+  let activeN = (_a2 = signature.activeParameter) !== null && _a2 !== void 0 ? _a2 : data2.activeParameter;
+  let activeParam = activeN != null && signature.parameters ? signature.parameters[activeN] : null;
+  if (activeParam && Array.isArray(activeParam.label)) {
+    [activeFrom, activeTo] = activeParam.label;
+  } else if (activeParam) {
+    let found = signature.label.indexOf(activeParam.label);
+    if (found > -1) {
+      activeFrom = found;
+      activeTo = found + activeParam.label.length;
+    }
+  }
+  if (activeTo) {
+    sig.appendChild(document.createTextNode(signature.label.slice(0, activeFrom)));
+    let activeElt = sig.appendChild(document.createElement("span"));
+    activeElt.className = "cm-lsp-active-parameter";
+    activeElt.textContent = signature.label.slice(activeFrom, activeTo);
+    sig.appendChild(document.createTextNode(signature.label.slice(activeTo)));
+  } else {
+    sig.textContent = signature.label;
+  }
+  if (signature.documentation) {
+    let plugin = LSPPlugin.get(view);
+    if (plugin) {
+      let docs = dom.appendChild(document.createElement("div"));
+      docs.className = "cm-lsp-signature-documentation cm-lsp-documentation";
+      docs.innerHTML = plugin.docToHTML(signature.documentation);
+    }
+  }
+  return { dom };
+}
+var showSignatureHelp = (view) => {
+  let plugin = view.plugin(signaturePlugin);
+  if (!plugin) {
+    view.dispatch({ effects: StateEffect.appendConfig.of([signatureState, signaturePlugin]) });
+    plugin = view.plugin(signaturePlugin);
+  }
+  let field = view.state.field(signatureState);
+  if (!plugin || field === void 0)
+    return false;
+  let lspPlugin2 = LSPPlugin.get(view);
+  if (!lspPlugin2)
+    return false;
+  plugin.startRequest(lspPlugin2, {
+    triggerKind: 1,
+    activeSignatureHelp: field ? field.data : void 0,
+    isRetrigger: !!field
+  });
+  return true;
+};
+var nextSignature = (view) => {
+  let field = view.state.field(signatureState);
+  if (!field)
+    return false;
+  if (field.active < field.data.signatures.length - 1)
+    view.dispatch({ effects: signatureEffect.of({ data: field.data, active: field.active + 1, pos: field.tooltip.pos }) });
+  return true;
+};
+var prevSignature = (view) => {
+  let field = view.state.field(signatureState);
+  if (!field)
+    return false;
+  if (field.active > 0)
+    view.dispatch({ effects: signatureEffect.of({ data: field.data, active: field.active - 1, pos: field.tooltip.pos }) });
+  return true;
+};
+var signatureKeymap = [
+  { key: "Mod-Shift-Space", run: showSignatureHelp },
+  { key: "Mod-Shift-ArrowUp", run: prevSignature },
+  { key: "Mod-Shift-ArrowDown", run: nextSignature }
+];
+function signatureHelp(config2 = {}) {
+  return [
+    signatureState,
+    signaturePlugin,
+    config2.keymap === false ? [] : Prec.high(keymap.of(signatureKeymap))
+  ];
+}
+function getDefinition(plugin, pos) {
+  return plugin.client.request("textDocument/definition", {
+    textDocument: { uri: plugin.uri },
+    position: plugin.toPosition(pos)
+  });
+}
+function jumpToOrigin(view, type) {
+  const plugin = LSPPlugin.get(view);
+  if (!plugin || plugin.client.hasCapability(type.capability) === false)
+    return false;
+  plugin.client.sync();
+  plugin.client.withMapping((mapping) => type.get(plugin, view.state.selection.main.head).then((response) => {
+    let loc = Array.isArray(response) ? response[0] : response;
+    if (!loc)
+      return;
+    return (loc.uri == plugin.uri ? Promise.resolve(view) : plugin.client.workspace.displayFile(loc.uri)).then((target) => {
+      if (!target)
+        return;
+      let pos = mapping.getMapping(loc.uri) ? mapping.mapPosition(loc.uri, loc.range.start) : plugin.fromPosition(loc.range.start, target.state.doc);
+      target.dispatch({ selection: { anchor: pos }, scrollIntoView: true, userEvent: "select.definition" });
+    });
+  }, (error) => plugin.reportError("Find definition failed", error)));
+  return true;
+}
+var jumpToDefinition = (view) => jumpToOrigin(view, {
+  get: getDefinition,
+  capability: "definitionProvider"
+});
+function getReferences(plugin, pos) {
+  return plugin.client.request("textDocument/references", {
+    textDocument: { uri: plugin.uri },
+    position: plugin.toPosition(pos),
+    context: { includeDeclaration: true }
+  });
+}
+var findReferences = (view) => {
+  const plugin = LSPPlugin.get(view);
+  if (!plugin || plugin.client.hasCapability("referencesProvider") === false)
+    return false;
+  plugin.client.sync();
+  let mapping = plugin.client.workspaceMapping(), passedMapping = false;
+  getReferences(plugin, view.state.selection.main.head).then((response) => {
+    if (!response)
+      return;
+    return Promise.all(response.map((loc) => plugin.client.workspace.requestFile(loc.uri).then((file) => {
+      return file ? { file, range: loc.range } : null;
+    }))).then((resolved) => {
+      let locs = resolved.filter((l) => l);
+      if (locs.length) {
+        displayReferences(plugin.view, locs, mapping);
+        passedMapping = true;
+      }
+    });
+  }, (err) => plugin.reportError("Finding references failed", err)).finally(() => {
+    if (!passedMapping)
+      mapping.destroy();
+  });
+  return true;
+};
+var closeReferencePanel = (view) => {
+  if (!view.state.field(referencePanel, false))
+    return false;
+  view.dispatch({ effects: setReferencePanel.of(null) });
+  return true;
+};
+var referencePanel = /* @__PURE__ */ StateField.define({
+  create() {
+    return null;
+  },
+  update(panel, tr2) {
+    for (let e of tr2.effects)
+      if (e.is(setReferencePanel))
+        return e.value;
+    return panel;
+  },
+  provide: (f) => showPanel.from(f)
+});
+var setReferencePanel = /* @__PURE__ */ StateEffect.define();
+function displayReferences(view, locs, mapping) {
+  let panel = createReferencePanel(locs, mapping);
+  let effect = view.state.field(referencePanel, false) === void 0 ? StateEffect.appendConfig.of(referencePanel.init(() => panel)) : setReferencePanel.of(panel);
+  view.dispatch({ effects: effect });
+}
+function createReferencePanel(locs, mapping) {
+  let created = false;
+  setTimeout(() => {
+    if (!created)
+      mapping.destroy();
+  }, 500);
+  return (view) => {
+    created = true;
+    let prefixLen = findCommonPrefix(locs.map((l) => l.file.uri));
+    let panel = document.createElement("div"), curFile = null;
+    panel.className = "cm-lsp-reference-panel";
+    panel.tabIndex = 0;
+    panel.role = "listbox";
+    panel.setAttribute("aria-label", view.state.phrase("Reference list"));
+    let options2 = [];
+    for (let { file, range } of locs) {
+      let fileName = file.uri.slice(prefixLen);
+      if (fileName != curFile) {
+        curFile = fileName;
+        let header = panel.appendChild(document.createElement("div"));
+        header.className = "cm-lsp-reference-file";
+        header.textContent = fileName;
+      }
+      let entry = panel.appendChild(document.createElement("div"));
+      entry.className = "cm-lsp-reference";
+      entry.role = "option";
+      let from = mapping.mapPosition(file.uri, range.start, 1), to = mapping.mapPosition(file.uri, range.end, -1);
+      let view2 = file.getView(), line = (view2 ? view2.state.doc : file.doc).lineAt(from);
+      let lineNumber = entry.appendChild(document.createElement("span"));
+      lineNumber.className = "cm-lsp-reference-line";
+      lineNumber.textContent = (line.number + ": ").padStart(5, " ");
+      let textBefore = line.text.slice(Math.max(0, from - line.from - 50), from - line.from);
+      if (textBefore)
+        entry.appendChild(document.createTextNode(textBefore));
+      entry.appendChild(document.createElement("strong")).textContent = line.text.slice(from - line.from, to - line.from);
+      let textAfter = line.text.slice(to - line.from, Math.min(line.length, 100 - textBefore.length));
+      if (textAfter)
+        entry.appendChild(document.createTextNode(textAfter));
+      if (!options2.length)
+        entry.setAttribute("aria-selected", "true");
+      options2.push(entry);
+    }
+    function curSelection() {
+      for (let i2 = 0; i2 < options2.length; i2++) {
+        if (options2[i2].hasAttribute("aria-selected"))
+          return i2;
+      }
+      return 0;
+    }
+    function setSelection(index) {
+      for (let i2 = 0; i2 < options2.length; i2++) {
+        if (i2 == index)
+          options2[i2].setAttribute("aria-selected", "true");
+        else
+          options2[i2].removeAttribute("aria-selected");
+      }
+    }
+    function showReference(index) {
+      let { file, range } = locs[index];
+      let plugin = LSPPlugin.get(view);
+      if (!plugin)
+        return;
+      Promise.resolve(file.uri == plugin.uri ? view : plugin.client.workspace.displayFile(file.uri)).then((view2) => {
+        if (!view2)
+          return;
+        let pos = mapping.mapPosition(file.uri, range.start, 1);
+        view2.focus();
+        view2.dispatch({
+          selection: { anchor: pos },
+          scrollIntoView: true
+        });
+      });
+    }
+    panel.addEventListener("keydown", (event) => {
+      if (event.keyCode == 27) {
+        closeReferencePanel(view);
+        view.focus();
+      } else if (event.keyCode == 38 || event.keyCode == 33) {
+        setSelection((curSelection() - 1 + locs.length) % locs.length);
+      } else if (event.keyCode == 40 || event.keyCode == 34) {
+        setSelection((curSelection() + 1) % locs.length);
+      } else if (event.keyCode == 36) {
+        setSelection(0);
+      } else if (event.keyCode == 35) {
+        setSelection(options2.length - 1);
+      } else if (event.keyCode == 13 || event.keyCode == 10) {
+        showReference(curSelection());
+      } else {
+        return;
+      }
+      event.preventDefault();
+    });
+    panel.addEventListener("click", (event) => {
+      for (let i2 = 0; i2 < options2.length; i2++) {
+        if (options2[i2].contains(event.target)) {
+          setSelection(i2);
+          showReference(i2);
+          event.preventDefault();
+        }
+      }
+    });
+    let dom = document.createElement("div");
+    dom.appendChild(panel);
+    let close = dom.appendChild(document.createElement("button"));
+    close.className = "cm-dialog-close";
+    close.textContent = "\xD7";
+    close.addEventListener("click", () => closeReferencePanel(view));
+    close.setAttribute("aria-label", view.state.phrase("close"));
+    return {
+      dom,
+      destroy: () => mapping.destroy(),
+      mount: () => panel.focus()
+    };
+  };
+}
+function findCommonPrefix(uris) {
+  let first = uris[0], prefix = first.length;
+  for (let i2 = 1; i2 < uris.length; i2++) {
+    let uri = uris[i2], j2 = 0;
+    for (let e = Math.min(prefix, uri.length); j2 < e && first[j2] == uri[j2]; j2++) {
+    }
+    prefix = j2;
+  }
+  while (prefix && first[prefix - 1] != "/")
+    prefix--;
+  return prefix;
+}
+
 // src/client/find.js
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function buildFindRegExp(query, options = {}) {
-  const source = options.regexp === true ? String(query) : escapeRegExp(query);
-  const word = options.wholeWord === true ? `\\b(?:${source})\\b` : source;
-  return new RegExp(word, options.caseSensitive === true ? "g" : "gi");
+function buildFindRegExp(query, options2 = {}) {
+  const source = options2.regexp === true ? String(query) : escapeRegExp(query);
+  const word = options2.wholeWord === true ? `\\b(?:${source})\\b` : source;
+  return new RegExp(word, options2.caseSensitive === true ? "g" : "gi");
 }
-function findMatches(text, query, options = {}, limit = 2e4) {
+function findMatches(text, query, options2 = {}, limit = 2e4) {
   const value = String(query ?? "");
   if (value === "") return [];
-  const pattern = buildFindRegExp(value, options);
+  const pattern = buildFindRegExp(value, options2);
   const source = String(text ?? "");
   const matches = [];
   let match;
@@ -47682,13 +53974,13 @@ function columnAt(text, offset) {
   const last2 = text.lastIndexOf("\n", Math.max(0, offset - 1));
   return offset - last2;
 }
-function replaceAllMatches(text, query, options = {}, replacement = "") {
+function replaceAllMatches(text, query, options2 = {}, replacement = "") {
   const source = String(text ?? "");
-  const matches = findMatches(source, query, options);
+  const matches = findMatches(source, query, options2);
   if (matches.length === 0) return { text: source, count: 0 };
   const value = String(replacement ?? "");
-  if (options.regexp === true) {
-    return { text: source.replace(buildFindRegExp(query, options), value), count: matches.length };
+  if (options2.regexp === true) {
+    return { text: source.replace(buildFindRegExp(query, options2), value), count: matches.length };
   }
   let output = "";
   let cursor = 0;
@@ -47700,7 +53992,996 @@ function replaceAllMatches(text, query, options = {}, replacement = "") {
   return { text: output, count: matches.length };
 }
 
+// src/client/lsp-uri.js
+var LANGUAGE_IDS = new Map(Object.entries({
+  ts: "typescript",
+  mts: "typescript",
+  cts: "typescript",
+  tsx: "typescriptreact",
+  js: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  jsx: "javascriptreact",
+  py: "python",
+  pyw: "python",
+  pyi: "python",
+  yaml: "yaml",
+  yml: "yaml",
+  java: "java",
+  go: "go",
+  rs: "rust",
+  c: "c",
+  h: "c",
+  cpp: "cpp",
+  cc: "cpp",
+  cxx: "cpp",
+  hpp: "cpp",
+  hh: "cpp",
+  html: "html",
+  htm: "html",
+  vue: "html",
+  svelte: "html",
+  css: "css",
+  scss: "css",
+  less: "css",
+  json: "json",
+  jsonc: "json",
+  json5: "json",
+  sql: "sql",
+  xml: "xml",
+  svg: "xml",
+  xsl: "xml",
+  xsd: "xml",
+  md: "markdown",
+  markdown: "markdown"
+}));
+function utf8Percent(char) {
+  let out = "";
+  for (const byte of new TextEncoder().encode(char)) {
+    out += `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+  }
+  return out;
+}
+function encodePath2(path2) {
+  let out;
+  try {
+    out = encodeURI(path2);
+  } catch {
+    out = path2.replace(/[\uD800-\uDFFF]/g, (char) => utf8Percent(char));
+  }
+  out = out.replace(/[?#]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+  out = out.replace(/[^\x00-\x7F]/gu, (char) => utf8Percent(char));
+  return out;
+}
+function fileUriOf(absolutePath) {
+  if (typeof absolutePath !== "string" || absolutePath === "") return "";
+  let path2 = absolutePath.replace(/\\/g, "/");
+  let authority = "";
+  if (path2.startsWith("//")) {
+    const rest = path2.slice(2);
+    const slash4 = rest.indexOf("/");
+    if (slash4 < 0) {
+      authority = rest;
+      path2 = "/";
+    } else {
+      authority = rest.slice(0, slash4);
+      path2 = rest.slice(slash4);
+    }
+  }
+  if (!path2.startsWith("/")) path2 = `/${path2}`;
+  const host = authority === "" ? "" : encodeURI(authority);
+  return `file://${host}${encodePath2(path2)}`;
+}
+function pathOfFileUri(uri) {
+  if (typeof uri !== "string" || uri === "") return null;
+  if (!/^file:/i.test(uri)) return null;
+  let rest = uri.slice(5).replace(/[?#].*$/, "");
+  let authority = "";
+  if (rest.startsWith("//")) {
+    rest = rest.slice(2);
+    const slash4 = rest.indexOf("/");
+    if (slash4 < 0) {
+      authority = rest;
+      rest = "";
+    } else {
+      authority = rest.slice(0, slash4);
+      rest = rest.slice(slash4);
+    }
+  }
+  let path2;
+  try {
+    path2 = decodeURIComponent(rest);
+  } catch {
+    path2 = rest;
+  }
+  if (authority !== "" && authority.toLowerCase() !== "localhost") {
+    return `\\\\${authority}${path2.replace(/\//g, "\\")}`;
+  }
+  if (/^\/[A-Za-z]:/.test(path2)) {
+    return path2.slice(1).replace(/\//g, "\\");
+  }
+  return path2;
+}
+function languageIdForPath(path2) {
+  if (typeof path2 !== "string" || path2 === "") return "plaintext";
+  const name2 = path2.replace(/\\/g, "/").split("/").pop() ?? "";
+  const dot3 = name2.lastIndexOf(".");
+  if (dot3 <= 0) return "plaintext";
+  const ext = name2.slice(dot3 + 1).toLowerCase();
+  return LANGUAGE_IDS.get(ext) ?? "plaintext";
+}
+
+// src/client/lsp-sanitize.js
+var DANGEROUS_ELEMENTS = [
+  "script",
+  "iframe",
+  "object",
+  "embed",
+  "applet",
+  "frame",
+  "frameset",
+  "base",
+  "meta",
+  "link",
+  "style"
+];
+var URL_ATTRIBUTES = /\b(href|src|xlink:href|action|formaction|poster|background|ping|data|srcset)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'<>`]+))/gi;
+var DANGEROUS_SCHEME = /^(?:javascript|vbscript|livescript|mocha|data:text\/html)/i;
+function decodeEntities(text) {
+  return text.replace(/&#x([0-9a-f]+);/gi, (_match, hex) => {
+    const code2 = Number.parseInt(hex, 16);
+    try {
+      return Number.isFinite(code2) ? String.fromCodePoint(code2) : "";
+    } catch {
+      return "";
+    }
+  }).replace(/&#(\d+);/g, (_match, dec2) => {
+    const code2 = Number.parseInt(dec2, 10);
+    try {
+      return Number.isFinite(code2) ? String.fromCodePoint(code2) : "";
+    } catch {
+      return "";
+    }
+  });
+}
+function stripInvisible(text) {
+  let out = "";
+  for (const char of text) {
+    const code2 = char.codePointAt(0) ?? 0;
+    if (code2 > 32) out += char;
+  }
+  return out;
+}
+function removeDangerousElements(html3) {
+  let out = html3;
+  for (const name2 of DANGEROUS_ELEMENTS) {
+    out = out.replace(new RegExp(`<\\s*${name2}\\b[^>]*>[\\s\\S]*?<\\s*\\/\\s*${name2}\\s*>`, "gi"), "");
+    out = out.replace(new RegExp(`<\\s*\\/\\s*${name2}\\s*>`, "gi"), "");
+    out = out.replace(new RegExp(`<\\s*${name2}\\b[^>]*\\/?>`, "gi"), "");
+  }
+  return out;
+}
+function removeEventAttributes(html3) {
+  return html3.replace(/\s+on[a-z0-9_-]+\s*=\s*"[^"]*"/gi, "").replace(/\s+on[a-z0-9_-]+\s*=\s*'[^']*'/gi, "").replace(/\s+on[a-z0-9_-]+\s*=\s*[^\s"'<>`]+/gi, "");
+}
+function neutralizeScriptUrls(html3) {
+  const byAttribute = html3.replace(URL_ATTRIBUTES, (match, name2, _quoted, doubleQuoted, singleQuoted, bare) => {
+    const raw = doubleQuoted ?? singleQuoted ?? bare ?? "";
+    const decoded = stripInvisible(decodeEntities(raw));
+    if (DANGEROUS_SCHEME.test(decoded)) return `${name2}="about:blank"`;
+    return match;
+  });
+  return byAttribute.replace(/javascript\s*:/gi, "about:blank");
+}
+function sanitizeHTML(html3) {
+  if (typeof html3 !== "string" || html3 === "") return "";
+  return neutralizeScriptUrls(removeEventAttributes(removeDangerousElements(html3)));
+}
+
+// src/client/lsp-transport.js
+var RETRY_BASE_MS = 500;
+var RETRY_MAX_MS = 3e4;
+function createLspTransport(options2 = {}) {
+  const { url, onOpen, onClose, onError } = options2;
+  const handlers2 = /* @__PURE__ */ new Set();
+  const queue = [];
+  let socket = null;
+  let stopped = false;
+  let attempt = 0;
+  let retryTimer = null;
+  let opened = 0;
+  function resolveUrl() {
+    const value = typeof url === "function" ? url() : url;
+    if (value === void 0 || value === null) return "";
+    return typeof value === "string" ? value : String(value);
+  }
+  function socketImpl() {
+    if (typeof options2.WebSocketImpl === "function") return options2.WebSocketImpl;
+    return globalThis.WebSocket;
+  }
+  function report(error) {
+    if (typeof onError === "function") {
+      try {
+        onError(error);
+      } catch {
+      }
+    }
+  }
+  function flush() {
+    if (socket === null || socket.readyState !== 1) return;
+    while (queue.length > 0) {
+      const message = queue.shift();
+      try {
+        socket.send(message);
+      } catch (error) {
+        queue.unshift(message);
+        report(error);
+        return;
+      }
+    }
+  }
+  function connect() {
+    if (stopped) return;
+    const Impl = socketImpl();
+    if (typeof Impl !== "function") {
+      report(new Error("No WebSocket implementation is available for the LSP transport"));
+      return;
+    }
+    const target = resolveUrl();
+    if (target === "") {
+      report(new Error("The LSP transport has no WebSocket URL"));
+      return;
+    }
+    try {
+      socket = new Impl(target);
+    } catch (error) {
+      report(error);
+      scheduleReconnect();
+      return;
+    }
+    socket.addEventListener?.("open", () => {
+      attempt = 0;
+      const reopened = opened > 0;
+      opened += 1;
+      if (typeof onOpen === "function") {
+        try {
+          onOpen({ attempt, reopened });
+        } catch (error) {
+          report(error);
+        }
+      }
+      flush();
+    });
+    socket.addEventListener?.("message", (event) => {
+      const data2 = typeof event?.data === "string" ? event.data : String(event?.data ?? "");
+      for (const handler of [...handlers2]) {
+        try {
+          handler(data2);
+        } catch (error) {
+          report(error);
+        }
+      }
+    });
+    socket.addEventListener?.("error", (event) => {
+      report(event instanceof Error ? event : new Error("The LSP WebSocket reported an error"));
+    });
+    socket.addEventListener?.("close", (event) => {
+      socket = null;
+      const info = { code: Number(event?.code ?? 0), reason: String(event?.reason ?? "") };
+      if (typeof onClose === "function") {
+        try {
+          onClose(info);
+        } catch (error) {
+          report(error);
+        }
+      }
+      if (stopped) return;
+      scheduleReconnect();
+    });
+  }
+  function scheduleReconnect() {
+    if (stopped || retryTimer !== null) return;
+    const delay = Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS);
+    attempt += 1;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      connect();
+    }, delay);
+    if (typeof retryTimer?.unref === "function") retryTimer.unref();
+  }
+  return {
+    /**
+     * Send one JSON document.
+     *
+     * The message is queued while the socket is not open yet; a permanently
+     * stopped transport drops it and reports the failure instead of throwing.
+     * @param {string} message the JSON body
+     */
+    send(message) {
+      if (typeof message !== "string") return;
+      if (stopped) {
+        report(new Error("The LSP transport is closed"));
+        return;
+      }
+      if (socket !== null && socket.readyState === 1) {
+        try {
+          socket.send(message);
+        } catch (error) {
+          queue.push(message);
+          report(error);
+        }
+        return;
+      }
+      queue.push(message);
+      if (socket === null) connect();
+    },
+    /**
+     * Register a handler for the incoming JSON documents.
+     * @param {(value: string) => void} handler the handler
+     */
+    subscribe(handler) {
+      if (typeof handler !== "function") return;
+      handlers2.add(handler);
+    },
+    /**
+     * Remove a handler.
+     * @param {(value: string) => void} handler the handler
+     */
+    unsubscribe(handler) {
+      handlers2.delete(handler);
+    },
+    /** Stop the transport: no reconnect, no further messages. */
+    close() {
+      stopped = true;
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      queue.length = 0;
+      const current = socket;
+      socket = null;
+      try {
+        current?.close();
+      } catch {
+      }
+    },
+    /** Whether the socket is open and able to carry messages. */
+    get ready() {
+      return socket !== null && socket.readyState === 1;
+    },
+    /** How many messages are waiting for the socket. */
+    get queued() {
+      return queue.length;
+    }
+  };
+}
+
+// src/client/lsp-workspace.js
+var VIEW_WAIT_MS = 5e3;
+function splitLines(text) {
+  const lines = [];
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) === 10) {
+      lines.push(text.slice(start, index + 1));
+      start = index + 1;
+    }
+  }
+  if (start < text.length) lines.push(text.slice(start));
+  return lines;
+}
+function lineOffsets(lines) {
+  const offsets = [0];
+  let total = 0;
+  for (const line of lines) {
+    total += line.length;
+    offsets.push(total);
+  }
+  return offsets;
+}
+function lcsMatches(a2, b2) {
+  const n = a2.length;
+  const m = b2.length;
+  if (n === 0 || m === 0) return [];
+  if (n * m > 25e4) return null;
+  const width = m + 1;
+  const table = new Int32Array((n + 1) * width);
+  for (let i3 = n - 1; i3 >= 0; i3 -= 1) {
+    for (let j3 = m - 1; j3 >= 0; j3 -= 1) {
+      table[i3 * width + j3] = a2[i3] === b2[j3] ? table[(i3 + 1) * width + (j3 + 1)] + 1 : Math.max(table[(i3 + 1) * width + j3], table[i3 * width + (j3 + 1)]);
+    }
+  }
+  const matches = [];
+  let i2 = 0;
+  let j2 = 0;
+  while (i2 < n && j2 < m) {
+    if (a2[i2] === b2[j2]) {
+      matches.push([i2, j2]);
+      i2 += 1;
+      j2 += 1;
+    } else if (table[(i2 + 1) * width + j2] >= table[i2 * width + (j2 + 1)]) {
+      i2 += 1;
+    } else {
+      j2 += 1;
+    }
+  }
+  return matches;
+}
+function regionChange(from, oldText, newText) {
+  let prefix = 0;
+  const maxPrefix = Math.min(oldText.length, newText.length);
+  while (prefix < maxPrefix && oldText[prefix] === newText[prefix]) prefix += 1;
+  let suffix = 0;
+  const maxSuffix = Math.min(oldText.length - prefix, newText.length - prefix);
+  while (suffix < maxSuffix && oldText[oldText.length - 1 - suffix] === newText[newText.length - 1 - suffix]) suffix += 1;
+  return {
+    from: from + prefix,
+    to: from + prefix + (oldText.length - suffix - prefix),
+    insert: newText.slice(prefix, newText.length - suffix)
+  };
+}
+function computeChanges(previous, next) {
+  if (previous === next) return ChangeSet.empty(previous.length);
+  if (previous === "") return ChangeSet.of([{ from: 0, to: 0, insert: next }], 0);
+  if (next === "") return ChangeSet.of([{ from: 0, to: previous.length, insert: "" }], previous.length);
+  const before = splitLines(previous);
+  const after = splitLines(next);
+  const offsets = lineOffsets(before);
+  const matches = lcsMatches(before, after);
+  if (matches === null) {
+    return ChangeSet.of([regionChange(0, previous, next)], previous.length);
+  }
+  const specs = [];
+  let beforeIndex = 0;
+  let afterIndex = 0;
+  const pushRegion = (toLine, toAfterLine) => {
+    const oldText = before.slice(beforeIndex, toLine).join("");
+    const newText = after.slice(afterIndex, toAfterLine).join("");
+    if (oldText === newText) return;
+    specs.push(regionChange(offsets[beforeIndex], oldText, newText));
+  };
+  for (const [matchBefore, matchAfter] of matches) {
+    if (matchBefore > beforeIndex || matchAfter > afterIndex) {
+      pushRegion(matchBefore, matchAfter);
+    }
+    beforeIndex = matchBefore + 1;
+    afterIndex = matchAfter + 1;
+  }
+  if (beforeIndex < before.length || afterIndex < after.length) {
+    pushRegion(before.length, after.length);
+  }
+  return ChangeSet.of(specs, previous.length);
+}
+function textOf(content2) {
+  return Text2.of(String(content2 ?? "").split("\n"));
+}
+var WorkbenchWorkspace = class extends Workspace {
+  /**
+   * @param {import('@codemirror/lsp-client').LSPClient} client the client
+   * @param {any} store the workbench store
+   * @param {{viewRegistry?: {waitForEditorView?: (uri: string, timeoutMs?: number) => Promise<any>}}} [options]
+   */
+  constructor(client, store, options2 = {}) {
+    super(client);
+    this.store = store;
+    this.options = options2;
+    this.viewRegistry = options2.viewRegistry ?? null;
+    this.files = [];
+  }
+  /**
+   * The tab of one absolute path, when the workbench has it open.
+   *
+   * The paths are compared in their normalized form: the workbench spells a
+   * path with the separator of the project root, while the LSP URI always
+   * uses slashes - and on Windows the case does not matter either.
+   * @param {string} absolute the absolute path
+   * @returns {any} the tab, or `undefined`
+   */
+  tabFor(absolute) {
+    const tabs = this.store?.state?.tabs;
+    if (!Array.isArray(tabs)) return void 0;
+    const wanted = normalizeScopePath(absolute);
+    if (wanted === "") return void 0;
+    return tabs.find((tab3) => {
+      if (tab3?.kind !== "file" || typeof tab3.path !== "string") return false;
+      return normalizeScopePath(tab3.path) === wanted;
+    });
+  }
+  /**
+   * The current content of one document.
+   *
+   * The editor is the freshest source: the user may have typed a character
+   * that React has not turned into a tab draft yet. When no editor is
+   * available the tab is used, and there the *draft* wins over the disk
+   * content - an unsaved symbol must be visible to the language server.
+   * @param {string} uri the document URI
+   * @param {any} [view] the editor, when there is one
+   * @returns {string} the content
+   */
+  contentOf(uri, view = null) {
+    if (view !== null && view !== void 0 && typeof view.state?.doc?.toString === "function") {
+      return view.state.doc.toString();
+    }
+    const absolute = pathOfFileUri(uri);
+    if (absolute === null) return "";
+    const tab3 = this.tabFor(absolute);
+    if (tab3 === void 0) return "";
+    if (tab3.dirty === true) return tab3.draft ?? tab3.content ?? "";
+    return tab3.content ?? "";
+  }
+  /**
+   * The editor that shows one document, when the workbench has one.
+   * @param {string} uri the document URI
+   * @returns {any} the editor, or `null`
+   */
+  viewOf(uri) {
+    const file = this.getFile(uri);
+    if (file !== null && file !== void 0) {
+      const view = file.getView();
+      if (view !== null && view !== void 0) return view;
+    }
+    if (this.viewRegistry !== null && typeof this.viewRegistry.get === "function") {
+      const view = this.viewRegistry.get(uri);
+      if (view !== null && view !== void 0) return view;
+    }
+    return null;
+  }
+  /**
+   * Open one document with the server.
+   *
+   * The content that is announced is the editor buffer (the draft), never the
+   * file on disk.
+   * @param {string} uri the document URI
+   * @param {string} languageId the LSP language id
+   * @param {any} view the editor
+   */
+  openFile(uri, languageId, view) {
+    const existing = this.getFile(uri);
+    if (existing !== null && existing !== void 0) {
+      existing.languageId = languageId;
+      existing.view = view;
+      return;
+    }
+    const content2 = this.contentOf(uri, view);
+    const file = {
+      uri,
+      languageId,
+      version: 1,
+      doc: textOf(content2),
+      view,
+      /** @returns {any} the editor that shows this document */
+      getView() {
+        return this.view ?? null;
+      }
+    };
+    this.files.push(file);
+    this.client.didOpen(file);
+  }
+  /**
+   * Push the pending edits of every open document to the server.
+   *
+   * Only the documents that actually changed are reported, and the change is
+   * incremental.
+   * @returns {Array<any>} the updates
+   */
+  syncFiles() {
+    const updates = [];
+    for (const file of this.files) {
+      const view = file.getView();
+      const next = this.contentOf(file.uri, view);
+      const previous = file.doc.toString();
+      if (next === previous) continue;
+      const changes = computeChanges(previous, next);
+      const prevDoc = file.doc;
+      file.doc = textOf(next);
+      file.version += 1;
+      updates.push({ file, prevDoc, changes });
+    }
+    return updates;
+  }
+  /**
+   * Whether one path is inside the current project.
+   * @param {string} absolute the absolute path
+   * @returns {boolean} true when the path may be opened
+   */
+  insideRoot(absolute) {
+    const root = this.store?.state?.root;
+    if (typeof root !== "string" || root === "") return false;
+    return isPathWithin(root, absolute);
+  }
+  /**
+   * Tell the user that a path is outside the project.
+   * @param {string} absolute the absolute path
+   */
+  notifyOutside(absolute) {
+    const store = this.store;
+    if (store === null || store === void 0) return;
+    const text = typeof store.t === "function" ? store.t("lsp.outsideProject") : "lsp.outsideProject";
+    if (typeof store.toast === "function") {
+      try {
+        store.toast("error", text, absolute);
+      } catch {
+      }
+    }
+  }
+  /**
+   * Show another document to the user.
+   *
+   * A path outside the project is refused: it is neither opened nor read.
+   * @param {string} uri the document URI
+   * @returns {Promise<any>} the editor, or `null` when it cannot be shown
+   */
+  async displayFile(uri) {
+    const absolute = pathOfFileUri(uri);
+    if (absolute === null) return null;
+    if (!this.insideRoot(absolute)) {
+      this.notifyOutside(absolute);
+      return null;
+    }
+    const store = this.store;
+    if (store === null || store === void 0 || typeof store.openFile !== "function") return null;
+    try {
+      store.openFile(absolute, { preview: false });
+    } catch (error) {
+      this.notifyOutside(absolute);
+      return null;
+    }
+    const registry = this.viewRegistry;
+    if (registry === null || registry === void 0) return null;
+    if (typeof registry.waitForEditorView === "function") {
+      try {
+        return await registry.waitForEditorView(uri, VIEW_WAIT_MS);
+      } catch {
+        return null;
+      }
+    }
+    if (typeof registry.get === "function") return registry.get(uri) ?? null;
+    return null;
+  }
+  /**
+   * The connection to the server is live.
+   *
+   * The default implementation of the library re-opens every document here.
+   * That is wrong for a *re*connection: the language server still knows the
+   * documents, and a second `didOpen` for the same URI breaks the protocol.
+   * The documents are opened by `openFile()` - the editor plugin calls it as
+   * soon as the plugin extension exists - and the host re-opens them itself
+   * after a crash restart.
+   */
+  connected() {
+  }
+  /**
+   * Apply a server initiated change to one document.
+   * @param {string} uri the document URI
+   * @param {any} transaction the transaction
+   */
+  updateFile(uri, transaction) {
+    const file = this.getFile(uri);
+    if (file === null || file === void 0) return;
+    const view = file.getView();
+    if (view === null || view === void 0) return;
+    try {
+      view.dispatch(transaction);
+    } catch {
+    }
+  }
+  /**
+   * Close one document with the server.
+   * @param {string} uri the document URI
+   */
+  closeFile(uri) {
+    const index = this.files.findIndex((file) => file.uri === uri);
+    if (index < 0) return;
+    this.files.splice(index, 1);
+    this.client.didClose(uri);
+  }
+};
+
+// src/client/lsp-session.js
+var DEFAULT_SHORTCUTS = {
+  goToDefinition: "F12",
+  findUsages: "Alt+F7",
+  findUsagesText: "Alt+F8",
+  complete: "Ctrl+Space"
+};
+var LSP_WS_PATH = "ide-workbench/ws/lsp";
+var sessionStore = null;
+var currentClient = null;
+var currentTransport = null;
+var sessionEnabled = true;
+var sessionVersion = 0;
+var editorViews = /* @__PURE__ */ new Map();
+var sessionListeners = /* @__PURE__ */ new Set();
+var unsubscribeStore = null;
+var sessionKey = null;
+function bumpVersion() {
+  sessionVersion += 1;
+  for (const listener of [...sessionListeners]) {
+    try {
+      listener(sessionVersion);
+    } catch (error) {
+      console.warn("[lsp] session listener failed:", error instanceof Error ? error.message : error);
+    }
+  }
+}
+function onLspSessionChange(listener) {
+  if (typeof listener !== "function") return () => {
+  };
+  sessionListeners.add(listener);
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
+var viewRegistry = {
+  /**
+   * @param {string} uri the document URI
+   * @returns {any} the editor, or `null`
+   */
+  get(uri) {
+    const views = editorViews.get(uri);
+    if (views === void 0 || views.size === 0) return null;
+    for (const view of views) return view;
+    return null;
+  },
+  /**
+   * @param {string} uri the document URI
+   * @param {number} [timeoutMs] how long to wait
+   * @returns {Promise<any>} the editor, or `null` on timeout
+   */
+  waitForEditorView(uri, timeoutMs = 5e3) {
+    return waitForEditorView(uri, timeoutMs);
+  }
+};
+function translate(key) {
+  if (typeof sessionStore?.t === "function") {
+    try {
+      const value = sessionStore.t(key);
+      if (typeof value === "string" && value !== "") return value;
+    } catch {
+    }
+  }
+  return key;
+}
+function registerEditorView(uri, view) {
+  if (typeof uri !== "string" || uri === "" || view === null || view === void 0) return;
+  let views = editorViews.get(uri);
+  if (views === void 0) {
+    views = /* @__PURE__ */ new Set();
+    editorViews.set(uri, views);
+  }
+  views.add(view);
+}
+function unregisterEditorView(uri, view) {
+  const views = editorViews.get(uri);
+  if (views === void 0) return;
+  views.delete(view);
+  if (views.size === 0) editorViews.delete(uri);
+}
+function waitForEditorView(uri, timeoutMs = 5e3) {
+  const existing = viewRegistry.get(uri);
+  if (existing !== null) return Promise.resolve(existing);
+  return new Promise((resolve) => {
+    let timer = null;
+    let interval = null;
+    const finish = (value) => {
+      if (timer !== null) clearTimeout(timer);
+      if (interval !== null) clearInterval(interval);
+      resolve(value);
+    };
+    timer = setTimeout(() => finish(null), Math.max(0, timeoutMs));
+    interval = setInterval(() => {
+      const view = viewRegistry.get(uri);
+      if (view !== null) finish(view);
+    }, 40);
+    if (typeof interval?.unref === "function") interval.unref();
+    if (typeof timer?.unref === "function") timer.unref();
+  });
+}
+function lspSocketUrl(root) {
+  const url = wsUrl(LSP_WS_PATH);
+  if (typeof root === "string" && root !== "") url.searchParams.set("root", root);
+  return url.href;
+}
+function requestTimeoutOf(store) {
+  const configured = store?.state?.settings?.lsp?.requestTimeoutMs;
+  if (Number.isFinite(configured) && configured >= 3e4) return configured;
+  return 3e4;
+}
+function capabilityAvailable(name2) {
+  const capabilities = currentClient?.serverCapabilities ?? null;
+  if (capabilities === null) return false;
+  if (!capabilities[name2]) return false;
+  const slice = sessionStore?.state?.lsp ?? null;
+  if (slice !== null && typeof slice === "object" && typeof slice.state === "string") {
+    if (slice.state !== "ready") return false;
+  }
+  return true;
+}
+function semanticUsagesAvailable() {
+  return capabilityAvailable("referencesProvider");
+}
+function semanticDefinitionAvailable() {
+  return capabilityAvailable("definitionProvider");
+}
+function startLsp() {
+  if (currentClient !== null) return;
+  const store = sessionStore;
+  if (store === null || store === void 0) return;
+  const root = typeof store.state?.root === "string" ? store.state.root : "";
+  currentClient = new LSPClient({
+    rootUri: fileUriOf(root),
+    timeout: requestTimeoutOf(store),
+    sanitizeHTML,
+    workspace: (client) => new WorkbenchWorkspace(client, store, { viewRegistry }),
+    // The editor extensions are added by `lspExtensions()` instead, so that
+    // the workbench can keep them out of the editors that have no client.
+    extensions: []
+  });
+  currentTransport = createLspTransport({
+    url: () => lspSocketUrl(root),
+    onOpen: (info) => {
+      if (info?.reopened === true) reinitializeLsp();
+      bumpVersion();
+    },
+    onClose: () => {
+      bumpVersion();
+    },
+    onError: (error) => {
+      console.warn("[lsp] transport error:", error instanceof Error ? error.message : error);
+    }
+  });
+  currentClient.connect(currentTransport);
+  bumpVersion();
+}
+function reinitializeLsp() {
+  if (currentClient === null || currentTransport === null) return;
+  try {
+    currentClient.disconnect();
+    currentClient.connect(currentTransport);
+  } catch (error) {
+    console.warn("[lsp] the handshake could not be repeated:", error instanceof Error ? error.message : error);
+  }
+}
+function stopLsp() {
+  if (currentClient !== null) {
+    try {
+      currentClient.disconnect();
+    } catch {
+    }
+  }
+  if (currentTransport !== null) {
+    try {
+      currentTransport.close();
+    } catch {
+    }
+  }
+  currentClient = null;
+  currentTransport = null;
+  bumpVersion();
+}
+function refreshLsp() {
+  const store = sessionStore;
+  if (store === null || store === void 0) {
+    if (sessionKey !== null) {
+      sessionKey = null;
+      stopLsp();
+    }
+    return;
+  }
+  const lspSettings = store.state?.settings?.lsp ?? null;
+  const root = typeof store.state?.root === "string" ? store.state.root : "";
+  const enabled = sessionEnabled && lspSettings?.enabled !== false;
+  const wanted = enabled && root !== "";
+  const key = `${enabled}|${root}`;
+  if (key === sessionKey) return;
+  const hadClient = currentClient !== null;
+  sessionKey = key;
+  if (wanted) {
+    if (hadClient) stopLsp();
+    startLsp(store);
+  } else if (hadClient) {
+    stopLsp();
+  }
+}
+function configureLsp(store) {
+  sessionStore = store ?? null;
+  if (unsubscribeStore !== null) {
+    unsubscribeStore();
+    unsubscribeStore = null;
+  }
+  sessionKey = null;
+  if (typeof store?.subscribe === "function") {
+    unsubscribeStore = store.subscribe(() => refreshLsp());
+  }
+  refreshLsp();
+}
+function lspClient() {
+  return currentClient;
+}
+function lspExtensions() {
+  if (currentClient === null) return [];
+  return [
+    // The semantic completion runs next to the local one; it must not
+    // override it (PRD §4.2).
+    serverCompletion(),
+    hoverTooltips({ hoverTime: 300 }),
+    signatureHelp({ keymap: false })
+  ];
+}
+function lspPluginExtension(path2) {
+  if (currentClient === null) return [];
+  const uri = fileUriOf(path2);
+  if (uri === "") return [];
+  return currentClient.plugin(uri, languageIdForPath(path2));
+}
+function lspSessionVersion() {
+  return sessionVersion;
+}
+function shortcutFor(name2) {
+  const table = sessionStore?.state?.settings?.shortcuts;
+  const value = table?.[name2];
+  if (typeof value === "string" && value.trim() !== "") return value.trim();
+  return DEFAULT_SHORTCUTS[name2] ?? "";
+}
+function keymapKeyFor(name2) {
+  const shortcut = shortcutFor(name2);
+  if (shortcut === "") return "";
+  return shortcut.split("+").map((part) => {
+    const key = part.trim();
+    if (key === "Cmd" || key === "Command" || key === "Meta") return "Mod";
+    if (key === "Control") return "Ctrl";
+    if (key === "Option") return "Alt";
+    return key;
+  }).filter((part) => part !== "").join("-");
+}
+function navLabels() {
+  return {
+    goToDefinition: translate("nav.goToDefinition"),
+    findUsages: translate("nav.findUsages"),
+    findUsagesText: translate("nav.findUsagesText"),
+    semanticUnavailable: translate("nav.semanticUnavailable")
+  };
+}
+function findUsagesText(identifier5) {
+  const text = typeof identifier5 === "string" ? identifier5.trim() : "";
+  if (text === "") return;
+  const store = sessionStore;
+  if (store === null || typeof store.findUsagesText !== "function") return;
+  try {
+    void store.findUsagesText(text);
+  } catch (error) {
+    console.warn("[lsp] text search failed:", error instanceof Error ? error.message : error);
+  }
+}
+
 // src/client/CodeEditor.jsx
+var IDENTIFIER_NODE_NAMES = /* @__PURE__ */ new Set([
+  "Name",
+  "VariableName",
+  "FunctionName",
+  "PropertyName",
+  "ClassName",
+  "TypeName",
+  "LabelName",
+  "TagName",
+  "AttributeName",
+  "Identifier",
+  "VariableDefinition",
+  "PrivatePropertyName",
+  "JSXIdentifier",
+  "MethodName",
+  "ScopedIdentifier",
+  "FieldName",
+  "DefName",
+  "TypeIdentifier",
+  "FieldIdentifier",
+  "ScopeIdentifier",
+  "IdName",
+  "PseudoClassName",
+  "NamespaceName",
+  "Label"
+]);
+var lspCompartment = new Compartment();
 function languageForPath(path2) {
   const lower = String(path2 ?? "").toLowerCase();
   const dot3 = lower.lastIndexOf(".");
@@ -47805,7 +55086,32 @@ var THEME = EditorView.theme({
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--iwb-accent)" },
   "&.cm-focused": { outline: "none" },
   ".cm-panels": { backgroundColor: "var(--iwb-panel)", color: "var(--iwb-fg)" },
-  ".cm-tooltip": { backgroundColor: "var(--iwb-overlay)", border: "1px solid var(--iwb-border-strong)" }
+  ".cm-tooltip": { backgroundColor: "var(--iwb-overlay)", border: "1px solid var(--iwb-border-strong)" },
+  // The completion popup of COMP-01. The icons are plain CSS characters, so
+  // the plugin does not carry an SVG sprite for them.
+  ".cm-tooltip-autocomplete": {
+    backgroundColor: "var(--iwb-overlay)",
+    border: "1px solid var(--iwb-border-strong)",
+    borderRadius: "4px",
+    overflow: "hidden"
+  },
+  ".cm-tooltip-autocomplete ul": {
+    fontFamily: "var(--iwb-mono)",
+    fontSize: "12px",
+    maxHeight: "18em",
+    margin: "0",
+    padding: "0"
+  },
+  ".cm-tooltip-autocomplete li": { padding: "2px 6px", lineHeight: "1.5" },
+  ".cm-tooltip-autocomplete li[aria-selected]": {
+    backgroundColor: "rgba(76,154,255,.28)",
+    color: "var(--iwb-fg)"
+  },
+  ".cm-completionIcon": { width: "1.2em", opacity: ".75", color: "var(--iwb-muted)" },
+  ".cm-completionIcon::after": { content: "\\25CF" },
+  ".cm-completionLabel": { color: "var(--iwb-fg)" },
+  ".cm-completionDetail": { color: "var(--iwb-muted)", fontStyle: "italic", marginLeft: "6px" },
+  ".cm-completionMatchedText": { color: "var(--iwb-accent)", textDecoration: "none", fontWeight: "bold" }
 }, { dark: true });
 function selectionOf(view, match) {
   return { anchor: match.from, head: match.to };
@@ -47826,6 +55132,93 @@ function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOn
     } }
   ];
 }
+function completionExtensions() {
+  return [
+    autocompletion({ activateOnTyping: true, icons: false }),
+    closeBrackets()
+  ];
+}
+function navKeymap() {
+  const entries = [];
+  const goToDefinition = keymapKeyFor("goToDefinition");
+  if (goToDefinition !== "") entries.push({ key: goToDefinition, run: jumpToDefinition, preventDefault: true });
+  const findUsages = keymapKeyFor("findUsages");
+  if (findUsages !== "") entries.push({ key: findUsages, run: findReferences, preventDefault: true });
+  const findUsagesText2 = keymapKeyFor("findUsagesText");
+  if (findUsagesText2 !== "") entries.push({ key: findUsagesText2, run: findUsagesTextCommand, preventDefault: true });
+  const complete = keymapKeyFor("complete");
+  if (complete !== "") entries.push({ key: complete, run: startCompletion, preventDefault: true });
+  return entries;
+}
+function editorKeymapRest() {
+  return [
+    ...completionKeymap,
+    ...closeBracketsKeymap,
+    ...navKeymap(),
+    ...defaultKeymap,
+    ...historyKeymap,
+    indentWithTab
+  ];
+}
+function identifierAt(state, pos) {
+  if (state === null || state === void 0) return null;
+  if (!Number.isInteger(pos) || pos < 0 || pos > state.doc.length) return null;
+  let node = null;
+  try {
+    node = syntaxTree(state).resolveInner(pos, 1);
+  } catch {
+    return null;
+  }
+  for (let depth = 0; node !== null && node !== void 0 && depth < 3; depth += 1) {
+    if (IDENTIFIER_NODE_NAMES.has(node.name)) {
+      const text = state.doc.sliceString(node.from, node.to);
+      return text === "" ? null : text;
+    }
+    node = node.parent;
+  }
+  return null;
+}
+function wordAtCursor(state, pos) {
+  if (state === null || state === void 0) return null;
+  if (!Number.isInteger(pos) || pos < 0 || pos > state.doc.length) return null;
+  const line = state.doc.lineAt(pos);
+  const text = line.text;
+  let start = Math.min(pos - line.from, text.length);
+  let end = start;
+  while (start > 0 && /[\w$]/.test(text[start - 1])) start -= 1;
+  while (end < text.length && /[\w$]/.test(text[end])) end += 1;
+  if (end <= start) return null;
+  return text.slice(start, end);
+}
+function findUsagesTextCommand(view) {
+  if (view === null || view === void 0) return false;
+  const word = wordAtCursor(view.state, view.state.selection.main.head);
+  if (word === null) return false;
+  findUsagesText(word);
+  return true;
+}
+function handleCtrlClick(event, view, options2 = {}) {
+  if (event === null || event === void 0) return false;
+  if (!(event.ctrlKey === true || event.metaKey === true)) return false;
+  if (view === null || view === void 0) return false;
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+  if (typeof pos !== "number") return false;
+  if (identifierAt(view.state, pos) === null) return false;
+  if (options2.requirePlugin !== false && LSPPlugin.get(view) === null) return false;
+  event.preventDefault();
+  view.dispatch({ selection: { anchor: pos } });
+  const trigger = options2.trigger ?? jumpToDefinition;
+  trigger(view);
+  return true;
+}
+function revealPosition(state, line, column) {
+  if (!Number.isInteger(line) || line <= 0) return null;
+  const doc2 = state.doc;
+  const target = doc2.line(Math.min(line, doc2.lines));
+  if (!Number.isInteger(column) || column <= 0) return target.from;
+  const lineEnd2 = target.from + target.text.length;
+  return Math.min(target.from + column - 1, lineEnd2);
+}
 function CodeEditor({
   value,
   path: path2,
@@ -47833,6 +55226,7 @@ function CodeEditor({
   resetToken = 0,
   readOnly: readOnly2 = false,
   revealLine = null,
+  revealColumn = null,
   onFindRequest,
   onFindInFiles,
   onReady,
@@ -47840,11 +55234,15 @@ function CodeEditor({
   onSave,
   onCursor,
   onSendToChat,
-  chatLabels = {}
+  chatLabels = {},
+  navLabels: navLabelsProp = null
 }) {
   const hostRef = (0, import_react9.useRef)(null);
   const viewRef = (0, import_react9.useRef)(null);
+  const pathRef = (0, import_react9.useRef)(path2);
+  const lspClientRef = (0, import_react9.useRef)(null);
   const [menu, setMenu] = (0, import_react9.useState)(null);
+  const [lspVersion, setLspVersion] = (0, import_react9.useState)(() => lspSessionVersion());
   const onSendToChatRef = (0, import_react9.useRef)(onSendToChat);
   onSendToChatRef.current = onSendToChat;
   const onChangeRef = (0, import_react9.useRef)(onChange);
@@ -47859,26 +55257,37 @@ function CodeEditor({
   onFindRef.current = onFindRequest;
   onFindInFilesRef.current = onFindInFiles;
   onReadyRef.current = onReady;
+  pathRef.current = path2;
+  (0, import_react9.useEffect)(() => {
+    setLspVersion(lspSessionVersion());
+    return onLspSessionChange(() => setLspVersion(lspSessionVersion()));
+  }, []);
   const onContextMenu = (event) => {
     const view = viewRef.current;
-    if (view === null || typeof onSendToChatRef.current !== "function") return;
+    if (view === null) return;
     const range = view.state.selection.main;
-    if (range.empty) return;
+    const hasSelection2 = range.empty === false;
+    const clicked = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    const word = typeof clicked === "number" ? wordAtCursor(view.state, clicked) : null;
+    if (!hasSelection2 && word === null) return;
     event.preventDefault();
     const fromLine = view.state.doc.lineAt(range.from).number;
     const toLine = view.state.doc.lineAt(range.to).number;
     setMenu({
       x: event.clientX,
       y: event.clientY,
-      text: view.state.sliceDoc(range.from, range.to),
+      text: hasSelection2 ? view.state.sliceDoc(range.from, range.to) : word ?? "",
       fromLine,
-      toLine
+      toLine,
+      word,
+      pos: hasSelection2 ? range.head : clicked
     });
   };
   (0, import_react9.useEffect)(() => {
     const host = hostRef.current;
     if (host === null) return void 0;
     const language2 = languageForPath(path2);
+    const uri = fileUriOf(path2);
     const extensions = [
       lineNumbers(),
       highlightActiveLineGutter(),
@@ -47900,13 +55309,20 @@ function CodeEditor({
       // The extension supplies match highlighting; its default panel is never
       // opened. FindBar drives the query through the controller below.
       search({ top: false }),
+      // The local completion of COMP-01. It works without a language server.
+      ...completionExtensions(),
       keymap.of([
         ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOnly2 }),
-        ...defaultKeymap,
-        ...historyKeymap,
-        indentWithTab
+        ...editorKeymapRest()
       ]),
       ...Array.isArray(language2) ? language2 : [language2],
+      // The semantic extensions come after the language, the server needs to
+      // know the language of the document.
+      lspCompartment.of([...lspExtensions(), ...lspPluginExtension(path2)]),
+      // Ctrl+click to go to a definition (NAV-01).
+      EditorView.domEventHandlers({
+        mousedown: (event, view2) => handleCtrlClick(event, view2)
+      }),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
         if (update.selectionSet || update.docChanged) {
@@ -47921,11 +55337,11 @@ function CodeEditor({
       parent: host
     });
     viewRef.current = view;
+    lspClientRef.current = lspClient();
     view.focus();
-    if (Number.isInteger(revealLine) && revealLine > 0) {
-      const line = view.state.doc.line(Math.min(revealLine, view.state.doc.lines));
-      view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true });
-    }
+    const initial = revealPosition(view.state, revealLine, revealColumn);
+    if (initial !== null) view.dispatch({ selection: { anchor: initial }, scrollIntoView: true });
+    if (uri !== "") registerEditorView(uri, view);
     let matches = [];
     let active = -1;
     const clearQueryEffect = () => {
@@ -47934,14 +55350,14 @@ function CodeEditor({
       } catch {
       }
     };
-    const setHighlight = (query, options) => {
+    const setHighlight = (query, options2) => {
       try {
         view.dispatch({
           effects: setSearchQuery.of(new SearchQuery({
             search: query,
-            caseSensitive: options.caseSensitive === true,
-            regexp: options.regexp === true,
-            wholeWord: options.wholeWord === true
+            caseSensitive: options2.caseSensitive === true,
+            regexp: options2.regexp === true,
+            wholeWord: options2.wholeWord === true
           }))
         });
       } catch {
@@ -47954,10 +55370,14 @@ function CodeEditor({
         const range = view.state.selection.main;
         return view.state.sliceDoc(range.from, range.to);
       },
+      /** The editor itself, so the workbench can drive it. */
+      view,
+      /** The document URI of the buffer. */
+      uri,
       /** Recompute matches and select the first one. */
-      find: (query, options = {}) => {
+      find: (query, options2 = {}) => {
         try {
-          matches = findMatches(view.state.doc.toString(), query, options);
+          matches = findMatches(view.state.doc.toString(), query, options2);
         } catch (error) {
           matches = [];
           active = -1;
@@ -47966,7 +55386,7 @@ function CodeEditor({
         }
         active = matches.length > 0 ? 0 : -1;
         if (active >= 0) {
-          setHighlight(query, options);
+          setHighlight(query, options2);
           view.dispatch({ selection: selectionOf(view, matches[active]), scrollIntoView: true });
         } else {
           clearQueryEffect();
@@ -47993,9 +55413,9 @@ function CodeEditor({
         view.dispatch({ changes: { from: match.from, to: match.to, insert: String(replacement ?? "") } });
         return { total: matches.length, active, replaced: true };
       },
-      replaceAll: (replacement, query, options) => {
+      replaceAll: (replacement, query, options2) => {
         if (readOnly2 === true) return { count: 0 };
-        const result = replaceAllMatches(view.state.doc.toString(), query, options, replacement);
+        const result = replaceAllMatches(view.state.doc.toString(), query, options2, replacement);
         if (result.count > 0) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: result.text } });
         return result;
       },
@@ -48009,20 +55429,46 @@ function CodeEditor({
     onReadyRef.current?.(api);
     return () => {
       onReadyRef.current?.(null);
+      if (uri !== "") unregisterEditorView(uri, view);
       viewRef.current = null;
       view.destroy();
     };
   }, [path2, resetToken, readOnly2]);
   (0, import_react9.useEffect)(() => {
     const view = viewRef.current;
-    if (view === null || !Number.isInteger(revealLine) || revealLine <= 0) return;
-    const line = view.state.doc.line(Math.min(revealLine, view.state.doc.lines));
-    view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true });
-  }, [revealLine]);
+    if (view === null) return;
+    const client = lspClient();
+    if (client === lspClientRef.current) return;
+    lspClientRef.current = client;
+    try {
+      view.dispatch({
+        effects: lspCompartment.reconfigure([...lspExtensions(), ...lspPluginExtension(pathRef.current)])
+      });
+    } catch {
+    }
+  }, [lspVersion]);
+  (0, import_react9.useEffect)(() => {
+    const view = viewRef.current;
+    if (view === null) return;
+    const position = revealPosition(view.state, revealLine, revealColumn);
+    if (position === null) return;
+    view.dispatch({ selection: { anchor: position }, scrollIntoView: true });
+  }, [revealLine, revealColumn]);
   const sendSelection = () => {
     const current = menu;
     if (current === null) return;
     onSendToChatRef.current?.({ text: current.text, fromLine: current.fromLine, toLine: current.toLine });
+  };
+  const labels = { ...navLabels(), ...navLabelsProp ?? {} };
+  const usageAvailable = semanticUsagesAvailable();
+  const definitionAvailable = semanticDefinitionAvailable();
+  const semanticNote = labels.semanticUnavailable ?? "The language server does not support finding usages.";
+  const noteFor = (available) => available ? void 0 : semanticNote;
+  const goToDefinitionAt = (pos) => {
+    const view = viewRef.current;
+    if (view === null) return;
+    if (typeof pos === "number") view.dispatch({ selection: { anchor: pos } });
+    jumpToDefinition(view);
   };
   return import_react9.default.createElement(
     import_react9.default.Fragment,
@@ -48040,6 +55486,40 @@ function CodeEditor({
           action: () => {
             void navigator.clipboard.writeText(menu.text).catch(() => {
             });
+          }
+        },
+        null,
+        {
+          key: "goToDefinition",
+          text: labels.goToDefinition ?? "Go to definition",
+          title: noteFor(definitionAvailable),
+          shortcut: shortcutFor("goToDefinition"),
+          disabled: definitionAvailable === false,
+          action: () => goToDefinitionAt(menu.pos)
+        },
+        {
+          key: "findUsages",
+          text: labels.findUsages ?? "Find usages (semantic)",
+          title: noteFor(usageAvailable),
+          shortcut: shortcutFor("findUsages"),
+          disabled: usageAvailable === false,
+          action: () => {
+            const view = viewRef.current;
+            if (view === null) return;
+            if (typeof menu.pos === "number") view.dispatch({ selection: { anchor: menu.pos } });
+            findReferences(view);
+          }
+        },
+        {
+          key: "findUsagesText",
+          text: labels.findUsagesText ?? "Find usages (text)",
+          shortcut: shortcutFor("findUsagesText"),
+          action: () => {
+            const view = viewRef.current;
+            if (view === null) return;
+            const word = menu.word ?? wordAtCursor(view.state, view.state.selection.main.head);
+            if (word === null || word === void 0) return;
+            findUsagesText(word);
           }
         }
       ]
@@ -48116,7 +55596,7 @@ function pointAt(segments, offset) {
   const last2 = segments[segments.length - 1];
   return last2 === void 0 ? null : { node: last2.node, offset: last2.node.nodeValue.length };
 }
-function rangesFor(container, query, options) {
+function rangesFor(container, query, options2) {
   if (container === null || query === "") return [];
   const nodes = textNodes(container);
   const segments = [];
@@ -48126,7 +55606,7 @@ function rangesFor(container, query, options) {
     text += node.nodeValue;
     segments.push({ node, start, end: text.length });
   }
-  const pattern = buildFindRegExp(query, options);
+  const pattern = buildFindRegExp(query, options2);
   const ranges = [];
   let match;
   while ((match = pattern.exec(text)) !== null) {
@@ -48304,10 +55784,10 @@ function FallbackMarkdown({ text }) {
   let key = 0;
   while (index < lines.length) {
     const line = lines[index];
-    const heading2 = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
-    if (heading2 !== null) {
-      const tag = `h${heading2[1].length}`;
-      blocks.push(import_react11.default.createElement(tag, { key: key += 1 }, heading2[2]));
+    const heading3 = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    if (heading3 !== null) {
+      const tag2 = `h${heading3[1].length}`;
+      blocks.push(import_react11.default.createElement(tag2, { key: key += 1 }, heading3[2]));
       index += 1;
       continue;
     }
@@ -48336,12 +55816,12 @@ function FallbackMarkdown({ text }) {
       index += 1;
       continue;
     }
-    const paragraph = [];
+    const paragraph2 = [];
     while (index < lines.length && lines[index].trim() !== "" && !/^\s*(#{1,6})\s+/.test(lines[index])) {
-      paragraph.push(lines[index]);
+      paragraph2.push(lines[index]);
       index += 1;
     }
-    blocks.push(import_react11.default.createElement("p", { key: key += 1 }, paragraph.join(" ")));
+    blocks.push(import_react11.default.createElement("p", { key: key += 1 }, paragraph2.join(" ")));
   }
   return import_react11.default.createElement("div", { className: "iwb-markdown-fallback" }, blocks);
 }
@@ -48359,7 +55839,7 @@ function MarkdownView({
   const containerRef = (0, import_react11.useRef)(null);
   const [activeSlug, setActiveSlug] = (0, import_react11.useState)("");
   const headings = (0, import_react11.useMemo)(() => extractHeadings(text), [text]);
-  const headingKey = (0, import_react11.useMemo)(() => headings.map((heading2) => heading2.slug).join("|"), [headings]);
+  const headingKey = (0, import_react11.useMemo)(() => headings.map((heading3) => heading3.slug).join("|"), [headings]);
   const openFind = () => {
     onFindRequest?.();
   };
@@ -48368,9 +55848,9 @@ function MarkdownView({
     if (container === null) return;
     const elements = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")];
     for (let index = 0; index < elements.length; index += 1) {
-      const heading2 = headings[index];
-      if (heading2 === void 0) break;
-      if (elements[index].id !== heading2.slug) elements[index].id = heading2.slug;
+      const heading3 = headings[index];
+      if (heading3 === void 0) break;
+      if (elements[index].id !== heading3.slug) elements[index].id = heading3.slug;
     }
   }, [headingKey, MarkdownText]);
   (0, import_react11.useEffect)(() => {
@@ -48453,13 +55933,13 @@ function MarkdownView({
       headings.length === 0 ? import_react11.default.createElement("div", { className: "iwb-outline-empty" }, labels.empty ?? "No headings") : import_react11.default.createElement(
         "div",
         { className: "iwb-outline-list" },
-        headings.map((heading2, index) => import_react11.default.createElement("button", {
-          key: `${heading2.slug}-${index}`,
+        headings.map((heading3, index) => import_react11.default.createElement("button", {
+          key: `${heading3.slug}-${index}`,
           type: "button",
-          className: `iwb-outline-item ${activeSlug === heading2.slug ? "iwb-active" : ""}`,
-          style: { paddingLeft: `${8 + (heading2.level - 1) * 12}px` },
-          onClick: () => jump(heading2.slug)
-        }, heading2.text))
+          className: `iwb-outline-item ${activeSlug === heading3.slug ? "iwb-active" : ""}`,
+          style: { paddingLeft: `${8 + (heading3.level - 1) * 12}px` },
+          onClick: () => jump(heading3.slug)
+        }, heading3.text))
       )
     ) : null
   );
@@ -48666,10 +56146,10 @@ function wordSegments(leftText, rightText) {
   }
   const left = [];
   const right = [];
-  const push = (list, token2, changed) => {
-    const last2 = list[list.length - 1];
+  const push = (list2, token2, changed) => {
+    const last2 = list2[list2.length - 1];
     if (last2 !== void 0 && last2.changed === changed) last2.text += token2;
-    else list.push({ text: token2, changed });
+    else list2.push({ text: token2, changed });
   };
   let i2 = 0;
   let j2 = 0;
@@ -48758,7 +56238,7 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
   const [error, setError] = (0, import_react12.useState)(null);
   const inputRef = (0, import_react12.useRef)(null);
   const timer = (0, import_react12.useRef)(null);
-  const options = { caseSensitive, wholeWord, regexp };
+  const options2 = { caseSensitive, wholeWord, regexp };
   const apply2 = (text = query) => {
     if (editor === null || editor === void 0) return;
     if (text === "") {
@@ -48768,7 +56248,7 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
       setError(null);
       return;
     }
-    const result = editor.find(text, options);
+    const result = editor.find(text, options2);
     setTotal(result.total);
     setActive2(result.active);
     setError(result.error ?? null);
@@ -48819,7 +56299,7 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
     }
   };
   const replaceAll2 = () => {
-    const result = editor?.replaceAll(replacement, query, options);
+    const result = editor?.replaceAll(replacement, query, options2);
     if ((result?.count ?? 0) > 0) apply2(query);
   };
   const flag = (on2, label3, title, onClick) => import_react12.default.createElement("button", {
@@ -49089,7 +56569,7 @@ ${row.right?.text ?? ""}`;
     };
     return {
       focus: () => scrollRef.current?.focus?.(),
-      find: (query, options = {}) => {
+      find: (query, options2 = {}) => {
         if (query === "") {
           findRowsRef.current = [];
           findActiveRef.current = -1;
@@ -49099,7 +56579,7 @@ ${row.right?.text ?? ""}`;
         }
         let pattern;
         try {
-          pattern = buildFindRegExp(query, options);
+          pattern = buildFindRegExp(query, options2);
         } catch (error) {
           findRowsRef.current = [];
           findActiveRef.current = -1;
@@ -49375,6 +56855,13 @@ ${row.right?.text ?? ""}`;
 
 // src/client/SearchView.jsx
 var import_react14 = __toESM(require("react"), 1);
+function interpolate(text, values2) {
+  let out = typeof text === "string" ? text : "";
+  for (const [name2, value] of Object.entries(values2)) {
+    out = out.replaceAll(`{${name2}}`, String(value));
+  }
+  return out;
+}
 function Flag({ on: on2, label: label3, title, onClick }) {
   return import_react14.default.createElement("button", {
     type: "button",
@@ -49486,9 +56973,13 @@ function SearchView({ store }) {
     import_react14.default.createElement(
       "div",
       { className: "iwb-search-meta" },
-      search2.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2.error !== null ? search2.error : `${totals.matches} ${t2("search.resultCount")} \xB7 ${totals.files} \xB7 ${search2.tookMs} ${t2("search.took")}`,
+      search2.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2.error !== null ? search2.error : search2.textMatch === true ? totals.matches === 0 ? t2("nav.noUsages") : interpolate(t2("nav.usagesCount"), { count: totals.matches }) : `${totals.matches} ${t2("search.resultCount")} \xB7 ${totals.files} \xB7 ${search2.tookMs} ${t2("search.took")}`,
       search2.truncated === true ? import_react14.default.createElement("span", { className: "iwb-search-warn" }, t2("search.truncated")) : null
     ),
+    // The text version of Find Usages is a fallback, not a semantic result:
+    // every hit is labelled, so the user knows what the list really is
+    // (PRD-v5 §5.3, §7.1).
+    search2.textMatch === true ? import_react14.default.createElement("div", { className: "iwb-search-textmatch-note" }, t2("nav.textMatch")) : null,
     import_react14.default.createElement(
       "div",
       { className: "iwb-search-results" },
@@ -49512,6 +57003,7 @@ function SearchView({ store }) {
             onClick: () => open(file, match)
           },
           import_react14.default.createElement("span", { className: "iwb-search-line" }, match.line),
+          search2.textMatch === true ? import_react14.default.createElement("span", { className: "iwb-search-textmatch" }, t2("nav.textMatch")) : null,
           import_react14.default.createElement("span", { className: "iwb-search-preview" }, match.preview)
         ))
       ))
@@ -49588,6 +57080,14 @@ function Welcome({ store, slice }) {
     )
   );
 }
+function editorNavLabels(t2) {
+  return {
+    goToDefinition: t2("nav.goToDefinition"),
+    findUsages: t2("nav.findUsages"),
+    findUsagesText: t2("nav.findUsagesText"),
+    semanticUnavailable: t2("nav.semanticUnavailable")
+  };
+}
 function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, onFindInFiles, previewFind, onPreviewFindRequest, onClosePreviewFind }) {
   const t2 = store.t;
   const scrollTimer = (0, import_react15.useRef)(null);
@@ -49628,6 +57128,7 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
   }
   const saved = payload.content ?? "";
   const text = tab3.dirty === true ? tab3.draft ?? saved : saved;
+  const navLabels2 = editorNavLabels(t2);
   if (tab3.editing === true && payload.truncated !== true) {
     return import_react15.default.createElement(CodeEditor, {
       key: `${tab3.id}:${tab3.resetToken ?? 0}`,
@@ -49636,6 +57137,7 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
       fontSize: slice.fontSize,
       resetToken: tab3.resetToken ?? 0,
       revealLine: tab3.revealLine,
+      revealColumn: tab3.revealColumn ?? null,
       readOnly: false,
       onFindRequest,
       onFindInFiles,
@@ -49646,7 +57148,8 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
       },
       onCursor: (position) => store.setCursor(position),
       onSendToChat: (selection) => store.sendSelectionToChat({ path: tab3.path, rel: tab3.rel, ...selection }),
-      chatLabels: { send: t2("chat.sendToChat"), copy: t2("common.copy") }
+      chatLabels: { send: t2("chat.sendToChat"), copy: t2("common.copy") },
+      navLabels: navLabels2
     });
   }
   if (isMarkdownPath(tab3.path) && (tab3.view ?? "preview") === "preview") {
@@ -49678,13 +57181,15 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
     fontSize: slice.fontSize,
     resetToken: tab3.resetToken ?? 0,
     revealLine: tab3.revealLine,
+    revealColumn: tab3.revealColumn ?? null,
     readOnly: true,
     onFindRequest,
     onFindInFiles,
     onReady: onEditorReady,
     onCursor: (position) => store.setCursor(position),
     onSendToChat: (selection) => store.sendSelectionToChat({ path: tab3.path, rel: tab3.rel, ...selection }),
-    chatLabels: { send: t2("chat.sendToChat"), copy: t2("common.copy") }
+    chatLabels: { send: t2("chat.sendToChat"), copy: t2("common.copy") },
+    navLabels: navLabels2
   });
 }
 function TabBar({ store, slice }) {
@@ -50065,8 +57570,8 @@ function buildConflictDialog(store, tab3) {
     ]
   };
 }
-function createEditorKeyHandler(store, options) {
-  const { textTab, previewTab, findOpenRef, previewFindRef, editorApi, setFindOpen, setPreviewFind } = options;
+function createEditorKeyHandler(store, options2) {
+  const { textTab, previewTab, findOpenRef, previewFindRef, editorApi, setFindOpen, setPreviewFind } = options2;
   return (event) => {
     if (store.state.active !== true) return;
     const target = event.target;
@@ -50197,7 +57702,14 @@ function EditorArea({ store, state: _state }) {
       "div",
       { className: "iwb-editor" },
       import_react15.default.createElement(TabBar, { store, slice }),
-      import_react15.default.createElement(SearchView, { store })
+      // The key keeps the two search tabs apart: the Find in Files view and
+      // the usages view have their own query and their own flags, so the
+      // view is remounted when the tab changes.
+      import_react15.default.createElement(
+        import_react15.default.Fragment,
+        { key: active.id },
+        import_react15.default.createElement(SearchView, { store })
+      )
     );
   }
   const content2 = active.kind === "file" ? import_react15.default.createElement(FilePreview, {
@@ -50243,7 +57755,11 @@ var SHORTCUT_FIELDS = [
   ["push", "pushShortcut"],
   ["findInFiles", "findInFilesShortcut"],
   ["findInFilesAlt", "findInFilesAltShortcut"],
-  ["quickOpen", "quickOpenShortcut"]
+  ["quickOpen", "quickOpenShortcut"],
+  ["findUsages", "findUsagesShortcut"],
+  ["findUsagesText", "findUsagesTextShortcut"],
+  ["goToDefinition", "goToDefinitionShortcut"],
+  ["complete", "completeShortcut"]
 ];
 function Group({ title, description, children }) {
   return import_react16.default.createElement(
@@ -50270,6 +57786,7 @@ function Row({ label: label3, hint, children }) {
 function SettingsForm({ store, state, compact, onStatusChange }) {
   const t2 = store.t;
   const settings = state.settings ?? {};
+  const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : [];
   const [draft, setDraft] = (0, import_react16.useState)(settings);
   const [saved, setSaved] = (0, import_react16.useState)(false);
   const [saving, setSaving] = (0, import_react16.useState)(false);
@@ -50370,7 +57887,8 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
       layout: { ...draft.layout, ...patch.layout ?? {} },
       editor: { ...draft.editor, ...patch.editor ?? {} },
       links: { ...draft.links, ...patch.links ?? {} },
-      shortcuts: { ...draft.shortcuts, ...patch.shortcuts ?? {} }
+      shortcuts: { ...draft.shortcuts, ...patch.shortcuts ?? {} },
+      lsp: { ...draft.lsp, ...patch.lsp ?? {} }
     };
     setDraft(next);
     commit(patch);
@@ -50643,6 +58161,111 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
     ),
     import_react16.default.createElement(
       Group,
+      { title: t2("settings.lspGroup"), description: t2("settings.lspGroupHint") },
+      import_react16.default.createElement(
+        "Row",
+        { label: t2("settings.lspEnabled"), hint: t2("settings.lspEnabledHint") },
+        import_react16.default.createElement("input", {
+          type: "checkbox",
+          checked: draft.lsp?.enabled !== false,
+          onChange: (event) => update({ lsp: { enabled: event.target.checked } })
+        })
+      ),
+      import_react16.default.createElement(
+        "Row",
+        { label: t2("settings.lspIndexOnOpen"), hint: t2("settings.lspIndexOnOpenHint") },
+        import_react16.default.createElement(
+          "select",
+          {
+            className: "iwb-select",
+            value: draft.lsp?.indexOnOpen ?? "ask",
+            onChange: (event) => update({ lsp: { indexOnOpen: event.target.value } })
+          },
+          import_react16.default.createElement("option", { value: "ask" }, t2("settings.lspIndexAsk")),
+          import_react16.default.createElement("option", { value: "always" }, t2("settings.lspIndexAlways")),
+          import_react16.default.createElement("option", { value: "never" }, t2("settings.lspIndexNever"))
+        )
+      ),
+      import_react16.default.createElement(
+        "Row",
+        { label: t2("settings.lspMemoryLimit"), hint: t2("settings.lspMemoryLimitHint") },
+        import_react16.default.createElement("input", {
+          type: "number",
+          min: 256,
+          max: 32768,
+          step: 256,
+          value: draft.lsp?.memoryLimitMB ?? 2048,
+          onChange: (event) => update({ lsp: { memoryLimitMB: Number(event.target.value) || 2048 } })
+        })
+      ),
+      import_react16.default.createElement(
+        "Row",
+        { label: t2("settings.lspFreeMemory"), hint: t2("settings.lspFreeMemoryHint") },
+        import_react16.default.createElement("input", {
+          type: "number",
+          min: 256,
+          max: 32768,
+          step: 256,
+          value: draft.lsp?.freeMemoryThresholdMB ?? 2048,
+          onChange: (event) => update({ lsp: { freeMemoryThresholdMB: Number(event.target.value) || 2048 } })
+        })
+      ),
+      import_react16.default.createElement(
+        "Row",
+        { label: t2("settings.lspIdleTimeout"), hint: t2("settings.lspIdleTimeoutHint") },
+        import_react16.default.createElement("input", {
+          type: "number",
+          min: 1,
+          max: 240,
+          value: Math.round((draft.lsp?.idleTimeoutMs ?? 6e5) / 6e4),
+          onChange: (event) => update({ lsp: { idleTimeoutMs: (Number(event.target.value) || 10) * 6e4 } })
+        })
+      ),
+      import_react16.default.createElement(
+        "Row",
+        { label: t2("settings.lspRequestTimeout"), hint: t2("settings.lspRequestTimeoutHint") },
+        import_react16.default.createElement("input", {
+          type: "number",
+          min: 3e4,
+          max: 6e5,
+          step: 1e3,
+          value: draft.lsp?.requestTimeoutMs ?? 3e4,
+          onChange: (event) => update({ lsp: { requestTimeoutMs: Math.max(3e4, Number(event.target.value) || 3e4) } })
+        })
+      ),
+      import_react16.default.createElement(
+        "Row",
+        { label: t2("settings.lspAutoExit") },
+        import_react16.default.createElement("input", {
+          type: "checkbox",
+          checked: draft.lsp?.autoExit !== false,
+          onChange: (event) => update({ lsp: { autoExit: event.target.checked } })
+        })
+      ),
+      import_react16.default.createElement(
+        "Row",
+        { label: t2("settings.lspAutoRestart") },
+        import_react16.default.createElement("input", {
+          type: "checkbox",
+          checked: draft.lsp?.autoRestart !== false,
+          onChange: (event) => update({ lsp: { autoRestart: event.target.checked } })
+        })
+      ),
+      // The missing servers are a fact of the machine, not a setting: they are
+      // listed so the user knows which language stays in the basic mode.
+      missingServers.length > 0 ? import_react16.default.createElement(
+        "Row",
+        { label: t2("settings.lspServersMissing"), hint: t2("settings.lspServersMissingHint") },
+        import_react16.default.createElement(
+          "span",
+          { className: "iwb-settings-value" },
+          missingServers.map((server) => `${server.languageId} (${server.command})`).join(", ")
+        )
+      ) : null,
+      import_react16.default.createElement("div", { className: "iwb-settings-hint", style: { gridColumn: "1 / -1" } }, t2("settings.lspOfflineNote"))
+    ),
+    import_react16.default.createElement(
+      Group,
       { title: t2("settings.appearanceGroup") },
       import_react16.default.createElement(
         Row,
@@ -50733,9 +58356,9 @@ function QuickOpen({ store, state }) {
   const results = (0, import_react17.useMemo)(() => {
     const scored = [];
     for (const path2 of state.fileIndex) {
-      const score = quickScore(path2, state.quickOpenQuery);
-      if (score === null) continue;
-      scored.push({ path: path2, score });
+      const score2 = quickScore(path2, state.quickOpenQuery);
+      if (score2 === null) continue;
+      scored.push({ path: path2, score: score2 });
     }
     scored.sort((left, right) => right.score - left.score || left.path.length - right.path.length || left.path.localeCompare(right.path));
     return scored.slice(0, 100).map((item) => item.path);
@@ -50825,6 +58448,13 @@ var LEFT_PANE_RATIO = 42;
 function label2(t2, key, fallback2) {
   const value = t2(key);
   return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
+}
+function interpolate2(text, values2) {
+  let out = typeof text === "string" ? text : "";
+  for (const [name2, value] of Object.entries(values2)) {
+    out = out.replaceAll(`{${name2}}`, String(value));
+  }
+  return out;
 }
 var MemoEditorArea = import_react18.default.memo(EditorArea);
 var MemoProjectPanel = import_react18.default.memo(ProjectPanel);
@@ -51067,7 +58697,98 @@ function BottomTabs({ store, state }) {
     }, import_react18.default.createElement("span", { style: { fontSize: 16, lineHeight: 1 } }, "\xD7"))
   );
 }
-function StatusBar({ store, state }) {
+function lspStatusView(store, state) {
+  const t2 = store.t;
+  const lsp = state?.lsp ?? {};
+  const settingsLsp = state?.settings?.lsp ?? {};
+  const language2 = typeof lsp.languageId === "string" ? lsp.languageId : "";
+  const current = typeof lsp.state === "string" && lsp.state !== "" ? lsp.state : "idle";
+  const detail = typeof lsp.detail === "string" ? lsp.detail : "";
+  const progress = typeof lsp.progress === "string" ? lsp.progress : "";
+  const base2 = { title: t2("lsp.statusTitle"), detail, action: null };
+  if (settingsLsp.enabled === false || lsp.enabled === false || current === "disabled") {
+    return { ...base2, key: "disabled", text: t2("lsp.status.disabled"), tone: "idle" };
+  }
+  const missing = (lsp.servers?.missing ?? []).filter((entry) => typeof entry?.languageId === "string");
+  const missingHere = missing.find((entry) => entry.languageId === language2);
+  const missingOnly = missingHere ?? (missing.length === 1 ? missing[0] : void 0);
+  if (missingOnly !== void 0 && current !== "ready" && current !== "building" && current !== "starting") {
+    return {
+      ...base2,
+      key: "missing",
+      text: interpolate2(t2("lsp.status.missing"), { language: missingOnly.languageId }),
+      tone: "idle",
+      action: "settings",
+      title: interpolate2(t2("lsp.serverMissing"), { language: missingOnly.languageId })
+    };
+  }
+  switch (current) {
+    case "starting":
+    case "restarting":
+      return { ...base2, key: current, text: t2("lsp.status.starting"), tone: "idle" };
+    case "building":
+      return { ...base2, key: "building", text: t2("lsp.status.building"), tone: "warn" };
+    case "cancelling":
+      return {
+        ...base2,
+        key: "cancelling",
+        text: label2(t2, "lsp.status.cancelling", t2("lsp.status.cancelled")),
+        tone: "idle"
+      };
+    case "ready":
+      return progress === "" ? { ...base2, key: "ready", text: t2("lsp.status.ready"), tone: "ok" } : { ...base2, key: "updating", text: t2("lsp.status.updating"), tone: "warn" };
+    case "crashed":
+      return { ...base2, key: "crashed", text: t2("lsp.status.crashed"), tone: "error", action: "crash" };
+    case "cancelled":
+      return { ...base2, key: "cancelled", text: t2("lsp.status.cancelled"), tone: "idle" };
+    case "degraded":
+      return { ...base2, key: "degraded", text: t2("lsp.status.degraded"), tone: "idle" };
+    case "failed":
+      return { ...base2, key: "failed", text: t2("lsp.status.degraded"), tone: "idle" };
+    default:
+      return { ...base2, key: "idle", text: t2("lsp.status.degraded"), tone: "idle" };
+  }
+}
+function LspStatus({ store, state, onOpenSettings }) {
+  const t2 = store.t;
+  const lsp = state.lsp ?? {};
+  const view = lspStatusView(store, state);
+  const cancelAfter = state.settings?.lsp?.cancelAfterMs ?? 6e4;
+  const startedAt = typeof lsp.startedAt === "number" ? lsp.startedAt : 0;
+  const cancellable = lsp.cancellable === true || startedAt > 0 && Date.now() - startedAt > cancelAfter;
+  const showCancel = view.key === "building" && cancellable;
+  const tone = view.tone === "ok" ? " iwb-lsp-status-ready" : view.tone === "warn" ? " iwb-lsp-status-warn" : view.tone === "error" ? " iwb-lsp-status-error" : " iwb-lsp-status-muted";
+  const title = view.detail === "" ? view.title : `${view.title} \u2014 ${view.detail}`;
+  const onClick = view.action === "settings" ? () => {
+    onOpenSettings?.();
+  } : view.action === "crash" ? () => {
+    store.toast("error", t2("lsp.crashedToast"), view.detail);
+  } : void 0;
+  return import_react18.default.createElement(
+    "span",
+    {
+      className: `iwb-status-item iwb-lsp-status${tone}`,
+      title,
+      "data-lsp-state": view.key,
+      style: onClick === void 0 ? void 0 : { cursor: "pointer" },
+      onClick
+    },
+    import_react18.default.createElement("span", { className: "iwb-lsp-status-dot" }),
+    import_react18.default.createElement("span", { className: "iwb-lsp-status-label" }, view.text),
+    // The cancel button only appears while a build runs longer than the
+    // configured patience (PRD-v5 §2.4).
+    showCancel ? import_react18.default.createElement("button", {
+      type: "button",
+      className: "iwb-lsp-cancel",
+      title: t2("lsp.cancelIndex"),
+      onClick: (event) => {
+        event.stopPropagation();
+        void store.cancelLspIndex();
+      }
+    }, t2("lsp.cancelIndex")) : null
+  );
+}
+function StatusBar({ store, state, onOpenSettings }) {
   const t2 = store.t;
   const summary = store.summary();
   const active = state.tabs.find((tab3) => tab3.id === state.activeId);
@@ -51087,6 +58808,9 @@ function StatusBar({ store, state }) {
     ),
     summary.branch !== void 0 ? import_react18.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("git") }, summary.branch) : null,
     summary.changes > 0 ? import_react18.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("commit") }, `${summary.changes} ${t2("status.changes")}`) : null,
+    // The semantic-analysis state sits next to the other status items, before
+    // the spacer: it must be visible even when the workbench is idle.
+    import_react18.default.createElement(LspStatus, { store, state, onOpenSettings }),
     import_react18.default.createElement("div", { className: "iwb-spacer" }),
     cursor !== null ? import_react18.default.createElement("span", { className: "iwb-status-item" }, `${t2("editor.line")} ${cursor.line}:${cursor.col}`) : null,
     lines !== void 0 ? import_react18.default.createElement("span", { className: "iwb-status-item" }, `${lines} ${t2("editor.lines")}`) : null,
@@ -51206,6 +58930,9 @@ function ProjectPicker({ store, state }) {
       import_react18.default.createElement("span", { className: "iwb-project-choice-path" }, project.path)
     ),
     project.isRepo === true ? import_react18.default.createElement("span", { className: "iwb-project-repo-badge" }, t2("project.gitRepo")) : null,
+    // The badge order is fixed: [Git] → [Indexed] → [Current]. The three can
+    // coexist; none of them replaces another (PRD-v5 §2.1).
+    project.indexState === "indexed" ? import_react18.default.createElement("span", { className: "iwb-project-index-badge", title: t2("project.indexedHint") }, t2("project.indexed")) : null,
     project.path === state.root ? import_react18.default.createElement("span", { className: "iwb-project-current-badge" }, t2("project.current")) : null
   );
   return import_react18.default.createElement(
@@ -51248,6 +58975,78 @@ function ProjectPicker({ store, state }) {
           className: "iwb-textbtn",
           onClick: () => store.closeProjectPicker()
         }, t2("common.cancel"))
+      )
+    )
+  );
+}
+function IndexDecisionModal({ store, state }) {
+  const t2 = store.t;
+  const decision = state.indexDecision;
+  (0, import_react18.useEffect)(() => {
+    if (decision === null || decision === void 0) return void 0;
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      store.resolveIndexDecision("cancel");
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [decision, store]);
+  if (decision === null || decision === void 0) return null;
+  const name2 = typeof decision.name === "string" ? decision.name : "";
+  const isRoot = decision.isRoot === true;
+  const isRepo = decision.isRepo === true;
+  const title = interpolate2(t2("index.decision.title"), { name: name2 });
+  return import_react18.default.createElement(
+    "div",
+    {
+      className: "iwb-modal-backdrop",
+      onMouseDown: (event) => {
+        if (event.target === event.currentTarget) store.resolveIndexDecision("cancel");
+      }
+    },
+    import_react18.default.createElement(
+      "div",
+      {
+        className: "iwb-modal iwb-index-decision",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": title
+      },
+      import_react18.default.createElement("h2", null, title),
+      import_react18.default.createElement("p", null, t2("index.decision.body")),
+      // The workspace root carries the extra warning: it usually holds
+      // several independent repositories, and one program over all of them
+      // costs a lot of memory and build time.
+      isRoot ? import_react18.default.createElement(
+        "div",
+        { className: "iwb-index-decision-warning" },
+        import_react18.default.createElement("div", { className: "iwb-index-decision-warning-title" }, t2("index.decision.rootTitle")),
+        import_react18.default.createElement("div", null, isRepo ? t2("index.decision.rootRepo") : t2("index.decision.rootWarning"))
+      ) : null,
+      import_react18.default.createElement(
+        "div",
+        { className: "iwb-modal-actions" },
+        isRoot ? import_react18.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn",
+          onClick: () => store.resolveIndexDecision("build")
+        }, t2("index.decision.buildRoot")) : import_react18.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-primary",
+          onClick: () => store.resolveIndexDecision("build")
+        }, t2("index.decision.build")),
+        import_react18.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn",
+          onClick: () => store.resolveIndexDecision("conservative")
+        }, t2("index.decision.conservative")),
+        isRoot ? import_react18.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn",
+          onClick: () => store.resolveIndexDecision("cancel")
+        }, t2("index.decision.cancel")) : null
       )
     )
   );
@@ -51398,7 +59197,7 @@ function Workbench({ store, visible = true, fullscreen = false }) {
     // The Terminal/Git dock spans the whole workbench width: it is a sibling
     // of the body, so the left dock shrinks above it instead of squeezing it.
     bottomNode,
-    import_react18.default.createElement(StatusBar, { store, state }),
+    import_react18.default.createElement(StatusBar, { store, state, onOpenSettings: () => setSettingsOpen(true) }),
     state.phase === "booting" ? import_react18.default.createElement("div", { className: "iwb-empty", style: { position: "absolute", inset: 0, background: "var(--iwb-bg)" } }, store.t("common.loading")) : null,
     state.fatal !== null && state.fatal !== void 0 ? import_react18.default.createElement(
       "div",
@@ -51423,6 +59222,9 @@ function Workbench({ store, visible = true, fullscreen = false }) {
     import_react18.default.createElement(Toast, { toast: state.toast }),
     import_react18.default.createElement(RootPicker, { store, state }),
     import_react18.default.createElement(ProjectPicker, { store, state }),
+    // The index decision is drawn above the project picker: it is the answer
+    // to the choice the user just made in it.
+    import_react18.default.createElement(IndexDecisionModal, { store, state }),
     settingsOpen ? import_react18.default.createElement(SettingsModal, { store, state, onClose: () => setSettingsOpen(false) }) : null
   );
 }
@@ -51786,6 +59588,24 @@ var CSS2 = `
 .iwb-status-item { display: inline-flex; align-items: center; gap: 4px; }
 .iwb-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--iwb-success); }
 .iwb-status-dot.iwb-busy { background: var(--iwb-warn); }
+
+/* \u2500\u2500 semantic analysis status (PRD-v5 \xA74.3) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.iwb-lsp-status { display: inline-flex; align-items: center; gap: 5px; color: var(--iwb-muted); }
+.iwb-lsp-status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.iwb-lsp-status-ready { color: var(--iwb-success); }
+.iwb-lsp-status-warn { color: var(--iwb-warn); }
+.iwb-lsp-status-error { color: var(--iwb-error); }
+.iwb-lsp-status-muted { color: var(--iwb-muted); }
+.iwb-lsp-status-label { white-space: nowrap; }
+.iwb-lsp-cancel {
+  border: 1px solid var(--iwb-border-strong); border-radius: 999px; padding: 0 7px;
+  background: transparent; color: var(--iwb-warn); font-size: 10px; line-height: 15px; cursor: pointer;
+}
+.iwb-lsp-cancel:hover { background: rgba(215, 162, 74, .14); }
+/* A narrow pane only has room for the dot: the label folds away. */
+@container ide-workbench (max-width: 560px) {
+  .iwb-lsp-status-label { display: none; }
+}
 
 .iwb-tree { padding: 4px 0 12px; font-size: 12.5px; }
 .iwb-tree-row {
@@ -52219,6 +60039,7 @@ var CSS2 = `
 .iwb-project-choice-text b { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-choice-path { color: var(--iwb-muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-repo-badge { font-size: 9.5px; color: var(--iwb-git-add, #57a86b); border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
+.iwb-project-index-badge { font-size: 9.5px; color: #8b7cf6; border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
 .iwb-project-current-badge { font-size: 9.5px; color: var(--iwb-accent); border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
 .iwb-project-empty { padding: 10px 8px; color: var(--iwb-muted); font-size: 11.5px; }
 .iwb-sidebar-open {
@@ -52424,6 +60245,65 @@ var CSS2 = `
 /* Read-only code / diff must be copyable despite the root user-select:none. */
 .iwb-code, .iwb-diff-text, .iwb-diff-side-cell, .iwb-diff-row { user-select: text; }
 .iwb-diff-row .iwb-diff-num, .iwb-diff-row .iwb-diff-sign, .iwb-diff-row .iwb-diff-gutter { user-select: none; }
+
+/* \u2500\u2500 CodeMirror language intelligence (PRD-v5) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* The completion popup and the reference panel come from the editor library;
+   they only need the workbench tokens so they do not look foreign. */
+.iwb-codemirror .cm-tooltip-autocomplete {
+  background: var(--iwb-overlay); border: 1px solid var(--iwb-border-strong);
+  border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); overflow: hidden;
+}
+.iwb-codemirror .cm-tooltip-autocomplete > ul { font-family: var(--iwb-mono); font-size: 12px; max-height: 240px; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li { padding: 2px 8px; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--iwb-accent); color: #fff; }
+.iwb-codemirror .cm-completionIcon { font-style: normal; opacity: .8; }
+.iwb-codemirror .cm-completionLabel { color: var(--iwb-fg); }
+.iwb-codemirror .cm-completionDetail { color: var(--iwb-muted); font-style: italic; }
+.iwb-codemirror .cm-completionMatchedText { text-decoration: underline; }
+.iwb-codemirror .cm-lsp-hover, .iwb-codemirror .cm-lsp-signature {
+  background: var(--iwb-overlay); border: 1px solid var(--iwb-border-strong);
+  border-radius: 6px; padding: 6px 9px; max-width: 460px; font-size: 12px; color: var(--iwb-fg);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .35);
+}
+.iwb-codemirror .cm-lsp-hover code, .iwb-codemirror .cm-lsp-signature code {
+  font-family: var(--iwb-mono); background: var(--iwb-panel-2); border-radius: 3px; padding: 0 3px;
+}
+.iwb-codemirror .cm-lsp-references-panel {
+  background: var(--iwb-panel); border: 1px solid var(--iwb-border-strong);
+  border-radius: 6px; max-height: 260px; overflow: auto; font-size: 12px;
+}
+.iwb-codemirror .cm-lsp-references-panel ul { list-style: none; margin: 0; padding: 0; }
+.iwb-codemirror .cm-lsp-references-panel li { padding: 2px 8px; cursor: pointer; color: var(--iwb-fg); }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] { background: var(--iwb-accent); color: #fff; }
+.iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-name { color: var(--iwb-accent); }
+.iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-file { color: var(--iwb-muted); }
+.iwb-codemirror .cm-lsp-diagnostic-error { border-left: 3px solid var(--iwb-error); }
+.iwb-codemirror .cm-lsp-diagnostic-warning { border-left: 3px solid var(--iwb-warn); }
+.iwb-codemirror .cm-lsp-diagnostic-info { border-left: 3px solid var(--iwb-accent); }
+.iwb-codemirror .cm-lsp-diagnostic-hint { border-left: 3px solid var(--iwb-muted); }
+
+/* \u2500\u2500 text-match marker for the conservative Find Usages (NAV-03) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.iwb-search-textmatch-note {
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 6px;
+  padding: 2px 8px; border-radius: 999px; font-size: 10.5px;
+  color: var(--iwb-warn); border: 1px solid currentColor; background: rgba(215, 162, 74, .08);
+}
+.iwb-search-textmatch {
+  font-size: 9.5px; line-height: 15px; color: var(--iwb-warn);
+  border: 1px solid currentColor; border-radius: 999px; padding: 0 5px; flex: 0 0 auto;
+}
+
+/* \u2500\u2500 index decision dialog (PRD-v5 \xA72.3) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.iwb-index-decision { max-width: 520px; }
+.iwb-index-decision-warning {
+  display: block; margin-top: 10px; padding: 9px 11px;
+  border-left: 3px solid var(--iwb-warn); border-radius: 0 6px 6px 0;
+  background: rgba(215, 162, 74, .1); color: var(--iwb-fg); font-size: 12px; line-height: 1.55;
+}
+.iwb-index-decision-warning-title {
+  display: block; margin-bottom: 3px; color: var(--iwb-warn);
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+}
 
 @container ide-workbench (max-width: 760px) {
   .iwb-topbar { gap: 4px; padding: 0 6px; }
@@ -52692,6 +60572,7 @@ ${CSS2}`);
       return existing;
     }
     const store = stores.set(key, new WorkbenchStore(ctx, t2, cwdOf(id2)), id2, { evict: false });
+    configureLsp(store);
     scheduleEvict();
     return store;
   };

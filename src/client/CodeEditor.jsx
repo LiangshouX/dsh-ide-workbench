@@ -7,16 +7,35 @@
  * seeded from the tab's draft; every change flows back through `onChange`.
  * The FindBar gets a small imperative controller instead of CodeMirror's
  * English default panel.
+ *
+ * This round adds the code-intelligence features of PRD-v5:
+ *
+ * - the local completion of `@codemirror/autocomplete` (COMP-01), which
+ *   works in every language without a language server;
+ * - the semantic extensions of the LSP session (COMP-02, NAV-02, NAV-04),
+ *   which are only installed when a client exists;
+ * - Ctrl+click and F12 to jump to a definition (NAV-01);
+ * - Alt+F7 for the semantic usages and Alt+F8 for the text usages (NAV-02,
+ *   NAV-03);
+ * - a column precise reveal, so a jump lands on the column and not only on
+ *   the line (NAV-05).
+ *
+ * Two shortcuts of the language-server library are deliberately *not*
+ * installed: `renameKeymap` (F2) and `formatKeymap` (Shift-Alt-f) would
+ * collide with the workbench shortcuts (PRD §0.2 #6).
  */
 import React, { useEffect, useRef, useState } from 'react'
-import { EditorState } from '@codemirror/state'
+import { EditorState, Compartment } from '@codemirror/state'
 import {
   EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter,
   drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightSpecialChars,
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import {
+  autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap, startCompletion,
+} from '@codemirror/autocomplete'
 import { SearchQuery, setSearchQuery, search } from '@codemirror/search'
-import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle } from '@codemirror/language'
+import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle, syntaxTree } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
@@ -31,8 +50,52 @@ import { xml } from '@codemirror/lang-xml'
 import { cpp } from '@codemirror/lang-cpp'
 import { go } from '@codemirror/lang-go'
 import { rust } from '@codemirror/lang-rust'
+import { findReferences, jumpToDefinition, LSPPlugin } from '@codemirror/lsp-client'
 import { findMatches, replaceAllMatches } from './find.js'
+import { fileUriOf } from './lsp-uri.js'
+import {
+  findUsagesText as runTextUsageSearch,
+  keymapKeyFor,
+  lspClient,
+  lspExtensions,
+  lspPluginExtension,
+  lspSessionVersion,
+  navLabels,
+  onLspSessionChange,
+  registerEditorView,
+  semanticDefinitionAvailable,
+  semanticUsagesAvailable,
+  shortcutFor,
+  unregisterEditorView,
+} from './lsp-session.js'
 import { ContextMenu } from './ui.jsx'
+
+/**
+ * The node names that stand for an identifier.
+ *
+ * A Ctrl+click may only trigger on one of them: on whitespace, on
+ * punctuation, on a comment or inside a string it must do nothing
+ * (PRD §5.1). The first group is the list of the specification, the second
+ * group holds the names the bundled grammars really produce - a JavaScript
+ * variable is a `VariableDefinition`, a Java method a `MethodName`, and so
+ * on.
+ */
+const IDENTIFIER_NODE_NAMES = new Set([
+  'Name', 'VariableName', 'FunctionName', 'PropertyName', 'ClassName',
+  'TypeName', 'LabelName', 'TagName', 'AttributeName', 'Identifier',
+  'VariableDefinition', 'PrivatePropertyName', 'JSXIdentifier', 'MethodName',
+  'ScopedIdentifier', 'FieldName', 'DefName', 'TypeIdentifier', 'FieldIdentifier',
+  'ScopeIdentifier', 'IdName', 'PseudoClassName', 'NamespaceName', 'Label',
+])
+
+/**
+ * The compartment that holds the semantic extensions.
+ *
+ * The language server may appear (or disappear) while an editor is open - the
+ * settings arrive late, the server is restarted - so the extensions live in
+ * a compartment that can be reconfigured without rebuilding the document.
+ */
+const lspCompartment = new Compartment()
 
 /** Language extension for one file path (empty = plain text). */
 export function languageForPath(path) {
@@ -100,6 +163,31 @@ const THEME = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
   '.cm-panels': { backgroundColor: 'var(--iwb-panel)', color: 'var(--iwb-fg)' },
   '.cm-tooltip': { backgroundColor: 'var(--iwb-overlay)', border: '1px solid var(--iwb-border-strong)' },
+  // The completion popup of COMP-01. The icons are plain CSS characters, so
+  // the plugin does not carry an SVG sprite for them.
+  '.cm-tooltip-autocomplete': {
+    backgroundColor: 'var(--iwb-overlay)',
+    border: '1px solid var(--iwb-border-strong)',
+    borderRadius: '4px',
+    overflow: 'hidden',
+  },
+  '.cm-tooltip-autocomplete ul': {
+    fontFamily: 'var(--iwb-mono)',
+    fontSize: '12px',
+    maxHeight: '18em',
+    margin: '0',
+    padding: '0',
+  },
+  '.cm-tooltip-autocomplete li': { padding: '2px 6px', lineHeight: '1.5' },
+  '.cm-tooltip-autocomplete li[aria-selected]': {
+    backgroundColor: 'rgba(76,154,255,.28)',
+    color: 'var(--iwb-fg)',
+  },
+  '.cm-completionIcon': { width: '1.2em', opacity: '.75', color: 'var(--iwb-muted)' },
+  '.cm-completionIcon::after': { content: '\\25CF' },
+  '.cm-completionLabel': { color: 'var(--iwb-fg)' },
+  '.cm-completionDetail': { color: 'var(--iwb-muted)', fontStyle: 'italic', marginLeft: '6px' },
+  '.cm-completionMatchedText': { color: 'var(--iwb-accent)', textDecoration: 'none', fontWeight: 'bold' },
 }, { dark: true })
 
 function selectionOf(view, match) {
@@ -129,22 +217,196 @@ export function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly 
 }
 
 /**
+ * The local completion extensions (COMP-01).
+ *
+ * `icons: false` keeps the popup free of the icon set of the library - the
+ * workbench draws its own markers with plain CSS characters.
+ * @returns {Array<any>} the extensions
+ */
+export function completionExtensions() {
+  return [
+    autocompletion({ activateOnTyping: true, icons: false }),
+    closeBrackets(),
+  ]
+}
+
+/**
+ * The navigation keymap of the editor (NAV-01, NAV-02, NAV-03).
+ *
+ * The keys come from the settings (`goToDefinition`, `findUsages`,
+ * `findUsagesText`, `complete`), so a user can move them. The semantic
+ * usages are bound to `Alt+F7` and not to the `Shift+F12` of the library -
+ * `Shift+F12` is already used by the workbench (`Ctrl+Shift+F12` hides all
+ * the tool windows).
+ * @returns {Array<{key: string, run: Function}>} the keymap entries
+ */
+export function navKeymap() {
+  const entries = []
+  const goToDefinition = keymapKeyFor('goToDefinition')
+  if (goToDefinition !== '') entries.push({ key: goToDefinition, run: jumpToDefinition, preventDefault: true })
+  const findUsages = keymapKeyFor('findUsages')
+  if (findUsages !== '') entries.push({ key: findUsages, run: findReferences, preventDefault: true })
+  const findUsagesText = keymapKeyFor('findUsagesText')
+  if (findUsagesText !== '') entries.push({ key: findUsagesText, run: findUsagesTextCommand, preventDefault: true })
+  const complete = keymapKeyFor('complete')
+  if (complete !== '') entries.push({ key: complete, run: startCompletion, preventDefault: true })
+  return entries
+}
+
+/**
+ * The rest of the keymap of the editor buffer.
+ *
+ * The completion keymap has to come *before* the default keymap, otherwise
+ * `Enter` and `Tab` would be swallowed by the default bindings and a
+ * completion could not be accepted (PRD risk #14).
+ * @returns {Array<any>} the keymap entries
+ */
+export function editorKeymapRest() {
+  return [
+    ...completionKeymap,
+    ...closeBracketsKeymap,
+    ...navKeymap(),
+    ...defaultKeymap,
+    ...historyKeymap,
+    indentWithTab,
+  ]
+}
+
+/**
+ * The identifier at one position of a document.
+ *
+ * Only an identifier counts: on whitespace, on punctuation, on a comment or
+ * inside a string the function answers `null`, so a Ctrl+click there does
+ * nothing at all.
+ * @param {any} state the editor state
+ * @param {number} pos the document offset
+ * @returns {string | null} the identifier, or `null`
+ */
+export function identifierAt(state, pos) {
+  if (state === null || state === undefined) return null
+  if (!Number.isInteger(pos) || pos < 0 || pos > state.doc.length) return null
+  let node = null
+  try {
+    node = syntaxTree(state).resolveInner(pos, 1)
+  } catch {
+    return null
+  }
+  for (let depth = 0; node !== null && node !== undefined && depth < 3; depth += 1) {
+    if (IDENTIFIER_NODE_NAMES.has(node.name)) {
+      const text = state.doc.sliceString(node.from, node.to)
+      return text === '' ? null : text
+    }
+    node = node.parent
+  }
+  return null
+}
+
+/**
+ * The word around one position, whatever the language is.
+ *
+ * The text version of "find usages" has to work in a file without a grammar
+ * too, so it uses the plain word characters instead of the syntax tree.
+ * @param {any} state the editor state
+ * @param {number} pos the document offset
+ * @returns {string | null} the word, or `null`
+ */
+export function wordAtCursor(state, pos) {
+  if (state === null || state === undefined) return null
+  if (!Number.isInteger(pos) || pos < 0 || pos > state.doc.length) return null
+  const line = state.doc.lineAt(pos)
+  const text = line.text
+  let start = Math.min(pos - line.from, text.length)
+  let end = start
+  while (start > 0 && /[\w$]/.test(text[start - 1])) start -= 1
+  while (end < text.length && /[\w$]/.test(text[end])) end += 1
+  if (end <= start) return null
+  return text.slice(start, end)
+}
+
+/**
+ * The command of the text version of "find usages" (NAV-03).
+ * @param {any} view the editor
+ * @returns {boolean} true when a word was found
+ */
+export function findUsagesTextCommand(view) {
+  if (view === null || view === undefined) return false
+  const word = wordAtCursor(view.state, view.state.selection.main.head)
+  if (word === null) return false
+  runTextUsageSearch(word)
+  return true
+}
+
+/**
+ * The Ctrl+click handler of the editor (NAV-01).
+ *
+ * CodeMirror 6 has no built-in "click to go to definition", so the handler
+ * is added by hand. It only reacts on an identifier and only when the
+ * modifier key is pressed; on a hit it prevents the default action, so the
+ * mouse does not start a text selection at the same time (PRD risk #16).
+ * @param {any} event the mouse event
+ * @param {any} view the editor
+ * @param {{trigger?: (view: any) => boolean, requirePlugin?: boolean}} [options]
+ * @returns {boolean} true when the event was handled
+ */
+export function handleCtrlClick(event, view, options = {}) {
+  if (event === null || event === undefined) return false
+  if (!(event.ctrlKey === true || event.metaKey === true)) return false
+  if (view === null || view === undefined) return false
+  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+  if (typeof pos !== 'number') return false
+  if (identifierAt(view.state, pos) === null) return false
+  // Without a language server there is nothing to jump to; the click keeps
+  // its normal meaning (a selection), so the modifier drag still works.
+  if (options.requirePlugin !== false && LSPPlugin.get(view) === null) return false
+  event.preventDefault()
+  view.dispatch({ selection: { anchor: pos } })
+  const trigger = options.trigger ?? jumpToDefinition
+  trigger(view)
+  return true
+}
+
+/**
+ * The position of one line and column inside a document.
+ *
+ * The column is 1-based, like the column the status bar shows.
+ * @param {any} state the editor state
+ * @param {number} line the 1-based line
+ * @param {number | null} column the 1-based column, or `null`
+ * @returns {number | null} the document offset
+ */
+export function revealPosition(state, line, column) {
+  if (!Number.isInteger(line) || line <= 0) return null
+  const doc = state.doc
+  const target = doc.line(Math.min(line, doc.lines))
+  if (!Number.isInteger(column) || column <= 0) return target.from
+  // `Line.to` includes the line break, so the last position of the line is
+  // reached through the length of its text.
+  const lineEnd = target.from + target.text.length
+  return Math.min(target.from + column - 1, lineEnd)
+}
+
+/**
  * One editable or read-only buffer.
  * @param {{ value: string, path: string, fontSize?: number, resetToken?: number, readOnly?: boolean,
+ *   revealLine?: number | null, revealColumn?: number | null,
  *   onFindRequest?: () => void, onReady?: (api: any) => void,
  *   onChange: (text: string) => void, onSave: () => void,
  *   onCursor?: (position: { line: number, col: number }) => void,
  *   onSendToChat?: (selection: { text: string, fromLine: number, toLine: number }) => void,
- *   chatLabels?: { send?: string, copy?: string } }} props
+ *   chatLabels?: { send?: string, copy?: string },
+ *   navLabels?: { goToDefinition?: string, findUsages?: string, findUsagesText?: string, semanticUnavailable?: string } }} props
  */
 export function CodeEditor({
-  value, path, fontSize = 13, resetToken = 0, readOnly = false, revealLine = null,
+  value, path, fontSize = 13, resetToken = 0, readOnly = false, revealLine = null, revealColumn = null,
   onFindRequest, onFindInFiles, onReady, onChange, onSave, onCursor,
-  onSendToChat, chatLabels = {},
+  onSendToChat, chatLabels = {}, navLabels: navLabelsProp = null,
 }) {
   const hostRef = useRef(null)
   const viewRef = useRef(null)
+  const pathRef = useRef(path)
+  const lspClientRef = useRef(null)
   const [menu, setMenu] = useState(null)
+  const [lspVersion, setLspVersion] = useState(() => lspSessionVersion())
   const onSendToChatRef = useRef(onSendToChat)
   onSendToChatRef.current = onSendToChat
   const onChangeRef = useRef(onChange)
@@ -159,23 +421,37 @@ export function CodeEditor({
   onFindRef.current = onFindRequest
   onFindInFilesRef.current = onFindInFiles
   onReadyRef.current = onReady
+  pathRef.current = path
+
+  // The language server may appear or disappear while the editor is open;
+  // the compartment then picks up the new extensions.
+  useEffect(() => {
+    setLspVersion(lspSessionVersion())
+    return onLspSessionChange(() => setLspVersion(lspSessionVersion()))
+  }, [])
 
   // A non-empty selection gets the workbench context menu (send to chat,
-  // copy); an empty one keeps the browser's native menu.
+  // copy); the navigation entries are always offered, also on an identifier
+  // without a selection.
   const onContextMenu = (event) => {
     const view = viewRef.current
-    if (view === null || typeof onSendToChatRef.current !== 'function') return
+    if (view === null) return
     const range = view.state.selection.main
-    if (range.empty) return
+    const hasSelection = range.empty === false
+    const clicked = view.posAtCoords({ x: event.clientX, y: event.clientY })
+    const word = typeof clicked === 'number' ? wordAtCursor(view.state, clicked) : null
+    if (!hasSelection && word === null) return
     event.preventDefault()
     const fromLine = view.state.doc.lineAt(range.from).number
     const toLine = view.state.doc.lineAt(range.to).number
     setMenu({
       x: event.clientX,
       y: event.clientY,
-      text: view.state.sliceDoc(range.from, range.to),
+      text: hasSelection ? view.state.sliceDoc(range.from, range.to) : (word ?? ''),
       fromLine,
       toLine,
+      word,
+      pos: hasSelection ? range.head : clicked,
     })
   }
 
@@ -183,6 +459,7 @@ export function CodeEditor({
     const host = hostRef.current
     if (host === null) return undefined
     const language = languageForPath(path)
+    const uri = fileUriOf(path)
     const extensions = [
       lineNumbers(),
       highlightActiveLineGutter(),
@@ -204,13 +481,19 @@ export function CodeEditor({
       // The extension supplies match highlighting; its default panel is never
       // opened. FindBar drives the query through the controller below.
       search({ top: false }),
+      // The local completion of COMP-01. It works without a language server.
+      ...completionExtensions(),
       keymap.of([
         ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly }),
-        ...defaultKeymap,
-        ...historyKeymap,
-        indentWithTab,
+        ...editorKeymapRest(),
       ]),
       ...(Array.isArray(language) ? language : [language]),
+      // The semantic extensions come after the language, the server needs to
+      // know the language of the document.
+      lspCompartment.of([...lspExtensions(), ...lspPluginExtension(path)]),      // Ctrl+click to go to a definition (NAV-01).
+      EditorView.domEventHandlers({
+        mousedown: (event, view) => handleCtrlClick(event, view),
+      }),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onChangeRef.current?.(update.state.doc.toString())
         if (update.selectionSet || update.docChanged) {
@@ -225,11 +508,11 @@ export function CodeEditor({
       parent: host,
     })
     viewRef.current = view
+    lspClientRef.current = lspClient()
     view.focus()
-    if (Number.isInteger(revealLine) && revealLine > 0) {
-      const line = view.state.doc.line(Math.min(revealLine, view.state.doc.lines))
-      view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true })
-    }
+    const initial = revealPosition(view.state, revealLine, revealColumn)
+    if (initial !== null) view.dispatch({ selection: { anchor: initial }, scrollIntoView: true })
+    if (uri !== '') registerEditorView(uri, view)
 
     let matches = []
     let active = -1
@@ -257,6 +540,10 @@ export function CodeEditor({
         const range = view.state.selection.main
         return view.state.sliceDoc(range.from, range.to)
       },
+      /** The editor itself, so the workbench can drive it. */
+      view,
+      /** The document URI of the buffer. */
+      uri,
       /** Recompute matches and select the first one. */
       find: (query, options = {}) => {
         try {
@@ -312,6 +599,7 @@ export function CodeEditor({
     onReadyRef.current?.(api)
     return () => {
       onReadyRef.current?.(null)
+      if (uri !== '') unregisterEditorView(uri, view)
       viewRef.current = null
       view.destroy()
     }
@@ -320,17 +608,52 @@ export function CodeEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, resetToken, readOnly])
 
+  // A language server that appears (or disappears) changes the extensions of
+  // the open editor; the document itself stays untouched.
   useEffect(() => {
     const view = viewRef.current
-    if (view === null || !Number.isInteger(revealLine) || revealLine <= 0) return
-    const line = view.state.doc.line(Math.min(revealLine, view.state.doc.lines))
-    view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true })
-  }, [revealLine])
+    if (view === null) return
+    const client = lspClient()
+    // Only a new client means new extensions; a reconnect keeps the same
+    // one and must not tear the plugin down.
+    if (client === lspClientRef.current) return
+    lspClientRef.current = client
+    try {
+      view.dispatch({
+        effects: lspCompartment.reconfigure([...lspExtensions(), ...lspPluginExtension(pathRef.current)]),
+      })
+    } catch {
+      /* the editor may already be gone */
+    }
+  }, [lspVersion])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (view === null) return
+    const position = revealPosition(view.state, revealLine, revealColumn)
+    if (position === null) return
+    view.dispatch({ selection: { anchor: position }, scrollIntoView: true })
+  }, [revealLine, revealColumn])
 
   const sendSelection = () => {
     const current = menu
     if (current === null) return
     onSendToChatRef.current?.({ text: current.text, fromLine: current.fromLine, toLine: current.toLine })
+  }
+
+  const labels = { ...navLabels(), ...(navLabelsProp ?? {}) }
+  const usageAvailable = semanticUsagesAvailable()
+  const definitionAvailable = semanticDefinitionAvailable()
+  const semanticNote = labels.semanticUnavailable ?? 'The language server does not support finding usages.'
+  // A greyed-out entry has to say *why* it is greyed out (PRD §7.1). The
+  // reason is a tooltip: the label itself is narrow and gets ellipsized.
+  const noteFor = (available) => (available ? undefined : semanticNote)
+
+  const goToDefinitionAt = (pos) => {
+    const view = viewRef.current
+    if (view === null) return
+    if (typeof pos === 'number') view.dispatch({ selection: { anchor: pos } })
+    jumpToDefinition(view)
   }
 
   return React.createElement(React.Fragment, null,
@@ -347,9 +670,42 @@ export function CodeEditor({
               text: chatLabels.copy ?? 'Copy',
               action: () => { void navigator.clipboard.writeText(menu.text).catch(() => {}) },
             },
+            null,
+            {
+              key: 'goToDefinition',
+              text: labels.goToDefinition ?? 'Go to definition',
+              title: noteFor(definitionAvailable),
+              shortcut: shortcutFor('goToDefinition'),
+              disabled: definitionAvailable === false,
+              action: () => goToDefinitionAt(menu.pos),
+            },
+            {
+              key: 'findUsages',
+              text: labels.findUsages ?? 'Find usages (semantic)',
+              title: noteFor(usageAvailable),
+              shortcut: shortcutFor('findUsages'),
+              disabled: usageAvailable === false,
+              action: () => {
+                const view = viewRef.current
+                if (view === null) return
+                if (typeof menu.pos === 'number') view.dispatch({ selection: { anchor: menu.pos } })
+                findReferences(view)
+              },
+            },
+            {
+              key: 'findUsagesText',
+              text: labels.findUsagesText ?? 'Find usages (text)',
+              shortcut: shortcutFor('findUsagesText'),
+              action: () => {
+                const view = viewRef.current
+                if (view === null) return
+                const word = menu.word ?? wordAtCursor(view.state, view.state.selection.main.head)
+                if (word === null || word === undefined) return
+                runTextUsageSearch(word)
+              },
+            },
           ],
         })
       : null,
   )
 }
-

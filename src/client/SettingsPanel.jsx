@@ -17,6 +17,10 @@ const SHORTCUT_FIELDS = [
   ['findInFiles', 'findInFilesShortcut'],
   ['findInFilesAlt', 'findInFilesAltShortcut'],
   ['quickOpen', 'quickOpenShortcut'],
+  ['findUsages', 'findUsagesShortcut'],
+  ['findUsagesText', 'findUsagesTextShortcut'],
+  ['goToDefinition', 'goToDefinitionShortcut'],
+  ['complete', 'completeShortcut'],
 ]
 
 // These two presentational components are deliberately top-level: defining
@@ -46,6 +50,8 @@ function Row({ label, hint, children }) {
 export function SettingsForm({ store, state, compact, onStatusChange }) {
   const t = store.t
   const settings = state.settings ?? {}
+  /** Language servers the host could not find on this machine. */
+  const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : []
   const [draft, setDraft] = useState(settings)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -170,6 +176,7 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
       editor: { ...draft.editor, ...(patch.editor ?? {}) },
       links: { ...draft.links, ...(patch.links ?? {}) },
       shortcuts: { ...draft.shortcuts, ...(patch.shortcuts ?? {}) },
+      lsp: { ...draft.lsp, ...(patch.lsp ?? {}) },
     }
     setDraft(next)
     commit(patch)
@@ -369,6 +376,78 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
           onChange: event => update({ commit: { cleanupCommand: event.target.value } }),
         }),
       ),
+    ),
+    React.createElement(Group, { title: t('settings.lspGroup'), description: t('settings.lspGroupHint') },
+      React.createElement('Row', { label: t('settings.lspEnabled'), hint: t('settings.lspEnabledHint') },
+        React.createElement('input', {
+          type: 'checkbox',
+          checked: draft.lsp?.enabled !== false,
+          onChange: event => update({ lsp: { enabled: event.target.checked } }),
+        }),
+      ),
+      React.createElement('Row', { label: t('settings.lspIndexOnOpen'), hint: t('settings.lspIndexOnOpenHint') },
+        React.createElement('select', {
+          className: 'iwb-select',
+          value: draft.lsp?.indexOnOpen ?? 'ask',
+          onChange: event => update({ lsp: { indexOnOpen: event.target.value } }),
+        },
+          React.createElement('option', { value: 'ask' }, t('settings.lspIndexAsk')),
+          React.createElement('option', { value: 'always' }, t('settings.lspIndexAlways')),
+          React.createElement('option', { value: 'never' }, t('settings.lspIndexNever')),
+        ),
+      ),
+      React.createElement('Row', { label: t('settings.lspMemoryLimit'), hint: t('settings.lspMemoryLimitHint') },
+        React.createElement('input', {
+          type: 'number', min: 256, max: 32768, step: 256,
+          value: draft.lsp?.memoryLimitMB ?? 2048,
+          onChange: event => update({ lsp: { memoryLimitMB: Number(event.target.value) || 2048 } }),
+        }),
+      ),
+      React.createElement('Row', { label: t('settings.lspFreeMemory'), hint: t('settings.lspFreeMemoryHint') },
+        React.createElement('input', {
+          type: 'number', min: 256, max: 32768, step: 256,
+          value: draft.lsp?.freeMemoryThresholdMB ?? 2048,
+          onChange: event => update({ lsp: { freeMemoryThresholdMB: Number(event.target.value) || 2048 } }),
+        }),
+      ),
+      React.createElement('Row', { label: t('settings.lspIdleTimeout'), hint: t('settings.lspIdleTimeoutHint') },
+        React.createElement('input', {
+          type: 'number', min: 1, max: 240,
+          value: Math.round((draft.lsp?.idleTimeoutMs ?? 600000) / 60000),
+          onChange: event => update({ lsp: { idleTimeoutMs: (Number(event.target.value) || 10) * 60000 } }),
+        }),
+      ),
+      React.createElement('Row', { label: t('settings.lspRequestTimeout'), hint: t('settings.lspRequestTimeoutHint') },
+        React.createElement('input', {
+          type: 'number', min: 30000, max: 600000, step: 1000,
+          value: draft.lsp?.requestTimeoutMs ?? 30000,
+          onChange: event => update({ lsp: { requestTimeoutMs: Math.max(30000, Number(event.target.value) || 30000) } }),
+        }),
+      ),
+      React.createElement('Row', { label: t('settings.lspAutoExit') },
+        React.createElement('input', {
+          type: 'checkbox',
+          checked: draft.lsp?.autoExit !== false,
+          onChange: event => update({ lsp: { autoExit: event.target.checked } }),
+        }),
+      ),
+      React.createElement('Row', { label: t('settings.lspAutoRestart') },
+        React.createElement('input', {
+          type: 'checkbox',
+          checked: draft.lsp?.autoRestart !== false,
+          onChange: event => update({ lsp: { autoRestart: event.target.checked } }),
+        }),
+      ),
+      // The missing servers are a fact of the machine, not a setting: they are
+      // listed so the user knows which language stays in the basic mode.
+      missingServers.length > 0
+        ? React.createElement('Row', { label: t('settings.lspServersMissing'), hint: t('settings.lspServersMissingHint') },
+            React.createElement('span', { className: 'iwb-settings-value' },
+              missingServers.map(server => `${server.languageId} (${server.command})`).join(', '),
+            ),
+          )
+        : null,
+      React.createElement('div', { className: 'iwb-settings-hint', style: { gridColumn: '1 / -1' } }, t('settings.lspOfflineNote')),
     ),
     React.createElement(Group, { title: t('settings.appearanceGroup') },
       React.createElement(Row, { label: t('settings.highlight') },

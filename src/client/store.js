@@ -174,6 +174,12 @@ function initialState() {
       caseSensitive: false,
       wholeWord: false,
       regexp: false,
+      /**
+       * True while the results come from the text version of Find Usages.
+       * Every hit then carries a "text match" label, so the user never
+       * mistakes a text hit for a semantic reference (PRD-v5 §5.3).
+       */
+      textMatch: false,
       loading: false,
       error: null,
       results: [],
@@ -181,6 +187,40 @@ function initialState() {
       truncated: false,
       token: 0,
     },
+    /**
+     * The mirrored language-server status (PRD-v5 §4.3).
+     *
+     * The host owns the truth: the client only mirrors the last snapshot it
+     * read from `lsp.status` and never derives a state of its own.
+     */
+    lsp: {
+      /** False when the master switch in the settings is off. */
+      enabled: true,
+      /** 'idle' | 'starting' | 'building' | 'ready' | 'failed' | 'cancelled' | 'crashed' | 'degraded' | 'disabled' */
+      state: 'idle',
+      languageId: '',
+      serverId: '',
+      source: null,
+      /** The host's explanation of the current state (shown as a tooltip). */
+      detail: null,
+      /** The progress text of a running build. */
+      progress: '',
+      /** When the current build started (epoch ms, 0 when unknown). */
+      startedAt: 0,
+      /** Whether the host accepts `lsp.cancelIndex` right now. */
+      cancellable: false,
+      /** The roots the host knows about, as reported by `lsp.status`. */
+      indexedRoots: [],
+      /** The language-server registry (`lsp.servers`), fetched once per language. */
+      servers: { available: [], missing: [] },
+    },
+    /**
+     * The pending index decision (PRD-v5 §2.3).
+     *
+     * `null` while no dialog is open; otherwise the data the dialog renders
+     * (the project it is about and whether it is the workspace root).
+     */
+    indexDecision: null,
     commit: {
       message: '',
       amend: false,
@@ -266,6 +306,12 @@ export class WorkbenchStore {
     this.hiddenLayout = null
     /** The dock group the user last opened ('left' or 'bottom'). */
     this.lastToolGroup = 'left'
+    /** Timer of the language-server status poll (PRD-v5 §4.3). */
+    this.lspPollTimer = null
+    /** Resolver of the pending index decision, if a dialog is open. */
+    this.indexDecisionResolve = null
+    /** The languages whose server registry was already fetched. */
+    this.lspServersChecked = new Set()
   }
 
   // ── subscription ──────────────────────────────────────────────────────
@@ -593,7 +639,10 @@ export class WorkbenchStore {
     if (options.switchProject !== true) {
       return { status: 'needs-project-switch', absolute }
     }
-    const switched = await this.selectProject(workspace)
+    // The carrier tab asks for the switch from a surface where no workbench
+    // is mounted, so the index dialog is skipped here (it would never be
+    // answered). An already indexed folder still starts its server.
+    const switched = await this.selectProject(workspace, { askIndex: false })
     if (switched === false || !this.#insideRoot(absolute)) {
       return { status: 'failed', absolute }
     }
@@ -660,7 +709,8 @@ export class WorkbenchStore {
     if (options.switchProject !== true) {
       return { status: 'needs-project-switch', absolute }
     }
-    const switched = await this.selectProject(workspace)
+    // No dialog here either: the caller cannot answer one.
+    const switched = await this.selectProject(workspace, { askIndex: false })
     if (switched === false || !this.#insideRoot(absolute)) {
       return { status: 'failed', absolute }
     }
@@ -820,13 +870,25 @@ export class WorkbenchStore {
               name: typeof project.name === 'string' && project.name !== '' ? project.name : baseName(project.path),
               isRepo: project.isRepo === true,
               isRoot: project.isRoot === true || project.path === workspaceRoot,
+              // The semantic-analysis status of the folder (PRD-v5 §2.1).
+              // `indexed` is a historical fact: the folder completed a first
+              // program build at some point in this profile.
+              indexState: typeof project.indexState === 'string' && project.indexState !== '' ? project.indexState : 'unknown',
+              indexedAt: Number.isFinite(project.indexedAt) ? project.indexedAt : null,
             }))
         : []
     } catch {
       projects = []
     }
     if (!projects.some(project => project.path === workspaceRoot)) {
-      projects.unshift({ path: workspaceRoot, name: baseName(workspaceRoot), isRepo: false, isRoot: true })
+      projects.unshift({
+        path: workspaceRoot,
+        name: baseName(workspaceRoot),
+        isRepo: false,
+        isRoot: true,
+        indexState: 'unknown',
+        indexedAt: null,
+      })
     }
     // The Git window offers the repositories of the workspace (GIT-01); the
     // file tree keeps its own project list.
@@ -891,6 +953,9 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The language-server status belongs to the project that was left; the
+      // server registry does not, so it survives the switch.
+      lsp: { ...initialState().lsp, servers: this.state.lsp.servers },
       // The commit selection belongs to the repository it was made in
       // (PRD-v4 §3.2): it must not survive the switch.
       commit: this.#resetCommitSelection(),
@@ -904,8 +969,17 @@ export class WorkbenchStore {
     void this.persistNow()
   }
 
-  /** Switch the IDE project root inside the current workspace. */
-  async selectProject(projectRoot) {
+  /**
+   * Switch the IDE project root inside the current workspace.
+   *
+   * @param {string} projectRoot
+   * @param {{askIndex?: boolean}} [options] `askIndex: false` skips the index
+   *   dialog. The file-link bridge uses it: it asks for the project switch
+   *   from a carrier tab, where no workbench is mounted and the dialog could
+   *   never be answered.
+   * @returns {Promise<boolean>} whether the project was switched
+   */
+  async selectProject(projectRoot, options = {}) {
     if (typeof projectRoot !== 'string' || projectRoot === '') return false
     // Compare through `normalizeScopePath` so a session cwd spelled with a
     // different separator or drive-letter case still matches the project list.
@@ -920,12 +994,212 @@ export class WorkbenchStore {
         this.t('editor.unsavedTitle'),
         this.t('editor.unsavedSwitchRoot'),
         this.t('editor.discardChanges'),
-        () => { void this.#switchProject(project.path) },
+        () => { void this.#switchProjectWithIndex(project, options.askIndex !== false) },
       )
       return false
     }
+    return this.#switchProjectWithIndex(project, options.askIndex !== false)
+  }
+
+  /**
+   * Switch the project, preceded by the index decision (PRD-v5 §2.3).
+   *
+   * The decision comes first: "Cancel" must leave the current project
+   * untouched, so the switch may not happen before the user answered.
+   * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
+   * @param {boolean} ask whether the dialog may be shown
+   * @returns {Promise<boolean>} whether the project was switched
+   */
+  async #switchProjectWithIndex(project, ask = true) {
+    const choice = await this.#decideIndex(project, ask)
+    if (choice === 'cancel') return false
     await this.#switchProject(project.path)
+    if (choice === 'build') await this.#startLsp(project.path)
     return true
+  }
+
+  /**
+   * The index decision for one project root (PRD-v5 §2.3).
+   *
+   * Resolves with `'build'` (start the language server), `'conservative'`
+   * (stay in the basic mode) or `'cancel'` (do not switch the project).
+   * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
+   * @param {boolean} [ask] false skips the dialog and stays conservative
+   * @returns {Promise<'build'|'conservative'|'cancel'>}
+   */
+  async #decideIndex(project, ask = true) {
+    const lsp = this.state.settings?.lsp
+    // A profile without the semantic-analysis section (a settings document
+    // written before schema 3, or a host without the feature) has nothing to
+    // start: the workbench stays in the conservative mode.
+    if (lsp === null || lsp === undefined || typeof lsp !== 'object') return 'conservative'
+    // The master switch and the "never index" policy both keep the workbench
+    // in the conservative mode: no language server is started at all.
+    if (lsp.enabled === false) return 'conservative'
+    if ((lsp.indexOnOpen ?? 'ask') === 'never') return 'conservative'
+    // The memory pre-check runs before every start (PRD-v5 §2.2). When the
+    // machine cannot afford the server, asking the user is pointless: every
+    // answer would fail the same way, so the workbench degrades right away.
+    const resources = await this.#lspResources(project.path)
+    if (resources !== null && resources.canIndex === false) {
+      const need = Math.round((resources.thresholdBytes ?? resources.memoryLimitBytes ?? 0) / (1024 * 1024))
+      const free = Math.round((resources.freeBytes ?? 0) / (1024 * 1024))
+      this.toast('error', this.#tpl('lsp.lowMemory', { need, free }), this.t('lsp.lowMemoryHint'))
+      return 'conservative'
+    }
+    // An already indexed folder needs no question: the language server is
+    // started right away (risk #26: the indexed path has no extra step).
+    if (this.#isIndexed(project)) return 'build'
+    if ((lsp.indexOnOpen ?? 'ask') === 'always') return 'build'
+    // Without a dialog to answer it, the workbench stays conservative.
+    if (ask === false) return 'conservative'
+    return this.#askIndexDecision(project)
+  }
+
+  /**
+   * Whether this project root completed a first program build before.
+   *
+   * Both sources count: the host's project list and the profile settings.
+   * @param {{path: string, indexState?: string}} project
+   * @returns {boolean}
+   */
+  #isIndexed(project) {
+    if (project?.indexState === 'indexed') return true
+    const roots = this.state.settings?.lsp?.indexedRoots
+    if (roots === null || roots === undefined || typeof roots !== 'object') return false
+    return Object.keys(roots).some(key => sameScopePath(key, project.path))
+  }
+
+  /**
+   * Show the index decision and wait for the user's answer.
+   * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
+   * @returns {Promise<'build'|'conservative'|'cancel'>}
+   */
+  #askIndexDecision(project) {
+    // A second request supersedes the first one: the old promise must not
+    // hang forever.
+    if (this.indexDecisionResolve !== null) this.indexDecisionResolve('cancel')
+    return new Promise(resolve => {
+      this.indexDecisionResolve = resolve
+      this.set({
+        indexDecision: {
+          path: project.path,
+          name: typeof project.name === 'string' && project.name !== '' ? project.name : baseName(project.path),
+          isRoot: project.isRoot === true,
+          isRepo: project.isRepo === true,
+        },
+      })
+    })
+  }
+
+  /**
+   * Answer the pending index decision.
+   *
+   * `Esc` and a click on the backdrop resolve as `'cancel'`: the project
+   * stays as it is (PRD-v5 §2.3).
+   * @param {'build'|'conservative'|'cancel'} choice
+   */
+  resolveIndexDecision(choice) {
+    const resolve = this.indexDecisionResolve
+    this.indexDecisionResolve = null
+    this.set({ indexDecision: null })
+    if (resolve === null) return
+    resolve(choice === 'build' ? 'build' : (choice === 'conservative' ? 'conservative' : 'cancel'))
+  }
+
+  /**
+   * The host's memory pre-check for one project root (PRD-v5 §2.2).
+   *
+   * `null` means "the host could not answer": the check is skipped then, and
+   * the host's own guard in `lsp.start` is the last line of defence.
+   * @param {string} root
+   * @returns {Promise<{canIndex?: boolean, freeBytes?: number, thresholdBytes?: number, memoryLimitBytes?: number}|null>}
+   */
+  async #lspResources(root) {
+    try {
+      const result = await call('lsp.resources', { root })
+      if (result === null || typeof result !== 'object') return null
+      return result
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Start the language server for one project root.
+   *
+   * The client never sets the state itself: the host owns the transition, so
+   * the two sides cannot fight over it.
+   * @param {string} root
+   * @returns {Promise<unknown>} the host's answer, or null on failure
+   */
+  async #startLsp(root) {
+    try {
+      const result = await call('lsp.start', { root })
+      await this.refreshLspStatus()
+      return result
+    } catch {
+      // The status bar shows the failure; a toast here would only add noise.
+      return null
+    }
+  }
+
+  /**
+   * Cancel a running index build (PRD-v5 §2.4).
+   *
+   * Only the host is asked: the client never sets the state on its own, and
+   * nothing in the editor is touched — the tabs, the drafts and the cursor
+   * stay exactly as they are.
+   * @returns {Promise<void>}
+   */
+  async cancelLspIndex() {
+    const root = this.state.root
+    if (root === '') return
+    try {
+      await call('lsp.cancelIndex', { root })
+    } catch {
+      // Cancelling twice is not an error the user has to act on.
+    }
+    await this.refreshLspStatus()
+  }
+
+  /**
+   * Whether the navigation entries of the editor are available
+   * (PRD-v5 §5.2, §5.3, §7.1).
+   *
+   * The semantic entries need a running language server; the text entry is
+   * always available, so the user always has a way to find the usages of a
+   * symbol. The reason is the text the editor shows next to the greyed-out
+   * entry.
+   * @returns {{findUsages: {enabled: boolean, reason: string}, findUsagesText: {enabled: boolean, reason: string}}}
+   */
+  semanticNavigation() {
+    const lsp = this.state.lsp ?? {}
+    const ready = lsp.enabled !== false && lsp.state === 'ready'
+    return {
+      findUsages: {
+        enabled: ready,
+        reason: ready ? '' : this.t('nav.semanticUnavailable'),
+      },
+      findUsagesText: { enabled: true, reason: '' },
+    }
+  }
+
+  /**
+   * Translate with `{placeholder}` substitution.
+   *
+   * The harness translate function does not interpolate, so the placeholders
+   * of the code-intelligence texts are filled in here.
+   * @param {string} key
+   * @param {Record<string, string|number>} values
+   * @returns {string}
+   */
+  #tpl(key, values) {
+    let text = this.t(key)
+    for (const [name, value] of Object.entries(values)) {
+      text = text.replaceAll(`{${name}}`, String(value))
+    }
+    return text
   }
 
   async #switchProject(projectRoot) {
@@ -945,6 +1219,9 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The language-server status belongs to the project that was left; the
+      // server registry does not, so it survives the switch.
+      lsp: { ...initialState().lsp, servers: this.state.lsp.servers },
       // The checked paths and the group pins belong to the repository they
       // were made in (PRD-v4 §3.2): a path of repository A must not stay
       // pinned in the Unversioned group of repository B.
@@ -1093,6 +1370,12 @@ export class WorkbenchStore {
       }
     }
     if (this.state.root !== '' && !this.state.dirs.has(this.state.root)) void this.loadRestoredTree({ lazy: true })
+    // The semantic-analysis status is polled on the same cadence as the git
+    // status, but only while the workbench is the visible surface.
+    if (this.lspPollTimer === null) {
+      this.lspPollTimer = setInterval(() => { void this.pollLspStatus() }, 2000)
+      void this.pollLspStatus()
+    }
     // Sessions survive a trip to the Conversation: the terminal view is kept
     // mounted by the sidebar, so only its visibility changes.
   }
@@ -1104,6 +1387,10 @@ export class WorkbenchStore {
     if (this.pollTimer !== null) {
       clearInterval(this.pollTimer)
       this.pollTimer = null
+    }
+    if (this.lspPollTimer !== null) {
+      clearInterval(this.lspPollTimer)
+      this.lspPollTimer = null
     }
     if (this.restoredTimer !== null) {
       clearTimeout(this.restoredTimer)
@@ -1117,6 +1404,116 @@ export class WorkbenchStore {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     await this.refreshStatus({ silent: true })
     await this.#checkActiveFileOnDisk()
+  }
+
+  /**
+   * Poll the language-server status while the workbench is visible.
+   *
+   * The poll only reads: the host owns the state machine, so the client
+   * never derives a state of its own.
+   * @returns {Promise<void>}
+   */
+  async pollLspStatus() {
+    if (!this.state.active || this.state.root === '') return
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    await this.refreshLspStatus()
+  }
+
+  /**
+   * Refresh the mirrored language-server status (PRD-v5 §3.1, §4.3).
+   *
+   * A crash is announced exactly once: the poll would otherwise repeat the
+   * toast every two seconds.
+   * @returns {Promise<void>}
+   */
+  async refreshLspStatus() {
+    const root = this.state.root
+    if (root === '') return
+    let status
+    try {
+      status = await call('lsp.status', { root })
+    } catch {
+      return
+    }
+    if (status === null || typeof status !== 'object') return
+    const previous = this.state.lsp.state
+    const next = {
+      ...this.state.lsp,
+      enabled: status.enabled !== false,
+      state: typeof status.state === 'string' && status.state !== '' ? status.state : 'idle',
+      languageId: typeof status.languageId === 'string' ? status.languageId : '',
+      serverId: typeof status.serverId === 'string' ? status.serverId : '',
+      source: typeof status.source === 'string' ? status.source : null,
+      detail: typeof status.detail === 'string' ? status.detail : null,
+      indexedRoots: Array.isArray(status.indexedRoots) ? status.indexedRoots : [],
+    }
+    // A running build reports its progress through `lsp.index`.
+    if (next.state === 'building') {
+      const index = await this.#lspIndex(root)
+      if (index !== null) {
+        next.progress = typeof index.progress === 'string' ? index.progress : ''
+        next.startedAt = Number.isFinite(index.startedAt) ? index.startedAt : 0
+        next.cancellable = index.cancellable === true
+      }
+    }
+    const current = this.state.lsp
+    const changed = current.state !== next.state
+      || current.languageId !== next.languageId
+      || current.serverId !== next.serverId
+      || current.source !== next.source
+      || current.detail !== next.detail
+      || current.progress !== next.progress
+      || current.startedAt !== next.startedAt
+      || current.cancellable !== next.cancellable
+      || current.enabled !== next.enabled
+    if (changed) this.set({ lsp: next })
+    // The crash is a one-time event: the toast must not repeat on every poll.
+    if (next.state === 'crashed' && previous !== 'crashed') {
+      this.toast('error', this.t('lsp.crashedToast'))
+    }
+    // The "not installed" state needs the server registry; it is fetched once
+    // per language, not on every poll.
+    if (next.languageId !== '' && !this.lspServersChecked.has(next.languageId)) {
+      this.lspServersChecked.add(next.languageId)
+      void this.#loadLspServers()
+    }
+  }
+
+  /**
+   * The progress of a running index build.
+   * @param {string} root
+   * @returns {Promise<{progress?: string, startedAt?: number, cancellable?: boolean}|null>}
+   */
+  async #lspIndex(root) {
+    try {
+      const result = await call('lsp.index', { root })
+      if (result === null || typeof result !== 'object') return null
+      return result
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * The language-server registry (PRD-v5 §3.1).
+   *
+   * It tells the status bar whether a language has no server at all, which is
+   * a different state than "the server failed".
+   * @returns {Promise<void>}
+   */
+  async #loadLspServers() {
+    try {
+      const result = await call('lsp.servers', {})
+      this.patch('lsp', {
+        servers: {
+          available: Array.isArray(result?.available) ? result.available : [],
+          missing: Array.isArray(result?.missing) ? result.missing : [],
+        },
+      })
+    } catch {
+      // The registry is optional: without it the status bar shows the generic
+      // state of the host.
+    }
   }
 
   /**
@@ -1488,7 +1885,50 @@ export class WorkbenchStore {
         activeId: id,
       })
     }
+    // A plain Find in Files run is not a text-match run: the label of the
+    // usages view must not leak into it.
+    this.patch('search', { textMatch: false })
     if (typeof query === 'string' && query !== '') this.runSearch(query)
+  }
+
+  /**
+   * The text version of Find Usages (PRD-v5 §5.3).
+   *
+   * It is always available — it is the fallback for a workspace without a
+   * language server — and every hit carries a "text match" label, so the user
+   * never mistakes a text hit for a semantic reference.
+   * @param {string} identifier the identifier under the cursor
+   * @returns {Promise<void>}
+   */
+  async findUsagesText(identifier) {
+    const query = typeof identifier === 'string' ? identifier.trim() : ''
+    if (query === '') return
+    const id = 'search:usages'
+    const existing = this.state.tabs.find(tab => tab.id === id)
+    if (existing === undefined) {
+      this.set({
+        tabs: [...this.state.tabs, {
+          id, kind: 'search', name: this.t('nav.usagesTitle'), preview: false, pinned: true,
+          loading: false, error: null, scrollTop: 0,
+        }],
+        activeId: id,
+      })
+    } else {
+      this.set({ activeId: id })
+    }
+    this.patch('search', {
+      query,
+      wholeWord: true,
+      caseSensitive: false,
+      regexp: false,
+      textMatch: true,
+      loading: false,
+      error: null,
+      results: [],
+      tookMs: 0,
+      truncated: false,
+    })
+    await this.runSearch(query, { wholeWord: true, caseSensitive: false, regexp: false })
   }
 
   async runSearch(query, options = {}) {
@@ -1872,7 +2312,7 @@ export class WorkbenchStore {
    * - a single click reuses the one preview tab (or creates it);
    * - a double click pins the tab (creating a pinned one when needed).
    * @param {string} path absolute path
-   * @param {{ rel?: string, preview?: boolean }} [options]
+   * @param {{ rel?: string, preview?: boolean, line?: number, column?: number }} [options]
    */
   openFile(path, options = {}) {
     if (typeof path !== 'string' || path === '') return
@@ -1881,7 +2321,14 @@ export class WorkbenchStore {
     if (existing !== undefined) {
       const tabs = this.state.tabs.map(tab => (tab === existing ? { ...tab, preview: tab.preview && options.preview === true } : tab))
       this.set({ tabs, activeId: existing.id })
-      if (Number.isInteger(options.line)) this.#updateTab(existing.id, { revealLine: options.line })
+      if (Number.isInteger(options.line)) {
+        // A jump carries the column as well (PRD-v5 §5.5); without one the
+        // previous column is dropped, so the caret lands on the line start.
+        this.#updateTab(existing.id, {
+          revealLine: options.line,
+          revealColumn: Number.isInteger(options.column) ? options.column : null,
+        })
+      }
       this.setSelectedPath(path)
       if (options.preview !== true) void this.pinTab(existing.id, { silent: true })
       void this.ensureTabContent(existing.id)
@@ -1909,6 +2356,9 @@ export class WorkbenchStore {
       saving: false,
       conflict: null,
       revealLine: Number.isInteger(options.line) ? options.line : null,
+      // The column of the jump target (PRD-v5 §5.5); null keeps the old
+      // line-only behaviour.
+      revealColumn: Number.isInteger(options.column) ? options.column : null,
     }
     let tabs = this.state.tabs
     if (preview) {

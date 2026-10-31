@@ -67,18 +67,48 @@ export function toRelative(root, absolute) {
 const MAX_PROJECTS = 400
 
 /**
+ * Compare two absolute paths for identity.
+ *
+ * Windows paths are case-insensitive, so `D:\Code` and `d:\code` name the same
+ * folder; everywhere else the comparison stays exact.
+ * @param {string} left
+ * @param {string} right
+ */
+export function samePath(left, right) {
+  if (typeof left !== 'string' || typeof right !== 'string') return false
+  if (process.platform === 'win32') return left.toLowerCase() === right.toLowerCase()
+  return left === right
+}
+
+/**
  * The folders that can serve as an IDE project root: the workspace root plus
  * its first-level directories. Hidden folders and `node_modules` are skipped;
  * `isRepo` marks a folder that owns a `.git` entry (file or directory).
+ *
+ * `indexState`/`indexedAt` carry the semantic-analysis status of the folder
+ * (PRD-v5 §2.1). `indexed` is a historical fact: the folder completed a first
+ * program build at some point in this profile. It does NOT mean an index file
+ * exists on disk — the language server rebuilds when it starts again.
  * @param {string} root workspace root (absolute)
+ * @param {{ indexStateOf?: (path: string) => { state: string, at: number|null }|null }} [options]
  */
-export async function listProjectCandidates(root) {
+export async function listProjectCandidates(root, options = {}) {
   const absolute = await canonicalRoot(root)
+  const indexStateOf = typeof options.indexStateOf === 'function' ? options.indexStateOf : () => null
+  const statusOf = (path) => {
+    const status = indexStateOf(path)
+    if (status === null || status === undefined) return { indexState: 'unknown', indexedAt: null }
+    return {
+      indexState: typeof status.state === 'string' && status.state !== '' ? status.state : 'unknown',
+      indexedAt: Number.isFinite(status.at) ? status.at : null,
+    }
+  }
   const projects = [{
     path: absolute,
     name: basename(absolute) || absolute,
     isRepo: existsSync(join(absolute, '.git')),
     isRoot: true,
+    ...statusOf(absolute),
   }]
   let entries
   try {
@@ -96,6 +126,7 @@ export async function listProjectCandidates(root) {
       name: entry.name,
       isRepo: existsSync(join(child, '.git')),
       isRoot: false,
+      ...statusOf(child),
     })
   }
   children.sort((left, right) => collator.compare(left.name, right.name))

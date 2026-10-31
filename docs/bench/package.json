@@ -1,0 +1,20 @@
+{
+  "name": "dsh-ide-workbench-bench",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Benchmark harness backing docs/代码智能-性能开销评估.md. Not shipped with the plugin.",
+  "type": "module",
+  "scripts": {
+    "host-cost": "node host-cost.mjs",
+    "host-realistic": "node host-realistic.mjs .",
+    "bundle": "esbuild entry.mjs --bundle --minify --format=esm --outfile=out.js"
+  },
+  "dependencies": {
+    "@codemirror/lsp-client": "^6.3.0",
+    "esbuild": "^0.28.2",
+    "marked": "^15.0.12",
+    "typescript": "^5.9.3",
+    "typescript-language-server": "^6.0.2",
+    "ws": "^8.18.0"
+  }
+}
