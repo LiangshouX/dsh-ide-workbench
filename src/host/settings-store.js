@@ -120,7 +120,14 @@ export const DEFAULT_SETTINGS = {
     autoExit: true,
     /** Whether a crashed language server is restarted once. */
     autoRestart: true,
-    /** Per-language overrides: { [languageId]: { enabled, command, args } }. */
+    /**
+     * Per-language overrides: { [languageId]: { enabled, command, args } }.
+     *
+     * `enabled: false` switches one language off: its server is never
+     * started and the language stays in the conservative mode. `command` and
+     * `args` replace the registered ones; `memoryLimitMB` lowers the
+     * ceiling of one language.
+     */
     servers: {},
     /** Project roots that completed a first build: { [absPath]: { at, languageId } }. */
     indexedRoots: {},

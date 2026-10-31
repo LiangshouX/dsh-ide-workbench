@@ -180,6 +180,23 @@ const MAX_PENDING_PAYLOADS = 64
 const SHELL_METACHARACTERS = /[&|;<>$`"'*?()\r\n\t]/
 
 /**
+ * Whether one payload is the `initialize` request of the client.
+ *
+ * The host main thread does not parse LSP payloads - that is the job of the
+ * frame worker - but it has to recognize the handshake in one place: the
+ * handshake may not be dropped by the bounded queue of the payloads that
+ * arrived before the language server existed (see `#holdFor`).
+ *
+ * The test is the same cheap structural one the worker uses: it looks at the
+ * text, not at a parsed object, so no payload is ever decoded here.
+ * @param {unknown} text
+ * @returns {boolean}
+ */
+function isInitializeRequest(text) {
+  return typeof text === 'string' && /"method"\s*:\s*"initialize"/.test(text)
+}
+
+/**
  * Every project root the plugin has seen, keyed by its normalized path.
  *
  * The map is process-global on purpose: `lspStateOf()` has to answer for a
@@ -501,8 +518,8 @@ export class LspManager {
    *   takes to be read as "the program is built"
    * @param {number} [options.restartBackoffMs] the backoff before an automatic
    *   restart after a crash
-   * @param {number} [options.timeoutLimit] how many consecutive request
-   *   timeouts count as a crash
+   * @param {number} [options.timeoutLimit] how many request timeouts count
+   *   as a crash
    * @param {number} [options.graceMs] the grace period of the process
    */
   constructor(options = {}) {
@@ -595,7 +612,10 @@ export class LspManager {
     session.intentionalExit = true
     this.#writeDidClose(entry, session)
     await this.#terminateAndWait(session)
-    this.#stopWorker(session)
+    // The worker and every timer of the session go away with the cancel:
+    // a watchdog that keeps running would count the timeouts of a session
+    // that does not exist any more.
+    this.#teardownSession(session)
     this.#transition(session, 'cancelled', 'cancelled')
     for (const uri of this.#forgetDocuments(entry)) {
       this.#notify(entry, { type: 'didClose', uri })
@@ -606,18 +626,28 @@ export class LspManager {
 
   /**
    * Every language server this plugin knows about.
-   * @returns {Promise<{ available: object[], missing: object[] }>}
+   *
+   * A language that is switched off in the settings (`lsp.servers[languageId]
+   * .enabled === false`) is neither available nor missing: it is reported
+   * as disabled, so the settings page can tell "not installed" and "turned
+   * off" apart.
+   * @returns {Promise<{ available: object[], missing: object[], disabled: object[] }>}
    */
   async servers() {
     const settings = await this.#settings()
     const lsp = lspSection(settings)
     const available = []
     const missing = []
+    const disabled = []
     for (const [languageId, registryEntry] of Object.entries(LSP_REGISTRY)) {
       const override = isPlainObject(lsp.servers[languageId]) ? lsp.servers[languageId] : {}
       const command = typeof override.command === 'string' && override.command !== ''
         ? override.command
         : registryEntry.command
+      if (override.enabled === false) {
+        disabled.push({ languageId, command, hint: 'the language server is turned off in the settings' })
+        continue
+      }
       const invalid = validateServerCommand(command)
       if (invalid !== null) {
         missing.push({ languageId, command, hint: invalid })
@@ -640,7 +670,7 @@ export class LspManager {
         memoryLimitSupported: resolution.supportsMemoryLimit,
       })
     }
-    return { available, missing }
+    return { available, missing, disabled }
   }
 
   /**
@@ -746,8 +776,8 @@ export class LspManager {
    * Report one request timeout of a language server.
    *
    * The transport layer calls this when a request ran into its deadline; the
-   * manager counts the consecutive timeouts and treats the third one as a
-   * crash (PRD §2.7).
+   * manager counts the timeouts and treats the third one as a crash
+   * (PRD §2.7). The counter is reset as soon as the server answers again.
    * @param {string} root the absolute project root
    * @returns {{ timeouts: number }}
    */
@@ -815,7 +845,28 @@ export class LspManager {
   #holdFor(entry, text) {
     if (entry === null || entry === undefined) return
     if (typeof text !== 'string' || text === '') return
-    if (entry.pending.length >= MAX_PENDING_PAYLOADS) entry.pending.shift()
+    // The *first* handshake has a slot of its own. The queue below is
+    // bounded and drops its oldest entry - and the handshake is the oldest
+    // entry, so a client that sends more than `MAX_PENDING_PAYLOADS`
+    // payloads before the server exists would drop the one payload the
+    // server cannot do without: it would wait for the `initialize` for ever
+    // and never build the program (the session would stay in "building" and
+    // every request would time out).
+    //
+    // A *second* handshake (the client reconnects while the server is still
+    // missing) stays in the queue: the frame worker absorbs it and answers
+    // it from the capabilities of the server, so the client that asked for
+    // it is not left waiting.
+    if (isInitializeRequest(text) && entry.handshake === '') {
+      entry.handshake = text
+      return
+    }
+    if (entry.pending.length >= MAX_PENDING_PAYLOADS) {
+      // The oldest payload is dropped, but never a handshake.
+      const index = entry.pending.findIndex(payload => !isInitializeRequest(payload))
+      if (index >= 0) entry.pending.splice(index, 1)
+      else entry.pending.shift()
+    }
     entry.pending.push(text)
   }
 
@@ -973,6 +1024,11 @@ export class LspManager {
    * @returns {Promise<object>} the session
    */
   async #startSession(entry, languageId) {
+    // A session that is replaced must not leave its timers behind: the new
+    // session gets its own idle timer and watchdog, and the old ones would
+    // keep the host awake for nothing.
+    const previous = entry.session
+    if (previous !== null && previous !== undefined) this.#teardownSession(previous)
     const settings = await this.#settings()
     const lsp = lspSection(settings)
     if (lsp.enabled === false) {
@@ -993,6 +1049,8 @@ export class LspManager {
     const memoryLimitMB = Number.isFinite(override.memoryLimitMB)
       ? override.memoryLimitMB
       : registryEntry.memoryLimitMB
+    // A language that is switched off in the settings is never started.
+    const turnedOff = override.enabled === false
 
     const session = {
       entry,
@@ -1013,6 +1071,14 @@ export class LspManager {
       stderrLines: [],
       restarts: 0,
       timeouts: 0,
+      /**
+       * The client activity a timeout was counted for.
+       *
+       * The watchdog runs every second; without this marker one slow
+       * request would be counted three times in three seconds and the
+       * server would be killed for a single request that took too long.
+       */
+      timeoutStallAt: 0,
       exited: false,
       intentionalExit: false,
       lastActivityAt: this.#now(),
@@ -1033,6 +1099,14 @@ export class LspManager {
     }
     entry.session = session
     this.#transition(session, 'starting', 'starting the language server')
+
+    // A language that is switched off in the settings is never started. The
+    // check comes before the memory pre-check: a server that may not run
+    // does not need any memory.
+    if (turnedOff) {
+      this.#transition(session, 'degraded', `the ${language} language server is turned off in the settings. Turn it on again to use the semantic features of this language.`)
+      return session
+    }
 
     // The memory pre-check runs before every start, not only when the
     // settings are validated (PRD §2.2).
@@ -1119,15 +1193,6 @@ export class LspManager {
       this.#safely(this.#onCrash(entry, session, `the frame worker failed: ${messageOf(error)}`), 'the crash handler')
     })
 
-    // The handshake goes first: a language server that was restarted (after
-    // a crash) has to be initialized again before any document may be
-    // announced. The payload is the one the browser sent.
-    if (typeof entry.handshake === 'string' && entry.handshake !== '') {
-      worker.postMessage({ type: 'send', text: entry.handshake, origin: 'client' })
-    }
-    // Then the payloads that arrived while there was no server at all.
-    this.#replayPending(entry, session)
-
     const argv = resolution.scriptPath !== null && resolution.scriptPath !== undefined
       ? [process.execPath, resolution.scriptPath, ...session.args]
       : [resolution.path, ...session.args]
@@ -1156,6 +1221,24 @@ export class LspManager {
     // swallow the death of the new one (a server that dies silently after a
     // restart would go unnoticed).
     session.exited = false
+
+    // The handshake and the payloads that arrived while there was no server
+    // are written *after* the process exists.
+    //
+    // The worker answers with the framed bytes and the host can only write
+    // them into a stdin that is already there - a payload that is handed to
+    // the worker before the process was started is silently dropped, and the
+    // symptom is the one of the "held handshake" defect: the server waits
+    // for its `initialize` for ever and every request times out.
+    //
+    // The handshake comes first: a language server that was restarted (after
+    // a crash) has to be initialized again before any document may be
+    // announced. The payload is the one the browser sent.
+    if (typeof entry.handshake === 'string' && entry.handshake !== '') {
+      worker.postMessage({ type: 'send', text: entry.handshake, origin: 'client' })
+    }
+    // Then the payloads that arrived while there was no server at all.
+    this.#replayPending(entry, session)
 
     // The stdout pipe is the frame channel: it carries LSP messages and
     // nothing else. Logs go to stderr, which is collected separately.
@@ -1229,6 +1312,11 @@ export class LspManager {
     if (message === null || typeof message !== 'object') return
     if (message.type === 'message') {
       session.lastServerActivityAt = this.#now()
+      // The server answers again: the requests that ran into their deadline
+      // are history. The counter is the number of unanswered requests, not a
+      // total of every timeout the session ever had.
+      session.timeouts = 0
+      session.timeoutStallAt = 0
       this.#broadcast(entry, message.text)
       this.#scheduleReady(entry, session)
       this.#touch(entry, session)
@@ -1524,7 +1612,9 @@ export class LspManager {
     session.intentionalExit = true
     this.#writeDidClose(entry, session)
     await this.#terminateAndWait(session)
-    this.#stopWorker(session)
+    // The idle timer is cleared here as well: the session that is going
+    // away must not leave a timer behind that fires ten minutes later.
+    this.#teardownSession(session)
     this.#transition(session, 'idle', 'the language server exited after a period of inactivity')
     for (const uri of this.#forgetDocuments(entry)) {
       this.#notify(entry, { type: 'didClose', uri })
@@ -1550,6 +1640,13 @@ export class LspManager {
 
   /**
    * Count one unanswered request.
+   *
+   * The watchdog runs every second, and the condition below stays true until
+   * the server answers - a counter that was raised on every tick would kill
+   * the server after three ticks, which is three *seconds* and not three
+   * requests. One stall is therefore counted once: the marker
+   * `timeoutStallAt` remembers the client activity the timeout was counted
+   * for, and a new request moves that marker.
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {number} timeout the request timeout
@@ -1561,6 +1658,9 @@ export class LspManager {
       if (session.lastClientActivityAt === 0) return
       if (session.lastServerActivityAt >= session.lastClientActivityAt) return
       if (this.#now() - session.lastClientActivityAt < timeout) return
+      // The stall was already counted: the server is still silent about the
+      // same request.
+      if (session.timeoutStallAt === session.lastClientActivityAt) return
       this.#noteTimeout(entry, session, 'the language server stopped responding')
     } catch (error) {
       // The watchdog runs in an interval: a throw here is an uncaught
@@ -1571,14 +1671,20 @@ export class LspManager {
 
   /**
    * Count one request timeout and crash the server when there were too many.
+   *
+   * The counter is the number of requests that ran into their deadline, and
+   * it is reset as soon as the server answers again (see
+   * `#onWorkerMessage`). The message says "request timeouts" and not
+   * "consecutive request timeouts": the counter is not a streak of ticks.
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {string} reason the reason of the timeout
    */
   #noteTimeout(entry, session, reason) {
+    session.timeoutStallAt = session.lastClientActivityAt
     session.timeouts += 1
     if (session.timeouts < this.#timeoutLimit) return
-    this.#safely(this.#onCrash(entry, session, `${session.timeouts} consecutive request timeouts`), 'the crash handler')
+    this.#safely(this.#onCrash(entry, session, `${session.timeouts} request timeouts`), 'the crash handler')
   }
 
   /**
@@ -1599,7 +1705,10 @@ export class LspManager {
     }
     const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
     this.#transition(session, 'crashed', reason)
-    this.#stopWorker(session)
+    // The timers of the crashed session go away with it: the restart arms
+    // new ones, and a session that stays crashed must not keep a watchdog
+    // alive.
+    this.#teardownSession(session)
     const detail = `The language server exited unexpectedly (${reason}). A common cause is not enough memory. You can lower the memory limit in the settings, turn this language off, or use the conservative mode.`
     this.#notify(entry, { type: 'crash', root: entry.root, detail })
     if (lsp.autoRestart === false) {
@@ -1691,6 +1800,34 @@ export class LspManager {
   }
 
   /**
+   * Stop one session: its worker and every timer it owns.
+   *
+   * A session that is replaced must not leave a timer behind. An idle timer
+   * of ten minutes and a watchdog that wakes up every second are harmless on
+   * their own, but a session that is cancelled, crashed or replaced leaves
+   * them behind - and after a few project switches the host keeps a handful
+   * of intervals alive that nobody waits for any more.
+   *
+   * The timers are `unref`'d, so they never hold the process open, but they
+   * still cost a wake-up per second each.
+   * @param {object | null} session the session
+   */
+  #teardownSession(session) {
+    if (session === null || session === undefined) return
+    this.#clearIdleTimer(session)
+    this.#clearWatchdog(session)
+    if (session.readyTimer !== null) {
+      clearTimeout(session.readyTimer)
+      session.readyTimer = null
+    }
+    if (session.restartTimer !== null) {
+      clearTimeout(session.restartTimer)
+      session.restartTimer = null
+    }
+    this.#stopWorker(session)
+  }
+
+  /**
    * Clear the idle timer of one session.
    * @param {object} session the session
    */
@@ -1737,17 +1874,7 @@ export class LspManager {
     this.#writeDidClose(entry, session)
     session.intentionalExit = true
     await this.#terminateAndWait(session)
-    this.#stopWorker(session)
-    this.#clearIdleTimer(session)
-    this.#clearWatchdog(session)
-    if (session.readyTimer !== null) {
-      clearTimeout(session.readyTimer)
-      session.readyTimer = null
-    }
-    if (session.restartTimer !== null) {
-      clearTimeout(session.restartTimer)
-      session.restartTimer = null
-    }
+    this.#teardownSession(session)
     if (session.state !== 'cancelled') {
       try {
         this.#transition(session, 'idle', 'the language server was shut down')
@@ -1807,6 +1934,24 @@ export function shutdownAll() {
     try {
       session.worker?.terminate?.()
     } catch { /* already gone */ }
+    // The timers of the session go away with it: an unloaded plugin must
+    // not leave a watchdog running in the host.
+    if (session.idleTimer !== null) {
+      clearTimeout(session.idleTimer)
+      session.idleTimer = null
+    }
+    if (session.watchdogTimer !== null) {
+      clearInterval(session.watchdogTimer)
+      session.watchdogTimer = null
+    }
+    if (session.readyTimer !== null) {
+      clearTimeout(session.readyTimer)
+      session.readyTimer = null
+    }
+    if (session.restartTimer !== null) {
+      clearTimeout(session.restartTimer)
+      session.restartTimer = null
+    }
     session.worker = null
     session.handle = null
     session.state = 'idle'

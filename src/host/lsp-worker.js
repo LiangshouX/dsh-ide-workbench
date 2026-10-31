@@ -206,6 +206,21 @@ export class Handshake {
   }
 
   /**
+   * Whether one payload is the `initialize` request.
+   *
+   * The worker has to tell "this is a handshake" from "this is a *second*
+   * handshake": the first one is forwarded to the server, the second one is
+   * absorbed (a language server is initialized once per process).
+   * @param {string} text the payload
+   * @returns {boolean}
+   */
+  isInitialize(text) {
+    if (!/"method"\s*:\s*"initialize"/.test(text)) return false
+    const parsed = Handshake.parse(text)
+    return parsed !== null && methodOf(parsed) === 'initialize'
+  }
+
+  /**
    * Remember a payload that was forwarded to the server.
    *
    * Only the *first* handshake is forwarded: a language server is
@@ -215,9 +230,8 @@ export class Handshake {
    * @returns {boolean} true when the payload was the `initialize` request
    */
   noteForwarded(text) {
-    if (!/"method"\s*:\s*"initialize"/.test(text)) return false
+    if (!this.isInitialize(text)) return false
     const parsed = Handshake.parse(text)
-    if (parsed === null || methodOf(parsed) !== 'initialize') return false
     const id = idOf(parsed)
     if (this.requestId !== null) {
       // A second handshake: remember it, but do not forward it.
@@ -321,7 +335,16 @@ function run(options) {
         }
       }
       const payload = message.origin === 'host' ? text : withMemoryLimit(text, injectMemoryLimit ? memoryLimitMB : null)
-      if (message.origin !== 'host' && handshake.noteForwarded(payload)) {
+      if (message.origin !== 'host' && handshake.isInitialize(payload)) {
+        if (!handshake.noteForwarded(payload)) {
+          // A second handshake: the server has been initialized already (or
+          // is being initialized right now). Forwarding it would be a
+          // protocol violation - `typescript-language-server` tolerates it,
+          // but `jdtls`, `gopls` or `rust-analyzer` may not - so the
+          // request is absorbed and answered from the cached capabilities
+          // as soon as the server has replied.
+          return
+        }
         // The host keeps the handshake: a language server that is restarted
         // after a crash has to be initialized again, and the browser sends its
         // handshake only once.

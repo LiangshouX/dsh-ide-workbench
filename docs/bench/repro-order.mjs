@@ -1,10 +1,39 @@
 // The order the browser really uses: the socket is connected when the
 // workbench opens, the language server is started later (when the user
 // picks a project). The handshake that arrives in between must not be lost.
+//
+// The script is a check, not a demo: it exits with a non-zero code when a
+// step fails, so it can be used as a gate. Exit codes:
+//
+//   0  every step worked
+//   1  a step failed (the handshake was lost, the state got stuck, …)
+//   2  the machine could not run the scenario (not enough memory, the
+//      language server is not installed)
+//
+// The memory limits of the scenario are lowered through a throw-away profile
+// (DSH_PROFILE_DIR), so the script does not need a machine with 2 GB of
+// free memory to reach the interesting part.
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
-import { resolve } from 'node:path'
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { WebSocket } from 'ws'
+
+/** The throw-away profile of the script. */
+const profile = join(tmpdir(), `iwb-bench-repro-${process.pid}`)
+mkdirSync(join(profile, 'ide-workbench'), { recursive: true })
+writeFileSync(join(profile, 'ide-workbench', 'settings.json'), JSON.stringify({
+  version: 3,
+  lsp: {
+    // The scenario needs a language server, not a lot of memory: the
+    // pre-check of the host compares the free memory with the limit of the
+    // server, so both are lowered here.
+    freeMemoryThresholdMB: 64,
+    servers: { typescript: { memoryLimitMB: 1024 }, javascript: { memoryLimitMB: 1024 } },
+  },
+}, null, 2))
+process.env.DSH_PROFILE_DIR = profile
 
 const mod = await import('../../src/index.js')
 const root = resolve(process.cwd())
@@ -41,6 +70,18 @@ const call = async (method, body) => {
   return parsed.value
 }
 
+/** The steps that failed. */
+const failures = []
+/**
+ * Remember one failed step.
+ * @param {string} what the step
+ * @param {string} [why] why it failed
+ */
+function fail(what, why = '') {
+  failures.push(what)
+  console.log('   FAILED:', what, why)
+}
+
 // 1. The browser connects its socket.
 const socket = new WebSocket('ws://127.0.0.1:' + port + '/ide-workbench/ws/lsp?root=' + encodeURIComponent(root))
 const frames = []
@@ -54,7 +95,19 @@ await new Promise(r => setTimeout(r, 400))
 console.log('2. initialize sent while there is no server (it has to be held)')
 
 // 3. The user picks a project: the host starts the language server.
-console.log('3. lsp.start ->', JSON.stringify(await call('lsp.start', { root })))
+const started = await call('lsp.start', { root })
+console.log('3. lsp.start ->', JSON.stringify(started))
+if (started.state === 'degraded') {
+  // The scenario could not run on this machine - that is not the same as a
+  // broken handshake, and it must not be reported as a success.
+  console.log('   the machine could not run the scenario:', started.detail ?? '')
+  socket.close()
+  await call('lsp.shutdown', { root })
+  for (const fn of cleanups) { try { fn() } catch {} }
+  server.close()
+  rmSync(profile, { recursive: true, force: true })
+  process.exit(2)
+}
 
 // 4. Wait for the handshake to reach the server.
 const deadline = Date.now() + 30000
@@ -66,6 +119,7 @@ while (Date.now() < deadline && init === null) {
   }
 }
 console.log('4. the server answered the handshake:', init === null ? 'NO' : 'yes (' + Object.keys(init.result?.capabilities ?? {}).length + ' capabilities)')
+if (init === null) fail('the language server never answered the handshake')
 
 // 5. The state must leave "building" (the readiness heuristic waits a moment).
 const deadline3 = Date.now() + 15000
@@ -75,6 +129,7 @@ while (Date.now() < deadline3 && status.state === 'building') {
   status = await call('lsp.status', { root })
 }
 console.log('5. lsp.status ->', status.state, status.state === 'ready' ? '(good)' : '(STUCK)')
+if (status.state !== 'ready') fail('the session did not become ready', status.detail ?? '')
 
 // 6. A semantic request has to come back.
 if (init !== null) {
@@ -91,9 +146,20 @@ if (init !== null) {
     }
   }
   console.log('6. textDocument/definition ->', definition === null ? 'NO ANSWER' : JSON.stringify(definition.result))
+  if (definition === null) fail('the semantic request was never answered')
+} else {
+  fail('the semantic request was not even sent (there is no handshake)')
 }
+
 socket.close()
 await call('lsp.shutdown', { root })
 for (const fn of cleanups) { try { fn() } catch {} }
 server.close()
+rmSync(profile, { recursive: true, force: true })
+
+if (failures.length > 0) {
+  console.log('the scenario FAILED:', failures.join(', '))
+  process.exit(1)
+}
+console.log('the scenario worked: the handshake was held, replayed and answered.')
 process.exit(0)

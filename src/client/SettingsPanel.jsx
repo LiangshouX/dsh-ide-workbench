@@ -52,6 +52,8 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
   const settings = state.settings ?? {}
   /** Language servers the host could not find on this machine. */
   const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : []
+  /** Language servers that are switched off in the settings file. */
+  const disabledServers = Array.isArray(state.lsp?.servers?.disabled) ? state.lsp.servers.disabled : []
   const [draft, setDraft] = useState(settings)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -444,6 +446,15 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
         ? React.createElement('Row', { label: t('settings.lspServersMissing'), hint: t('settings.lspServersMissingHint') },
             React.createElement('span', { className: 'iwb-settings-value' },
               missingServers.map(server => `${server.languageId} (${server.command})`).join(', '),
+            ),
+          )
+        : null,
+      // A language that is switched off in the settings file is a fact of
+      // the configuration, not of the machine: it stays in the basic mode.
+      disabledServers.length > 0
+        ? React.createElement(Row, { label: t('settings.lspServersDisabled'), hint: t('settings.lspServersDisabledHint') },
+            React.createElement('span', { className: 'iwb-settings-value' },
+              disabledServers.map(server => `${server.languageId} (${server.command})`).join(', '),
             ),
           )
         : null,

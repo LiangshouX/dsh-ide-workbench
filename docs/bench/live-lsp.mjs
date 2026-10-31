@@ -1,7 +1,42 @@
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
-import { resolve } from 'node:path'
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { WebSocket } from 'ws'
+
+// The script is a check, not a demo: it exits with a non-zero code when a
+// step fails. Exit codes:
+//
+//   0  every step worked
+//   1  a step failed (no handshake, no answer, …)
+//   2  the machine could not run the scenario (not enough memory, the
+//      language server is not installed)
+//
+// The memory limits of the scenario are lowered through a throw-away profile
+// (DSH_PROFILE_DIR), so the script does not need a machine with 2 GB of
+// free memory to reach the interesting part.
+const profile = join(tmpdir(), `iwb-bench-live-${process.pid}`)
+mkdirSync(join(profile, 'ide-workbench'), { recursive: true })
+writeFileSync(join(profile, 'ide-workbench', 'settings.json'), JSON.stringify({
+  version: 3,
+  lsp: {
+    freeMemoryThresholdMB: 64,
+    servers: { typescript: { memoryLimitMB: 1024 }, javascript: { memoryLimitMB: 1024 } },
+  },
+}, null, 2))
+process.env.DSH_PROFILE_DIR = profile
+
+/** The steps that failed. */
+const failures = []
+/**
+ * Remember one failed step.
+ * @param {string} what the step
+ */
+function fail(what) {
+  failures.push(what)
+  console.log('   FAILED:', what)
+}
 
 const mod = await import('../../src/index.js')
 const root = resolve(process.cwd())
@@ -46,6 +81,11 @@ const call = async (method, body) => {
 }
 const started = await call('lsp.start', { root })
 console.log('lsp.start ->', JSON.stringify(started))
+if (started.state === 'degraded') {
+  console.log('   the machine could not run the scenario:', started.detail ?? '')
+  rmSync(profile, { recursive: true, force: true })
+  process.exit(2)
+}
 const socket = new WebSocket('ws://127.0.0.1:' + port + '/ide-workbench/ws/lsp?root=' + encodeURIComponent(root))
 const messages = []
 socket.on('message', d => messages.push(d.toString()))
@@ -58,14 +98,17 @@ while (Date.now() < deadline && init === null) {
   await new Promise(r => setTimeout(r, 100))
   for (const text of messages.splice(0)) { const p = JSON.parse(text); if (p.id === 1) init = p }
 }
-if (init === null) console.log('NO initialize response; messages seen:', messages.length)
-else {
+if (init === null) {
+  console.log('NO initialize response; messages seen:', messages.length)
+  fail('the language server never answered the handshake')
+} else {
   console.log('initialize ok - capabilities:', Object.keys(init.result?.capabilities ?? {}).join(', '))
   socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'initialized', params: {} }))
 }
 await new Promise(r => setTimeout(r, 3000))
 const status = await call('lsp.status', { root })
 console.log('lsp.status ->', status.state, '| language:', status.languageId, '| source:', status.source)
+if (status.state !== 'ready') fail('the session did not become ready')
 const index = await call('lsp.index', { root })
 console.log('lsp.index  ->', JSON.stringify(index))
 if (init !== null) {
@@ -80,6 +123,7 @@ if (init !== null) {
     for (const text of messages.splice(0)) { const p = JSON.parse(text); if (p.id === 2) definition = p }
   }
   console.log('textDocument/definition ->', definition === null ? 'NO ANSWER' : JSON.stringify(definition.result))
+  if (definition === null) fail('the semantic request was never answered')
 }
 
 // --- reconnect: the socket dies, the client handshakes again -------------
@@ -97,9 +141,16 @@ while (Date.now() < deadline3 && againInit === null) {
   for (const text of againMessages.splice(0)) { const p = JSON.parse(text); if (p.id === 7) againInit = p }
 }
 console.log('reconnect initialize ->', againInit === null ? 'NO ANSWER' : ('answered, capabilities: ' + Object.keys(againInit.result?.capabilities ?? {}).length))
+if (againInit === null) fail('the reconnect handshake was never answered')
 again.close()
 socket.close()
 await call('lsp.shutdown', { root })
 for (const fn of cleanups) { try { fn() } catch {} }
 server.close()
+rmSync(profile, { recursive: true, force: true })
+if (failures.length > 0) {
+  console.log('the scenario FAILED:', failures.join(', '))
+  process.exit(1)
+}
+console.log('the scenario worked: the language server answered the handshake, the request and the reconnect.')
 process.exit(0)

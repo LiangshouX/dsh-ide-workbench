@@ -212,7 +212,7 @@ function initialState() {
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
       /** The language-server registry (`lsp.servers`), fetched once per language. */
-      servers: { available: [], missing: [] },
+      servers: { available: [], missing: [], disabled: [] },
     },
     /**
      * The pending index decision (PRD-v5 §2.3).
@@ -1515,6 +1515,7 @@ export class WorkbenchStore {
         servers: {
           available: Array.isArray(result?.available) ? result.available : [],
           missing: Array.isArray(result?.missing) ? result.missing : [],
+          disabled: Array.isArray(result?.disabled) ? result.disabled : [],
         },
       })
     } catch {

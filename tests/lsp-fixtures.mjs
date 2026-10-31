@@ -9,6 +9,7 @@
  */
 import { PassThrough, Writable } from 'node:stream'
 import { encodeFrame, FrameDecoder } from '../src/host/lsp-frame.js'
+import { Handshake } from '../src/host/lsp-worker.js'
 import { DEFAULT_LSP_SETTINGS, LspManager } from '../src/host/lsp.js'
 
 /**
@@ -103,12 +104,21 @@ function documentEventOf(parsed) {
  *
  * It speaks the same protocol as the real worker (`lsp-worker.js`) and uses
  * the real codec, so the framing the manager relies on is exercised for real.
+ * The handshake rules come from the real `Handshake` class as well: a second
+ * `initialize` is absorbed and never reaches the server, exactly as in the
+ * worker thread.
+ *
+ * One difference is deliberate: the fake worker answers *synchronously*,
+ * while the worker thread answers in a later turn of the event loop. The
+ * manager therefore has to be correct without depending on the timing of the
+ * answer.
  * @param {object} [workerData] the data the manager passed to the worker
  * @returns {object} the fake worker
  */
 export function makeFakeWorker(workerData = {}) {
   const handlers = new Map()
   const decoder = new FrameDecoder()
+  const handshake = new Handshake()
   const worker = {
     workerData,
     terminated: false,
@@ -125,7 +135,13 @@ export function makeFakeWorker(workerData = {}) {
       worker.posted.push(message)
       if (message.type === 'stdout') {
         const bytes = Buffer.isBuffer(message.data) ? message.data : Buffer.from(message.data)
-        for (const text of decoder.push(bytes)) worker.emit('message', { type: 'message', text })
+        for (const text of decoder.push(bytes)) {
+          handshake.noteServerPayload(text)
+          worker.emit('message', { type: 'message', text })
+          for (const answer of handshake.takePendingAnswers()) {
+            worker.emit('message', { type: 'message', text: answer })
+          }
+        }
         return
       }
       if (message.type === 'send') {
@@ -140,6 +156,18 @@ export function makeFakeWorker(workerData = {}) {
           }
           const event = documentEventOf(parsed)
           if (event !== null) worker.emit('message', event)
+          // A handshake the server already answered is answered from the
+          // cache and never reaches the server again.
+          const answer = handshake.answerFor(text)
+          if (answer !== null) {
+            worker.emit('message', { type: 'message', text: answer })
+            return
+          }
+        }
+        if (message.origin !== 'host' && handshake.isInitialize(text)) {
+          // A second handshake is absorbed: the server is initialized once.
+          if (!handshake.noteForwarded(text)) return
+          worker.emit('message', { type: 'handshake', text })
         }
         worker.emit('message', { type: 'stdin', data: encodeFrame(text) })
       }
@@ -170,6 +198,8 @@ export function decodeChunks(chunks) {
  * @param {number} [options.readyDelayMs]
  * @param {number} [options.restartBackoffMs]
  * @param {number} [options.timeoutLimit]
+ * @param {number} [options.spawnDelayMs] how long the fake process takes to
+ *   start (the window in which the session may change its state)
  * @returns {object} the manager and the recorded calls
  */
 export function makeManager(options = {}) {
@@ -178,14 +208,21 @@ export function makeManager(options = {}) {
   const spawned = []
   const workers = []
   const persisted = []
+  /** The warnings the manager wrote to the host log. */
+  const warnings = []
+  const spawnDelayMs = Number.isFinite(options.spawnDelayMs) ? options.spawnDelayMs : 0
   const manager = new LspManager({
-    ctx: { subprocess: { spawn: () => { throw new Error('the fake manager never uses ctx.subprocess') } } },
+    ctx: {
+      subprocess: { spawn: () => { throw new Error('the fake manager never uses ctx.subprocess') } },
+      logger: { warn: (...args) => { warnings.push(args.map(String).join(' ')) } },
+    },
     getSettings: async () => document,
     persistIndexedRoots: async (map) => {
       persisted.push(map)
       document.lsp.indexedRoots = map
     },
     spawnServer: async (spec) => {
+      if (spawnDelayMs > 0) await sleep(spawnDelayMs)
       const handle = makeFakeHandle()
       spawned.push({ spec, handle })
       return handle
@@ -209,6 +246,8 @@ export function makeManager(options = {}) {
     persisted,
     document,
     lsp,
+    /** The warnings the manager wrote to the host log. */
+    warnings,
     /** The handle of the n-th spawned process. */
     handle: (index = 0) => spawned[index]?.handle,
   }

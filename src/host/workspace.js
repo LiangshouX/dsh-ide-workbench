@@ -69,15 +69,29 @@ const MAX_PROJECTS = 400
 /**
  * Compare two absolute paths for identity.
  *
- * Windows paths are case-insensitive, so `D:\Code` and `d:\code` name the same
- * folder; everywhere else the comparison stays exact.
+ * Windows paths are case-insensitive and accept both separators, so
+ * `D:\Code`, `d:\code` and `d:/code` name the same folder. The comparison
+ * therefore normalizes the separators as well - the language server manager
+ * keys its live states by a normalized path, and a comparison that only
+ * folded the case would never match it.
+ *
+ * Everywhere else the comparison stays exact.
  * @param {string} left
  * @param {string} right
  */
 export function samePath(left, right) {
   if (typeof left !== 'string' || typeof right !== 'string') return false
-  if (process.platform === 'win32') return left.toLowerCase() === right.toLowerCase()
+  if (process.platform === 'win32') return windowsKey(left) === windowsKey(right)
   return left === right
+}
+
+/**
+ * The comparison key of one Windows path.
+ * @param {string} value
+ * @returns {string}
+ */
+function windowsKey(value) {
+  return value.replace(/\\/g, '/').toLowerCase()
 }
 
 /**

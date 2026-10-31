@@ -1,8 +1,33 @@
 // The language server crashes and is restarted. The host process must
 // survive: an unhandled rejection would take the whole DSH application down.
+//
+// The script is a check, not a demo: it exits with a non-zero code when a
+// step fails. Exit codes:
+//
+//   0  the host survived the crash and restarted the server
+//   1  a step failed (a rejection leaked, the server did not come back)
+//   2  the machine could not run the scenario (not enough memory)
+//
+// The memory limits of the scenario are lowered through a throw-away profile
+// (DSH_PROFILE_DIR), so the script does not need a machine with 2 GB of
+// free memory to reach the interesting part.
 import { createServer } from 'node:http'
-import { resolve } from 'node:path'
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { WebSocket } from 'ws'
+
+/** The throw-away profile of the script. */
+const profile = join(tmpdir(), `iwb-bench-crash-${process.pid}`)
+mkdirSync(join(profile, 'ide-workbench'), { recursive: true })
+writeFileSync(join(profile, 'ide-workbench', 'settings.json'), JSON.stringify({
+  version: 3,
+  lsp: {
+    freeMemoryThresholdMB: 64,
+    servers: { typescript: { memoryLimitMB: 1024 }, javascript: { memoryLimitMB: 1024 } },
+  },
+}, null, 2))
+process.env.DSH_PROFILE_DIR = profile
 
 function fakeStream() { const listeners = {}; return { on(type, fn) { (listeners[type] ??= []).push(fn) }, emit(type, value) { for (const fn of listeners[type] ?? []) fn(value) } } }
 const unhandled = []
@@ -60,14 +85,48 @@ const call = async (method, body) => {
   return parsed.value
 }
 
+/** The steps that failed. */
+const failures = []
+/**
+ * Remember one failed step.
+ * @param {string} what the step
+ * @param {string} [why] why it failed
+ */
+function fail(what, why = '') {
+  failures.push(what)
+  console.log('   FAILED:', what, why)
+}
+
+/**
+ * Leave the script with a code that says what happened.
+ * @param {number} code the exit code
+ */
+function finish(code) {
+  socket.close()
+  call('lsp.shutdown', { root }).catch(() => {})
+  for (const fn of cleanups) { try { fn() } catch {} }
+  server.close()
+  rmSync(profile, { recursive: true, force: true })
+  setTimeout(() => process.exit(code), 50)
+}
+
 const socket = new WebSocket('ws://127.0.0.1:' + port + '/ide-workbench/ws/lsp?root=' + encodeURIComponent(root))
 socket.on('message', () => {})
 await new Promise((ok, fail) => { socket.once('open', ok); socket.once('error', fail) })
 socket.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { processId: null, rootUri: 'file:///' + root.replace(/\\/g,'/'), capabilities: {} } }))
 
-console.log('1. lsp.start ->', JSON.stringify(await call('lsp.start', { root })))
+const started = await call('lsp.start', { root })
+console.log('1. lsp.start ->', JSON.stringify(started))
+if (started.state === 'degraded') {
+  console.log('   the machine could not run the scenario:', started.detail ?? '')
+  finish(2)
+}
 await new Promise(r => setTimeout(r, 500))
 console.log('2. state after the start:', (await call('lsp.status', { root })).state)
+if (handles.length === 0) {
+  fail('no language server was started')
+  finish(1)
+}
 
 // The language server dies.
 handles[0].crash()
@@ -77,15 +136,20 @@ console.log('4. state right after the crash:', (await call('lsp.status', { root 
 
 // The automatic restart happens after the backoff.
 await new Promise(r => setTimeout(r, 3500))
-console.log('5. state after the restart:', (await call('lsp.status', { root })).state, '| servers started:', handles.length)
+const afterRestart = (await call('lsp.status', { root })).state
+console.log('5. state after the restart:', afterRestart, '| servers started:', handles.length)
+if (handles.length < 2) fail('the language server was not started again')
+if (afterRestart === 'crashed') fail('the session stayed in the crashed state')
 
 // The host must still be alive and must not have leaked a rejection.
 await new Promise(r => setTimeout(r, 500))
 console.log('6. unhandled rejections:', unhandled.length, unhandled.length ? JSON.stringify(unhandled) : '(none)')
 console.log('7. the host process is alive:', true)
+if (unhandled.length > 0) fail('the host saw an unhandled rejection')
 
-socket.close()
-await call('lsp.shutdown', { root })
-for (const fn of cleanups) { try { fn() } catch {} }
-server.close()
-process.exit(unhandled.length === 0 ? 0 : 1)
+if (failures.length > 0) {
+  console.log('the scenario FAILED:', failures.join(', '))
+  finish(1)
+}
+console.log('the scenario worked: the host survived the crash and the server came back.')
+finish(0)

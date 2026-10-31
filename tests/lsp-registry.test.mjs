@@ -126,9 +126,21 @@ test('the bundled language servers are found inside the package', async () => {
   }
 })
 
-test('every language of the registry is either available or missing', async () => {
+test('every language of the registry is available, missing or turned off', async () => {
   const { manager } = makeManager()
-  const { available, missing } = await manager.servers()
-  const known = new Set([...available.map(item => item.languageId), ...missing.map(item => item.languageId)])
+  const { available, missing, disabled } = await manager.servers()
+  const known = new Set([
+    ...available.map(item => item.languageId),
+    ...missing.map(item => item.languageId),
+    ...disabled.map(item => item.languageId),
+  ])
   assert.deepEqual([...known].sort(), Object.keys(LSP_REGISTRY).sort())
+})
+
+test('a language that is turned off is neither available nor missing', async () => {
+  const { manager } = makeManager({ lsp: { servers: { java: { enabled: false } } } })
+  const { available, missing, disabled } = await manager.servers()
+  assert.ok(disabled.some(entry => entry.languageId === 'java'), 'java is turned off')
+  assert.ok(!available.some(entry => entry.languageId === 'java'))
+  assert.ok(!missing.some(entry => entry.languageId === 'java'))
 })

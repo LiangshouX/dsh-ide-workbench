@@ -393,6 +393,8 @@ var en = {
   "settings.lspAutoRestart": "Restart once after a crash",
   "settings.lspServersMissing": "Language servers not found",
   "settings.lspServersMissingHint": "Install them and make sure they are on PATH",
+  "settings.lspServersDisabled": "Language servers turned off",
+  "settings.lspServersDisabledHint": "These languages stay in the basic mode until they are turned on in the settings file",
   "settings.lspOfflineNote": "An offline install does not include the bundled language servers: TypeScript, JavaScript and Python then need a language server on PATH.",
   "settings.terminalGroup": "Terminal",
   "settings.defaultShell": "Default shell profile",
@@ -893,6 +895,8 @@ var zh = {
   "settings.lspAutoRestart": "\u5D29\u6E83\u540E\u81EA\u52A8\u91CD\u542F\u4E00\u6B21",
   "settings.lspServersMissing": "\u672A\u627E\u5230\u7684\u8BED\u8A00\u670D\u52A1\u5668",
   "settings.lspServersMissingHint": "\u8BF7\u5B89\u88C5\u5B83\u4EEC\u5E76\u786E\u4FDD\u5B83\u4EEC\u5728 PATH \u4E2D",
+  "settings.lspServersDisabled": "\u5DF2\u5173\u95ED\u7684\u8BED\u8A00\u670D\u52A1\u5668",
+  "settings.lspServersDisabledHint": "\u8FD9\u4E9B\u8BED\u8A00\u5728\u8BBE\u7F6E\u6587\u4EF6\u4E2D\u91CD\u65B0\u542F\u7528\u524D\u53EA\u4F7F\u7528\u57FA\u7840\u6A21\u5F0F",
   "settings.lspOfflineNote": "\u79BB\u7EBF\u5B89\u88C5\u4E0D\u5305\u542B\u6253\u5305\u7684\u8BED\u8A00\u670D\u52A1\u5668\uFF1ATypeScript\u3001JavaScript \u4E0E Python \u9700\u8981 PATH \u4E0A\u6709\u5BF9\u5E94\u7684\u8BED\u8A00\u670D\u52A1\u5668\u3002",
   "settings.terminalGroup": "\u7EC8\u7AEF",
   "settings.defaultShell": "\u9ED8\u8BA4 Shell \u914D\u7F6E",
@@ -2068,7 +2072,7 @@ function initialState() {
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
       /** The language-server registry (`lsp.servers`), fetched once per language. */
-      servers: { available: [], missing: [] }
+      servers: { available: [], missing: [], disabled: [] }
     },
     /**
      * The pending index decision (PRD-v5 §2.3).
@@ -3213,7 +3217,8 @@ var WorkbenchStore = class {
       this.patch("lsp", {
         servers: {
           available: Array.isArray(result?.available) ? result.available : [],
-          missing: Array.isArray(result?.missing) ? result.missing : []
+          missing: Array.isArray(result?.missing) ? result.missing : [],
+          disabled: Array.isArray(result?.disabled) ? result.disabled : []
         }
       });
     } catch {
@@ -57871,6 +57876,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
   const t2 = store.t;
   const settings = state.settings ?? {};
   const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : [];
+  const disabledServers = Array.isArray(state.lsp?.servers?.disabled) ? state.lsp.servers.disabled : [];
   const [draft, setDraft] = (0, import_react16.useState)(settings);
   const [saved, setSaved] = (0, import_react16.useState)(false);
   const [saving, setSaving] = (0, import_react16.useState)(false);
@@ -58344,6 +58350,17 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           "span",
           { className: "iwb-settings-value" },
           missingServers.map((server) => `${server.languageId} (${server.command})`).join(", ")
+        )
+      ) : null,
+      // A language that is switched off in the settings file is a fact of
+      // the configuration, not of the machine: it stays in the basic mode.
+      disabledServers.length > 0 ? import_react16.default.createElement(
+        Row,
+        { label: t2("settings.lspServersDisabled"), hint: t2("settings.lspServersDisabledHint") },
+        import_react16.default.createElement(
+          "span",
+          { className: "iwb-settings-value" },
+          disabledServers.map((server) => `${server.languageId} (${server.command})`).join(", ")
         )
       ) : null,
       import_react16.default.createElement("div", { className: "iwb-settings-hint", style: { gridColumn: "1 / -1" } }, t2("settings.lspOfflineNote"))
