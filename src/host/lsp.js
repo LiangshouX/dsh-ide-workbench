@@ -36,6 +36,7 @@ import { dirname, join, resolve as resolvePath } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { ApiError } from './wire.js'
 import { BUILD_REQUEST_TIMEOUT_MS, DEFAULT_LSP_SETTINGS } from './settings-defaults.js'
+import { SEMANTIC_METHODS } from './semantic-methods.js'
 
 /**
  * The language registry (PRD §3.2).
@@ -541,6 +542,38 @@ function defaultReadMemory() {
 }
 
 /**
+ * Whether the program of the project is still being built.
+ *
+ * The answer is "yes" while the language server is busy building the
+ * program of the whole project - the work behind the first semantic request,
+ * measured at more than ten minutes on a large project (PRD-v5 §0.2 #3). The
+ * status bar has to say so: the session is already "ready" ten milliseconds
+ * after the server answered the `initialize`, so without this fact the user
+ * sees "ready" while the editor hangs and has no idea what it waits for.
+ *
+ * Two conditions, and both of them are needed:
+ *
+ *   - the server has not answered a *semantic* request yet (`realAnswers`),
+ *     because the program is built as soon as it answers one - the requests
+ *     after that are incremental and quick; and
+ *   - a semantic request is outstanding, because a program is only built
+ *     *for* a request. Without the second half the status bar would claim
+ *     "building" for ever in a project where the user never asks anything
+ *     semantic - and the server would be building nothing at all.
+ *
+ * @param {object | null | undefined} session the session
+ * @returns {boolean} true while the program is being built
+ */
+function isBuildingProgram(session) {
+  if (session === null || session === undefined) return false
+  if (session.realAnswers > 0) return false
+  for (const pending of session.pendingRequests.values()) {
+    if (pending.semantic === true) return true
+  }
+  return false
+}
+
+/**
  * The snapshot of one root, shared by the manager and by `lspStateOf()`.
  * @param {object} entry the root entry
  * @returns {object}
@@ -565,6 +598,23 @@ function snapshotOf(entry) {
     // host's own truth about the server; the client counts its own failures
     // separately.
     timeouts: session?.timeouts ?? 0,
+    /**
+     * The identity of the language server process (0 when there is none).
+     *
+     * It changes with every new process and stays the same while the process
+     * lives. The client watches it to learn that the server behind the
+     * WebSocket is a new one - the socket stays open when the server
+     * crashes - and resets its request budget when it moves: the new server
+     * has to build the program of the project again.
+     */
+    processId: session?.processId ?? 0,
+    /**
+     * Whether the program of the project is still being built.
+     *
+     * See {@link isBuildingProgram}: the server has not answered a semantic
+     * request yet and a semantic request is outstanding.
+     */
+    buildingProgram: isBuildingProgram(session),
   }
 }
 
@@ -651,6 +701,24 @@ export class LspManager {
       stderrLines: session === null ? [] : [...session.stderrLines],
       // The requests the server did not answer in time.
       timeouts: session?.timeouts ?? 0,
+      /**
+       * The identity of the language server process (0 when there is none).
+       *
+       * It changes with every new process and stays the same while the
+       * process lives. The client watches it to learn that the server behind
+       * the WebSocket is a new one - the socket stays open when the server
+       * crashes - and resets its request budget when it moves.
+       */
+      processId: session?.processId ?? 0,
+      /**
+       * Whether the program of the project is still being built.
+       *
+       * The status bar shows it while the state is "ready": the session is
+       * ready ten milliseconds after the server answered the `initialize`,
+       * but the first semantic request still waits for the program of the
+       * whole project (more than ten minutes on a large project).
+       */
+      buildingProgram: isBuildingProgram(session),
       // The memory of the machine and the estimate of the server travel with
       // the status: the client polls it every two seconds anyway, and a
       // running server already knows its language, so nothing has to be
@@ -884,7 +952,7 @@ export class LspManager {
   stateOf(root) {
     const entry = this.#peek(this.#requireRoot(root))
     return entry === null
-      ? { root: resolvePath(String(root)), state: 'idle', languageId: null, command: null, source: null, detail: null, startedAt: null, cancellable: false, progress: 'idle', memoryLimitMB: null, stderrLines: [] }
+      ? { root: resolvePath(String(root)), state: 'idle', languageId: null, command: null, source: null, detail: null, startedAt: null, cancellable: false, progress: 'idle', memoryLimitMB: null, stderrLines: [], timeouts: 0, processId: 0, buildingProgram: false }
       : snapshotOf(entry)
   }
 
@@ -1313,27 +1381,37 @@ export class LspManager {
        * The requests the client sent and the server has not answered yet.
        *
        * The key is the JSON-RPC id, the value the moment the request went
-       * out and whether it was the handshake. Only the worker knows which
-       * payload is a request and which is a notification, so it reports both
-       * (`request` and `answered`) - and it also reports whether the request
-       * was the `initialize`, because the watchdog treats the two
-       * differently (see `realAnswers`).
+       * out, whether it was the handshake and whether it was a *semantic*
+       * request. Only the worker knows which payload is a request and which
+       * is a notification, so it reports both (`request` and `answered`) -
+       * and it also reports whether the request was the `initialize`, because
+       * the watchdog treats the two differently (see `realAnswers`).
+       *
+       * The semantic flag is what makes the host and the client agree: the
+       * client counts only the answers to the semantic requests, and the host
+       * may not shorten the request budget because of an answer the client
+       * does not count (see `semantic-methods.js`).
        *
        * The watchdog counts the entries that ran into their deadline. A
        * notification is not in this map - a language server never answers
        * one - so a server that is busy building its program is not killed for
        * staying silent.
-       * @type {Map<number|string, { at: number, handshake: boolean }>}
+       * @type {Map<number|string, { at: number, handshake: boolean, semantic: boolean }>}
        */
       pendingRequests: new Map(),
       /**
-       * The answers of the server that were not the handshake.
+       * The answers of the server to the *semantic* requests.
        *
        * The `initialize` is answered in milliseconds, while the first
        * *semantic* request waits for the program build of the project - more
        * than ten minutes on a large project (PRD-v5 §0.2 #3). The watchdog
-       * is therefore patient until the server has answered one request that
-       * is not the handshake; from then on the configured timeout applies.
+       * is therefore patient until the server has answered one semantic
+       * request; from then on the configured timeout applies.
+       *
+       * Only the semantic answers are counted: the answer to the handshake
+       * says nothing about the speed of the server, and the answer to a
+       * request that is not semantic (a command of the workspace, say) does
+       * not either - the client does not count those either.
        */
       realAnswers: 0,
       exited: false,
@@ -1359,6 +1437,28 @@ export class LspManager {
        * they were started with and stop when it moved on.
        */
       generation: 0,
+      /**
+       * The identity of the language server process of this session.
+       *
+       * The number changes with EVERY new process (the first one is 1, the
+       * first restart 2, ...) and stays the same while the process lives.
+       *
+       * The client cannot see the process itself: the WebSocket between the
+       * browser and the host stays open when the language server crashes
+       * (only the server process is replaced), so the client never learns
+       * that the server behind the socket is a new one. It has to see the
+       * fact somewhere, and this is the fact: the client watches the number
+       * and resets its request budget when it moves - the new server has to
+       * build the program of the project again, so the first semantic
+       * request needs the long budget again.
+       *
+       * The counter is carried over from the session this one replaces: the
+       * identity of a project must never go backwards (a session that is
+       * replaced after an idle exit would otherwise start again at 1, and
+       * the client - which compares the numbers - would not see the new
+       * process at all).
+       */
+      processId: previous?.processId ?? 0,
     }
     entry.session = session
     this.#transition(session, 'starting', 'starting the language server')
@@ -1530,6 +1630,17 @@ export class LspManager {
     // so the first semantic request after a restart is a long one too.
     session.realAnswers = 0
     session.pendingRequests.clear()
+    // The timeout counter belongs to the process that died: its unanswered
+    // requests are gone with it, and the new process has to earn its own
+    // count. Without this reset the counter of the crashed process is
+    // inherited, and the FIRST timeout after the restart already reaches
+    // the limit - the new server is killed for the mistakes of the old one.
+    session.timeouts = 0
+    // Every new process gets its own identity. The client cannot see the
+    // process itself (the WebSocket to the browser stays open when the
+    // server crashes), so this number is how it learns that the server
+    // behind the socket is a new one and has to build the program again.
+    session.processId += 1
     // The stdin of the server is the half of the frame channel that breaks
     // first, and it breaks silently: a write into a pipe whose reader is
     // gone fails ASYNCHRONOUSLY, and the only sign of it is the 'error'
@@ -1664,13 +1775,19 @@ export class LspManager {
       return
     }
     if (message.type === 'request') {
-      // A request of the client that the server has to answer. The id comes
-      // from the worker: only that thread may parse the payloads. The flag
-      // tells the host that the request is the handshake - the watchdog
-      // treats the two differently.
+      // A request of the client that the server has to answer. The id and the
+      // method come from the worker: only that thread may parse the
+      // payloads. The flag tells the host that the request is the handshake
+      // - the watchdog treats the two differently - and the semantic flag
+      // tells it whether the answer says something about the semantic
+      // features (the client counts exactly those answers).
       const id = message.id
       if (typeof id === 'number' || typeof id === 'string') {
-        session.pendingRequests.set(id, { at: this.#now(), handshake: message.handshake === true })
+        session.pendingRequests.set(id, {
+          at: this.#now(),
+          handshake: message.handshake === true,
+          semantic: SEMANTIC_METHODS.has(message.method),
+        })
       }
       return
     }
@@ -1680,11 +1797,15 @@ export class LspManager {
       const id = message.id
       if (typeof id === 'number' || typeof id === 'string') {
         const pending = session.pendingRequests.get(id)
-        // The first answer that is not the handshake is the end of the
+        // The first answer to a *semantic* request is the end of the
         // patience: from then on the configured timeout applies. The
-        // handshake itself is answered in milliseconds and says nothing
-        // about the speed of the server.
-        if (pending !== undefined && pending.handshake !== true) session.realAnswers += 1
+        // handshake is answered in milliseconds and says nothing about the
+        // speed of the server, and the answer to a request that is not
+        // semantic says nothing about the semantic features either - the
+        // client does not count it either, so the host may not let it
+        // shorten the budget (the two sides must agree on the budget, or
+        // the host kills the server the client is still waiting for).
+        if (pending !== undefined && pending.semantic === true) session.realAnswers += 1
         session.pendingRequests.delete(id)
         session.timeouts = 0
       }
@@ -2020,7 +2141,7 @@ export class LspManager {
    * is counted, so the next tick does not count it again.
    *
    * The budget depends on what the server has answered so far. As long as
-   * it has not answered a request that is not the handshake, the watchdog is
+   * it has not answered a *semantic* request, the watchdog is
    * patient: the first semantic request of a session waits for the program
    * build of the project, and that build was measured at more than ten
    * minutes on a large project (PRD-v5 §0.2 #3). Counting it with the

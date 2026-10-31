@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { encodeFrame } from '../src/host/lsp-frame.js'
-import { makeManager, makeSink, sleep } from './lsp-fixtures.mjs'
+import { makeManager, makeSink, sleep, waitFor } from './lsp-fixtures.mjs'
 import { crashAdviceFor } from '../src/client/store.js'
 
 /** A project root that no other test uses. */
@@ -83,6 +83,81 @@ test('a language server that crashes twice is not started again', async () => {
   assert.equal(status.state, 'degraded')
   // The detail is the fact; the advice follows the reason.
   assert.match(status.detail, /already used once/i)
+})
+
+test('the process identity changes when the language server is restarted', async () => {
+  // The client cannot see the process: the WebSocket between the browser and
+  // the host stays open when the language server crashes (only the server
+  // process is replaced). The identity is how the client learns that the
+  // server behind the socket is a new one - and that it has to build the
+  // program of the project again (review T1).
+  const { manager, spawned, handle } = makeManager({ restartBackoffMs: 10 })
+  const root = rootOf('process-identity')
+  await manager.start({ root })
+
+  const first = manager.stateOf(root).processId
+  assert.equal(first, 1, 'the first process has the identity 1')
+
+  // The identity is stable while the process lives: the client may only
+  // reset its request budget when the number moves.
+  assert.equal(
+    manager.stateOf(root).processId,
+    first,
+    'the identity does not change within one process',
+  )
+  assert.equal(
+    (await manager.status({ root })).processId,
+    first,
+    'the status of the host carries the same identity',
+  )
+
+  handle().exit(134)
+  assert.equal(
+    await waitFor(() => spawned.length === 2),
+    true,
+    'the language server was started again',
+  )
+
+  assert.equal(
+    await waitFor(() => manager.stateOf(root).processId === 2),
+    true,
+    'the new process has its own identity',
+  )
+  assert.equal(
+    (await manager.status({ root })).processId,
+    2,
+    'the status of the host carries the new identity',
+  )
+})
+
+test('a root without a language server has no process identity', () => {
+  const { manager } = makeManager()
+  assert.equal(
+    manager.stateOf(rootOf('process-identity-none')).processId,
+    0,
+    'a root without a server has no identity',
+  )
+})
+
+test('the process identity does not go backwards when the session is replaced', async () => {
+  // The identity is the fact the client watches to learn that the server
+  // behind the WebSocket is a new one. It may never go backwards: a session
+  // that is replaced (after a cancel, for example) starts a new process, and
+  // the client has to see that.
+  const { manager, spawned } = makeManager({ restartBackoffMs: 10, graceMs: 20 })
+  const root = rootOf('process-identity-session')
+  await manager.start({ root })
+  assert.equal(manager.stateOf(root).processId, 1, 'the first process has the identity 1')
+
+  await manager.cancelIndex({ root })
+  await manager.start({ root })
+
+  assert.equal(spawned.length, 2, 'a second process was started')
+  assert.equal(
+    manager.stateOf(root).processId,
+    2,
+    'the identity of the project moved on',
+  )
 })
 
 test('a crashed language server is not restarted when the memory is not enough', async () => {

@@ -9,7 +9,7 @@
  */
 import { PassThrough, Writable } from 'node:stream'
 import { encodeFrame, FrameDecoder } from '../src/host/lsp-frame.js'
-import { Handshake, answeredIdOf, requestIdOf, withMemoryLimit } from '../src/host/lsp-worker.js'
+import { Handshake, answeredIdOf, requestIdOf, requestOf, withMemoryLimit } from '../src/host/lsp-worker.js'
 import { DEFAULT_LSP_SETTINGS, LspManager } from '../src/host/lsp.js'
 
 /**
@@ -222,10 +222,18 @@ export function makeFakeWorker(workerData = {}) {
           // A request the server has to answer: the host counts the ones that
           // never get one. A notification is not a request. The flag tells
           // the host that the request is the handshake - the watchdog treats
-          // the handshake and the first semantic request differently.
-          const request = requestIdOf(text)
+          // the handshake and the first semantic request differently - and
+          // the method tells the host which requests are semantic ones: the
+          // host counts only their answers (the client counts the same
+          // ones, see `semantic-methods.js`).
+          const request = requestOf(text)
           if (request !== null) {
-            worker.emit('message', { type: 'request', id: request, handshake: handshake.isInitialize(text) })
+            worker.emit('message', {
+              type: 'request',
+              id: request.id,
+              method: request.method,
+              handshake: handshake.isInitialize(text),
+            })
           }
         }
         // The real worker injects the memory ceiling into the handshake, so

@@ -22,7 +22,12 @@
  *    semantic request of a session gets a far bigger budget
  *    (`BUILD_REQUEST_TIMEOUT_MS`, ten minutes): it is the request that makes
  *    the language server build the program of the whole project, and that
- *    takes minutes on a large project (PRD-v5 §0.2 #3, review S6).
+ *    takes minutes on a large project (PRD-v5 §0.2 #3, review S6). The
+ *    budget goes back to the long one whenever the host reports a new
+ *    language server process: the new process has to build the program again,
+ *    and the socket between the browser and the host stays open when the
+ *    server crashes, so the identity of the process is the only way the
+ *    client learns about it (review T1).
  * 4. **The HTML of a hover is sanitized.** The server's Markdown may contain
  *    arbitrary HTML, so `sanitizeHTML` is part of the client configuration.
  *
@@ -42,6 +47,22 @@ import { createLspTransport } from './lsp-transport.js'
 import { fileUriOf, languageIdForPath } from './lsp-uri.js'
 import { WorkbenchWorkspace } from './lsp-workspace.js'
 import { BUILD_REQUEST_TIMEOUT_MS } from '../host/settings-defaults.js'
+/**
+ * The requests whose failures say something about the semantic features.
+ *
+ * The set is shared with the host, because the two sides have to agree on ONE
+ * definition of "an answer that says something about the semantic features" -
+ * they use it for the same decision. The client counts only the failures of
+ * these requests (a document that cannot be synced says nothing about the
+ * features), and the host counts only the answers to them before it tightens
+ * the request budget. Two copies of the list would drift apart, and the host
+ * would then kill the very server the client is still waiting for (review T3).
+ *
+ * Everything else - the handshake, the document synchronization, the
+ * formatting - is not part of the features the status bar talks about, so
+ * its failures must not be counted.
+ */
+import { SEMANTIC_METHODS } from '../host/semantic-methods.js'
 
 /** The fallback keys, used when the settings do not carry them. */
 const DEFAULT_SHORTCUTS = {
@@ -53,24 +74,6 @@ const DEFAULT_SHORTCUTS = {
 
 /** The WebSocket route of the host side LSP relay. */
 const LSP_WS_PATH = 'ide-workbench/ws/lsp'
-
-/**
- * The requests whose failures say something about the semantic features.
- *
- * Everything else - the handshake, the document synchronization, the
- * formatting - is not part of the features the status bar talks about, so
- * its failures must not be counted.
- */
-const SEMANTIC_METHODS = new Set([
-  'textDocument/references',
-  'textDocument/definition',
-  'textDocument/declaration',
-  'textDocument/typeDefinition',
-  'textDocument/implementation',
-  'textDocument/hover',
-  'textDocument/completion',
-  'textDocument/signatureHelp',
-])
 
 /** The store the session belongs to. */
 let sessionStore = null
@@ -127,6 +130,23 @@ let health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null
  * @type {number}
  */
 let semanticAnswers = 0
+/**
+ * The identity of the language server process the client talks to.
+ *
+ * The host publishes it in the status snapshot: the number changes with every
+ * new language server process. The client needs it because the socket between
+ * the browser and the host stays open when the language server crashes - only
+ * the *process* is replaced - so the client never learns about the restart
+ * from the socket and would keep the short request budget while the host is
+ * patient for ten minutes (review T1).
+ *
+ * `null` means "the client has not seen a process yet": the first value it
+ * sees is the baseline of the comparison - unless the client has already
+ * talked to a server, in which case the identity belongs to a process it
+ * never talked to (see {@link watchServerProcess}).
+ * @type {number | null}
+ */
+let lastProcessId = null
 
 /**
  * The complaints of the server about a document outside the project.
@@ -383,7 +403,11 @@ function watchSemanticRequests(client) {
     return promise.then(
       result => {
         // The server answered: from now on the incremental requests are
-        // quick, and the configured timeout is the right budget again.
+        // quick, and the configured timeout is the right budget again. The
+        // budget itself is written into the client when the NEXT request is
+        // created (the library reads `client.timeout` exactly there), so the
+        // client keeps the long budget until then - that is the budget the
+        // request that is still running was created with.
         semanticAnswers += 1
         noteSemanticSuccess()
         return result
@@ -394,11 +418,11 @@ function watchSemanticRequests(client) {
         // DID answer - with an error, but with an answer. The program of the
         // project is built then, so the next request is a short one again.
         //
-        // The host counts the same thing (the first answered request that is
-        // not the handshake), and the two sides have to agree: if the host
-        // switched to the short budget while the client still waited with
-        // the long one, the host would kill the very server the client is
-        // still waiting for.
+        // The host counts the same thing (the answers to the semantic
+        // requests - the same list of methods, see `SEMANTIC_METHODS`), and
+        // the two sides have to agree: if the host switched to the short
+        // budget while the client still waited with the long one, the host
+        // would kill the very server the client is still waiting for.
         if (!isClientDeadline(error)) semanticAnswers += 1
         // The error goes on to the library, which reports it as a toast.
         throw error
@@ -860,6 +884,96 @@ function reinitializeLsp() {
   }
 }
 
+/**
+ * Put the session back into the state of a fresh language server.
+ *
+ * A language server that is replaced has to build the program of the project
+ * again, so its first semantic request needs the long budget - exactly like
+ * the first request of a new session. The failures of the old server say
+ * nothing about the new one, so the health of the features goes with it.
+ *
+ * This is the same work that {@link reinitializeLsp} does when the socket
+ * opens again.
+ */
+function resetForNewServer() {
+  resetLspHealth()
+  applyRequestBudget(currentClient)
+}
+
+/**
+ * Reset the request budget when the language server was replaced.
+ *
+ * The host publishes the identity of the running language server process in
+ * the status snapshot, and the client watches it. The socket between the
+ * browser and the host stays open when the language server crashes - only the
+ * *process* is replaced - so the restart has to be seen in the status that
+ * the store polls. Without it the client would keep the short budget (30 s by
+ * default) while the host waits patiently for ten minutes: the client would
+ * give up with "Request timed out" and the status bar would say "unstable",
+ * and the user would see a failure that the host did not consider one
+ * (review T1).
+ *
+ * The first value the client sees is not always the same thing, so three
+ * cases are told apart:
+ *
+ *   - the client has not talked to a server yet and sees an identity for the
+ *     first time: that is the baseline, not a restart - there was no server
+ *     before;
+ *   - the client HAS talked to a server and sees an identity for the first
+ *     time: the identity belongs to a process the client never talked to.
+ *     The server it talked to was replaced before the first status poll, and
+ *     the new process has to build the program of the project again;
+ *   - the identity changes: the server was replaced.
+ *
+ * The client cannot tell whether the server it talked to is still the
+ * running one - the status poll lags by up to two seconds - so the safe
+ * choice is made: the program is built again and the long budget applies.
+ * The price is one request with a longer budget than it needs in the rare
+ * case that nothing was replaced; the price of the other choice is the
+ * "Request timed out" the user complained about.
+ *
+ * The id 0 means that no server runs at all. It never establishes the
+ * baseline - only a running server has an identity - but it does reset the
+ * budget: the server is gone, and the next one has to build the program
+ * again.
+ * @param {any} store the workbench store
+ */
+function watchServerProcess(store) {
+  const reported = store?.state?.lsp?.processId
+  if (!Number.isFinite(reported)) return
+  const processId = reported
+  if (processId === 0) {
+    // No server runs. If one ran a moment ago, it is gone: the next server
+    // has to build the program of the project again, so the budget goes back
+    // to the long one - before the new process is even there. A request that
+    // wakes the new server would otherwise time out after 30 seconds.
+    if (lastProcessId === null) return
+    lastProcessId = null
+    resetForNewServer()
+    return
+  }
+  if (lastProcessId === null) {
+    // The first process the client sees: it is the baseline of the
+    // comparison, not a restart. The budget is already the long one, because
+    // the session has not answered a semantic request yet.
+    //
+    // Unless the client ALREADY got an answer from a server whose identity
+    // it never saw: then that server was replaced before the first poll, the
+    // id belongs to a NEW process, and the program of the project has to be
+    // built again. The budget would otherwise stay short while the host is
+    // patient - the one asymmetry this watch exists to remove.
+    lastProcessId = processId
+    if (semanticAnswers > 0) resetForNewServer()
+    return
+  }
+  if (processId === lastProcessId) return
+  // The language server was replaced. The id is remembered BEFORE the reset,
+  // because the reset writes into the store and that wakes the subscribers
+  // again - the second round has to see the same id and do nothing.
+  lastProcessId = processId
+  resetForNewServer()
+}
+
 /** Drop the client and close the socket. */
 function stopLsp() {
   if (handshakeTimer !== null) {
@@ -962,10 +1076,22 @@ export function configureLsp(store) {
   }
   sessionKey = null
   sessionRoot = ''
+  // A new store is a new world for the client: it has not seen a language
+  // server process yet, so the first process id it reads is the baseline of
+  // the comparison and not a restart.
+  lastProcessId = null
   if (typeof store?.subscribe === 'function') {
     // The settings and the project root arrive after the store was created,
     // so the session follows the state of the store.
-    unsubscribeStore = store.subscribe(() => refreshLsp())
+    //
+    // The identity of the language server process is watched here as well: the
+    // socket between the browser and the host stays open when the language
+    // server crashes (only the process is replaced), so the restart can only
+    // be seen in the status that the store polls.
+    unsubscribeStore = store.subscribe(() => {
+      watchServerProcess(store)
+      refreshLsp()
+    })
   }
   refreshLsp()
 }

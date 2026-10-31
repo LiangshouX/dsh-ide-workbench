@@ -27,6 +27,12 @@
  *     { type: 'stdin', data: Uint8Array }     framed bytes for the server
  *     { type: 'document', action, uri, ... }  document lifecycle bookkeeping
  *     { type: 'dropped', reason: string }     a payload that was not JSON
+ *     { type: 'request', id, method, handshake }
+ *                                             one request the server has to
+ *                                             answer (id, method and the
+ *                                             handshake flag)
+ *     { type: 'answered', id }                the id of a request that was
+ *                                             answered
  *
  * Two responsibilities beyond framing exist because the host needs them and
  * cannot compute them without parsing:
@@ -121,7 +127,7 @@ function idOf(parsed) {
 }
 
 /**
- * The id of a payload that asks the server something.
+ * The id and the method of a payload that asks the server something.
  *
  * A JSON-RPC request carries a method AND an id; a notification carries only
  * a method and a response carries only an id. The host has to tell the two
@@ -129,17 +135,36 @@ function idOf(parsed) {
  * unanswered request (a language server that is busy building its program
  * does not answer notifications - that is normal, and counting it as a
  * timeout killed the server every ninety seconds of typing).
+ *
+ * The method travels with the id because the host has to know *which* request
+ * it is: the client counts only the answers to the semantic requests (see
+ * `semantic-methods.js`), and the host has to use the same definition - two
+ * sides that count different answers tighten the budget on different
+ * schedules, and the host would kill the server the client is waiting for.
  * @param {string} text the payload
- * @returns {number | string | null} the id of the request
+ * @returns {{ id: number | string, method: string } | null} the request
  */
-export function requestIdOf(text) {
+export function requestOf(text) {
   // The cheap test keeps the parse off the path of the ordinary traffic: a
   // payload without an id cannot be a request.
   if (!text.includes('"id"')) return null
   const parsed = Handshake.parse(text)
   if (parsed === null) return null
-  if (methodOf(parsed) === null) return null
-  return idOf(parsed)
+  const method = methodOf(parsed)
+  if (method === null) return null
+  const id = idOf(parsed)
+  if (id === null) return null
+  return { id, method }
+}
+
+/**
+ * The id of a payload that asks the server something.
+ * @param {string} text the payload
+ * @returns {number | string | null} the id of the request
+ */
+export function requestIdOf(text) {
+  const request = requestOf(text)
+  return request === null ? null : request.id
 }
 
 /**
@@ -397,9 +422,18 @@ function run(options) {
         // *semantic* request waits for the program build of the project (up
         // to ten minutes on a large project). The watchdog is patient until
         // the server has answered a request that is not the handshake.
-        const request = requestIdOf(text)
+        //
+        // The method travels with the request: the host counts only the
+        // answers to the semantic requests (see `semantic-methods.js`), so
+        // the two sides of the plugin use one definition of "an answer".
+        const request = requestOf(text)
         if (request !== null) {
-          parentPort.postMessage({ type: 'request', id: request, handshake: handshake.isInitialize(text) })
+          parentPort.postMessage({
+            type: 'request',
+            id: request.id,
+            method: request.method,
+            handshake: handshake.isInitialize(text),
+          })
         }
       }
       const payload = message.origin === 'host' ? text : withMemoryLimit(text, injectMemoryLimit ? memoryLimitMB : null)

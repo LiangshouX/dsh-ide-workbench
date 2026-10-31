@@ -392,6 +392,16 @@ export function lspStatusView(store, state) {
           : interpolate(t('lsp.status.unstable'), { count: failures })
         return { ...base, key: 'unstable', text, tone: 'warn', action: 'diagnostics' }
       }
+      // The host says the program of the project is still being built. The
+      // session state says "ready" about ten milliseconds after the server
+      // answered `initialize`, while the build happens minutes later - on the
+      // first semantic request. Saying "ready" here left the user in front of
+      // a hanging editor with a green dot and no idea what it waited for
+      // (review T7). The failing server above is more important than the
+      // build, so the unstable state wins.
+      if (lsp.buildingProgram === true) {
+        return { ...base, key: 'buildingProgram', text: t('lsp.status.buildingProgram'), tone: 'warn' }
+      }
       return { ...base, key: 'ready', text: t('lsp.status.ready'), tone: 'ok' }
     case 'crashed':
       return { ...base, key: 'crashed', text: t('lsp.status.crashed'), tone: 'error', action: 'crash' }

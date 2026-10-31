@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { apply, guardEmitter, inject, name } from '../src/index.js'
+import { apply, guardEmitter, inject, isLspFault, name } from '../src/index.js'
 
 /**
  * The directory of the plugin's sources, in the form a stack trace prints.
@@ -181,4 +181,87 @@ test('the guard leaves an emitter without an error method alone', () => {
   const { ctx } = fakeContext()
   guardEmitter(ctx, null, 'nothing')
   guardEmitter(ctx, {}, 'nothing')
+})
+
+test('only a fault of the language servers may take the semantic features away', () => {
+  // The error boundary degrades every language server session when a fault
+  // is contained. A fault in the terminal or in the file operations has
+  // nothing to do with the semantic analysis: taking the feature away for it
+  // would hide the real reason.
+  const lspFault = new Error('write EPIPE')
+  lspFault.stack = `Error: write EPIPE\n    at #writeToServer (${SRC_DIR}/host/lsp.js:1661:13)`
+  assert.equal(isLspFault(lspFault), true, 'a fault of the language servers')
+
+  const otherFault = new Error('the terminal broke')
+  otherFault.stack = `Error: the terminal broke\n    at something (${SRC_DIR}/host/shell.js:52:9)`
+  assert.equal(isLspFault(otherFault), false, 'a fault of another part of the plugin')
+
+  const foreign = new Error('the host broke')
+  foreign.stack = 'Error: the host broke\n    at something (file:///nowhere/else/core.js:1:1)'
+  assert.equal(isLspFault(foreign), false, 'a fault of the host')
+})
+
+test('the host handler receives the origin of the failure', () => {
+  // Node's handlers take (error, origin), and the origin is
+  // 'uncaughtException' or 'unhandledRejection'. The host may branch on it,
+  // so the takeover has to hand it on unchanged.
+  const runners = process.listeners('uncaughtException')
+  const rejectionRunners = process.listeners('unhandledRejection')
+  const origins = []
+  process.removeAllListeners('uncaughtException')
+  process.removeAllListeners('unhandledRejection')
+  process.on('uncaughtException', (_error, origin) => { origins.push(origin) })
+  // The handler of the host for the second event. The origin it receives is
+  // the one the boundary hands on.
+  process.on('unhandledRejection', (_reason, origin) => { origins.push(origin) })
+  try {
+    const { ctx, disposers } = fakeContext()
+    try {
+      apply(ctx)
+      const foreign = new Error('the host broke')
+      foreign.stack = 'Error: the host broke\n    at something (file:///nowhere/else/core.js:1:1)'
+      process.emit('uncaughtException', foreign, 'uncaughtException')
+      process.emit('unhandledRejection', foreign, 'unhandledRejection')
+      assert.deepEqual(origins, ['uncaughtException', 'unhandledRejection'])
+    } finally {
+      for (const dispose of disposers) dispose()
+    }
+  } finally {
+    process.removeAllListeners('uncaughtException')
+    for (const listener of runners) process.on('uncaughtException', listener)
+    process.removeAllListeners('unhandledRejection')
+    for (const listener of rejectionRunners) process.on('unhandledRejection', listener)
+  }
+})
+
+test('a handler installed after the takeover is taken over', () => {
+  // The host installs its fail-loud handler while it boots, long before a
+  // plugin is loaded - the takeover relies on that order. A handler that
+  // appears later would be called by Node itself (the handler array is
+  // copied before the handlers run) and would end the process even for a
+  // fault of the plugin. The boundary adopts it instead.
+  withHostHandler(() => {
+    const { ctx, disposers } = fakeContext()
+    try {
+      apply(ctx)
+      const seen = []
+      const lateHandler = (_error, origin) => { seen.push(origin) }
+      process.on('uncaughtException', lateHandler)
+
+      process.emit('uncaughtException', ownFault('write EPIPE'), 'uncaughtException')
+      assert.equal(
+        process.listeners('uncaughtException').includes(lateHandler),
+        false,
+        'the late handler must not stay in the process',
+      )
+
+      // From now on the boundary calls it - with the origin.
+      const foreign = new Error('the host broke')
+      foreign.stack = 'Error: the host broke\n    at something (file:///nowhere/else/core.js:1:1)'
+      process.emit('uncaughtException', foreign, 'uncaughtException')
+      assert.ok(seen.includes('uncaughtException'), 'the late handler is called by the boundary')
+    } finally {
+      for (const dispose of disposers) dispose()
+    }
+  })
 })

@@ -846,6 +846,7 @@ var en = {
   "lsp.status.missing": "Semantic analysis: {language} not installed",
   "lsp.status.starting": "Semantic analysis: starting\u2026",
   "lsp.status.building": "Semantic analysis: indexing\u2026",
+  "lsp.status.buildingProgram": "Semantic analysis: building the index\u2026 (the first semantic request may take minutes)",
   "lsp.status.cancelling": "Semantic analysis: cancelling\u2026",
   "lsp.status.updating": "Updating the index\u2026",
   "lsp.status.ready": "Semantic analysis: ready",
@@ -1427,6 +1428,7 @@ var zh = {
   "lsp.status.missing": "\u8BED\u4E49\u5206\u6790\uFF1A\u672A\u5B89\u88C5\uFF08{language}\uFF09",
   "lsp.status.starting": "\u8BED\u4E49\u5206\u6790\uFF1A\u542F\u52A8\u4E2D\u2026",
   "lsp.status.building": "\u8BED\u4E49\u5206\u6790\uFF1A\u7D22\u5F15\u4E2D\u2026",
+  "lsp.status.buildingProgram": "\u8BED\u4E49\u5206\u6790\uFF1A\u6B63\u5728\u6784\u5EFA\u7D22\u5F15\u2026\uFF08\u9996\u6B21\u8BED\u4E49\u8BF7\u6C42\u53EF\u80FD\u9700\u8981\u6570\u5206\u949F\uFF09",
   "lsp.status.cancelling": "\u8BED\u4E49\u5206\u6790\uFF1A\u53D6\u6D88\u4E2D\u2026",
   "lsp.status.updating": "\u6B63\u5728\u66F4\u65B0\u7D22\u5F15\u2026",
   "lsp.status.ready": "\u8BED\u4E49\u5206\u6790\uFF1A\u5C31\u7EEA",
@@ -2232,6 +2234,23 @@ function initialState() {
       cancellable: false,
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
+      /**
+       * The identity of the running language-server process.
+       *
+       * The host publishes it: the number changes with every new process, so
+       * the client can see that the language server was replaced (review T1).
+       * It is 0 while no server runs.
+       */
+      processId: 0,
+      /**
+       * True while the program of the project is still being built.
+       *
+       * The session state says "ready" long before the program is built - the
+       * server answers `initialize` in milliseconds and the build takes
+       * minutes. Without this flag the status bar would say "ready" while the
+       * editor waits for the first semantic request (review T7).
+       */
+      buildingProgram: false,
       /** The language-server registry (`lsp.servers`), fetched once per language. */
       servers: { available: [], missing: [], disabled: [] },
       /**
@@ -3555,7 +3574,16 @@ var WorkbenchStore = class {
       serverId: typeof status.serverId === "string" ? status.serverId : "",
       source: typeof status.source === "string" ? status.source : null,
       detail: typeof status.detail === "string" ? status.detail : null,
-      indexedRoots: Array.isArray(status.indexedRoots) ? status.indexedRoots : []
+      indexedRoots: Array.isArray(status.indexedRoots) ? status.indexedRoots : [],
+      // The identity of the running language-server process. It changes with
+      // every new process, and the client uses the change to reset its
+      // request budget: the new process has to build the program of the
+      // project again (review T1).
+      processId: Number.isFinite(status.processId) ? status.processId : 0,
+      // Whether the program of the project is still being built. The state of
+      // the session says "ready" long before that is over, so the status bar
+      // needs the flag to tell the user what it waits for (review T7).
+      buildingProgram: status.buildingProgram === true
     };
     const resources = status.resources ?? null;
     const known = this.state.lsp.resources ?? null;
@@ -3574,7 +3602,7 @@ var WorkbenchStore = class {
       next.cancellable = false;
     }
     const current = this.state.lsp;
-    const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled || memoryChanged;
+    const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled || current.processId !== next.processId || current.buildingProgram !== next.buildingProgram || memoryChanged;
     if (changed) this.set({ lsp: next });
     if (next.state === "crashed" && previous !== "crashed") {
       this.toast("error", this.t("lsp.crashedToast"), this.#crashAdvice(next.detail ?? ""));
@@ -55449,14 +55477,7 @@ var DEFAULT_LSP_SETTINGS = {
   memoryWarnedRoots: {}
 };
 
-// src/client/lsp-session.js
-var DEFAULT_SHORTCUTS = {
-  goToDefinition: "F12",
-  findUsages: "Alt+F7",
-  findUsagesText: "Alt+F8",
-  complete: "Ctrl+Space"
-};
-var LSP_WS_PATH = "ide-workbench/ws/lsp";
+// src/host/semantic-methods.js
 var SEMANTIC_METHODS = /* @__PURE__ */ new Set([
   "textDocument/references",
   "textDocument/definition",
@@ -55467,6 +55488,15 @@ var SEMANTIC_METHODS = /* @__PURE__ */ new Set([
   "textDocument/completion",
   "textDocument/signatureHelp"
 ]);
+
+// src/client/lsp-session.js
+var DEFAULT_SHORTCUTS = {
+  goToDefinition: "F12",
+  findUsages: "Alt+F7",
+  findUsagesText: "Alt+F8",
+  complete: "Ctrl+Space"
+};
+var LSP_WS_PATH = "ide-workbench/ws/lsp";
 var sessionStore = null;
 var currentClient = null;
 var currentWorkspace = null;
@@ -55484,6 +55514,7 @@ var handshakeRetries = 0;
 var mappingRedirected = false;
 var health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null };
 var semanticAnswers = 0;
+var lastProcessId = null;
 var OUTSIDE_PROJECT_COMPLAINTS = [
   /unexpected resource/i,
   /not part of the workspace/i,
@@ -55830,6 +55861,29 @@ function reinitializeLsp() {
     console.warn("[lsp] the handshake could not be repeated:", error instanceof Error ? error.message : error);
   }
 }
+function resetForNewServer() {
+  resetLspHealth();
+  applyRequestBudget(currentClient);
+}
+function watchServerProcess(store) {
+  const reported = store?.state?.lsp?.processId;
+  if (!Number.isFinite(reported)) return;
+  const processId = reported;
+  if (processId === 0) {
+    if (lastProcessId === null) return;
+    lastProcessId = null;
+    resetForNewServer();
+    return;
+  }
+  if (lastProcessId === null) {
+    lastProcessId = processId;
+    if (semanticAnswers > 0) resetForNewServer();
+    return;
+  }
+  if (processId === lastProcessId) return;
+  lastProcessId = processId;
+  resetForNewServer();
+}
 function stopLsp() {
   if (handshakeTimer !== null) {
     clearTimeout(handshakeTimer);
@@ -55897,8 +55951,12 @@ function configureLsp(store) {
   }
   sessionKey = null;
   sessionRoot = "";
+  lastProcessId = null;
   if (typeof store?.subscribe === "function") {
-    unsubscribeStore = store.subscribe(() => refreshLsp());
+    unsubscribeStore = store.subscribe(() => {
+      watchServerProcess(store);
+      refreshLsp();
+    });
   }
   refreshLsp();
 }
@@ -60297,6 +60355,9 @@ function lspStatusView(store, state) {
       if (failures >= LSP_UNSTABLE_FAILURES || timeouts >= LSP_UNSTABLE_TIMEOUTS) {
         const text = timeouts >= LSP_UNSTABLE_TIMEOUTS ? interpolate5(t2("lsp.status.unstableTimeout"), { count: timeouts }) : interpolate5(t2("lsp.status.unstable"), { count: failures });
         return { ...base2, key: "unstable", text, tone: "warn", action: "diagnostics" };
+      }
+      if (lsp.buildingProgram === true) {
+        return { ...base2, key: "buildingProgram", text: t2("lsp.status.buildingProgram"), tone: "warn" };
       }
       return { ...base2, key: "ready", text: t2("lsp.status.ready"), tone: "ok" };
     case "crashed":

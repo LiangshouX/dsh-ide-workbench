@@ -426,3 +426,178 @@ test('the first request of a session is patient, the next ones are not', async (
     'the timeout of a server that has answered once is counted',
   )
 })
+
+// ── the host side of the budget: one definition for the two sides ──────────
+//
+// The host and the client have to agree on what "an answer" is. The client
+// counts only the answers to the *semantic* requests (see
+// `src/host/semantic-methods.js`), and the host has to use the same list: if
+// the host shortened the budget because of an answer the client does not
+// count, the host would kill the very server the client is still waiting for
+// (review T3).
+//
+// The tests below watch the observable effect of the counter: while the
+// budget is the long one (the server has not answered a semantic request
+// yet), an unanswered request is NOT counted as a timeout.
+
+test('the answer to a request that is not semantic does not shorten the budget', async () => {
+  const { manager, spawned, workers } = makeManager({ lsp: { requestTimeoutMs: 40 } })
+  const root = rootOf('non-semantic-answer')
+  await manager.start({ root })
+
+  // A request that is not one of the semantic methods. The server answers
+  // it, but the answer says nothing about the semantic features - the
+  // client does not count it either.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'workspace/executeCommand', params: {},
+  }))
+  workers[0].postMessage({
+    type: 'stdout',
+    data: encodeFrame(JSON.stringify({ jsonrpc: '2.0', id: 1, result: null })),
+  })
+  await sleep(50)
+
+  // The budget is still the long one: the first semantic request of a
+  // session waits for the program build of the project.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id: 2, method: 'textDocument/definition', params: {},
+  }))
+  await sleep(400)
+
+  assert.equal(
+    manager.stateOf(root).timeouts,
+    0,
+    'the answer of the command did not shorten the budget',
+  )
+  assert.equal(spawned.length, 1, 'the language server was not killed')
+
+  // The difference is the semantics and nothing else: the answer of a
+  // *semantic* request does shorten the budget - the request that is still
+  // outstanding from before is counted from now on.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id: 3, method: 'textDocument/hover', params: {},
+  }))
+  workers[0].postMessage({
+    type: 'stdout',
+    data: encodeFrame(JSON.stringify({ jsonrpc: '2.0', id: 3, result: null })),
+  })
+  assert.equal(
+    await waitFor(() => manager.stateOf(root).timeouts >= 1),
+    true,
+    'the answer of the semantic request shortened the budget',
+  )
+})
+
+// ── the status bar says "ready" while the program is still being built ────
+//
+// The readiness heuristic flips to "ready" about ten milliseconds after the
+// server answers the `initialize` - but the first semantic request of a
+// project waits for the program build of the whole project (more than ten
+// minutes on a large project). The status bar has to say what it waits for
+// (review T7).
+
+test('the status says that the program is being built while a semantic request is outstanding', async () => {
+  const { manager, workers } = makeManager()
+  const root = rootOf('building-program')
+  await manager.start({ root })
+
+  assert.equal(
+    manager.stateOf(root).buildingProgram,
+    false,
+    'nothing is being built before the first request',
+  )
+
+  // The first semantic request: the server has to build the program of the
+  // whole project before it can answer it.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'textDocument/definition', params: {},
+  }))
+  assert.equal(
+    manager.stateOf(root).buildingProgram,
+    true,
+    'the program of the project is being built',
+  )
+
+  // The server answers it: the program is built now and the requests after
+  // this one are incremental (and quick).
+  workers[0].postMessage({
+    type: 'stdout',
+    data: encodeFrame(JSON.stringify({ jsonrpc: '2.0', id: 1, result: null })),
+  })
+  assert.equal(
+    await waitFor(() => manager.stateOf(root).buildingProgram === false),
+    true,
+    'the program is built',
+  )
+})
+
+test('a request that is not semantic does not build the program', async () => {
+  const { manager } = makeManager()
+  const root = rootOf('building-program-command')
+  await manager.start({ root })
+
+  // A command of the workspace: the server has to answer it, but it does
+  // not make the server build its program.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'workspace/executeCommand', params: {},
+  }))
+  await sleep(50)
+
+  assert.equal(
+    manager.stateOf(root).buildingProgram,
+    false,
+    'a command of the workspace does not build the program',
+  )
+})
+
+test('a notification does not build the program', async () => {
+  const { manager } = makeManager()
+  const root = rootOf('building-program-notification')
+  await manager.start({ root })
+
+  // A notification is never answered - that is normal in LSP - so it cannot
+  // be the sign of a program build.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', method: 'textDocument/didChange', params: {},
+  }))
+  await sleep(50)
+
+  assert.equal(
+    manager.stateOf(root).buildingProgram,
+    false,
+    'a notification does not build the program',
+  )
+})
+
+// ── the timeout counter belongs to the process that died ──────────────────
+//
+// The counter of the unanswered requests is reset for every new process, and
+// so is the timeout counter: two timeouts of the process that crashed must
+// not make the FIRST timeout of the new process kill it (review T2).
+
+test('the timeout counter of a crashed server does not survive the restart', async () => {
+  const { manager, spawned, handle } = makeManager({ restartBackoffMs: 10 })
+  const root = rootOf('timeout-counter-reset')
+  await manager.start({ root })
+
+  // Two timeouts of the process that is about to die.
+  manager.noteTimeout(root)
+  manager.noteTimeout(root)
+  assert.equal(manager.stateOf(root).timeouts, 2, 'the two timeouts were counted')
+
+  // The server crashes and is started again.
+  handle().exit(134)
+  assert.equal(
+    await waitFor(() => spawned.length === 2),
+    true,
+    'the language server was started again',
+  )
+
+  // The counter belongs to the process that died: the new one starts at
+  // zero, so its first timeout does not reach the limit yet.
+  assert.equal(
+    await waitFor(() => manager.stateOf(root).timeouts === 0),
+    true,
+    'the counter of the dead process is gone',
+  )
+})

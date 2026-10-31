@@ -211,6 +211,23 @@ function initialState() {
       cancellable: false,
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
+      /**
+       * The identity of the running language-server process.
+       *
+       * The host publishes it: the number changes with every new process, so
+       * the client can see that the language server was replaced (review T1).
+       * It is 0 while no server runs.
+       */
+      processId: 0,
+      /**
+       * True while the program of the project is still being built.
+       *
+       * The session state says "ready" long before the program is built - the
+       * server answers `initialize` in milliseconds and the build takes
+       * minutes. Without this flag the status bar would say "ready" while the
+       * editor waits for the first semantic request (review T7).
+       */
+      buildingProgram: false,
       /** The language-server registry (`lsp.servers`), fetched once per language. */
       servers: { available: [], missing: [], disabled: [] },
       /**
@@ -1728,6 +1745,15 @@ export class WorkbenchStore {
       source: typeof status.source === 'string' ? status.source : null,
       detail: typeof status.detail === 'string' ? status.detail : null,
       indexedRoots: Array.isArray(status.indexedRoots) ? status.indexedRoots : [],
+      // The identity of the running language-server process. It changes with
+      // every new process, and the client uses the change to reset its
+      // request budget: the new process has to build the program of the
+      // project again (review T1).
+      processId: Number.isFinite(status.processId) ? status.processId : 0,
+      // Whether the program of the project is still being built. The state of
+      // the session says "ready" long before that is over, so the status bar
+      // needs the flag to tell the user what it waits for (review T7).
+      buildingProgram: status.buildingProgram === true,
     }
     // The memory snapshot travels with the status (the host reads it in the
     // same call), so the numbers are live without a second request. It is
@@ -1770,6 +1796,8 @@ export class WorkbenchStore {
       || current.startedAt !== next.startedAt
       || current.cancellable !== next.cancellable
       || current.enabled !== next.enabled
+      || current.processId !== next.processId
+      || current.buildingProgram !== next.buildingProgram
       || memoryChanged
     if (changed) this.set({ lsp: next })
     // The crash is a one-time event: the toast must not repeat on every poll.

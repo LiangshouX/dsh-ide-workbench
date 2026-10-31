@@ -58,6 +58,15 @@ const WS_PATH = '/ide-workbench/ws/terminal'
 const PLUGIN_DIR = dirname(fileURLToPath(import.meta.url)).split(sep).join('/')
 
 /**
+ * The sources of the language server half of the plugin.
+ *
+ * The error boundary has to tell "a fault of the language servers" from "a
+ * fault of something else in this plugin" (the terminal, the file
+ * operations): only the first one may degrade a language server session.
+ */
+const LSP_SOURCE = `${PLUGIN_DIR}/host/lsp`
+
+/**
  * The stack of one error, with its causes, normalized to forward slashes.
  *
  * A stack trace prints the source as a `file://` URL on every platform, so
@@ -92,6 +101,23 @@ function stackOf(error) {
 function isPluginFault(error) {
   if (error === null || typeof error !== 'object') return false
   return stackOf(error).includes(PLUGIN_DIR)
+}
+
+/**
+ * Whether one error comes from the language server half of the plugin.
+ *
+ * Only such a fault may degrade a language server session: a fault in the
+ * terminal or in the file operations has nothing to do with the semantic
+ * analysis, and degrading every server because of it would take the
+ * semantic features away for a reason the user cannot see.
+ *
+ * The function is exported so that the routing can be pinned by a test.
+ * @param {unknown} error the error
+ * @returns {boolean} true when the error belongs to the language servers
+ */
+export function isLspFault(error) {
+  if (error === null || typeof error !== 'object') return false
+  return stackOf(error).includes(LSP_SOURCE)
 }
 
 /**
@@ -138,12 +164,48 @@ export { guardEmitter } from './host/guard.js'
 function installErrorBoundary(ctx, onFault) {
   /**
    * Take one event over.
+   *
+   * The host installs its fail-loud handler while it boots, long before a
+   * plugin is loaded - that order is what makes the takeover safe. It is an
+   * assumption, so it is CHECKED: when there is no handler to inherit, the
+   * boundary says so in the log instead of pretending to be in control.
    * @param {'uncaughtException' | 'unhandledRejection'} event the event
    * @returns {{ handler: Function, inherited: Function[] }} the new handler and the inherited ones
    */
   const takeover = (event) => {
     const inherited = process.listeners(event)
+    if (inherited.length === 0) {
+      ctx.logger?.warn?.(
+        'dsh-ide-workbench: no handler for %s was installed before the plugin took the event over; the host may end the process for a fault of the plugin',
+        event,
+      )
+    }
+    /**
+     * Take a handler over that was installed AFTER the takeover.
+     *
+     * Node copies the handler array before it calls the handlers, so a
+     * handler that appears later is called by Node itself - and the host's
+     * fail-loud handler would end the process even for a fault of the
+     * plugin. Such a handler is therefore adopted: it is remembered and
+     * called by this boundary, and removed from the process.
+     *
+     * The one error that cannot be saved is the FIRST one after the late
+     * installation: it is already in the copy Node made.
+     */
+    const adoptLateHandlers = () => {
+      const late = process.listeners(event).filter(listener => listener !== handler && !inherited.includes(listener))
+      if (late.length === 0) return
+      for (const listener of late) {
+        inherited.push(listener)
+        process.removeListener(event, listener)
+      }
+      ctx.logger?.warn?.(
+        'dsh-ide-workbench: a handler for %s was installed after the plugin took the event over; the boundary calls it from now on',
+        event,
+      )
+    }
     const handler = function boundary(error) {
+      adoptLateHandlers()
       if (isPluginFault(error)) {
         try {
           ctx.logger?.error?.(
@@ -160,8 +222,12 @@ function installErrorBoundary(ctx, onFault) {
       // A failure that is not the plugin's own: the handlers that were
       // installed before must see it exactly as before - the fail-loud
       // handler of the host included.
+      //
+      // The second argument is Node's `origin`: 'uncaughtException' or
+      // 'unhandledRejection'. The host may branch on it, so it has to be
+      // handed on unchanged.
       for (const listener of inherited) {
-        try { listener(error) } catch { /* the handler of the host decides what happens next */ }
+        try { listener(error, event) } catch { /* the handler of the host decides what happens next */ }
       }
     }
     process.removeAllListeners(event)
@@ -818,7 +884,12 @@ export function apply(ctx) {
   // One language server must never take the whole IDE down with it. The
   // boundary is an effect, so it goes away with the plugin and leaves no
   // listener behind in the host.
-  ctx.effect(() => installErrorBoundary(ctx, () => {
+  ctx.effect(() => installErrorBoundary(ctx, (error) => {
+    // Only a fault of the LANGUAGE SERVERS takes the semantic features away.
+    // A fault in the terminal or in the file operations has nothing to do
+    // with them: degrading every server because of it would take a feature
+    // away for a reason the user cannot see.
+    if (!isLspFault(error)) return
     // The semantic features of the running servers are degraded: the pipe of
     // a language server is broken, so its session is not usable any more and
     // the status bar must not keep saying "ready".
