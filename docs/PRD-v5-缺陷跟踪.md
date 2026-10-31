@@ -20,8 +20,9 @@
 | **D6** | `tests/perf-cold-workspace.test.mjs:123` 偶发失败 | 低 | ✅ 已修（定时器泄漏） | 全量 `npm test` 连跑 |
 | **D7** | 重启后的语言服务器**静默死亡不被察觉** | 中 | ✅ 已修 | `tests/lsp-handshake.test.mjs` 第 4 例 |
 | **D8** | 已索引的仓库**永远显示「正在更新索引…」** | 中 | ✅ 已修 | `tests/lsp-status-progress.test.mjs` |
+| **D9** | 悬停卡片 / 补全弹窗**文字看不清**；Ctrl+悬浮**没有跳转提示** | 中 | ✅ 已修 | `tests/ctrl-hover.test.mjs` |
 
-**当前测试数：516 项 / 516 通过 / 0 失败**（基线 329 + 本轮 187）。
+**当前测试数：523 项 / 523 通过 / 0 失败**（基线 329 + 本轮 194）。
 
 ---
 
@@ -277,9 +278,54 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 
 ---
 
-## 9. 交接清单
+## 9. D9 —— 悬停卡片 / 补全弹窗看不清，Ctrl+悬浮没有提示
 
-### 9.1 已完成
+### 10.1 三个现象
+
+1. **悬停卡片（hover）文字几乎看不见**：浅色卡片上是很浅的灰字。
+2. **补全弹窗选中行看不清**：选中那条几乎看不见字。
+3. **Ctrl+悬浮没有任何效果**：能跳转，但按 Ctrl 前后视觉上没区别，用户不知道该点哪里。
+
+### 10.2 根因
+
+**悬停卡片**：样式写的是 `.cm-lsp-hover`，但库实际渲染的类名是
+**`.cm-lsp-hover-tooltip`**（`@codemirror/lsp-client` 的 `hoverTooltips` 里
+`showTooltip({ class: "cm-lsp-hover-tooltip ..." })`）。那条规则**一条都没匹配上**，
+卡片就用了库自己的浅色主题 —— 浅底浅字。
+
+**补全弹窗**：库的 `@codemirror/autocomplete` 用 `&light` / `&dark` 变体给选中行上色；
+我们的编辑器主题是 `EditorView.theme(..., { dark: true })`（写死的），于是走 `&dark`
+分支上了深色底，而我们的规则又把前景色设成 `var(--iwb-fg)` —— 在用户的**浅色皮肤**下
+那是深色 → **深底深字**。同时 `styles.js` 和 `CodeEditor.jsx` 的 THEME 各写了一份规则，
+优先级互相打架，结果不可预测。
+
+**Ctrl+悬浮**：根本没实现，只做了点击。
+
+### 10.3 修复
+
+| 位置 | 改动 |
+|---|---|
+| `src/client/CodeEditor.jsx` | 把补全弹窗的颜色规则**全部移出** THEME（那里只留 `.cm-panels`），交给 `styles.js` 一处负责 —— 库就赢不了优先级之争。 |
+| `src/client/styles.js` | 用**正确的类名**重写：`.cm-tooltip.cm-lsp-hover-tooltip`、`.cm-lsp-signature-tooltip`、`.cm-lsp-documentation`、`.cm-lsp-completion-documentation`。底色、前景色、边框、阴影全部来自工作台令牌，并对会打架的属性加 `!important`。选中行统一为**强调色底 + 白字**（浅色/深色皮肤都可读）。 |
+| `src/client/styles.js` | JSDoc 和签名帮助是按**深色**调的语法高亮，所以给这些 `pre` / `code` 一个深色代码块底（两种皮肤下都成立），既像代码又能看清。 |
+| `src/client/CodeEditor.jsx` | 新增 Ctrl+悬浮提示：`StateField` 持有一个 `Decoration.mark`（类名 `iwb-ctrl-hover-symbol`），`mousemove` / `mouseleave` / 窗口的 `keydown` / `keyup` / `blur` 一起维护它；装饰会随文档变更 `map` 到新位置，所以打字时也还在那个词上。 |
+| `src/client/styles.js` | `.iwb-ctrl-hover-symbol`：强调色 + 下划线 + `cursor: pointer`，颜色对标记及其子节点都强制，压过 token 的语法色。 |
+
+### 10.4 验证
+
+```powershell
+node --test tests/ctrl-hover.test.mjs      # 7 个用例
+```
+
+覆盖：标识符范围的精确 from/to、注释/空格/数字不命中、悬停提示初始为空、
+设置/清除装饰、装饰带正确的类名、文档在前面插入字符后装饰跟着位移、
+以及**样式表确实用了库真实渲染的类名**（这条是防回归的关键）。
+
+---
+
+## 10. 交接清单
+
+### 10.1 已完成
 
 - [x] D1 崩溃（结构性的三层修复 + 复现脚本）
 - [x] D2 索引中卡死（握手缓冲 + 握手缓存 + worker 去重）
@@ -289,7 +335,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 - [x] D6 测试抖动
 - [x] D7 重启后静默死亡
 
-### 9.2 接手者要做
+### 10.2 接手者要做
 
 1. **重装并实测**：插件是 `link:` 安装（profile 的 `package.json` 里指向工作目录），
    改完代码后 `plugin_manager set_bundle dsh-ide-workbench enabled=false` 再 `true`，
@@ -303,7 +349,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
    - 空闲 10 分钟 → 进程退出、内存回落。
 3. **跑全量**：`npm test`（512 项）+ `npm run build`。
 
-### 9.3 复现脚本（在 `docs/bench/`，不进 npm 包）
+### 10.3 复现脚本（在 `docs/bench/`，不进 npm 包）
 
 | 脚本 | 作用 |
 |---|---|
@@ -311,7 +357,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 | `node docs\bench\repro-order.mjs` | 复现并验证 D2（浏览器真实顺序：先连 socket、后启动服务器） |
 | `node docs\bench\crash-recovery.mjs` | 复现并验证 D1（语言服务器崩溃 → 宿主必须活着） |
 
-### 9.4 新增的回归测试
+### 10.4 新增的回归测试
 
 | 文件 | 用例 | 覆盖 |
 |---|---|---|
@@ -319,7 +365,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 | `tests/lsp-error-toast.test.mjs` | 6 | 错误走 toast 而不是库的面板、toast 文案带 message+detail、store 没有 toast / toast 抛错时回落到库、只重定向一次 |
 | `tests/plugin-mount.test.mjs` | 4 | 插件能挂上路由与 WS、每个 effect 都交回 Cordis 接受的 disposer |
 
-### 9.5 交接时容易踩的坑
+### 10.5 交接时容易踩的坑
 
 - **`ctx.subprocess.spawn()` 是同步的**，返回句柄而不是 Promise。写假件时别写成 `async`，
   否则 `handle.done` 变成 undefined，会被误判成「进程以 code null 退出」。
