@@ -364,6 +364,9 @@ export const CSS = `
 .iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty { cursor: pointer; border-radius: 3px; }
 .iwb-tree-twisty.iwb-tree-twisty-click:hover,
 .iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .16); }
+/* The host's file glyph is an inline SVG in a flex row: keep it from being
+   squeezed when a long name squeezes the row. */
+.iwb-file-icon { flex: 0 0 auto; }
 .iwb-tree-name { overflow: hidden; text-overflow: ellipsis; }
 .iwb-tree-name.iwb-dir { font-weight: 500; }
 .iwb-tree-row.iwb-git-untracked .iwb-tree-name { color: var(--iwb-git-untracked); }

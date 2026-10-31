@@ -16,61 +16,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { IconOutline } from './icons.jsx'
 import { extractHeadings } from './markdown-outline.js'
 import { DomFindBar } from './DomFindBar.jsx'
+import { useHostPrimitives } from './host-primitives.js'
 
-let markdownComponent = null
-let primitivesLoading = null
-let primitivesLoader = null
-const primitivesListeners = new Set()
-
-try {
-  // The factory `require` resolves the shell's module table synchronously for
-  // baseline modules; a stripped host throws and the async loader below (or
-  // the fallback renderer) takes over.
-  // eslint-disable-next-line no-undef
-  const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
-  markdownComponent = primitives?.MarkdownText ?? null
-} catch {
-  markdownComponent = null
-}
-
-/** Give the fallback path an async resolver (the client `modules` service). */
-export function setPrimitivesLoader(loader) {
-  primitivesLoader = typeof loader === 'function' ? loader : null
-}
-
-function ensurePrimitives() {
-  if (markdownComponent !== null) return Promise.resolve(markdownComponent)
-  if (primitivesLoading !== null) return primitivesLoading
-  if (primitivesLoader === null) return Promise.resolve(null)
-  primitivesLoading = primitivesLoader()
-    .then((module) => {
-      markdownComponent = module?.MarkdownText ?? null
-      for (const listener of primitivesListeners) listener()
-      return markdownComponent
-    })
-    .catch(() => null)
-  return primitivesLoading
-}
-
-/** The DSH markdown component once available (null while loading). */
+/**
+ * The DSH markdown component once available (null while loading).
+ *
+ * The module handle lives in `host-primitives.js`, so the Markdown preview and
+ * the file-type glyphs share one lookup and one async loader.
+ *
+ * @returns {Function|null} the host `MarkdownText` component
+ */
 function useMarkdownComponent() {
-  const [component, setComponent] = useState(markdownComponent)
-  useEffect(() => {
-    if (component !== null) return undefined
-    let alive = true
-    void ensurePrimitives().then((loaded) => {
-      if (alive && loaded !== null) setComponent(() => loaded)
-    })
-    const listener = () => {
-      if (alive && markdownComponent !== null) setComponent(() => markdownComponent)
-    }
-    primitivesListeners.add(listener)
-    return () => {
-      alive = false
-      primitivesListeners.delete(listener)
-    }
-  }, [component])
-  return component
+  const primitives = useHostPrimitives()
+  return primitives?.MarkdownText ?? null
 }
 
 /** Build the nested labels the harness MarkdownText expects. */

@@ -203,7 +203,7 @@ function TabBar({ store, slice }) {
     },
       tab.kind === 'commit'
         ? React.createElement(IconMore, { width: 12, height: 12 })
-        : React.createElement(FileTypeIcon, { name: tab.name, isDir: false, size: 14 }),
+        : React.createElement(FileTypeIcon, { path: tab.name, size: 14 }),
       React.createElement('span', { className: 'iwb-tab-name' }, tab.kind === 'commit' ? tab.hash.slice(0, 8) : tab.name),
       tab.dirty === true
         ? React.createElement('span', { className: 'iwb-tab-dirty', title: t('editor.dirty') })

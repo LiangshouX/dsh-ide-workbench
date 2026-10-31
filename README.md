@@ -153,7 +153,7 @@ src/client/*.jsx            工具窗与编辑器 UI
 src/client/chat-bridge.js   发送到聊天框：@ 引用与代码块
 ```
 
-提交前请重新构建 `dist/client.js` 并跑完 `npm test`（当前 180 条测试）。
+提交前请重新构建 `dist/client.js` 并跑完 `npm test`（当前 324 条测试）。
 
 README 的截图与徽标条存放在 `docs/readme/`，通过 `main` 分支的 raw URL 引用——DSH 与 npm 的 Markdown 渲染都不解析相对图片路径，raw URL 同时兼容 GitHub、IDEA 与 Typora。顶部的 `badges.svg` 把 npm / 许可证 / DSH / 平台合成一张图，因为 DSH 会把独立图片渲染成块级元素，四个单独的徽章会各占一行。截图源文件在 `qa-screenshots/`（工作区仓库），修改后按 720px 宽导出并更新 `docs/readme/`。
 

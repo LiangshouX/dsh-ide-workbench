@@ -69,7 +69,7 @@ function FileRow({ store, selected, entry, checked, onOpen, onMenu }) {
       onClick: event => event.stopPropagation(),
       onChange: () => { void store.toggleCommitEntry(entry) },
     }),
-    React.createElement(FileTypeIcon, { name, size: 14 }),
+    React.createElement(FileTypeIcon, { path: name, size: 14 }),
     React.createElement('span', { className: 'iwb-file-name', style: entry.conflict === true ? { color: 'var(--iwb-error)' } : undefined }, name),
     parent !== '' ? React.createElement('span', { className: 'iwb-file-dir' }, parent) : null,
     React.createElement('span', { className: 'iwb-file-status' }, letter),

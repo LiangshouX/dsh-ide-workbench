@@ -1,9 +1,13 @@
 /**
  * Inline SVG icon set (16px grid, stroke = currentColor unless the artwork is
  * a colored file-type mark). No external icon font or package.
+ *
+ * The file-type marks are the exception: they come from the harness itself
+ * (`@deepseek-ai/dsh-client-ui-primitives`), so the tree wears the same brand
+ * logos as the DSH file explorer and `dsh-better-sidebar`.
  */
 import React from 'react'
-import { fileTypeOf } from './file-types.js'
+import { useHostPrimitives } from './host-primitives.js'
 
 const S = { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': true }
 
@@ -149,235 +153,72 @@ export function IconBranch(props = {}) {
   ], props)
 }
 
-export function IconFolder(props = {}) {
-  const open = props.open === true
-  return svg([
-    React.createElement('path', {
-      key: 'a',
-      d: open
-        ? 'M1.7 4.3h4.1l1.2 1.5h7.2l-1.7 7H2.6z'
-        : 'M1.7 4.1h4.2l1.2 1.5h7.2v7.1H1.7z',
-      fill: 'none',
-      stroke: 'currentColor',
-      strokeWidth: 1.3,
-      strokeLinejoin: 'round',
-    }),
-  ], {
-    width: props.width ?? props.size ?? 16,
-    height: props.height ?? props.size ?? 16,
-    style: { color: 'var(--iwb-icon-folder, #d7a24a)', ...(props.style ?? {}) },
-  })
-}
-
-/** Visual family of one file name — see `file-types.js`. */
-
-const FILE_TINTS = {
-  java: '#b0722e',
-  ts: '#3178c6',
-  tsx: '#3178c6',
-  js: '#c99700',
-  jsx: '#c99700',
-  python: '#3572a5',
-  go: '#0090b0',
-  rust: '#b35a2a',
-  json: '#4b5563',
-  markdown: '#2f6fd0',
-  html: '#d84315',
-  css: '#7b1fa2',
-  sql: '#bf6a00',
-  shell: '#2e7d32',
-  config: '#6f42c1',
-  image: '#558b2f',
-  svg: '#8e44ad',
-  pdf: '#c62828',
-  archive: '#8d6e63',
-  lock: '#2e7d4f',
-  git: '#c2185b',
-  docker: '#0d6efd',
-  env: '#8d6e63',
-  build: '#558b2f',
-  c: '#1565c0',
-  cpp: '#5e35b1',
-  csharp: '#2e7d4f',
-  ruby: '#c62828',
-  php: '#5e35b1',
-  kotlin: '#7b1fa2',
-  swift: '#b35a2a',
-  vue: '#2e8b57',
-  xml: '#558b2f',
-  log: '#6b7280',
-  file: 'var(--iwb-icon-file, #6b7280)',
-}
-
-function monoLabel(text, tint, size = 4.6) {
-  return React.createElement('text', {
-    x: 7.95,
-    y: 12.7,
-    textAnchor: 'middle',
-    fontSize: size,
-    fontWeight: 700,
-    fill: tint,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-  }, text)
-}
-
-/** The type mark drawn inside the page's lower half. */
-function typeGlyph(kind, tint) {
-  switch (kind) {
-    case 'java':
-      return [
-        React.createElement('path', { key: 'cup', d: 'M5.4 9.5h4.3v1.7a2.1 2.1 0 0 1-2.1 2.1h-.1a2.1 2.1 0 0 1-2.1-2.1z', fill: 'none', stroke: tint, strokeWidth: 1.15, strokeLinejoin: 'round' }),
-        React.createElement('path', { key: 'handle', d: 'M9.7 10.1h.6a1.05 1.05 0 0 1 0 2.1h-.6', fill: 'none', stroke: tint, strokeWidth: 1.1 }),
-        React.createElement('path', { key: 'saucer', d: 'M4.7 13.5h6.5', stroke: tint, strokeWidth: 1.2, strokeLinecap: 'round' }),
-        React.createElement('path', { key: 'steam1', d: 'M6.4 8.7c.35-.55-.2-.9-.1-1.35', stroke: tint, strokeWidth: 1, strokeLinecap: 'round', fill: 'none' }),
-        React.createElement('path', { key: 'steam2', d: 'M8.2 8.7c.35-.55-.2-.9-.1-1.35', stroke: tint, strokeWidth: 1, strokeLinecap: 'round', fill: 'none' }),
-      ]
-    case 'python':
-      return [
-        React.createElement('path', { key: 's1', d: 'M5.2 9.7c1.65 0 1.65 1.15 2.9 1.15s1.25-1.15 2.9-1.15', fill: 'none', stroke: '#5aa9dd', strokeWidth: 1.5, strokeLinecap: 'round' }),
-        React.createElement('path', { key: 's2', d: 'M5.2 11.5c1.65 0 1.65 1.15 2.9 1.15s1.25-1.15 2.9-1.15', fill: 'none', stroke: '#e8c244', strokeWidth: 1.5, strokeLinecap: 'round' }),
-        React.createElement('circle', { key: 'eye1', cx: 5.3, cy: 9.7, r: 0.55, fill: '#e8c244' }),
-        React.createElement('circle', { key: 'eye2', cx: 10.8, cy: 12.65, r: 0.55, fill: '#5aa9dd' }),
-      ]
-    case 'markdown':
-      return [
-        React.createElement('path', { key: 'm', d: 'M4.9 12.6V9.3l1.55 1.8 1.55-1.8v3.3', fill: 'none', stroke: tint, strokeWidth: 1.25, strokeLinecap: 'round', strokeLinejoin: 'round' }),
-        React.createElement('path', { key: 'a', d: 'M10.5 9.3v3.3M9.3 11.4l1.2 1.25 1.2-1.25', fill: 'none', stroke: tint, strokeWidth: 1.15, strokeLinecap: 'round', strokeLinejoin: 'round' }),
-      ]
-    case 'json':
-      return [monoLabel('{}', tint, 5.2)]
-    case 'ts':
-      return [monoLabel('TS', tint, 4.4)]
-    case 'tsx':
-      return [
-        monoLabel('TS', tint, 4),
-        React.createElement('circle', { key: 'atom', cx: 10.7, cy: 9.4, r: 0.55, fill: tint }),
-      ]
-    case 'js':
-      return [monoLabel('JS', '#b9962c', 4.4)]
-    case 'jsx':
-      return [
-        React.createElement('circle', { key: 'atom', cx: 7.95, cy: 10.9, r: 0.7, fill: '#e8c244' }),
-        React.createElement('ellipse', { key: 'o1', cx: 7.95, cy: 10.9, rx: 2.6, ry: 1.05, fill: 'none', stroke: '#e8c244', strokeWidth: 0.8, transform: 'rotate(30 7.95 10.9)' }),
-        React.createElement('ellipse', { key: 'o2', cx: 7.95, cy: 10.9, rx: 2.6, ry: 1.05, fill: 'none', stroke: '#e8c244', strokeWidth: 0.8, transform: 'rotate(-30 7.95 10.9)' }),
-      ]
-    case 'go':
-      return [monoLabel('GO', tint, 4.2)]
-    case 'rust':
-      return [
-        React.createElement('circle', { key: 'gear', cx: 7.95, cy: 11, r: 2.2, fill: 'none', stroke: tint, strokeWidth: 1.1, strokeDasharray: '1.1 0.8' }),
-        React.createElement('text', { key: 'r', x: 7.95, y: 12.6, textAnchor: 'middle', fontSize: 4.4, fontWeight: 700, fill: tint, fontFamily: 'ui-monospace, monospace' }, 'R'),
-      ]
-    case 'html':
-      return [monoLabel('</>', tint, 4.1)]
-    case 'css':
-      return [monoLabel('#', tint, 6.2)]
-    case 'sql':
-      return [
-        React.createElement('ellipse', { key: 'top', cx: 7.95, cy: 9.6, rx: 2.8, ry: 0.95, fill: 'none', stroke: tint, strokeWidth: 1 }),
-        React.createElement('path', { key: 'side', d: 'M5.15 9.6v2.7c0 .55 1.25 1 2.8 1s2.8-.45 2.8-1V9.6', fill: 'none', stroke: tint, strokeWidth: 1 }),
-        React.createElement('path', { key: 'mid', d: 'M5.15 11c0 .55 1.25 1 2.8 1s2.8-.45 2.8-1', fill: 'none', stroke: tint, strokeWidth: 0.85 }),
-      ]
-    case 'shell':
-      return [monoLabel('>_', '#4f9a52', 4.6)]
-    case 'config':
-      return [monoLabel('Y', tint, 5.6)]
-    case 'image':
-      return [
-        React.createElement('rect', { key: 'frame', x: 4.6, y: 9, width: 6.7, height: 4.6, rx: 0.7, fill: 'none', stroke: tint, strokeWidth: 1 }),
-        React.createElement('circle', { key: 'sun', cx: 6.2, cy: 10.4, r: 0.7, fill: tint }),
-        React.createElement('path', { key: 'mount', d: 'M4.9 13.2l1.9-2.2 1.4 1.5 1.2-1.2 1.6 1.9', fill: 'none', stroke: tint, strokeWidth: 1, strokeLinejoin: 'round' }),
-      ]
-    case 'svg':
-      return [
-        React.createElement('path', { key: 'a', d: 'M5 11.6c.4-2 1.2-2.8 1.6-1.4.4 1.4 1.2.6 1.6-1.4', fill: 'none', stroke: tint, strokeWidth: 1.1, strokeLinecap: 'round' }),
-        React.createElement('circle', { key: 'b', cx: 9.4, cy: 9.7, r: 0.9, fill: 'none', stroke: tint, strokeWidth: 1 }),
-      ]
-    case 'pdf':
-      return [monoLabel('PDF', tint, 3.7)]
-    case 'archive':
-      return [
-        React.createElement('rect', { key: 'box', x: 4.6, y: 9, width: 6.7, height: 4.6, rx: 0.6, fill: 'none', stroke: tint, strokeWidth: 1 }),
-        React.createElement('path', { key: 'zip', d: 'M8 9v4.6', stroke: tint, strokeWidth: 1, strokeDasharray: '1 0.9' }),
-      ]
-    case 'lock':
-      return [
-        React.createElement('rect', { key: 'body', x: 4.9, y: 10.5, width: 6.1, height: 3.3, rx: 0.7, fill: 'none', stroke: tint, strokeWidth: 1.1 }),
-        React.createElement('path', { key: 'shackle', d: 'M6.1 10.4V9.2a1.85 1.85 0 0 1 3.7 0v1.2', fill: 'none', stroke: tint, strokeWidth: 1.1 }),
-        React.createElement('circle', { key: 'key', cx: 7.95, cy: 12.1, r: 0.55, fill: tint }),
-      ]
-    case 'git':
-      return [
-        React.createElement('circle', { key: 'n1', cx: 6, cy: 9.4, r: 0.8, fill: 'none', stroke: tint, strokeWidth: 0.9 }),
-        React.createElement('circle', { key: 'n2', cx: 6, cy: 13.2, r: 0.8, fill: 'none', stroke: tint, strokeWidth: 0.9 }),
-        React.createElement('circle', { key: 'n3', cx: 10, cy: 10.9, r: 0.8, fill: 'none', stroke: tint, strokeWidth: 0.9 }),
-        React.createElement('path', { key: 'ln', d: 'M6 10.2v2.2M6 11.2c0-1.3.9-2 2.1-2h1.1', fill: 'none', stroke: tint, strokeWidth: 0.9 }),
-      ]
-    case 'docker':
-      return [
-        React.createElement('rect', { key: 'b1', x: 5, y: 10.7, width: 1.9, height: 1.6, fill: 'none', stroke: tint, strokeWidth: 0.9 }),
-        React.createElement('rect', { key: 'b2', x: 7.2, y: 10.7, width: 1.9, height: 1.6, fill: 'none', stroke: tint, strokeWidth: 0.9 }),
-        React.createElement('rect', { key: 'b3', x: 7.2, y: 8.9, width: 1.9, height: 1.5, fill: 'none', stroke: tint, strokeWidth: 0.9 }),
-        React.createElement('path', { key: 'w', d: 'M4.9 13.4c2.2.7 4.6.4 5.9-.5 1-.7 1.4-1.6 1.4-1.6', fill: 'none', stroke: tint, strokeWidth: 0.9, strokeLinecap: 'round' }),
-      ]
-    case 'env':
-      return [
-        React.createElement('circle', { key: 'ring', cx: 6.2, cy: 10.3, r: 1.1, fill: 'none', stroke: tint, strokeWidth: 1.1 }),
-        React.createElement('path', { key: 'stem', d: 'M7.2 11.2l2.8 2.6M9.1 13l.9.9M9.9 12.2l.9.9', fill: 'none', stroke: tint, strokeWidth: 1, strokeLinecap: 'round' }),
-      ]
-    case 'build':
-      return [
-        React.createElement('path', { key: 'wrench', d: 'M5 12.9l4.7-4.7M8.9 7.2a1.7 1.7 0 1 1 2.3 2.3', fill: 'none', stroke: tint, strokeWidth: 1.1, strokeLinecap: 'round' }),
-      ]
-    case 'c':
-      return [monoLabel('C', tint, 5.8)]
-    case 'cpp':
-      return [monoLabel('C++', tint, 3.7)]
-    case 'csharp':
-      return [monoLabel('C#', tint, 4.2)]
-    case 'ruby':
-      return [
-        React.createElement('path', { key: 'gem', d: 'M5.3 9.1h5.3l1 1.1-3.65 3.6-3.65-3.6z', fill: 'none', stroke: tint, strokeWidth: 1, strokeLinejoin: 'round' }),
-        React.createElement('path', { key: 'cut', d: 'M5.3 10.2h5.3', stroke: tint, strokeWidth: 0.9 }),
-      ]
-    case 'php':
-      return [monoLabel('php', tint, 3.9)]
-    case 'kotlin':
-      return [monoLabel('K', tint, 5.8)]
-    case 'swift':
-      return [monoLabel('S', tint, 5.6)]
-    case 'vue':
-      return [monoLabel('V', tint, 5.6)]
-    case 'xml':
-      return [monoLabel('<>', tint, 4.6)]
-    case 'log':
-      return [
-        React.createElement('path', { key: 'l1', d: 'M5.2 9.6h5.6M5.2 11.2h4.2M5.2 12.8h3', stroke: tint, strokeWidth: 0.95, strokeLinecap: 'round' }),
-      ]
-    default: {
-      // Unknown extension: a couple of text lines (generic file).
-      return [
-        React.createElement('path', { key: 'l1', d: 'M5.4 9.4h5.1M5.4 11.2h3.8M5.4 13h4.6', stroke: tint, strokeWidth: 0.9, strokeLinecap: 'round' }),
-      ]
+/**
+ * The harness's own file-type artwork.
+ *
+ * `@deepseek-ai/dsh-client-ui-primitives` ships `FileTypeIcon`: the brand
+ * marks (React, Java, TypeScript, C, C++, …) that the DSH file explorer and
+ * `dsh-better-sidebar` draw in front of a file, plus a category-coloured
+ * sheet for everything the brands do not claim. Reusing it keeps the
+ * workbench on the host's `--dsw-*` palette, so the tree follows the skin
+ * instead of carrying a second, hard-coded colour set.
+ *
+ * The host draws ONE folder glyph — whether a directory is expanded is carried
+ * by the row's chevron, exactly like `dsh-better-sidebar`. `kind: 'folder'`
+ * asks for it outright; a file is classified from its path.
+ *
+ * @param {object} props the host's own props: `path` or `kind`, plus `size`
+ * @returns {React.ReactElement} the host glyph, or a neutral local fallback
+ */
+export function FileTypeIcon(props = {}) {
+  const { path, kind, size = 16 } = props
+  const primitives = useHostPrimitives()
+  const HostIcon = primitives?.FileTypeIcon ?? null
+  if (HostIcon !== null) {
+    const className = typeof props.className === 'string' && props.className !== ''
+      ? `iwb-file-icon ${props.className}`
+      : 'iwb-file-icon'
+    // The host reads `path` with the `in` operator, so a present-but-empty
+    // path would classify `undefined` and throw. Send exactly one of the two,
+    // and only when it can actually classify something.
+    if (typeof kind === 'string' && kind !== '') {
+      return React.createElement(HostIcon, { kind, size, className })
+    }
+    if (typeof path === 'string' && path !== '') {
+      return React.createElement(HostIcon, { path, size, className })
     }
   }
+  return React.createElement(FallbackFileGlyph, { kind, size })
 }
 
-export function FileTypeIcon(props = {}) {
-  const name = typeof props.name === 'string' ? props.name : ''
-  if (props.isDir === true) return React.createElement(IconFolder, { open: props.open === true, size: props.size ?? 15 })
-  const kind = fileTypeOf(name)
-  const tint = FILE_TINTS[kind] ?? FILE_TINTS.file
-  const size = props.size ?? 16
-  // Rounded tile + glyph, matching the DSH sidebar's badge style.
-  return svg([
-    React.createElement('rect', {
-      key: 'bg',
-      x: 1.4, y: 1.4, width: 13.2, height: 13.2, rx: 3.2,
-      fill: tint, fillOpacity: 0.16, stroke: tint, strokeOpacity: 0.28, strokeWidth: 0.6,
-    }),
-    React.createElement('g', { key: 'glyph', transform: 'translate(-4.2 -8.2) scale(1.5)' }, ...typeGlyph(kind, tint)),
-  ], { width: size, height: size })
+/**
+ * The neutral glyphs used when the host primitives are unreachable.
+ *
+ * They ride `currentColor`, so they follow the row's own colour instead of
+ * inventing a palette the host does not know about.
+ *
+ * @param {object} props `kind` and the square edge in px
+ * @returns {React.ReactElement} the fallback glyph
+ */
+function FallbackFileGlyph({ kind, size }) {
+  const common = {
+    xmlns: 'http://www.w3.org/2000/svg',
+    viewBox: '0 0 16 16',
+    width: size,
+    height: size,
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.3,
+    strokeLinejoin: 'round',
+    'aria-hidden': true,
+    className: 'iwb-file-icon',
+  }
+  return kind === 'folder'
+    ? React.createElement('svg', common,
+      React.createElement('path', { key: 'a', d: 'M1.7 4.1h4.2l1.2 1.5h7.2v7.1H1.7z' }))
+    : React.createElement('svg', common,
+      React.createElement('path', { key: 'a', d: 'M4 2.4h5l3 3v8.2H4z' }),
+      React.createElement('path', { key: 'b', d: 'M9 2.4v3h3' }))
 }
 
 export function IconLock(props = {}) {

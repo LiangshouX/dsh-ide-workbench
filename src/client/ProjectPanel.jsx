@@ -338,8 +338,8 @@ const TreeRow = React.memo(function TreeRow({
         }, open ? React.createElement(ChevronDown, null) : React.createElement(ChevronRight, null))
       : React.createElement('span', { className: 'iwb-tree-twisty' }),
     isDir
-      ? React.createElement(FileTypeIcon, { name: entry.name, isDir: true, open, size: 15 })
-      : React.createElement(FileTypeIcon, { name: entry.name, size: 15 }),
+      ? React.createElement(FileTypeIcon, { kind: 'folder', size: 15 })
+      : React.createElement(FileTypeIcon, { path: entry.name, size: 15 }),
     isDir
       ? React.createElement('span', { className: 'iwb-tree-name iwb-dir' }, entry.name)
       : (editing

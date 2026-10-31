@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { useWorkbench } from './hooks.js'
-import { IconFolder, IconGit, IconGear, IconRefresh, IconTerminal, StripeIcon } from './icons.jsx'
+import { FileTypeIcon, IconGit, IconGear, IconRefresh, IconTerminal, StripeIcon } from './icons.jsx'
 import { ProjectPanel } from './ProjectPanel.jsx'
 import { CommitPanel } from './CommitPanel.jsx'
 import { GitPanel, RepoPopover } from './GitPanel.jsx'
@@ -359,7 +359,7 @@ function ProjectPicker({ store, state }) {
     React.createElement('span', { className: 'iwb-project-choice-icon' },
       project.isRepo === true
         ? React.createElement(IconGit, { width: 15, height: 15 })
-        : React.createElement(IconFolder, { size: 15 }),
+        : React.createElement(FileTypeIcon, { kind: 'folder', size: 15 }),
     ),
     React.createElement('span', { className: 'iwb-project-choice-text' },
       React.createElement('b', null, project.name),

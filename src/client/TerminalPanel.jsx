@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { wsUrl, call } from './api.js'
-import { IconFolder, IconPlus, IconTerminal } from './icons.jsx'
+import { FileTypeIcon, IconPlus, IconTerminal } from './icons.jsx'
 import { dirName } from './util.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 
@@ -318,7 +318,7 @@ export function TerminalPanel({ store, state, visible = true }) {
           if (active?.kind === 'file') store.addTerminal({ cwd: dirName(active.path) })
           else store.addTerminal()
         },
-      }, React.createElement(IconFolder, { width: 13, height: 13 })),
+      }, React.createElement(FileTypeIcon, { kind: 'folder', size: 13 })),
       React.createElement('span', { style: { flex: 1 } }),
       React.createElement('span', { style: { color: 'var(--iwb-muted)', fontSize: 11, marginRight: 6 } },
         activeKey !== null ? (sessions.find(session => session.key === activeKey)?.cwd ?? '') : '',

@@ -38,7 +38,7 @@ __export(index_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(index_exports);
-var import_react18 = __toESM(require("react"), 1);
+var import_react19 = __toESM(require("react"), 1);
 
 // node_modules/@xterm/xterm/css/xterm.css
 var xterm_default = `/**
@@ -1248,128 +1248,6 @@ async function call(method, payload = {}, signal) {
 }
 
 // src/client/file-types.js
-function fileTypeOf(name2) {
-  const lower = String(name2 ?? "").toLowerCase();
-  if (lower === "dockerfile" || lower.startsWith("dockerfile.") || lower === "docker-compose.yml" || lower === "docker-compose.yaml") return "docker";
-  if (lower === ".gitignore" || lower === ".gitattributes" || lower === ".gitmodules" || lower === ".gitkeep") return "git";
-  if (lower === ".env" || lower.startsWith(".env.")) return "env";
-  if (lower === "package-lock.json" || lower === "yarn.lock" || lower === "pnpm-lock.yaml" || lower.endsWith(".lock")) return "lock";
-  if (lower === "makefile" || lower === "cmakelists.txt") return "build";
-  const dot3 = lower.lastIndexOf(".");
-  const ext = dot3 < 0 ? "" : lower.slice(dot3);
-  switch (ext) {
-    case ".java":
-      return "java";
-    case ".ts":
-    case ".mts":
-    case ".cts":
-      return "ts";
-    case ".tsx":
-      return "tsx";
-    case ".js":
-    case ".mjs":
-    case ".cjs":
-      return "js";
-    case ".jsx":
-      return "jsx";
-    case ".py":
-    case ".pyw":
-    case ".pyi":
-      return "python";
-    case ".go":
-      return "go";
-    case ".rs":
-      return "rust";
-    case ".json":
-    case ".jsonc":
-    case ".json5":
-      return "json";
-    case ".md":
-    case ".markdown":
-    case ".mdx":
-      return "markdown";
-    case ".html":
-    case ".htm":
-      return "html";
-    case ".css":
-    case ".scss":
-    case ".sass":
-    case ".less":
-      return "css";
-    case ".sql":
-      return "sql";
-    case ".sh":
-    case ".bash":
-    case ".zsh":
-    case ".fish":
-    case ".ps1":
-    case ".psm1":
-    case ".bat":
-    case ".cmd":
-      return "shell";
-    case ".yml":
-    case ".yaml":
-    case ".toml":
-    case ".ini":
-    case ".properties":
-    case ".conf":
-      return "config";
-    case ".png":
-    case ".jpg":
-    case ".jpeg":
-    case ".gif":
-    case ".webp":
-    case ".bmp":
-    case ".ico":
-    case ".avif":
-      return "image";
-    case ".svg":
-      return "svg";
-    case ".pdf":
-      return "pdf";
-    case ".zip":
-    case ".tar":
-    case ".gz":
-    case ".tgz":
-    case ".7z":
-    case ".rar":
-    case ".bz2":
-    case ".xz":
-      return "archive";
-    case ".c":
-    case ".h":
-      return "c";
-    case ".cpp":
-    case ".cc":
-    case ".cxx":
-    case ".hpp":
-    case ".hh":
-    case ".hxx":
-      return "cpp";
-    case ".cs":
-      return "csharp";
-    case ".rb":
-      return "ruby";
-    case ".php":
-      return "php";
-    case ".kt":
-    case ".kts":
-      return "kotlin";
-    case ".swift":
-      return "swift";
-    case ".vue":
-      return "vue";
-    case ".xml":
-    case ".xsl":
-    case ".xsd":
-    case ".plist":
-      return "xml";
-    case ".log":
-      return "log";
-    default:
-      return "file";
-  }
-}
 function isMarkdownFile(name2) {
   return /\.(md|markdown|mdx)$/i.test(String(name2 ?? ""));
 }
@@ -4835,7 +4713,7 @@ var StoreCache = class {
 };
 
 // src/client/Workbench.jsx
-var import_react17 = __toESM(require("react"), 1);
+var import_react18 = __toESM(require("react"), 1);
 
 // src/client/hooks.js
 var import_react = require("react");
@@ -4874,35 +4752,82 @@ function useStoreSlice(store, selector, isEqual = Object.is) {
 }
 
 // src/client/icons.jsx
-var import_react2 = __toESM(require("react"), 1);
+var import_react3 = __toESM(require("react"), 1);
+
+// src/client/host-primitives.js
+var import_react2 = require("react");
+var primitives = null;
+var loading = null;
+var loader = null;
+var listeners = /* @__PURE__ */ new Set();
+try {
+  primitives = require("@deepseek-ai/dsh-client-ui-primitives") ?? null;
+} catch {
+  primitives = null;
+}
+function setPrimitivesLoader(next) {
+  loader = typeof next === "function" ? next : null;
+}
+function ensurePrimitives() {
+  if (primitives !== null) return Promise.resolve(primitives);
+  if (loading !== null) return loading;
+  if (loader === null) return Promise.resolve(null);
+  loading = loader().then((module2) => {
+    primitives = module2 ?? null;
+    for (const listener of listeners) listener();
+    return primitives;
+  }).catch(() => null);
+  return loading;
+}
+function useHostPrimitives() {
+  const [module2, setModule] = (0, import_react2.useState)(primitives);
+  (0, import_react2.useEffect)(() => {
+    if (module2 !== null) return void 0;
+    let alive = true;
+    void ensurePrimitives().then((loaded) => {
+      if (alive && loaded !== null) setModule(loaded);
+    });
+    const listener = () => {
+      if (alive && primitives !== null) setModule(primitives);
+    };
+    listeners.add(listener);
+    return () => {
+      alive = false;
+      listeners.delete(listener);
+    };
+  }, [module2]);
+  return module2;
+}
+
+// src/client/icons.jsx
 var S = { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 16 16", width: 16, height: 16, "aria-hidden": true };
 function svg(children, props = {}) {
-  return import_react2.default.createElement("svg", { ...S, ...props }, children);
+  return import_react3.default.createElement("svg", { ...S, ...props }, children);
 }
 function path(d, extra = {}) {
-  return import_react2.default.createElement("path", { key: extra.key ?? "p", d, fill: "none", stroke: "currentColor", strokeWidth: 1.35, strokeLinecap: "round", strokeLinejoin: "round", ...extra });
+  return import_react3.default.createElement("path", { key: extra.key ?? "p", d, fill: "none", stroke: "currentColor", strokeWidth: 1.35, strokeLinecap: "round", strokeLinejoin: "round", ...extra });
 }
 function IconProject(props = {}) {
   return svg([
-    import_react2.default.createElement("path", { key: "a", d: "M1.8 4.2h4l1.3 1.6h7.1v6.9H1.8z", fill: "none", stroke: "currentColor", strokeWidth: 1.35, strokeLinejoin: "round" }),
+    import_react3.default.createElement("path", { key: "a", d: "M1.8 4.2h4l1.3 1.6h7.1v6.9H1.8z", fill: "none", stroke: "currentColor", strokeWidth: 1.35, strokeLinejoin: "round" }),
     path("M1.8 7.2h12.4", { key: "b" }),
     path("M4.4 10h2.2", { key: "c" })
   ], props);
 }
 function IconCommit(props = {}) {
   return svg([
-    import_react2.default.createElement("circle", { key: "a", cx: 4, cy: 8, r: 1.8, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    import_react3.default.createElement("circle", { key: "a", cx: 4, cy: 8, r: 1.8, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
     path("M5.8 8h7.6", { key: "b" }),
-    import_react2.default.createElement("circle", { key: "c", cx: 11.4, cy: 8, r: 1.8, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    import_react3.default.createElement("circle", { key: "c", cx: 11.4, cy: 8, r: 1.8, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
     path("M8.8 6.6l1.1 1.1 2-2.2", { key: "d" })
   ], props);
 }
 function IconGit(props = {}) {
   return svg([
-    import_react2.default.createElement("circle", { key: "a", cx: 8, cy: 3.2, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    import_react3.default.createElement("circle", { key: "a", cx: 8, cy: 3.2, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
     path("M8 4.9v3", { key: "b" }),
-    import_react2.default.createElement("circle", { key: "c", cx: 3.6, cy: 11.3, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    import_react2.default.createElement("circle", { key: "d", cx: 12.4, cy: 11.3, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    import_react3.default.createElement("circle", { key: "c", cx: 3.6, cy: 11.3, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    import_react3.default.createElement("circle", { key: "d", cx: 12.4, cy: 11.3, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
     path("M8 7.9L4.2 9.8", { key: "e" }),
     path("M8 7.9l3.8 1.9", { key: "f" }),
     path("M8 7.9v0", { key: "g" })
@@ -4910,14 +4835,14 @@ function IconGit(props = {}) {
 }
 function IconTerminal(props = {}) {
   return svg([
-    import_react2.default.createElement("rect", { key: "a", x: 1.6, y: 2.4, width: 12.8, height: 11.2, rx: 1.6, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    import_react3.default.createElement("rect", { key: "a", x: 1.6, y: 2.4, width: 12.8, height: 11.2, rx: 1.6, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
     path("M4.4 6.2L6.6 8l-2.2 1.8", { key: "b" }),
     path("M8.7 10h2.9", { key: "c" })
   ], props);
 }
 function IconChat(props = {}) {
   return svg([
-    import_react2.default.createElement("path", {
+    import_react3.default.createElement("path", {
       key: "a",
       d: "M2.6 2.8h10.8a1.2 1.2 0 0 1 1.2 1.2v6a1.2 1.2 0 0 1-1.2 1.2H6.8l-3 2.4v-2.4H2.6a1.2 1.2 0 0 1-1.2-1.2v-6a1.2 1.2 0 0 1 1.2-1.2z",
       fill: "none",
@@ -4943,19 +4868,19 @@ function IconPlus(props = {}) {
 }
 function IconSearch(props = {}) {
   return svg([
-    import_react2.default.createElement("circle", { key: "a", cx: 7, cy: 7, r: 4.2, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    import_react3.default.createElement("circle", { key: "a", cx: 7, cy: 7, r: 4.2, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
     path("M10.1 10.1l3.1 3.1", { key: "b" })
   ], props);
 }
 function IconGear(props = {}) {
   return svg([
-    import_react2.default.createElement("circle", { key: "a", cx: 8, cy: 8, r: 2.4, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    import_react3.default.createElement("circle", { key: "a", cx: 8, cy: 8, r: 2.4, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
     path("M8 1.6v1.9M8 12.5v1.9M1.6 8h1.9M12.5 8h1.9M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3", { key: "b" })
   ], props);
 }
 function IconCopy(props = {}) {
   return svg([
-    import_react2.default.createElement("rect", { key: "a", x: 5.4, y: 5.4, width: 8.2, height: 8.2, rx: 1.3, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
+    import_react3.default.createElement("rect", { key: "a", x: 5.4, y: 5.4, width: 8.2, height: 8.2, rx: 1.3, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
     path("M10.6 5.2V3.8c0-.7-.6-1.3-1.3-1.3H3.8c-.7 0-1.3.6-1.3 1.3v5.5c0 .7.6 1.3 1.3 1.3h1.4", { key: "b" })
   ], props);
 }
@@ -4968,257 +4893,69 @@ function IconExternal(props = {}) {
 }
 function IconPin(props = {}) {
   return svg([
-    import_react2.default.createElement("circle", { key: "a", cx: 8, cy: 8, r: 2.2, fill: "currentColor" })
+    import_react3.default.createElement("circle", { key: "a", cx: 8, cy: 8, r: 2.2, fill: "currentColor" })
   ], props);
 }
 function IconMore(props = {}) {
   return svg([
-    import_react2.default.createElement("circle", { key: "a", cx: 3.4, cy: 8, r: 1.15, fill: "currentColor", stroke: "none" }),
-    import_react2.default.createElement("circle", { key: "b", cx: 8, cy: 8, r: 1.15, fill: "currentColor", stroke: "none" }),
-    import_react2.default.createElement("circle", { key: "c", cx: 12.6, cy: 8, r: 1.15, fill: "currentColor", stroke: "none" })
+    import_react3.default.createElement("circle", { key: "a", cx: 3.4, cy: 8, r: 1.15, fill: "currentColor", stroke: "none" }),
+    import_react3.default.createElement("circle", { key: "b", cx: 8, cy: 8, r: 1.15, fill: "currentColor", stroke: "none" }),
+    import_react3.default.createElement("circle", { key: "c", cx: 12.6, cy: 8, r: 1.15, fill: "currentColor", stroke: "none" })
   ], props);
 }
 function IconBranch(props = {}) {
   return svg([
-    import_react2.default.createElement("circle", { key: "a", cx: 4.6, cy: 3.4, r: 1.4, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
-    import_react2.default.createElement("circle", { key: "b", cx: 4.6, cy: 12.6, r: 1.4, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
-    import_react2.default.createElement("circle", { key: "c", cx: 11.4, cy: 6.2, r: 1.4, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
+    import_react3.default.createElement("circle", { key: "a", cx: 4.6, cy: 3.4, r: 1.4, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
+    import_react3.default.createElement("circle", { key: "b", cx: 4.6, cy: 12.6, r: 1.4, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
+    import_react3.default.createElement("circle", { key: "c", cx: 11.4, cy: 6.2, r: 1.4, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
     path("M4.6 4.8v6.4", { key: "d" }),
     path("M4.6 8.4c0-2.4 1.4-3.6 3.4-3.6h2.2", { key: "e" })
   ], props);
 }
-function IconFolder(props = {}) {
-  const open = props.open === true;
-  return svg([
-    import_react2.default.createElement("path", {
-      key: "a",
-      d: open ? "M1.7 4.3h4.1l1.2 1.5h7.2l-1.7 7H2.6z" : "M1.7 4.1h4.2l1.2 1.5h7.2v7.1H1.7z",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: 1.3,
-      strokeLinejoin: "round"
-    })
-  ], {
-    width: props.width ?? props.size ?? 16,
-    height: props.height ?? props.size ?? 16,
-    style: { color: "var(--iwb-icon-folder, #d7a24a)", ...props.style ?? {} }
-  });
-}
-var FILE_TINTS = {
-  java: "#b0722e",
-  ts: "#3178c6",
-  tsx: "#3178c6",
-  js: "#c99700",
-  jsx: "#c99700",
-  python: "#3572a5",
-  go: "#0090b0",
-  rust: "#b35a2a",
-  json: "#4b5563",
-  markdown: "#2f6fd0",
-  html: "#d84315",
-  css: "#7b1fa2",
-  sql: "#bf6a00",
-  shell: "#2e7d32",
-  config: "#6f42c1",
-  image: "#558b2f",
-  svg: "#8e44ad",
-  pdf: "#c62828",
-  archive: "#8d6e63",
-  lock: "#2e7d4f",
-  git: "#c2185b",
-  docker: "#0d6efd",
-  env: "#8d6e63",
-  build: "#558b2f",
-  c: "#1565c0",
-  cpp: "#5e35b1",
-  csharp: "#2e7d4f",
-  ruby: "#c62828",
-  php: "#5e35b1",
-  kotlin: "#7b1fa2",
-  swift: "#b35a2a",
-  vue: "#2e8b57",
-  xml: "#558b2f",
-  log: "#6b7280",
-  file: "var(--iwb-icon-file, #6b7280)"
-};
-function monoLabel(text, tint, size = 4.6) {
-  return import_react2.default.createElement("text", {
-    x: 7.95,
-    y: 12.7,
-    textAnchor: "middle",
-    fontSize: size,
-    fontWeight: 700,
-    fill: tint,
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
-  }, text);
-}
-function typeGlyph(kind, tint) {
-  switch (kind) {
-    case "java":
-      return [
-        import_react2.default.createElement("path", { key: "cup", d: "M5.4 9.5h4.3v1.7a2.1 2.1 0 0 1-2.1 2.1h-.1a2.1 2.1 0 0 1-2.1-2.1z", fill: "none", stroke: tint, strokeWidth: 1.15, strokeLinejoin: "round" }),
-        import_react2.default.createElement("path", { key: "handle", d: "M9.7 10.1h.6a1.05 1.05 0 0 1 0 2.1h-.6", fill: "none", stroke: tint, strokeWidth: 1.1 }),
-        import_react2.default.createElement("path", { key: "saucer", d: "M4.7 13.5h6.5", stroke: tint, strokeWidth: 1.2, strokeLinecap: "round" }),
-        import_react2.default.createElement("path", { key: "steam1", d: "M6.4 8.7c.35-.55-.2-.9-.1-1.35", stroke: tint, strokeWidth: 1, strokeLinecap: "round", fill: "none" }),
-        import_react2.default.createElement("path", { key: "steam2", d: "M8.2 8.7c.35-.55-.2-.9-.1-1.35", stroke: tint, strokeWidth: 1, strokeLinecap: "round", fill: "none" })
-      ];
-    case "python":
-      return [
-        import_react2.default.createElement("path", { key: "s1", d: "M5.2 9.7c1.65 0 1.65 1.15 2.9 1.15s1.25-1.15 2.9-1.15", fill: "none", stroke: "#5aa9dd", strokeWidth: 1.5, strokeLinecap: "round" }),
-        import_react2.default.createElement("path", { key: "s2", d: "M5.2 11.5c1.65 0 1.65 1.15 2.9 1.15s1.25-1.15 2.9-1.15", fill: "none", stroke: "#e8c244", strokeWidth: 1.5, strokeLinecap: "round" }),
-        import_react2.default.createElement("circle", { key: "eye1", cx: 5.3, cy: 9.7, r: 0.55, fill: "#e8c244" }),
-        import_react2.default.createElement("circle", { key: "eye2", cx: 10.8, cy: 12.65, r: 0.55, fill: "#5aa9dd" })
-      ];
-    case "markdown":
-      return [
-        import_react2.default.createElement("path", { key: "m", d: "M4.9 12.6V9.3l1.55 1.8 1.55-1.8v3.3", fill: "none", stroke: tint, strokeWidth: 1.25, strokeLinecap: "round", strokeLinejoin: "round" }),
-        import_react2.default.createElement("path", { key: "a", d: "M10.5 9.3v3.3M9.3 11.4l1.2 1.25 1.2-1.25", fill: "none", stroke: tint, strokeWidth: 1.15, strokeLinecap: "round", strokeLinejoin: "round" })
-      ];
-    case "json":
-      return [monoLabel("{}", tint, 5.2)];
-    case "ts":
-      return [monoLabel("TS", tint, 4.4)];
-    case "tsx":
-      return [
-        monoLabel("TS", tint, 4),
-        import_react2.default.createElement("circle", { key: "atom", cx: 10.7, cy: 9.4, r: 0.55, fill: tint })
-      ];
-    case "js":
-      return [monoLabel("JS", "#b9962c", 4.4)];
-    case "jsx":
-      return [
-        import_react2.default.createElement("circle", { key: "atom", cx: 7.95, cy: 10.9, r: 0.7, fill: "#e8c244" }),
-        import_react2.default.createElement("ellipse", { key: "o1", cx: 7.95, cy: 10.9, rx: 2.6, ry: 1.05, fill: "none", stroke: "#e8c244", strokeWidth: 0.8, transform: "rotate(30 7.95 10.9)" }),
-        import_react2.default.createElement("ellipse", { key: "o2", cx: 7.95, cy: 10.9, rx: 2.6, ry: 1.05, fill: "none", stroke: "#e8c244", strokeWidth: 0.8, transform: "rotate(-30 7.95 10.9)" })
-      ];
-    case "go":
-      return [monoLabel("GO", tint, 4.2)];
-    case "rust":
-      return [
-        import_react2.default.createElement("circle", { key: "gear", cx: 7.95, cy: 11, r: 2.2, fill: "none", stroke: tint, strokeWidth: 1.1, strokeDasharray: "1.1 0.8" }),
-        import_react2.default.createElement("text", { key: "r", x: 7.95, y: 12.6, textAnchor: "middle", fontSize: 4.4, fontWeight: 700, fill: tint, fontFamily: "ui-monospace, monospace" }, "R")
-      ];
-    case "html":
-      return [monoLabel("</>", tint, 4.1)];
-    case "css":
-      return [monoLabel("#", tint, 6.2)];
-    case "sql":
-      return [
-        import_react2.default.createElement("ellipse", { key: "top", cx: 7.95, cy: 9.6, rx: 2.8, ry: 0.95, fill: "none", stroke: tint, strokeWidth: 1 }),
-        import_react2.default.createElement("path", { key: "side", d: "M5.15 9.6v2.7c0 .55 1.25 1 2.8 1s2.8-.45 2.8-1V9.6", fill: "none", stroke: tint, strokeWidth: 1 }),
-        import_react2.default.createElement("path", { key: "mid", d: "M5.15 11c0 .55 1.25 1 2.8 1s2.8-.45 2.8-1", fill: "none", stroke: tint, strokeWidth: 0.85 })
-      ];
-    case "shell":
-      return [monoLabel(">_", "#4f9a52", 4.6)];
-    case "config":
-      return [monoLabel("Y", tint, 5.6)];
-    case "image":
-      return [
-        import_react2.default.createElement("rect", { key: "frame", x: 4.6, y: 9, width: 6.7, height: 4.6, rx: 0.7, fill: "none", stroke: tint, strokeWidth: 1 }),
-        import_react2.default.createElement("circle", { key: "sun", cx: 6.2, cy: 10.4, r: 0.7, fill: tint }),
-        import_react2.default.createElement("path", { key: "mount", d: "M4.9 13.2l1.9-2.2 1.4 1.5 1.2-1.2 1.6 1.9", fill: "none", stroke: tint, strokeWidth: 1, strokeLinejoin: "round" })
-      ];
-    case "svg":
-      return [
-        import_react2.default.createElement("path", { key: "a", d: "M5 11.6c.4-2 1.2-2.8 1.6-1.4.4 1.4 1.2.6 1.6-1.4", fill: "none", stroke: tint, strokeWidth: 1.1, strokeLinecap: "round" }),
-        import_react2.default.createElement("circle", { key: "b", cx: 9.4, cy: 9.7, r: 0.9, fill: "none", stroke: tint, strokeWidth: 1 })
-      ];
-    case "pdf":
-      return [monoLabel("PDF", tint, 3.7)];
-    case "archive":
-      return [
-        import_react2.default.createElement("rect", { key: "box", x: 4.6, y: 9, width: 6.7, height: 4.6, rx: 0.6, fill: "none", stroke: tint, strokeWidth: 1 }),
-        import_react2.default.createElement("path", { key: "zip", d: "M8 9v4.6", stroke: tint, strokeWidth: 1, strokeDasharray: "1 0.9" })
-      ];
-    case "lock":
-      return [
-        import_react2.default.createElement("rect", { key: "body", x: 4.9, y: 10.5, width: 6.1, height: 3.3, rx: 0.7, fill: "none", stroke: tint, strokeWidth: 1.1 }),
-        import_react2.default.createElement("path", { key: "shackle", d: "M6.1 10.4V9.2a1.85 1.85 0 0 1 3.7 0v1.2", fill: "none", stroke: tint, strokeWidth: 1.1 }),
-        import_react2.default.createElement("circle", { key: "key", cx: 7.95, cy: 12.1, r: 0.55, fill: tint })
-      ];
-    case "git":
-      return [
-        import_react2.default.createElement("circle", { key: "n1", cx: 6, cy: 9.4, r: 0.8, fill: "none", stroke: tint, strokeWidth: 0.9 }),
-        import_react2.default.createElement("circle", { key: "n2", cx: 6, cy: 13.2, r: 0.8, fill: "none", stroke: tint, strokeWidth: 0.9 }),
-        import_react2.default.createElement("circle", { key: "n3", cx: 10, cy: 10.9, r: 0.8, fill: "none", stroke: tint, strokeWidth: 0.9 }),
-        import_react2.default.createElement("path", { key: "ln", d: "M6 10.2v2.2M6 11.2c0-1.3.9-2 2.1-2h1.1", fill: "none", stroke: tint, strokeWidth: 0.9 })
-      ];
-    case "docker":
-      return [
-        import_react2.default.createElement("rect", { key: "b1", x: 5, y: 10.7, width: 1.9, height: 1.6, fill: "none", stroke: tint, strokeWidth: 0.9 }),
-        import_react2.default.createElement("rect", { key: "b2", x: 7.2, y: 10.7, width: 1.9, height: 1.6, fill: "none", stroke: tint, strokeWidth: 0.9 }),
-        import_react2.default.createElement("rect", { key: "b3", x: 7.2, y: 8.9, width: 1.9, height: 1.5, fill: "none", stroke: tint, strokeWidth: 0.9 }),
-        import_react2.default.createElement("path", { key: "w", d: "M4.9 13.4c2.2.7 4.6.4 5.9-.5 1-.7 1.4-1.6 1.4-1.6", fill: "none", stroke: tint, strokeWidth: 0.9, strokeLinecap: "round" })
-      ];
-    case "env":
-      return [
-        import_react2.default.createElement("circle", { key: "ring", cx: 6.2, cy: 10.3, r: 1.1, fill: "none", stroke: tint, strokeWidth: 1.1 }),
-        import_react2.default.createElement("path", { key: "stem", d: "M7.2 11.2l2.8 2.6M9.1 13l.9.9M9.9 12.2l.9.9", fill: "none", stroke: tint, strokeWidth: 1, strokeLinecap: "round" })
-      ];
-    case "build":
-      return [
-        import_react2.default.createElement("path", { key: "wrench", d: "M5 12.9l4.7-4.7M8.9 7.2a1.7 1.7 0 1 1 2.3 2.3", fill: "none", stroke: tint, strokeWidth: 1.1, strokeLinecap: "round" })
-      ];
-    case "c":
-      return [monoLabel("C", tint, 5.8)];
-    case "cpp":
-      return [monoLabel("C++", tint, 3.7)];
-    case "csharp":
-      return [monoLabel("C#", tint, 4.2)];
-    case "ruby":
-      return [
-        import_react2.default.createElement("path", { key: "gem", d: "M5.3 9.1h5.3l1 1.1-3.65 3.6-3.65-3.6z", fill: "none", stroke: tint, strokeWidth: 1, strokeLinejoin: "round" }),
-        import_react2.default.createElement("path", { key: "cut", d: "M5.3 10.2h5.3", stroke: tint, strokeWidth: 0.9 })
-      ];
-    case "php":
-      return [monoLabel("php", tint, 3.9)];
-    case "kotlin":
-      return [monoLabel("K", tint, 5.8)];
-    case "swift":
-      return [monoLabel("S", tint, 5.6)];
-    case "vue":
-      return [monoLabel("V", tint, 5.6)];
-    case "xml":
-      return [monoLabel("<>", tint, 4.6)];
-    case "log":
-      return [
-        import_react2.default.createElement("path", { key: "l1", d: "M5.2 9.6h5.6M5.2 11.2h4.2M5.2 12.8h3", stroke: tint, strokeWidth: 0.95, strokeLinecap: "round" })
-      ];
-    default: {
-      return [
-        import_react2.default.createElement("path", { key: "l1", d: "M5.4 9.4h5.1M5.4 11.2h3.8M5.4 13h4.6", stroke: tint, strokeWidth: 0.9, strokeLinecap: "round" })
-      ];
+function FileTypeIcon(props = {}) {
+  const { path: path2, kind, size = 16 } = props;
+  const primitives2 = useHostPrimitives();
+  const HostIcon = primitives2?.FileTypeIcon ?? null;
+  if (HostIcon !== null) {
+    const className = typeof props.className === "string" && props.className !== "" ? `iwb-file-icon ${props.className}` : "iwb-file-icon";
+    if (typeof kind === "string" && kind !== "") {
+      return import_react3.default.createElement(HostIcon, { kind, size, className });
+    }
+    if (typeof path2 === "string" && path2 !== "") {
+      return import_react3.default.createElement(HostIcon, { path: path2, size, className });
     }
   }
+  return import_react3.default.createElement(FallbackFileGlyph, { kind, size });
 }
-function FileTypeIcon(props = {}) {
-  const name2 = typeof props.name === "string" ? props.name : "";
-  if (props.isDir === true) return import_react2.default.createElement(IconFolder, { open: props.open === true, size: props.size ?? 15 });
-  const kind = fileTypeOf(name2);
-  const tint = FILE_TINTS[kind] ?? FILE_TINTS.file;
-  const size = props.size ?? 16;
-  return svg([
-    import_react2.default.createElement("rect", {
-      key: "bg",
-      x: 1.4,
-      y: 1.4,
-      width: 13.2,
-      height: 13.2,
-      rx: 3.2,
-      fill: tint,
-      fillOpacity: 0.16,
-      stroke: tint,
-      strokeOpacity: 0.28,
-      strokeWidth: 0.6
-    }),
-    import_react2.default.createElement("g", { key: "glyph", transform: "translate(-4.2 -8.2) scale(1.5)" }, ...typeGlyph(kind, tint))
-  ], { width: size, height: size });
+function FallbackFileGlyph({ kind, size }) {
+  const common = {
+    xmlns: "http://www.w3.org/2000/svg",
+    viewBox: "0 0 16 16",
+    width: size,
+    height: size,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.3,
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+    className: "iwb-file-icon"
+  };
+  return kind === "folder" ? import_react3.default.createElement(
+    "svg",
+    common,
+    import_react3.default.createElement("path", { key: "a", d: "M1.7 4.1h4.2l1.2 1.5h7.2v7.1H1.7z" })
+  ) : import_react3.default.createElement(
+    "svg",
+    common,
+    import_react3.default.createElement("path", { key: "a", d: "M4 2.4h5l3 3v8.2H4z" }),
+    import_react3.default.createElement("path", { key: "b", d: "M9 2.4v3h3" })
+  );
 }
 function IconLock(props = {}) {
   return svg([
-    import_react2.default.createElement("rect", { key: "body", x: 3.2, y: 7.2, width: 9.6, height: 6.4, rx: 1.4, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
+    import_react3.default.createElement("rect", { key: "body", x: 3.2, y: 7.2, width: 9.6, height: 6.4, rx: 1.4, fill: "none", stroke: "currentColor", strokeWidth: 1.3 }),
     path("M5.4 7V5.6a2.6 2.6 0 0 1 5.2 0V7", { key: "shackle" }),
-    import_react2.default.createElement("circle", { key: "dot", cx: 8, cy: 10.4, r: 0.9, fill: "currentColor" })
+    import_react3.default.createElement("circle", { key: "dot", cx: 8, cy: 10.4, r: 0.9, fill: "currentColor" })
   ], props);
 }
 function IconEdit(props = {}) {
@@ -5232,13 +4969,13 @@ function IconSave(props = {}) {
   return svg([
     path("M2.8 2.8h9.1l1.3 1.3v9.1H2.8z", { key: "body" }),
     path("M5 2.8v3.6h5.2V2.8", { key: "top" }),
-    import_react2.default.createElement("rect", { key: "label", x: 5, y: 9.2, width: 6, height: 3.8, rx: 0.5, fill: "none", stroke: "currentColor", strokeWidth: 1.1 })
+    import_react3.default.createElement("rect", { key: "label", x: 5, y: 9.2, width: 6, height: 3.8, rx: 0.5, fill: "none", stroke: "currentColor", strokeWidth: 1.1 })
   ], props);
 }
 function IconEye(props = {}) {
   return svg([
     path("M1.6 8s2.3-4.4 6.4-4.4S14.4 8 14.4 8s-2.3 4.4-6.4 4.4S1.6 8 1.6 8z", { key: "eye" }),
-    import_react2.default.createElement("circle", { key: "pupil", cx: 8, cy: 8, r: 2, fill: "none", stroke: "currentColor", strokeWidth: 1.3 })
+    import_react3.default.createElement("circle", { key: "pupil", cx: 8, cy: 8, r: 2, fill: "none", stroke: "currentColor", strokeWidth: 1.3 })
   ], props);
 }
 function IconCode(props = {}) {
@@ -5264,19 +5001,19 @@ function IconRestore(props = {}) {
 }
 function IconGlobe(props = {}) {
   return svg([
-    import_react2.default.createElement("circle", { key: "c", cx: 8, cy: 8, r: 6.2, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    import_react3.default.createElement("circle", { key: "c", cx: 8, cy: 8, r: 6.2, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
     path("M1.8 8h12.4M8 1.8c2.4 2 2.4 10.4 0 12.4M8 1.8c-2.4 2-2.4 10.4 0 12.4", { key: "g" })
   ], props);
 }
 function IconChrome(props = {}) {
-  return import_react2.default.createElement("svg", {
+  return import_react3.default.createElement("svg", {
     xmlns: "http://www.w3.org/2000/svg",
     viewBox: "0 0 24 24",
     width: 16,
     height: 16,
     "aria-hidden": true,
     ...props
-  }, import_react2.default.createElement("path", {
+  }, import_react3.default.createElement("path", {
     fill: "currentColor",
     d: "M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0zM1.931 5.47A11.943 11.943 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.166a5.446 5.446 0 0 1 1.45 7.09l.002.001h-.002l-5.344 9.257c.206.01.413.016.621.016 6.627 0 12-5.373 12-12 0-1.54-.29-3.011-.818-4.364zM12 16.364a4.364 4.364 0 1 1 0-8.728 4.364 4.364 0 0 1 0 8.728z"
   }));
@@ -5286,28 +5023,28 @@ function StripeIcon(props = {}) {
   const common = { width: size, height: size };
   switch (props.tool) {
     case "project":
-      return import_react2.default.createElement(IconProject, common);
+      return import_react3.default.createElement(IconProject, common);
     case "commit":
-      return import_react2.default.createElement(IconCommit, common);
+      return import_react3.default.createElement(IconCommit, common);
     case "git":
-      return import_react2.default.createElement(IconGit, common);
+      return import_react3.default.createElement(IconGit, common);
     case "terminal":
-      return import_react2.default.createElement(IconTerminal, common);
+      return import_react3.default.createElement(IconTerminal, common);
     default:
-      return import_react2.default.createElement(IconProject, common);
+      return import_react3.default.createElement(IconProject, common);
   }
 }
 
 // src/client/ProjectPanel.jsx
-var import_react4 = __toESM(require("react"), 1);
+var import_react5 = __toESM(require("react"), 1);
 
 // src/client/ui.jsx
-var import_react3 = __toESM(require("react"), 1);
+var import_react4 = __toESM(require("react"), 1);
 function ContextMenu({ x, y, items, onClose, depth = 0 }) {
-  const ref = (0, import_react3.useRef)(null);
-  const [openIndex, setOpenIndex] = (0, import_react3.useState)(-1);
-  const [subAnchor, setSubAnchor] = (0, import_react3.useState)(null);
-  (0, import_react3.useEffect)(() => {
+  const ref = (0, import_react4.useRef)(null);
+  const [openIndex, setOpenIndex] = (0, import_react4.useState)(-1);
+  const [subAnchor, setSubAnchor] = (0, import_react4.useState)(null);
+  (0, import_react4.useEffect)(() => {
     if (depth !== 0) return void 0;
     const onDown = (event) => {
       if (ref.current !== null && !ref.current.contains(event.target)) onClose();
@@ -5335,11 +5072,11 @@ function ContextMenu({ x, y, items, onClose, depth = 0 }) {
   const viewportHeight = hasWindow ? window.innerHeight : 800;
   const anchoredLeft = depth === 0 ? Math.max(6, Math.min(x, viewportWidth - width - 8)) : x;
   const anchoredTop = depth === 0 ? Math.max(6, Math.min(y, viewportHeight - estimated - 8)) : y;
-  const [position, setPosition] = (0, import_react3.useState)({ left: anchoredLeft, top: anchoredTop });
-  (0, import_react3.useEffect)(() => {
+  const [position, setPosition] = (0, import_react4.useState)({ left: anchoredLeft, top: anchoredTop });
+  (0, import_react4.useEffect)(() => {
     setPosition({ left: anchoredLeft, top: anchoredTop });
   }, [anchoredLeft, anchoredTop]);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     if (!hasWindow || ref.current === null) return;
     const rect = ref.current.getBoundingClientRect();
     const nextLeft = Math.max(6, Math.min(position.left, viewportWidth - rect.width - 6));
@@ -5348,19 +5085,19 @@ function ContextMenu({ x, y, items, onClose, depth = 0 }) {
       setPosition({ left: nextLeft, top: nextTop });
     }
   }, [position.left, position.top, viewportWidth, viewportHeight, hasWindow]);
-  return import_react3.default.createElement("div", {
+  return import_react4.default.createElement("div", {
     ref,
     className: `iwb-menu ${depth === 0 ? "iwb-menu-root" : "iwb-menu-sub"}`,
     style: { left: `${position.left}px`, top: `${position.top}px`, minWidth: `${width}px` },
     onContextMenu: (event) => event.preventDefault()
   }, items.map((item, index) => {
-    if (item === null) return import_react3.default.createElement("div", { key: `sep-${index}`, className: "iwb-menu-sep" });
+    if (item === null) return import_react4.default.createElement("div", { key: `sep-${index}`, className: "iwb-menu-sep" });
     if (item.label !== void 0 && item.action === void 0) {
-      return import_react3.default.createElement("div", { key: `label-${index}`, className: "iwb-menu-label" }, item.label);
+      return import_react4.default.createElement("div", { key: `label-${index}`, className: "iwb-menu-label" }, item.label);
     }
     const hasSubmenu = Array.isArray(item.submenu) && item.submenu.length > 0;
     const open = hasSubmenu && openIndex === index;
-    const row = import_react3.default.createElement(
+    const row = import_react4.default.createElement(
       "button",
       {
         key: item.key ?? `item-${index}`,
@@ -5389,18 +5126,18 @@ function ContextMenu({ x, y, items, onClose, depth = 0 }) {
           }
         }
       },
-      import_react3.default.createElement("span", { className: "iwb-menu-check" }, item.checked === true ? "\u2713" : ""),
-      import_react3.default.createElement("span", { className: "iwb-menu-icon" }, item.icon ?? null),
-      import_react3.default.createElement("span", { className: "iwb-menu-text" }, item.text),
-      import_react3.default.createElement("span", { className: "iwb-menu-shortcut" }, item.shortcut ?? ""),
-      import_react3.default.createElement("span", { className: "iwb-menu-arrow" }, hasSubmenu ? "\u25B8" : "")
+      import_react4.default.createElement("span", { className: "iwb-menu-check" }, item.checked === true ? "\u2713" : ""),
+      import_react4.default.createElement("span", { className: "iwb-menu-icon" }, item.icon ?? null),
+      import_react4.default.createElement("span", { className: "iwb-menu-text" }, item.text),
+      import_react4.default.createElement("span", { className: "iwb-menu-shortcut" }, item.shortcut ?? ""),
+      import_react4.default.createElement("span", { className: "iwb-menu-arrow" }, hasSubmenu ? "\u25B8" : "")
     );
     if (!hasSubmenu || !open || subAnchor === null) return row;
-    return import_react3.default.createElement(
-      import_react3.default.Fragment,
+    return import_react4.default.createElement(
+      import_react4.default.Fragment,
       { key: `group-${index}` },
       row,
-      import_react3.default.createElement(ContextMenu, {
+      import_react4.default.createElement(ContextMenu, {
         x: subAnchor.x,
         y: subAnchor.y,
         items: item.submenu,
@@ -5411,8 +5148,8 @@ function ContextMenu({ x, y, items, onClose, depth = 0 }) {
   }));
 }
 function ConfirmModal({ dialog, onClose, scope = null }) {
-  const cancelRef = (0, import_react3.useRef)(null);
-  (0, import_react3.useEffect)(() => {
+  const cancelRef = (0, import_react4.useRef)(null);
+  (0, import_react4.useEffect)(() => {
     if (dialog === null) return void 0;
     const onKey = (event) => {
       if (event.key === "Escape") {
@@ -5424,7 +5161,7 @@ function ConfirmModal({ dialog, onClose, scope = null }) {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [dialog, onClose]);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     if (dialog !== null) cancelRef.current?.focus();
   }, [dialog]);
   if (dialog === null) return null;
@@ -5440,22 +5177,22 @@ function ConfirmModal({ dialog, onClose, scope = null }) {
     }
   ];
   const backdropClass = scope === "editor" ? "iwb-modal-backdrop iwb-editor-scoped-backdrop" : "iwb-modal-backdrop";
-  return import_react3.default.createElement(
+  return import_react4.default.createElement(
     "div",
     { className: backdropClass, onMouseDown: (event) => {
       if (event.target === event.currentTarget) onClose();
     } },
-    import_react3.default.createElement(
+    import_react4.default.createElement(
       "div",
       { className: "iwb-modal", role: "dialog", "aria-modal": "true", "aria-label": dialog.title },
-      import_react3.default.createElement("h2", null, dialog.title),
+      import_react4.default.createElement("h2", null, dialog.title),
       // The body can be clamped by the stylesheet (the editor-scoped variant
       // keeps it to three lines), so the full text stays reachable on hover.
-      import_react3.default.createElement("p", { title: dialog.body }, dialog.body),
-      import_react3.default.createElement(
+      import_react4.default.createElement("p", { title: dialog.body }, dialog.body),
+      import_react4.default.createElement(
         "div",
         { className: "iwb-modal-actions" },
-        actions.map((action, index) => import_react3.default.createElement("button", {
+        actions.map((action, index) => import_react4.default.createElement("button", {
           key: action.key ?? index,
           ref: index === 0 ? cancelRef : void 0,
           type: "button",
@@ -5472,14 +5209,14 @@ function ConfirmModal({ dialog, onClose, scope = null }) {
 }
 function Toast({ toast }) {
   if (toast === null || toast === void 0) return null;
-  return import_react3.default.createElement(
+  return import_react4.default.createElement(
     "div",
     { className: `iwb-toast iwb-${toast.kind}` },
-    import_react3.default.createElement(
+    import_react4.default.createElement(
       "div",
       { className: "iwb-toast-text" },
-      import_react3.default.createElement("div", null, toast.text),
-      toast.detail !== "" && toast.detail !== void 0 ? import_react3.default.createElement("div", { className: "iwb-toast-detail" }, toast.detail) : null
+      import_react4.default.createElement("div", null, toast.text),
+      toast.detail !== "" && toast.detail !== void 0 ? import_react4.default.createElement("div", { className: "iwb-toast-detail" }, toast.detail) : null
     )
   );
 }
@@ -5491,8 +5228,8 @@ function ShortcutCapture({
   pressText = "Press keys\u2026",
   hint = "Click, then press the new shortcut"
 }) {
-  const [armed, setArmed] = (0, import_react3.useState)(false);
-  (0, import_react3.useEffect)(() => {
+  const [armed, setArmed] = (0, import_react4.useState)(false);
+  (0, import_react4.useEffect)(() => {
     if (!armed) return void 0;
     const onKey = (event) => {
       event.preventDefault();
@@ -5519,10 +5256,10 @@ function ShortcutCapture({
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [armed, onCapture, onActivate]);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     if (active === false) setArmed(false);
   }, [active]);
-  return import_react3.default.createElement("button", {
+  return import_react4.default.createElement("button", {
     type: "button",
     className: `iwb-settings-shortcut ${armed ? "iwb-capturing" : ""}`,
     onClick: () => {
@@ -5534,20 +5271,20 @@ function ShortcutCapture({
   }, armed ? pressText : value);
 }
 function Kbd({ children }) {
-  return import_react3.default.createElement("span", { className: "iwb-kbd" }, children);
+  return import_react4.default.createElement("span", { className: "iwb-kbd" }, children);
 }
 function ChevronRight({ size = 12 }) {
-  return import_react3.default.createElement(
+  return import_react4.default.createElement(
     "svg",
     { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true },
-    import_react3.default.createElement("path", { d: "M6 4l4 4-4 4", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" })
+    import_react4.default.createElement("path", { d: "M6 4l4 4-4 4", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" })
   );
 }
 function ChevronDown({ size = 12 }) {
-  return import_react3.default.createElement(
+  return import_react4.default.createElement(
     "svg",
     { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true },
-    import_react3.default.createElement("path", { d: "M4 6l4 4 4-4", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" })
+    import_react4.default.createElement("path", { d: "M4 6l4 4 4-4", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" })
   );
 }
 
@@ -5810,7 +5547,7 @@ var NEW_TEMPLATES = [
   { id: "shell", labelKey: "project.tplShell", ext: ".sh" },
   { id: "gitignore", labelKey: "project.tplGitignore", ext: "" }
 ];
-var TreeRow = import_react4.default.memo(function TreeRow2({
+var TreeRow = import_react5.default.memo(function TreeRow2({
   entry,
   depth,
   top: top2,
@@ -5838,8 +5575,8 @@ var TreeRow = import_react4.default.memo(function TreeRow2({
   onRenameBlur
 }) {
   const isDir = entry.isDir === true;
-  const style = (0, import_react4.useMemo)(() => ({ top: `${top2}px`, paddingLeft: `${8 + depth * 14}px` }), [top2, depth]);
-  const classes = (0, import_react4.useMemo)(() => [
+  const style = (0, import_react5.useMemo)(() => ({ top: `${top2}px`, paddingLeft: `${8 + depth * 14}px` }), [top2, depth]);
+  const classes = (0, import_react5.useMemo)(() => [
     "iwb-vlist-row",
     "iwb-tree-row",
     selected ? "iwb-selected" : "",
@@ -5848,7 +5585,7 @@ var TreeRow = import_react4.default.memo(function TreeRow2({
     excluded ? "iwb-excluded" : "",
     dropTarget ? "iwb-drop-target" : ""
   ].filter(Boolean).join(" "), [selected, statusKind, ignored, excluded, dropTarget]);
-  return import_react4.default.createElement(
+  return import_react5.default.createElement(
     "div",
     {
       className: active ? `${classes} iwb-opened` : classes,
@@ -5863,7 +5600,7 @@ var TreeRow = import_react4.default.memo(function TreeRow2({
       onDrop: (event) => onDrop(event, entry),
       onDragEnd
     },
-    isDir ? import_react4.default.createElement("span", {
+    isDir ? import_react5.default.createElement("span", {
       className: "iwb-tree-twisty iwb-tree-twisty-click",
       // The twisty sits inside the row, which selects on click: without
       // stopPropagation one click would select *and* toggle the folder.
@@ -5876,9 +5613,9 @@ var TreeRow = import_react4.default.memo(function TreeRow2({
         onToggleDir(entry.path);
       },
       onDoubleClick: (event) => event.stopPropagation()
-    }, open ? import_react4.default.createElement(ChevronDown, null) : import_react4.default.createElement(ChevronRight, null)) : import_react4.default.createElement("span", { className: "iwb-tree-twisty" }),
-    isDir ? import_react4.default.createElement(FileTypeIcon, { name: entry.name, isDir: true, open, size: 15 }) : import_react4.default.createElement(FileTypeIcon, { name: entry.name, size: 15 }),
-    isDir ? import_react4.default.createElement("span", { className: "iwb-tree-name iwb-dir" }, entry.name) : editing ? import_react4.default.createElement("input", {
+    }, open ? import_react5.default.createElement(ChevronDown, null) : import_react5.default.createElement(ChevronRight, null)) : import_react5.default.createElement("span", { className: "iwb-tree-twisty" }),
+    isDir ? import_react5.default.createElement(FileTypeIcon, { kind: "folder", size: 15 }) : import_react5.default.createElement(FileTypeIcon, { path: entry.name, size: 15 }),
+    isDir ? import_react5.default.createElement("span", { className: "iwb-tree-name iwb-dir" }, entry.name) : editing ? import_react5.default.createElement("input", {
       className: "iwb-rename-input",
       autoFocus: true,
       value: renameValue,
@@ -5887,8 +5624,8 @@ var TreeRow = import_react4.default.memo(function TreeRow2({
       onBlur: onRenameBlur,
       onClick: (event) => event.stopPropagation(),
       onDoubleClick: (event) => event.stopPropagation()
-    }) : import_react4.default.createElement("span", { className: "iwb-tree-name" }, entry.name),
-    relative !== void 0 ? import_react4.default.createElement("span", { className: "iwb-tree-relative" }, relative) : null
+    }) : import_react5.default.createElement("span", { className: "iwb-tree-name" }, entry.name),
+    relative !== void 0 ? import_react5.default.createElement("span", { className: "iwb-tree-relative" }, relative) : null
   );
 });
 function projectSlice(state) {
@@ -5917,23 +5654,23 @@ function projectSlice(state) {
 function ProjectPanel({ store, state: _state }) {
   const slice = useStoreSlice(store, projectSlice, shallowEqual);
   const t2 = store.t;
-  const [filterOpen, setFilterOpen] = (0, import_react4.useState)(false);
-  const [menu, setMenu] = (0, import_react4.useState)(null);
-  const [scrollTop, setScrollTop] = (0, import_react4.useState)(0);
-  const [viewport, setViewport] = (0, import_react4.useState)(600);
-  const [renaming, setRenaming] = (0, import_react4.useState)(null);
-  const [dialog, setDialog] = (0, import_react4.useState)(null);
-  const [dropTarget, setDropTarget] = (0, import_react4.useState)(null);
-  const scrollRef = (0, import_react4.useRef)(null);
-  const treeRef = (0, import_react4.useRef)(null);
-  const dragRef = (0, import_react4.useRef)(null);
+  const [filterOpen, setFilterOpen] = (0, import_react5.useState)(false);
+  const [menu, setMenu] = (0, import_react5.useState)(null);
+  const [scrollTop, setScrollTop] = (0, import_react5.useState)(0);
+  const [viewport, setViewport] = (0, import_react5.useState)(600);
+  const [renaming, setRenaming] = (0, import_react5.useState)(null);
+  const [dialog, setDialog] = (0, import_react5.useState)(null);
+  const [dropTarget, setDropTarget] = (0, import_react5.useState)(null);
+  const scrollRef = (0, import_react5.useRef)(null);
+  const treeRef = (0, import_react5.useRef)(null);
+  const dragRef = (0, import_react5.useRef)(null);
   const shortcuts = slice.settings?.shortcuts ?? {};
   const shortcutFor = (key) => shortcuts[key] ?? SHORTCUT_FALLBACK[key] ?? "";
   const showIgnored = slice.settings?.project?.showIgnored === true;
   const singleClickOpen = slice.settings?.project?.singleClickOpen === true;
-  const status = (0, import_react4.useMemo)(() => aggregateStatus(slice.status.entries ?? []), [slice.status]);
+  const status = (0, import_react5.useMemo)(() => aggregateStatus(slice.status.entries ?? []), [slice.status]);
   const filterMode = slice.filterMode === "tree" ? "tree" : "files";
-  const quickRows = (0, import_react4.useMemo)(() => {
+  const quickRows = (0, import_react5.useMemo)(() => {
     const query = slice.filter.trim().toLowerCase();
     if (filterMode !== "files" || query === "") return [];
     return slice.fileIndex.filter((rel) => rel.toLowerCase().includes(query)).slice(0, 300).map((rel) => ({
@@ -5948,17 +5685,17 @@ function ProjectPanel({ store, state: _state }) {
       }
     }));
   }, [filterMode, slice.filter, slice.fileIndex, slice.root]);
-  const treeRows = (0, import_react4.useMemo)(
+  const treeRows = (0, import_react5.useMemo)(
     () => flatten(slice, slice.filter, showIgnored, status.ignored, filterMode),
     flattenInputs(slice, showIgnored, status.ignored, filterMode)
   );
   const rows = filterMode === "files" && slice.filter.trim() !== "" ? quickRows : treeRows;
-  const rowPaths = (0, import_react4.useMemo)(() => rows.filter((row) => row.entry !== void 0).map((row) => row.entry.path), [rows]);
+  const rowPaths = (0, import_react5.useMemo)(() => rows.filter((row) => row.entry !== void 0).map((row) => row.entry.path), [rows]);
   const excluded = slice.settings?.project?.excluded ?? [];
-  const rowPathsRef = (0, import_react4.useRef)(rowPaths);
-  const selectionRef = (0, import_react4.useRef)(/* @__PURE__ */ new Set());
-  const currentPathsRef = (0, import_react4.useRef)([]);
-  (0, import_react4.useEffect)(() => {
+  const rowPathsRef = (0, import_react5.useRef)(rowPaths);
+  const selectionRef = (0, import_react5.useRef)(/* @__PURE__ */ new Set());
+  const currentPathsRef = (0, import_react5.useRef)([]);
+  (0, import_react5.useEffect)(() => {
     if (scrollRef.current === null) return void 0;
     const element = scrollRef.current;
     const observer = new ResizeObserver(() => setViewport(element.clientHeight));
@@ -5966,14 +5703,14 @@ function ProjectPanel({ store, state: _state }) {
     setViewport(element.clientHeight);
     return () => observer.disconnect();
   }, []);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react5.useEffect)(() => {
     if ((slice.treeFocusTick ?? 0) > 0) scrollRef.current?.focus();
   }, [slice.treeFocusTick]);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react5.useEffect)(() => {
     if (scrollRef.current !== null) scrollRef.current.scrollTop = 0;
     setScrollTop(0);
   }, [slice.root]);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react5.useEffect)(() => {
     if (slice.selectedPath === "" || scrollRef.current === null) return;
     const index = rows.findIndex((row) => row.entry?.path === slice.selectedPath);
     if (index < 0) return;
@@ -5986,12 +5723,12 @@ function ProjectPanel({ store, state: _state }) {
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 6);
   const end = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + 6);
   const visible = rows.slice(start, end);
-  const selection = (0, import_react4.useMemo)(
+  const selection = (0, import_react5.useMemo)(
     () => slice.selectedPaths instanceof Set ? slice.selectedPaths : new Set(slice.selectedPath === "" ? [] : [slice.selectedPath]),
     [slice.selectedPaths, slice.selectedPath]
   );
-  const selectedEntries = (0, import_react4.useMemo)(() => rows.filter((row) => selection.has(row.entry?.path)).map((row) => row.entry), [rows, selection]);
-  const openMenu = (0, import_react4.useCallback)((event, entry) => {
+  const selectedEntries = (0, import_react5.useMemo)(() => rows.filter((row) => selection.has(row.entry?.path)).map((row) => row.entry), [rows, selection]);
+  const openMenu = (0, import_react5.useCallback)((event, entry) => {
     event.preventDefault();
     event.stopPropagation();
     if (entry !== void 0 && !selectionRef.current.has(entry.path)) store.setSelection([entry.path], entry.path);
@@ -6021,20 +5758,20 @@ function ProjectPanel({ store, state: _state }) {
   const beginMove = (entries) => {
     setDialog({ kind: "move", paths: entries.map((entry) => entry.path), target: "" });
   };
-  const currentEntries = (0, import_react4.useMemo)(
+  const currentEntries = (0, import_react5.useMemo)(
     () => selectedEntries.length > 0 ? selectedEntries : menu?.entry !== void 0 ? [menu.entry] : [],
     [selectedEntries, menu?.entry]
   );
   const currentEntry = currentEntries[0];
   const currentRel = currentEntry?.rel ?? "";
-  const currentPaths = (0, import_react4.useMemo)(() => currentEntries.map((entry) => entry.path), [currentEntries]);
-  const currentRels = (0, import_react4.useMemo)(() => currentEntries.map((entry) => entry.rel), [currentEntries]);
-  (0, import_react4.useEffect)(() => {
+  const currentPaths = (0, import_react5.useMemo)(() => currentEntries.map((entry) => entry.path), [currentEntries]);
+  const currentRels = (0, import_react5.useMemo)(() => currentEntries.map((entry) => entry.rel), [currentEntries]);
+  (0, import_react5.useEffect)(() => {
     rowPathsRef.current = rowPaths;
     selectionRef.current = selection;
     currentPathsRef.current = currentPaths;
   });
-  const menuItems = (0, import_react4.useMemo)(() => {
+  const menuItems = (0, import_react5.useMemo)(() => {
     if (menu === null) return [];
     const entry = menu.entry;
     const isDir = entry?.isDir === true;
@@ -6047,7 +5784,7 @@ function ProjectPanel({ store, state: _state }) {
       {
         key: "send-to-chat",
         text: t2("chat.sendToChat"),
-        icon: import_react4.default.createElement(IconChat, { width: 13, height: 13 }),
+        icon: import_react5.default.createElement(IconChat, { width: 13, height: 13 }),
         disabled: currentPaths.length === 0,
         action: () => {
           void store.sendToChat(currentEntries.map((item) => ({ path: item.path, isDir: item.isDir })));
@@ -6099,14 +5836,14 @@ function ProjectPanel({ store, state: _state }) {
       {
         key: "sidebar",
         text: t2("project.openInSidebar"),
-        icon: import_react4.default.createElement(IconGlobe, { width: 13, height: 13 }),
+        icon: import_react5.default.createElement(IconGlobe, { width: 13, height: 13 }),
         disabled: entry === void 0 || isDir,
         action: () => {
           if (entry !== void 0 && !isDir) void store.openInSidebar(entry.path);
         }
       },
-      { ...openInIdeMenu(store, entry?.path, isDir), icon: import_react4.default.createElement(IconExternal, { width: 13, height: 13 }) },
-      { key: "reveal", text: t2("project.reveal"), icon: import_react4.default.createElement(IconExternal, { width: 13, height: 13 }), disabled: entry === void 0, action: () => {
+      { ...openInIdeMenu(store, entry?.path, isDir), icon: import_react5.default.createElement(IconExternal, { width: 13, height: 13 }) },
+      { key: "reveal", text: t2("project.reveal"), icon: import_react5.default.createElement(IconExternal, { width: 13, height: 13 }), disabled: entry === void 0, action: () => {
         void store.reveal(entry.path);
       } }
     ];
@@ -6119,7 +5856,7 @@ function ProjectPanel({ store, state: _state }) {
     }
     return items;
   }, [menu, currentPaths.join("|"), currentRels.join("|"), shortcuts, slice.root, slice.gitRepoRoot, slice.status.isRepo, slice.clipboard]);
-  const onRowClick = (0, import_react4.useCallback)((event, entry, quick) => {
+  const onRowClick = (0, import_react5.useCallback)((event, entry, quick) => {
     if (entry === void 0) return;
     scrollRef.current?.focus();
     if (event.ctrlKey || event.metaKey) {
@@ -6137,12 +5874,12 @@ function ProjectPanel({ store, state: _state }) {
     }
     if (!entry.isDir && singleClickOpen) store.openFile(entry.path, { rel: entry.rel, preview: true });
   }, [store, singleClickOpen]);
-  const onRowDoubleClick = (0, import_react4.useCallback)((entry) => {
+  const onRowDoubleClick = (0, import_react5.useCallback)((entry) => {
     if (entry === void 0) return;
     if (entry.isDir) store.toggleDir(entry.path);
     else store.openFile(entry.path, { rel: entry.rel, preview: false });
   }, [store]);
-  const onToggleDir = (0, import_react4.useCallback)((path2) => {
+  const onToggleDir = (0, import_react5.useCallback)((path2) => {
     store.toggleDir(path2);
   }, [store]);
   const onKeyDown = (event) => {
@@ -6246,7 +5983,7 @@ function ProjectPanel({ store, state: _state }) {
       }
     }
   };
-  const onDragStart = (0, import_react4.useCallback)((event, entry) => {
+  const onDragStart = (0, import_react5.useCallback)((event, entry) => {
     if (entry === void 0) return;
     const paths = selectionRef.current.has(entry.path) ? currentPathsRef.current : [entry.path];
     dragRef.current = { paths, copy: false };
@@ -6254,7 +5991,7 @@ function ProjectPanel({ store, state: _state }) {
     event.dataTransfer.setData("application/x-iwb-paths", JSON.stringify(paths));
     event.dataTransfer.setData("text/plain", paths.join("\n"));
   }, []);
-  const onDragOver = (0, import_react4.useCallback)((event, entry) => {
+  const onDragOver = (0, import_react5.useCallback)((event, entry) => {
     if (dragRef.current === null) return;
     event.stopPropagation();
     const item = entry ?? void 0;
@@ -6264,7 +6001,7 @@ function ProjectPanel({ store, state: _state }) {
     event.dataTransfer.dropEffect = event.ctrlKey ? "copy" : "move";
     setDropTarget(item?.path ?? slice.root);
   }, [slice.root]);
-  const onDrop = (0, import_react4.useCallback)((event, entry) => {
+  const onDrop = (0, import_react5.useCallback)((event, entry) => {
     event.stopPropagation();
     if (dragRef.current === null) return;
     event.preventDefault();
@@ -6280,7 +6017,7 @@ function ProjectPanel({ store, state: _state }) {
     setDropTarget(null);
     void store.moveEntries(paths, destination, copy2);
   }, [store, slice.root]);
-  const onDragEnd = (0, import_react4.useCallback)(() => {
+  const onDragEnd = (0, import_react5.useCallback)(() => {
     dragRef.current = null;
     setDropTarget(null);
   }, []);
@@ -6323,26 +6060,26 @@ function ProjectPanel({ store, state: _state }) {
       void store.moveEntries(dialog.paths, target, false);
     }
   };
-  const rootRow = slice.root === "" ? import_react4.default.createElement(
+  const rootRow = slice.root === "" ? import_react5.default.createElement(
     "div",
     { className: "iwb-empty" },
-    import_react4.default.createElement("div", { className: "iwb-empty-title" }, t2("project.empty")),
-    import_react4.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => store.openRootPicker() }, t2("project.openWorkspace"))
-  ) : filterMode === "files" && slice.filter.trim() !== "" && rows.length === 0 && slice.fileIndexLoading !== true ? import_react4.default.createElement(
+    import_react5.default.createElement("div", { className: "iwb-empty-title" }, t2("project.empty")),
+    import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => store.openRootPicker() }, t2("project.openWorkspace"))
+  ) : filterMode === "files" && slice.filter.trim() !== "" && rows.length === 0 && slice.fileIndexLoading !== true ? import_react5.default.createElement(
     "div",
     { className: "iwb-empty" },
-    import_react4.default.createElement("div", { className: "iwb-empty-title" }, t2("project.noMatches"))
-  ) : import_react4.default.createElement(
+    import_react5.default.createElement("div", { className: "iwb-empty-title" }, t2("project.noMatches"))
+  ) : import_react5.default.createElement(
     "div",
     { className: "iwb-vlist", style: { height: `${rows.length * ROW_HEIGHT}px` } },
     visible.map((row, index) => {
       const top2 = (start + index) * ROW_HEIGHT;
       const style = { top: `${top2}px`, paddingLeft: `${8 + row.depth * 14}px` };
       if (row.kind === "loading") {
-        return import_react4.default.createElement("div", { key: row.key, className: "iwb-tree-msg", style: { ...style, position: "absolute", left: 0, right: 0 } }, t2("common.loading"));
+        return import_react5.default.createElement("div", { key: row.key, className: "iwb-tree-msg", style: { ...style, position: "absolute", left: 0, right: 0 } }, t2("common.loading"));
       }
       if (row.kind === "error") {
-        return import_react4.default.createElement("div", {
+        return import_react5.default.createElement("div", {
           key: row.key,
           className: "iwb-error-box",
           style: { ...style, position: "absolute", left: 8, right: 8, cursor: "pointer" },
@@ -6353,7 +6090,7 @@ function ProjectPanel({ store, state: _state }) {
         }, row.message);
       }
       if (row.kind === "note") {
-        return import_react4.default.createElement("div", { key: row.key, className: "iwb-tree-msg", style: { ...style, position: "absolute", left: 0, right: 0 } }, row.message);
+        return import_react5.default.createElement("div", { key: row.key, className: "iwb-tree-msg", style: { ...style, position: "absolute", left: 0, right: 0 } }, row.message);
       }
       const entry = row.entry;
       const selected = selection.has(entry.path);
@@ -6363,7 +6100,7 @@ function ProjectPanel({ store, state: _state }) {
       const excludedEntry = isExcluded(entry.rel, excluded);
       const editing = renaming !== null && renaming.path === entry.path;
       const active = row.kind === "file" ? slice.tabs.find((tab3) => tab3.kind === "file" && tab3.path === entry.path && tab3.id === slice.activeId) !== void 0 : false;
-      return import_react4.default.createElement(TreeRow, {
+      return import_react5.default.createElement(TreeRow, {
         key: row.key,
         entry,
         depth: row.depth,
@@ -6393,21 +6130,21 @@ function ProjectPanel({ store, state: _state }) {
       });
     })
   );
-  const activeTab = (0, import_react4.useMemo)(() => slice.tabs.find((tab3) => tab3.id === slice.activeId), [slice.tabs, slice.activeId]);
+  const activeTab = (0, import_react5.useMemo)(() => slice.tabs.find((tab3) => tab3.id === slice.activeId), [slice.tabs, slice.activeId]);
   const canLocate = activeTab !== void 0 && activeTab.kind === "file";
-  const onLocateFile = (0, import_react4.useCallback)(() => {
+  const onLocateFile = (0, import_react5.useCallback)(() => {
     if (activeTab === void 0 || activeTab.kind !== "file") return;
     store.showTool("project");
     store.setSelectedPath(activeTab.path);
   }, [store, activeTab]);
-  return import_react4.default.createElement(
-    import_react4.default.Fragment,
+  return import_react5.default.createElement(
+    import_react5.default.Fragment,
     null,
-    import_react4.default.createElement(
+    import_react5.default.createElement(
       "div",
       { className: "iwb-panel-header" },
-      import_react4.default.createElement("span", { className: "iwb-panel-title" }, t2("project.title")),
-      import_react4.default.createElement(
+      import_react5.default.createElement("span", { className: "iwb-panel-title" }, t2("project.title")),
+      import_react5.default.createElement(
         "button",
         {
           type: "button",
@@ -6415,11 +6152,11 @@ function ProjectPanel({ store, state: _state }) {
           title: `${t2("project.selectProject")} \u2014 ${slice.root}`,
           onClick: () => store.openProjectPicker()
         },
-        import_react4.default.createElement("span", { className: "iwb-project-sub-name" }, baseName(slice.root) || t2("project.empty")),
-        import_react4.default.createElement(ChevronDown, { size: 11 })
+        import_react5.default.createElement("span", { className: "iwb-project-sub-name" }, baseName(slice.root) || t2("project.empty")),
+        import_react5.default.createElement(ChevronDown, { size: 11 })
       ),
-      import_react4.default.createElement("span", { className: "iwb-spacer" }),
-      import_react4.default.createElement("button", {
+      import_react5.default.createElement("span", { className: "iwb-spacer" }),
+      import_react5.default.createElement("button", {
         type: "button",
         className: `iwb-iconbtn ${filterOpen ? "iwb-on" : ""}`,
         title: t2("project.filter"),
@@ -6427,51 +6164,51 @@ function ProjectPanel({ store, state: _state }) {
           setFilterOpen(!filterOpen);
           if (filterOpen) store.setFilter("");
         }
-      }, import_react4.default.createElement(IconSearch, { width: 14, height: 14 })),
-      import_react4.default.createElement("button", {
+      }, import_react5.default.createElement(IconSearch, { width: 14, height: 14 })),
+      import_react5.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("project.locateFile"),
         "aria-label": t2("project.locateFile"),
         disabled: !canLocate,
         onClick: onLocateFile
-      }, import_react4.default.createElement("span", { style: { fontSize: 15, lineHeight: 1 } }, "\u2316")),
-      import_react4.default.createElement("button", {
+      }, import_react5.default.createElement("span", { style: { fontSize: 15, lineHeight: 1 } }, "\u2316")),
+      import_react5.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("project.newFile"),
         onClick: () => beginNew(slice.root, false)
       }, "+"),
-      import_react4.default.createElement("button", {
+      import_react5.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("common.refresh"),
         onClick: () => {
           void store.sync();
         }
-      }, import_react4.default.createElement(IconRefresh, { width: 14, height: 14 }))
+      }, import_react5.default.createElement(IconRefresh, { width: 14, height: 14 }))
     ),
-    filterOpen || slice.filter !== "" ? import_react4.default.createElement(
+    filterOpen || slice.filter !== "" ? import_react5.default.createElement(
       "div",
       { className: "iwb-filter" },
-      import_react4.default.createElement(
+      import_react5.default.createElement(
         "div",
         { className: "iwb-filter-mode", role: "group" },
-        import_react4.default.createElement("button", {
+        import_react5.default.createElement("button", {
           type: "button",
           className: filterMode === "files" ? "iwb-on" : "",
           title: t2("project.filterFiles"),
           onClick: () => store.setFilterMode("files")
         }, t2("project.filterFiles")),
-        import_react4.default.createElement("button", {
+        import_react5.default.createElement("button", {
           type: "button",
           className: filterMode === "tree" ? "iwb-on" : "",
           title: t2("project.filterTree"),
           onClick: () => store.setFilterMode("tree")
         }, t2("project.filterTree"))
       ),
-      import_react4.default.createElement(IconSearch, { width: 13, height: 13 }),
-      import_react4.default.createElement("input", {
+      import_react5.default.createElement(IconSearch, { width: 13, height: 13 }),
+      import_react5.default.createElement("input", {
         autoFocus: true,
         placeholder: filterMode === "tree" ? t2("project.filter") : t2("project.filterFiles"),
         value: slice.filter,
@@ -6484,10 +6221,10 @@ function ProjectPanel({ store, state: _state }) {
         }
       })
     ) : null,
-    filterMode === "tree" && slice.filter.trim() !== "" ? import_react4.default.createElement("div", { className: "iwb-filter-hint" }, t2("project.filterTreeHint")) : null,
-    filterMode === "files" && slice.filter.trim() !== "" && slice.fileIndexLoading === true ? import_react4.default.createElement("div", { className: "iwb-filter-hint" }, t2("project.filterIndexing")) : null,
-    filterMode === "files" && slice.filter.trim() !== "" && slice.fileIndexError !== null ? import_react4.default.createElement("div", { className: "iwb-filter-hint iwb-error-text" }, t2("project.filterError")) : null,
-    import_react4.default.createElement("div", {
+    filterMode === "tree" && slice.filter.trim() !== "" ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t2("project.filterTreeHint")) : null,
+    filterMode === "files" && slice.filter.trim() !== "" && slice.fileIndexLoading === true ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t2("project.filterIndexing")) : null,
+    filterMode === "files" && slice.filter.trim() !== "" && slice.fileIndexError !== null ? import_react5.default.createElement("div", { className: "iwb-filter-hint iwb-error-text" }, t2("project.filterError")) : null,
+    import_react5.default.createElement("div", {
       className: "iwb-panel-body iwb-tree",
       ref: scrollRef,
       tabIndex: 0,
@@ -6499,21 +6236,21 @@ function ProjectPanel({ store, state: _state }) {
         if (event.target === event.currentTarget) openMenu(event, void 0);
       }
     }, rootRow),
-    menu !== null ? import_react4.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
-    dialog !== null && dialog.kind === "new" ? import_react4.default.createElement(
+    menu !== null ? import_react5.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
+    dialog !== null && dialog.kind === "new" ? import_react5.default.createElement(
       "div",
       { className: "iwb-modal-backdrop", onMouseDown: (event) => {
         if (event.target === event.currentTarget) setDialog(null);
       } },
-      import_react4.default.createElement(
+      import_react5.default.createElement(
         "div",
         { className: "iwb-modal", role: "dialog", "aria-modal": "true" },
-        import_react4.default.createElement("h2", null, dialog.isDir ? t2("project.newDir") : t2("project.newFile")),
-        import_react4.default.createElement(
+        import_react5.default.createElement("h2", null, dialog.isDir ? t2("project.newDir") : t2("project.newFile")),
+        import_react5.default.createElement(
           "label",
           { className: "iwb-field" },
-          import_react4.default.createElement("span", null, t2("project.nameLabel")),
-          import_react4.default.createElement("input", {
+          import_react5.default.createElement("span", null, t2("project.nameLabel")),
+          import_react5.default.createElement("input", {
             autoFocus: true,
             value: dialog.name,
             onChange: (event) => setDialog({ ...dialog, name: event.target.value }),
@@ -6525,11 +6262,11 @@ function ProjectPanel({ store, state: _state }) {
             }
           })
         ),
-        !dialog.isDir ? import_react4.default.createElement(
+        !dialog.isDir ? import_react5.default.createElement(
           "label",
           { className: "iwb-field" },
-          import_react4.default.createElement("span", null, t2("project.templateLabel")),
-          import_react4.default.createElement("select", {
+          import_react5.default.createElement("span", null, t2("project.templateLabel")),
+          import_react5.default.createElement("select", {
             value: dialog.template,
             onChange: (event) => {
               const template = NEW_TEMPLATES.find((item) => item.id === event.target.value);
@@ -6537,31 +6274,31 @@ function ProjectPanel({ store, state: _state }) {
               const name2 = dialog.name.includes(".") ? dialog.name : `${dialog.name}${ext}`;
               setDialog({ ...dialog, template: event.target.value, name: name2 });
             }
-          }, NEW_TEMPLATES.map((template) => import_react4.default.createElement("option", { key: template.id, value: template.id }, t2(template.labelKey))))
+          }, NEW_TEMPLATES.map((template) => import_react5.default.createElement("option", { key: template.id, value: template.id }, t2(template.labelKey))))
         ) : null,
-        import_react4.default.createElement(
+        import_react5.default.createElement(
           "div",
           { className: "iwb-modal-actions" },
-          import_react4.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => setDialog(null) }, t2("common.cancel")),
-          import_react4.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: submitDialog }, t2("project.create"))
+          import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => setDialog(null) }, t2("common.cancel")),
+          import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: submitDialog }, t2("project.create"))
         )
       )
     ) : null,
-    dialog !== null && dialog.kind === "move" ? import_react4.default.createElement(
+    dialog !== null && dialog.kind === "move" ? import_react5.default.createElement(
       "div",
       { className: "iwb-modal-backdrop", onMouseDown: (event) => {
         if (event.target === event.currentTarget) setDialog(null);
       } },
-      import_react4.default.createElement(
+      import_react5.default.createElement(
         "div",
         { className: "iwb-modal", role: "dialog", "aria-modal": "true" },
-        import_react4.default.createElement("h2", null, t2("project.moveTitle")),
-        import_react4.default.createElement("p", null, dialog.paths.map((path2) => baseName(path2)).join(", ")),
-        import_react4.default.createElement(
+        import_react5.default.createElement("h2", null, t2("project.moveTitle")),
+        import_react5.default.createElement("p", null, dialog.paths.map((path2) => baseName(path2)).join(", ")),
+        import_react5.default.createElement(
           "label",
           { className: "iwb-field" },
-          import_react4.default.createElement("span", null, t2("project.moveTarget")),
-          import_react4.default.createElement("input", {
+          import_react5.default.createElement("span", null, t2("project.moveTarget")),
+          import_react5.default.createElement("input", {
             autoFocus: true,
             value: dialog.target,
             placeholder: t2("project.movePlaceholder"),
@@ -6574,11 +6311,11 @@ function ProjectPanel({ store, state: _state }) {
             }
           })
         ),
-        import_react4.default.createElement(
+        import_react5.default.createElement(
           "div",
           { className: "iwb-modal-actions" },
-          import_react4.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => setDialog(null) }, t2("common.cancel")),
-          import_react4.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: submitDialog }, t2("project.move"))
+          import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => setDialog(null) }, t2("common.cancel")),
+          import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: submitDialog }, t2("project.move"))
         )
       )
     ) : null
@@ -6586,7 +6323,7 @@ function ProjectPanel({ store, state: _state }) {
 }
 
 // src/client/CommitPanel.jsx
-var import_react5 = __toESM(require("react"), 1);
+var import_react6 = __toESM(require("react"), 1);
 function commitSlice(state) {
   return {
     commit: state.commit,
@@ -6601,12 +6338,12 @@ function commitSlice(state) {
 }
 function LineStats({ stats }) {
   if (stats === void 0 || stats === null) return null;
-  if (stats.binary === true) return import_react5.default.createElement("span", { className: "iwb-file-stat" }, "bin");
-  return import_react5.default.createElement(
+  if (stats.binary === true) return import_react6.default.createElement("span", { className: "iwb-file-stat" }, "bin");
+  return import_react6.default.createElement(
     "span",
     { className: "iwb-file-stat" },
-    import_react5.default.createElement("span", { className: "iwb-additions" }, `+${stats.additions}`),
-    import_react5.default.createElement("span", { className: "iwb-deletions" }, `-${stats.deletions}`)
+    import_react6.default.createElement("span", { className: "iwb-additions" }, `+${stats.additions}`),
+    import_react6.default.createElement("span", { className: "iwb-deletions" }, `-${stats.deletions}`)
   );
 }
 function FileRow({ store, selected, entry, checked, onOpen, onMenu }) {
@@ -6614,7 +6351,7 @@ function FileRow({ store, selected, entry, checked, onOpen, onMenu }) {
   const parent = dirName(entry.path);
   const stats = entry.staged ? entry.stagedLines : entry.unstagedLines;
   const letter = entry.conflict === true ? "!" : entry.untracked === true ? "U" : (entry.xy ?? "").replace(/\./g, "");
-  return import_react5.default.createElement(
+  return import_react6.default.createElement(
     "div",
     {
       className: `iwb-file-row ${selected ? "iwb-selected" : ""} ${entry.untracked === true ? "iwb-file-untracked" : ""} ${entry.conflict === true ? "iwb-file-conflict" : ""}`,
@@ -6623,7 +6360,7 @@ function FileRow({ store, selected, entry, checked, onOpen, onMenu }) {
       onDoubleClick: () => onOpen(entry),
       onContextMenu: (event) => onMenu(event, entry)
     },
-    import_react5.default.createElement("input", {
+    import_react6.default.createElement("input", {
       type: "checkbox",
       checked,
       disabled: entry.conflict === true,
@@ -6634,23 +6371,23 @@ function FileRow({ store, selected, entry, checked, onOpen, onMenu }) {
         void store.toggleCommitEntry(entry);
       }
     }),
-    import_react5.default.createElement(FileTypeIcon, { name: name2, size: 14 }),
-    import_react5.default.createElement("span", { className: "iwb-file-name", style: entry.conflict === true ? { color: "var(--iwb-error)" } : void 0 }, name2),
-    parent !== "" ? import_react5.default.createElement("span", { className: "iwb-file-dir" }, parent) : null,
-    import_react5.default.createElement("span", { className: "iwb-file-status" }, letter),
-    import_react5.default.createElement(LineStats, { stats })
+    import_react6.default.createElement(FileTypeIcon, { path: name2, size: 14 }),
+    import_react6.default.createElement("span", { className: "iwb-file-name", style: entry.conflict === true ? { color: "var(--iwb-error)" } : void 0 }, name2),
+    parent !== "" ? import_react6.default.createElement("span", { className: "iwb-file-dir" }, parent) : null,
+    import_react6.default.createElement("span", { className: "iwb-file-status" }, letter),
+    import_react6.default.createElement(LineStats, { stats })
   );
 }
 function GroupHeader({ store, title, entries, checkedPaths }) {
-  const ref = (0, import_react5.useRef)(null);
+  const ref = (0, import_react6.useRef)(null);
   const tri = headerState(entries, checkedPaths);
-  (0, import_react5.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     if (ref.current !== null) ref.current.indeterminate = tri === "some";
   }, [tri]);
-  return import_react5.default.createElement(
+  return import_react6.default.createElement(
     "div",
     { className: "iwb-group-header" },
-    import_react5.default.createElement("input", {
+    import_react6.default.createElement("input", {
       ref,
       type: "checkbox",
       checked: tri === "all",
@@ -6661,16 +6398,16 @@ function GroupHeader({ store, title, entries, checkedPaths }) {
         void store.setCommitChecked(entries, tri !== "all");
       }
     }),
-    import_react5.default.createElement("span", null, title),
-    import_react5.default.createElement("span", { className: "iwb-count" }, entries.length)
+    import_react6.default.createElement("span", null, title),
+    import_react6.default.createElement("span", { className: "iwb-count" }, entries.length)
   );
 }
 function DirectorySection({ store, dir, entries, checkedPaths, selectedPath, onOpen, onMenu }) {
-  return import_react5.default.createElement(
+  return import_react6.default.createElement(
     "div",
     { className: "iwb-dir-section" },
-    import_react5.default.createElement("div", { className: "iwb-dir-heading" }, dir === "" ? store.t("common.root") : dir),
-    entries.map((entry) => import_react5.default.createElement(FileRow, {
+    import_react6.default.createElement("div", { className: "iwb-dir-heading" }, dir === "" ? store.t("common.root") : dir),
+    entries.map((entry) => import_react6.default.createElement(FileRow, {
       key: entry.path,
       store,
       selected: selectedPath === entry.path,
@@ -6689,15 +6426,15 @@ function CommitPanel({ store, state }) {
   const checkedPaths = store.checkedCommitPaths;
   const changelists = store.changelists;
   const groupByDir = slice.settings?.commit?.groupByDirectory === true;
-  const textareaRef = (0, import_react5.useRef)(null);
+  const textareaRef = (0, import_react6.useRef)(null);
   const initial = slice.oid === void 0;
-  const [menu, setMenu] = (0, import_react5.useState)(null);
-  const [dialog, setDialog] = (0, import_react5.useState)(null);
-  const history2 = (0, import_react5.useMemo)(() => commit.messages.map((message) => ({
+  const [menu, setMenu] = (0, import_react6.useState)(null);
+  const [dialog, setDialog] = (0, import_react6.useState)(null);
+  const history2 = (0, import_react6.useMemo)(() => commit.messages.map((message) => ({
     value: message,
     label: message.split("\n")[0].slice(0, 70)
   })), [commit.messages]);
-  (0, import_react5.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     if ((commit.focusTick ?? 0) > 0) {
       window.setTimeout(() => {
         const element = textareaRef.current;
@@ -6740,7 +6477,7 @@ ${entries.length}`,
       }
     );
   };
-  const menuItems = (0, import_react5.useMemo)(() => {
+  const menuItems = (0, import_react6.useMemo)(() => {
     if (menu === null) return [];
     const entry = menu.entry;
     const patchEntry = { path: entry.path, untracked: entry.untracked === true };
@@ -6772,7 +6509,7 @@ ${entries.length}`,
   const renderEntries = (entries) => {
     if (entries.length === 0) return null;
     if (!groupByDir) {
-      return entries.map((entry) => import_react5.default.createElement(FileRow, {
+      return entries.map((entry) => import_react6.default.createElement(FileRow, {
         key: entry.path,
         store,
         selected: commit.selectedPath === entry.path,
@@ -6782,7 +6519,7 @@ ${entries.length}`,
         onMenu: openMenuFor
       }));
     }
-    return groupByDirectory(entries).map((section) => import_react5.default.createElement(DirectorySection, {
+    return groupByDirectory(entries).map((section) => import_react6.default.createElement(DirectorySection, {
       key: section.dir,
       store,
       dir: section.dir,
@@ -6795,22 +6532,22 @@ ${entries.length}`,
   };
   const activeList = changelists.active ?? DEFAULT_CHANGELIST;
   const visibleChanges = groups.changes.filter((entry) => changelistOf(entry.path, changelists.lists) === activeList);
-  const changesBody = visibleChanges.length === 0 ? import_react5.default.createElement("div", { className: "iwb-group-empty" }, t2("commit.noChangesGroup")) : activeList === DEFAULT_CHANGELIST ? renderEntries(visibleChanges) : import_react5.default.createElement(
+  const changesBody = visibleChanges.length === 0 ? import_react6.default.createElement("div", { className: "iwb-group-empty" }, t2("commit.noChangesGroup")) : activeList === DEFAULT_CHANGELIST ? renderEntries(visibleChanges) : import_react6.default.createElement(
     "div",
     { className: "iwb-changelist" },
-    import_react5.default.createElement("div", { className: "iwb-changelist-head" }, activeList, import_react5.default.createElement("span", { className: "iwb-count" }, visibleChanges.length)),
+    import_react6.default.createElement("div", { className: "iwb-changelist-head" }, activeList, import_react6.default.createElement("span", { className: "iwb-count" }, visibleChanges.length)),
     renderEntries(visibleChanges)
   );
-  return import_react5.default.createElement(
+  return import_react6.default.createElement(
     "div",
     { className: "iwb-commit" },
-    import_react5.default.createElement(
+    import_react6.default.createElement(
       "div",
       { className: "iwb-panel-header" },
-      import_react5.default.createElement("span", { className: "iwb-panel-title" }, t2("commit.title")),
-      slice.isRepo === true ? import_react5.default.createElement("span", { className: "iwb-panel-sub" }, slice.detached === true ? t2("git.detached") : slice.branch ?? "") : import_react5.default.createElement("span", { className: "iwb-panel-sub" }, t2("welcome.noRepo")),
-      import_react5.default.createElement("span", { className: "iwb-spacer" }),
-      import_react5.default.createElement("button", {
+      import_react6.default.createElement("span", { className: "iwb-panel-title" }, t2("commit.title")),
+      slice.isRepo === true ? import_react6.default.createElement("span", { className: "iwb-panel-sub" }, slice.detached === true ? t2("git.detached") : slice.branch ?? "") : import_react6.default.createElement("span", { className: "iwb-panel-sub" }, t2("welcome.noRepo")),
+      import_react6.default.createElement("span", { className: "iwb-spacer" }),
+      import_react6.default.createElement("button", {
         type: "button",
         className: `iwb-iconbtn ${groupByDir ? "iwb-on" : ""}`,
         title: t2("commit.groupByDirectoryHint"),
@@ -6818,7 +6555,7 @@ ${entries.length}`,
           void store.setGroupByDirectory(!groupByDir);
         }
       }, "\u25A4"),
-      import_react5.default.createElement("button", {
+      import_react6.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("common.refresh"),
@@ -6826,22 +6563,22 @@ ${entries.length}`,
           void store.refreshStatus({ initial: true });
           void store.loadCommitMessages();
         }
-      }, import_react5.default.createElement(IconRefresh, { width: 14, height: 14 }))
+      }, import_react6.default.createElement(IconRefresh, { width: 14, height: 14 }))
     ),
-    slice.isRepo !== true ? import_react5.default.createElement(
+    slice.isRepo !== true ? import_react6.default.createElement(
       "div",
       { className: "iwb-commit-hint" },
-      import_react5.default.createElement("span", null, t2("project.noRepoHint")),
-      import_react5.default.createElement("button", {
+      import_react6.default.createElement("span", null, t2("project.noRepoHint")),
+      import_react6.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small",
         onClick: () => store.openProjectPicker()
       }, t2("project.chooseRepo"))
     ) : null,
-    import_react5.default.createElement(
+    import_react6.default.createElement(
       "div",
       { className: "iwb-commit-message" },
-      import_react5.default.createElement("textarea", {
+      import_react6.default.createElement("textarea", {
         ref: textareaRef,
         placeholder: slice.settings?.git?.commitTemplate || t2("commit.messagePlaceholder"),
         value: commit.message,
@@ -6854,13 +6591,13 @@ ${entries.length}`,
           }
         }
       }),
-      import_react5.default.createElement(
+      import_react6.default.createElement(
         "div",
         { className: "iwb-commit-actions" },
-        import_react5.default.createElement(
+        import_react6.default.createElement(
           "label",
           { className: "iwb-check", title: initial ? t2("commit.amendDisabled") : t2("commit.amend") },
-          import_react5.default.createElement("input", {
+          import_react6.default.createElement("input", {
             type: "checkbox",
             checked: commit.amend,
             disabled: initial,
@@ -6868,7 +6605,7 @@ ${entries.length}`,
           }),
           t2("commit.amend")
         ),
-        import_react5.default.createElement(
+        import_react6.default.createElement(
           "select",
           {
             className: "iwb-select",
@@ -6880,11 +6617,11 @@ ${entries.length}`,
               if (event.target.value !== "") store.setCommitMessage(event.target.value);
             }
           },
-          import_react5.default.createElement("option", { value: "" }, t2("commit.history")),
-          history2.map((item) => import_react5.default.createElement("option", { key: item.value, value: item.value }, item.label))
+          import_react6.default.createElement("option", { value: "" }, t2("commit.history")),
+          history2.map((item) => import_react6.default.createElement("option", { key: item.value, value: item.value }, item.label))
         ),
-        import_react5.default.createElement("span", { className: "iwb-spacer" }),
-        import_react5.default.createElement("button", {
+        import_react6.default.createElement("span", { className: "iwb-spacer" }),
+        import_react6.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn iwb-primary iwb-small",
           disabled: !canCommit,
@@ -6892,7 +6629,7 @@ ${entries.length}`,
             void store.commit(commit.message, commit.amend, false);
           }
         }, commit.committing ? t2("common.loading") : t2("commit.commit")),
-        import_react5.default.createElement("button", {
+        import_react6.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn iwb-small",
           disabled: !canCommit,
@@ -6901,17 +6638,17 @@ ${entries.length}`,
           }
         }, t2("commit.commitAndPush"))
       ),
-      taskDefs.length > 0 ? import_react5.default.createElement(
+      taskDefs.length > 0 ? import_react6.default.createElement(
         "div",
         { className: "iwb-commit-tasks" },
-        taskDefs.map(([key, label3, command2]) => import_react5.default.createElement(
+        taskDefs.map(([key, label3, command2]) => import_react6.default.createElement(
           "label",
           {
             key,
             className: "iwb-check",
             title: command2
           },
-          import_react5.default.createElement("input", {
+          import_react6.default.createElement("input", {
             type: "checkbox",
             checked: commit.tasks?.[key] === true,
             onChange: (event) => store.setCommitTask(key, event.target.checked)
@@ -6919,12 +6656,12 @@ ${entries.length}`,
           label3
         ))
       ) : null,
-      commit.error !== null && commit.error !== void 0 ? import_react5.default.createElement("div", { className: "iwb-error-box", style: { margin: "8px 0 0" } }, commit.error) : null
+      commit.error !== null && commit.error !== void 0 ? import_react6.default.createElement("div", { className: "iwb-error-box", style: { margin: "8px 0 0" } }, commit.error) : null
     ),
-    import_react5.default.createElement(
+    import_react6.default.createElement(
       "div",
       { className: "iwb-commit-toolbar" },
-      import_react5.default.createElement(
+      import_react6.default.createElement(
         "select",
         {
           className: "iwb-select",
@@ -6934,16 +6671,16 @@ ${entries.length}`,
             void store.setActiveChangelist(event.target.value);
           }
         },
-        import_react5.default.createElement("option", { value: DEFAULT_CHANGELIST }, DEFAULT_CHANGELIST),
-        customLists.map((name2) => import_react5.default.createElement("option", { key: name2, value: name2 }, name2))
+        import_react6.default.createElement("option", { value: DEFAULT_CHANGELIST }, DEFAULT_CHANGELIST),
+        customLists.map((name2) => import_react6.default.createElement("option", { key: name2, value: name2 }, name2))
       ),
-      import_react5.default.createElement("button", {
+      import_react6.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small",
         title: t2("commit.newChangelist"),
         onClick: () => setDialog({ kind: "changelist", name: "", paths: [] })
       }, "+"),
-      activeList !== DEFAULT_CHANGELIST ? import_react5.default.createElement("button", {
+      activeList !== DEFAULT_CHANGELIST ? import_react6.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small iwb-danger",
         title: t2("commit.deleteChangelist"),
@@ -6964,8 +6701,8 @@ ${entries.length}`,
           ]
         )
       }, "\xD7") : null,
-      import_react5.default.createElement("span", { className: "iwb-spacer" }),
-      import_react5.default.createElement("button", {
+      import_react6.default.createElement("span", { className: "iwb-spacer" }),
+      import_react6.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small iwb-danger",
         title: t2("commit.rollback"),
@@ -6973,37 +6710,37 @@ ${entries.length}`,
         onClick: rollback
       }, t2("commit.rollback"))
     ),
-    import_react5.default.createElement(
+    import_react6.default.createElement(
       "div",
       { className: "iwb-groups" },
-      import_react5.default.createElement(
+      import_react6.default.createElement(
         "div",
         { className: "iwb-group" },
-        import_react5.default.createElement(GroupHeader, { store, title: t2("commit.changes"), entries: visibleChanges, checkedPaths }),
+        import_react6.default.createElement(GroupHeader, { store, title: t2("commit.changes"), entries: visibleChanges, checkedPaths }),
         changesBody
       ),
-      import_react5.default.createElement(
+      import_react6.default.createElement(
         "div",
         { className: "iwb-group" },
-        import_react5.default.createElement(GroupHeader, { store, title: t2("commit.unversioned"), entries: groups.unversioned, checkedPaths }),
-        groups.unversioned.length === 0 ? import_react5.default.createElement("div", { className: "iwb-group-empty" }, t2("commit.noUnversioned")) : renderEntries(groups.unversioned)
+        import_react6.default.createElement(GroupHeader, { store, title: t2("commit.unversioned"), entries: groups.unversioned, checkedPaths }),
+        groups.unversioned.length === 0 ? import_react6.default.createElement("div", { className: "iwb-group-empty" }, t2("commit.noUnversioned")) : renderEntries(groups.unversioned)
       )
     ),
-    menu !== null ? import_react5.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
-    dialog !== null ? import_react5.default.createElement(
+    menu !== null ? import_react6.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
+    dialog !== null ? import_react6.default.createElement(
       "div",
       { className: "iwb-modal-backdrop", onMouseDown: (event) => {
         if (event.target === event.currentTarget) setDialog(null);
       } },
-      import_react5.default.createElement(
+      import_react6.default.createElement(
         "div",
         { className: "iwb-modal", role: "dialog", "aria-modal": "true" },
-        import_react5.default.createElement("h2", null, t2("commit.newChangelist")),
-        import_react5.default.createElement(
+        import_react6.default.createElement("h2", null, t2("commit.newChangelist")),
+        import_react6.default.createElement(
           "label",
           { className: "iwb-field" },
-          import_react5.default.createElement("span", null, t2("commit.changelistName")),
-          import_react5.default.createElement("input", {
+          import_react6.default.createElement("span", null, t2("commit.changelistName")),
+          import_react6.default.createElement("input", {
             autoFocus: true,
             value: dialog.name,
             onChange: (event) => setDialog({ ...dialog, name: event.target.value }),
@@ -7019,11 +6756,11 @@ ${entries.length}`,
             }
           })
         ),
-        import_react5.default.createElement(
+        import_react6.default.createElement(
           "div",
           { className: "iwb-modal-actions" },
-          import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => setDialog(null) }, t2("common.cancel")),
-          import_react5.default.createElement("button", {
+          import_react6.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => setDialog(null) }, t2("common.cancel")),
+          import_react6.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-primary",
             onClick: () => {
@@ -7039,7 +6776,7 @@ ${entries.length}`,
 }
 
 // src/client/GitPanel.jsx
-var import_react6 = __toESM(require("react"), 1);
+var import_react7 = __toESM(require("react"), 1);
 
 // src/client/graph.js
 var GRAPH_COLORS = ["#4c9aff", "#f5a623", "#8b7bff", "#36b37e", "#ff6b81", "#00b8d9", "#c678dd", "#e0a458"];
@@ -7202,7 +6939,7 @@ function GraphCell({ row, width, height, offset }) {
   const nodes = [row.primary, ...row.mergeLanes];
   const lines = [];
   for (const lane of geometry.vertical) {
-    lines.push(import_react6.default.createElement("line", {
+    lines.push(import_react7.default.createElement("line", {
       key: `v-${lane}`,
       x1: 7 + lane * CELL,
       y1: 0,
@@ -7214,7 +6951,7 @@ function GraphCell({ row, width, height, offset }) {
   }
   for (const incoming of geometry.incoming) {
     const x = 7 + incoming.lane * CELL;
-    lines.push(import_react6.default.createElement("path", {
+    lines.push(import_react7.default.createElement("path", {
       key: `in-${incoming.lane}`,
       d: `M ${x} 0 L ${x} ${height / 2} L ${primaryX} ${height / 2}`,
       fill: "none",
@@ -7225,7 +6962,7 @@ function GraphCell({ row, width, height, offset }) {
   for (const [index, outgoing] of geometry.outgoing.entries()) {
     const x = 7 + outgoing.to * CELL;
     if (outgoing.to === row.primary) {
-      lines.push(import_react6.default.createElement("line", {
+      lines.push(import_react7.default.createElement("line", {
         key: `out-${index}`,
         x1: primaryX,
         y1: height / 2,
@@ -7235,7 +6972,7 @@ function GraphCell({ row, width, height, offset }) {
         strokeWidth: 1.8
       }));
     } else {
-      lines.push(import_react6.default.createElement("path", {
+      lines.push(import_react7.default.createElement("path", {
         key: `out-${index}`,
         d: `M ${primaryX} ${height / 2} C ${primaryX} ${height * 0.78}, ${x} ${height * 0.72}, ${x} ${height}`,
         fill: "none",
@@ -7244,7 +6981,7 @@ function GraphCell({ row, width, height, offset }) {
       }));
     }
   }
-  const circles = nodes.map((lane, index) => import_react6.default.createElement("circle", {
+  const circles = nodes.map((lane, index) => import_react7.default.createElement("circle", {
     key: `n-${lane}-${index}`,
     cx: 7 + lane * CELL,
     cy: height / 2,
@@ -7254,7 +6991,7 @@ function GraphCell({ row, width, height, offset }) {
     strokeWidth: 1.2
   }));
   if (row.mergeLanes.length > 0) {
-    lines.push(import_react6.default.createElement("line", {
+    lines.push(import_react7.default.createElement("line", {
       key: "merge",
       x1: primaryX,
       y1: height / 2,
@@ -7265,7 +7002,7 @@ function GraphCell({ row, width, height, offset }) {
       strokeDasharray: "2 2"
     }));
   }
-  return import_react6.default.createElement("svg", {
+  return import_react7.default.createElement("svg", {
     width,
     height,
     viewBox: `0 0 ${width} ${height}`,
@@ -7275,7 +7012,7 @@ function GraphCell({ row, width, height, offset }) {
 function RefChip({ value }) {
   const isHead = value.startsWith("HEAD");
   const isRemote = value.includes("/");
-  return import_react6.default.createElement("span", {
+  return import_react7.default.createElement("span", {
     style: {
       display: "inline-flex",
       alignItems: "center",
@@ -7364,7 +7101,7 @@ function fileTreeRows(node, options) {
     if (child.kind === "dir") {
       const dir = child.node;
       const expanded = !options.collapsed.has(dir.path);
-      rows.push(import_react6.default.createElement(
+      rows.push(import_react7.default.createElement(
         "button",
         {
           key: `dir:${dir.path}`,
@@ -7375,14 +7112,14 @@ function fileTreeRows(node, options) {
           style: { paddingLeft: `${TREE_DIR_INDENT + options.depth * TREE_INDENT_STEP}px` },
           onClick: () => options.onToggleDir(dir.path)
         },
-        import_react6.default.createElement("span", { className: "iwb-git-tree-caret" }, expanded ? "\u25BE" : "\u25B8"),
-        import_react6.default.createElement("span", { className: "iwb-git-tree-dir-name" }, dir.name)
+        import_react7.default.createElement("span", { className: "iwb-git-tree-caret" }, expanded ? "\u25BE" : "\u25B8"),
+        import_react7.default.createElement("span", { className: "iwb-git-tree-dir-name" }, dir.name)
       ));
       if (expanded) rows.push(...fileTreeRows(dir, { ...options, depth: options.depth + 1 }));
       continue;
     }
     const file = child.file;
-    rows.push(import_react6.default.createElement(
+    rows.push(import_react7.default.createElement(
       "button",
       {
         key: `file:${file.path}:${index}`,
@@ -7393,19 +7130,19 @@ function fileTreeRows(node, options) {
         onClick: () => options.onSelectFile(file.path),
         onDoubleClick: () => options.onOpenFile(file.path)
       },
-      import_react6.default.createElement("span", { className: `iwb-git-file-status iwb-status-${file.status}` }, file.status),
-      import_react6.default.createElement("span", { className: "iwb-git-file-name" }, child.name),
-      import_react6.default.createElement("span", { className: "iwb-additions" }, `+${file.additions}`),
-      import_react6.default.createElement("span", { className: "iwb-deletions" }, `-${file.deletions}`)
+      import_react7.default.createElement("span", { className: `iwb-git-file-status iwb-status-${file.status}` }, file.status),
+      import_react7.default.createElement("span", { className: "iwb-git-file-name" }, child.name),
+      import_react7.default.createElement("span", { className: "iwb-additions" }, `+${file.additions}`),
+      import_react7.default.createElement("span", { className: "iwb-deletions" }, `-${file.deletions}`)
     ));
   }
   return rows;
 }
 function ChangedFileTree({ store, hash: hash3, files }) {
-  const tree = (0, import_react6.useMemo)(() => buildChangedFileTree(files), [files]);
-  const [toggles, setToggles] = (0, import_react6.useState)(() => /* @__PURE__ */ new Map());
-  const [selectedPath, setSelectedPath] = (0, import_react6.useState)("");
-  const collapsed = (0, import_react6.useMemo)(() => {
+  const tree = (0, import_react7.useMemo)(() => buildChangedFileTree(files), [files]);
+  const [toggles, setToggles] = (0, import_react7.useState)(() => /* @__PURE__ */ new Map());
+  const [selectedPath, setSelectedPath] = (0, import_react7.useState)("");
+  const collapsed = (0, import_react7.useMemo)(() => {
     const dirs = defaultCollapsedDirs(tree);
     for (const [path2, isCollapsed] of toggles) {
       if (isCollapsed) dirs.add(path2);
@@ -7413,21 +7150,21 @@ function ChangedFileTree({ store, hash: hash3, files }) {
     }
     return dirs;
   }, [tree, toggles]);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     setSelectedPath("");
   }, [hash3]);
-  const toggleDir = (0, import_react6.useCallback)((path2) => {
+  const toggleDir = (0, import_react7.useCallback)((path2) => {
     setToggles((previous) => {
       const next = new Map(previous);
       next.set(path2, !collapsed.has(path2));
       return next;
     });
   }, [collapsed]);
-  const openFile = (0, import_react6.useCallback)((path2) => {
+  const openFile = (0, import_react7.useCallback)((path2) => {
     void store.openCommitFile(hash3, path2);
   }, [store, hash3]);
   const selected = selectedPath === "" ? firstLeafOf(tree) : selectedPath;
-  return import_react6.default.createElement(
+  return import_react7.default.createElement(
     "div",
     { className: "iwb-git-drawer-files iwb-git-tree" },
     fileTreeRows(tree, {
@@ -7442,31 +7179,31 @@ function ChangedFileTree({ store, hash: hash3, files }) {
 }
 function BranchPopover({ store, branches, currentBranch, x, y, onClose }) {
   const t2 = store.t;
-  const [query, setQuery] = (0, import_react6.useState)("");
-  const [index, setIndex] = (0, import_react6.useState)(0);
-  const inputRef = (0, import_react6.useRef)(null);
-  const names = (0, import_react6.useMemo)(() => {
+  const [query, setQuery] = (0, import_react7.useState)("");
+  const [index, setIndex] = (0, import_react7.useState)(0);
+  const inputRef = (0, import_react7.useRef)(null);
+  const names = (0, import_react7.useMemo)(() => {
     const value = query.trim().toLowerCase();
     return branches.filter((name2) => value === "" || name2.toLowerCase().includes(value));
   }, [query, branches]);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     inputRef.current?.focus();
   }, []);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     setIndex(0);
   }, [query]);
   const choose = (name2) => {
     onClose();
     store.requestCheckout(name2);
   };
-  return import_react6.default.createElement(
+  return import_react7.default.createElement(
     "div",
     {
       className: "iwb-branch-popover",
       style: { left: `${x}px`, top: `${y}px` },
       onMouseDown: (event) => event.stopPropagation()
     },
-    import_react6.default.createElement("input", {
+    import_react7.default.createElement("input", {
       ref: inputRef,
       className: "iwb-input",
       style: { width: "100%" },
@@ -7489,10 +7226,10 @@ function BranchPopover({ store, branches, currentBranch, x, y, onClose }) {
         }
       }
     }),
-    import_react6.default.createElement(
+    import_react7.default.createElement(
       "div",
       { className: "iwb-branch-list" },
-      names.length === 0 ? import_react6.default.createElement("div", { className: "iwb-quick-empty" }, t2("quickOpen.empty")) : names.map((name2, position) => import_react6.default.createElement(
+      names.length === 0 ? import_react7.default.createElement("div", { className: "iwb-quick-empty" }, t2("quickOpen.empty")) : names.map((name2, position) => import_react7.default.createElement(
         "button",
         {
           key: name2,
@@ -7501,14 +7238,14 @@ function BranchPopover({ store, branches, currentBranch, x, y, onClose }) {
           onMouseEnter: () => setIndex(position),
           onClick: () => choose(name2)
         },
-        import_react6.default.createElement("span", { className: "iwb-branch-check" }, name2 === currentBranch ? "\u2713" : ""),
-        import_react6.default.createElement("span", { className: "iwb-branch-name" }, name2)
+        import_react7.default.createElement("span", { className: "iwb-branch-check" }, name2 === currentBranch ? "\u2713" : ""),
+        import_react7.default.createElement("span", { className: "iwb-branch-name" }, name2)
       ))
     )
   );
 }
 function repoRows(repos, options) {
-  return repos.map((repo, position) => import_react6.default.createElement(
+  return repos.map((repo, position) => import_react7.default.createElement(
     "button",
     {
       key: repo.path,
@@ -7518,39 +7255,39 @@ function repoRows(repos, options) {
       onMouseEnter: () => options.onHover?.(position),
       onClick: () => options.onChoose(repo.path)
     },
-    import_react6.default.createElement("span", { className: "iwb-branch-check" }, repo.path === options.current ? "\u2713" : ""),
-    import_react6.default.createElement("span", { className: "iwb-branch-name" }, repo.name)
+    import_react7.default.createElement("span", { className: "iwb-branch-check" }, repo.path === options.current ? "\u2713" : ""),
+    import_react7.default.createElement("span", { className: "iwb-branch-name" }, repo.name)
   ));
 }
 function RepoPopover({ store, x, y, onClose }) {
   const t2 = store.t;
   const slice = useStoreSlice(store, repoSlice, shallowEqual);
-  const [query, setQuery] = (0, import_react6.useState)("");
-  const [index, setIndex] = (0, import_react6.useState)(0);
-  const inputRef = (0, import_react6.useRef)(null);
-  const repos = (0, import_react6.useMemo)(() => gitRepoCandidates(slice), [slice]);
-  const names = (0, import_react6.useMemo)(() => {
+  const [query, setQuery] = (0, import_react7.useState)("");
+  const [index, setIndex] = (0, import_react7.useState)(0);
+  const inputRef = (0, import_react7.useRef)(null);
+  const repos = (0, import_react7.useMemo)(() => gitRepoCandidates(slice), [slice]);
+  const names = (0, import_react7.useMemo)(() => {
     const value = query.trim().toLowerCase();
     return repos.filter((repo) => value === "" || String(repo.name).toLowerCase().includes(value) || String(repo.path).toLowerCase().includes(value));
   }, [query, repos]);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     inputRef.current?.focus();
   }, []);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     setIndex(0);
   }, [query]);
   const choose = (path2) => {
     onClose();
     store.setGitRepoRoot(path2);
   };
-  return import_react6.default.createElement(
+  return import_react7.default.createElement(
     "div",
     {
       className: "iwb-branch-popover iwb-repo-popover",
       style: { left: `${x}px`, top: `${y}px` },
       onMouseDown: (event) => event.stopPropagation()
     },
-    import_react6.default.createElement("input", {
+    import_react7.default.createElement("input", {
       ref: inputRef,
       className: "iwb-input",
       style: { width: "100%" },
@@ -7573,10 +7310,10 @@ function RepoPopover({ store, x, y, onClose }) {
         }
       }
     }),
-    import_react6.default.createElement(
+    import_react7.default.createElement(
       "div",
       { className: "iwb-branch-list" },
-      names.length === 0 ? import_react6.default.createElement("div", { className: "iwb-quick-empty" }, t2("quickOpen.empty")) : repoRows(names, {
+      names.length === 0 ? import_react7.default.createElement("div", { className: "iwb-quick-empty" }, t2("quickOpen.empty")) : repoRows(names, {
         current: slice.gitRepoRoot ?? "",
         index,
         onHover: (position) => setIndex(position),
@@ -7588,11 +7325,11 @@ function RepoPopover({ store, x, y, onClose }) {
 function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
   const t2 = store.t;
   const detail = git.detail;
-  const closeRef = (0, import_react6.useRef)(null);
-  const files = (0, import_react6.useMemo)(() => diffFiles(detail?.diff), [detail?.diff]);
+  const closeRef = (0, import_react7.useRef)(null);
+  const files = (0, import_react7.useMemo)(() => diffFiles(detail?.diff), [detail?.diff]);
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     closeRef.current?.focus();
   }, [detail?.hash]);
   const copy = async (text) => {
@@ -7603,11 +7340,11 @@ function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
       store.toast("error", t2("common.error"), text);
     }
   };
-  return import_react6.default.createElement(
-    import_react6.default.Fragment,
+  return import_react7.default.createElement(
+    import_react7.default.Fragment,
     null,
-    narrow ? import_react6.default.createElement("div", { className: "iwb-git-drawer-backdrop", onMouseDown: onClose }) : null,
-    import_react6.default.createElement(
+    narrow ? import_react7.default.createElement("div", { className: "iwb-git-drawer-backdrop", onMouseDown: onClose }) : null,
+    import_react7.default.createElement(
       "aside",
       {
         className: `iwb-git-drawer ${narrow ? "iwb-git-drawer-overlay" : ""}`,
@@ -7615,46 +7352,46 @@ function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
         role: "complementary",
         "aria-label": t2("git.detailTitle")
       },
-      narrow ? null : import_react6.default.createElement("div", { className: "iwb-git-drawer-resizer", onPointerDown: onResizeStart }),
-      import_react6.default.createElement(
+      narrow ? null : import_react7.default.createElement("div", { className: "iwb-git-drawer-resizer", onPointerDown: onResizeStart }),
+      import_react7.default.createElement(
         "div",
         { className: "iwb-git-drawer-head" },
-        import_react6.default.createElement(
+        import_react7.default.createElement(
           "span",
           { className: "iwb-git-drawer-title", title: detail?.subject ?? "" },
           detail?.subject ?? (git.detailLoading ? t2("common.loading") : "")
         ),
-        import_react6.default.createElement("span", { className: "iwb-spacer" }),
-        detail !== null ? import_react6.default.createElement("button", {
+        import_react7.default.createElement("span", { className: "iwb-spacer" }),
+        detail !== null ? import_react7.default.createElement("button", {
           type: "button",
           className: "iwb-iconbtn",
           title: t2("git.copySha"),
           onClick: () => {
             void copy(detail.hash);
           }
-        }, import_react6.default.createElement(IconCopy, { width: 12, height: 12 })) : null,
-        import_react6.default.createElement("button", {
+        }, import_react7.default.createElement(IconCopy, { width: 12, height: 12 })) : null,
+        import_react7.default.createElement("button", {
           ref: closeRef,
           type: "button",
           className: "iwb-iconbtn",
           title: t2("git.closeDetail"),
           onClick: onClose
-        }, import_react6.default.createElement(IconClose, { width: 13, height: 13 }))
+        }, import_react7.default.createElement(IconClose, { width: 13, height: 13 }))
       ),
-      detail === null && git.detailLoading === true ? import_react6.default.createElement("div", { className: "iwb-git-drawer-body" }, import_react6.default.createElement("div", { className: "iwb-empty" }, t2("common.loading"))) : detail === null ? import_react6.default.createElement("div", { className: "iwb-git-drawer-body" }, import_react6.default.createElement("div", { className: "iwb-empty" }, t2("git.selectCommit"))) : import_react6.default.createElement(
+      detail === null && git.detailLoading === true ? import_react7.default.createElement("div", { className: "iwb-git-drawer-body" }, import_react7.default.createElement("div", { className: "iwb-empty" }, t2("common.loading"))) : detail === null ? import_react7.default.createElement("div", { className: "iwb-git-drawer-body" }, import_react7.default.createElement("div", { className: "iwb-empty" }, t2("git.selectCommit"))) : import_react7.default.createElement(
         "div",
         { className: "iwb-git-drawer-body" },
-        import_react6.default.createElement(
+        import_react7.default.createElement(
           "div",
           { className: "iwb-git-drawer-meta" },
-          import_react6.default.createElement("span", { className: "iwb-git-drawer-sha", title: detail.hash }, detail.shortHash),
-          import_react6.default.createElement("span", null, detail.author),
-          detail.email !== "" ? import_react6.default.createElement("span", { className: "iwb-git-detail-dim" }, detail.email) : null,
-          import_react6.default.createElement("span", { className: "iwb-git-detail-dim" }, detail.date),
-          ...(detail.refs ?? []).map((ref) => import_react6.default.createElement("span", { key: ref, className: "iwb-ref-chip" }, ref)),
-          detail.parents?.length > 0 ? import_react6.default.createElement("span", { className: "iwb-git-detail-dim" }, `${t2("git.parents")}: ${detail.parents.map((parent) => parent.slice(0, 7)).join(", ")}`) : null
+          import_react7.default.createElement("span", { className: "iwb-git-drawer-sha", title: detail.hash }, detail.shortHash),
+          import_react7.default.createElement("span", null, detail.author),
+          detail.email !== "" ? import_react7.default.createElement("span", { className: "iwb-git-detail-dim" }, detail.email) : null,
+          import_react7.default.createElement("span", { className: "iwb-git-detail-dim" }, detail.date),
+          ...(detail.refs ?? []).map((ref) => import_react7.default.createElement("span", { key: ref, className: "iwb-ref-chip" }, ref)),
+          detail.parents?.length > 0 ? import_react7.default.createElement("span", { className: "iwb-git-detail-dim" }, `${t2("git.parents")}: ${detail.parents.map((parent) => parent.slice(0, 7)).join(", ")}`) : null
         ),
-        import_react6.default.createElement("button", {
+        import_react7.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn iwb-small iwb-git-open-full",
           title: t2("git.openFull"),
@@ -7662,15 +7399,15 @@ function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
             void store.openCommit(detail.hash);
           }
         }, t2("git.openFull")),
-        detail.body !== "" ? import_react6.default.createElement("pre", { className: "iwb-git-drawer-body-text" }, detail.body) : null,
-        import_react6.default.createElement(
+        detail.body !== "" ? import_react7.default.createElement("pre", { className: "iwb-git-drawer-body-text" }, detail.body) : null,
+        import_react7.default.createElement(
           "div",
           { className: "iwb-git-drawer-section-title" },
           `${t2("git.fileList")} \xB7 ${files.length}`,
-          import_react6.default.createElement("span", { className: "iwb-additions" }, ` +${additions}`),
-          import_react6.default.createElement("span", { className: "iwb-deletions" }, ` -${deletions}`)
+          import_react7.default.createElement("span", { className: "iwb-additions" }, ` +${additions}`),
+          import_react7.default.createElement("span", { className: "iwb-deletions" }, ` -${deletions}`)
         ),
-        files.length === 0 ? import_react6.default.createElement("div", { className: "iwb-git-detail-dim" }, t2("git.noFiles")) : import_react6.default.createElement(ChangedFileTree, { store, hash: detail.hash, files })
+        files.length === 0 ? import_react7.default.createElement("div", { className: "iwb-git-detail-dim" }, t2("git.noFiles")) : import_react7.default.createElement(ChangedFileTree, { store, hash: detail.hash, files })
       )
     )
   );
@@ -7679,25 +7416,25 @@ function GitPanel({ store, state }) {
   const t2 = store.t;
   const slice = useStoreSlice(store, gitSlice, shallowEqual);
   const git = slice.git;
-  const [scrollTop, setScrollTop] = (0, import_react6.useState)(0);
-  const [viewport, setViewport] = (0, import_react6.useState)(300);
-  const [menu, setMenu] = (0, import_react6.useState)(null);
-  const [mainWidth, setMainWidth] = (0, import_react6.useState)(0);
-  const [branchMenu, setBranchMenu] = (0, import_react6.useState)(null);
-  const [repoMenu, setRepoMenu] = (0, import_react6.useState)(null);
+  const [scrollTop, setScrollTop] = (0, import_react7.useState)(0);
+  const [viewport, setViewport] = (0, import_react7.useState)(300);
+  const [menu, setMenu] = (0, import_react7.useState)(null);
+  const [mainWidth, setMainWidth] = (0, import_react7.useState)(0);
+  const [branchMenu, setBranchMenu] = (0, import_react7.useState)(null);
+  const [repoMenu, setRepoMenu] = (0, import_react7.useState)(null);
   const repoRoot = slice.gitRepoRoot ?? "";
-  const repoName = (0, import_react6.useMemo)(() => {
+  const repoName = (0, import_react7.useMemo)(() => {
     const match = gitRepoCandidates(slice).find((repo) => repo.path === repoRoot);
     if (match !== void 0) return match.name;
     if (repoRoot === "") return "";
     const parts = repoRoot.split(/[\\/]/);
     return parts[parts.length - 1] ?? repoRoot;
   }, [slice, repoRoot]);
-  const scrollRef = (0, import_react6.useRef)(null);
-  const mainRef = (0, import_react6.useRef)(null);
-  const queryTimer = (0, import_react6.useRef)(null);
-  const rowRefs = (0, import_react6.useRef)(/* @__PURE__ */ new Map());
-  (0, import_react6.useEffect)(() => {
+  const scrollRef = (0, import_react7.useRef)(null);
+  const mainRef = (0, import_react7.useRef)(null);
+  const queryTimer = (0, import_react7.useRef)(null);
+  const rowRefs = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
+  (0, import_react7.useEffect)(() => {
     const element = scrollRef.current;
     if (element === null) return void 0;
     const observer = new ResizeObserver(() => setViewport(element.clientHeight));
@@ -7705,7 +7442,7 @@ function GitPanel({ store, state }) {
     setViewport(element.clientHeight);
     return () => observer.disconnect();
   }, []);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     const element = mainRef.current;
     if (element === null) return void 0;
     const observer = new ResizeObserver(() => setMainWidth(element.clientWidth));
@@ -7713,11 +7450,11 @@ function GitPanel({ store, state }) {
     setMainWidth(element.clientWidth);
     return () => observer.disconnect();
   }, []);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     void store.loadLog(true);
     void store.loadBranches();
   }, []);
-  const layout = (0, import_react6.useMemo)(() => layoutGraph(git.commits), [git.commits]);
+  const layout = (0, import_react7.useMemo)(() => layoutGraph(git.commits), [git.commits]);
   const graphWidth = Math.max(40, Math.min(GRAPH_MAX, layout.maxLanes) * CELL + 16);
   const rows = layout.rows;
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT2) - 6);
@@ -7754,7 +7491,7 @@ function GitPanel({ store, state }) {
       window.setTimeout(() => rowRefs.current.get(hash3)?.focus?.(), 0);
     }
   };
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     if (drawerOpen !== true) return void 0;
     const onKey = (event) => {
       if (event.key === "Escape") {
@@ -7797,7 +7534,7 @@ function GitPanel({ store, state }) {
     event.preventDefault();
     setMenu({ x: event.clientX, y: event.clientY, commit });
   };
-  const menuItems = (0, import_react6.useMemo)(() => {
+  const menuItems = (0, import_react7.useMemo)(() => {
     if (menu === null) return [];
     const commit = menu.commit;
     return [
@@ -7825,7 +7562,7 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
       }
     ];
   }, [menu, t2]);
-  (0, import_react6.useEffect)(() => {
+  (0, import_react7.useEffect)(() => {
     if (branchMenu === null && repoMenu === null) return void 0;
     const onDown = (event) => {
       if (event.target instanceof Element && event.target.closest(".iwb-branch-popover, .iwb-branch-switch, .iwb-repo-switch") !== null) return;
@@ -7856,13 +7593,13 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
     ["30 days ago", "git.last30"],
     ["90 days ago", "git.last90"]
   ];
-  return import_react6.default.createElement(
+  return import_react7.default.createElement(
     "div",
     { className: "iwb-git" },
-    import_react6.default.createElement(
+    import_react7.default.createElement(
       "div",
       { className: "iwb-git-filters" },
-      import_react6.default.createElement(
+      import_react7.default.createElement(
         "button",
         {
           type: "button",
@@ -7873,10 +7610,10 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
             setRepoMenu({ x: rect.left, y: rect.bottom + 4 });
           }
         },
-        import_react6.default.createElement("span", { className: "iwb-repo-name" }, repoName === "" ? label(t2, "git.pickRepo", "Choose repository") : repoName),
-        import_react6.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
+        import_react7.default.createElement("span", { className: "iwb-repo-name" }, repoName === "" ? label(t2, "git.pickRepo", "Choose repository") : repoName),
+        import_react7.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
       ),
-      import_react6.default.createElement(
+      import_react7.default.createElement(
         "button",
         {
           type: "button",
@@ -7887,33 +7624,33 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
             setBranchMenu({ x: rect.left, y: rect.bottom + 4 });
           }
         },
-        import_react6.default.createElement(IconBranch, { width: 13, height: 13 }),
-        import_react6.default.createElement("span", null, slice.detached === true ? t2("git.detached") : slice.branch ?? "\u2014"),
-        import_react6.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
+        import_react7.default.createElement(IconBranch, { width: 13, height: 13 }),
+        import_react7.default.createElement("span", null, slice.detached === true ? t2("git.detached") : slice.branch ?? "\u2014"),
+        import_react7.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
       ),
-      (git.compare ?? []).length > 0 ? import_react6.default.createElement(
+      (git.compare ?? []).length > 0 ? import_react7.default.createElement(
         "span",
         { className: "iwb-compare-chip", title: t2("git.compareHint") },
         (git.compare ?? []).map((hash3) => hash3.slice(0, 7)).join(" \u2194 "),
-        import_react6.default.createElement("button", {
+        import_react7.default.createElement("button", {
           type: "button",
           className: "iwb-path-chip-clear",
           title: t2("git.clearCompare"),
           onClick: () => store.patch("git", { compare: [] })
         }, "\xD7")
       ) : null,
-      (git.compare ?? []).length === 2 ? import_react6.default.createElement("button", {
+      (git.compare ?? []).length === 2 ? import_react7.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small iwb-primary",
         onClick: () => store.compareSelected()
       }, t2("git.compare")) : null,
-      import_react6.default.createElement("button", {
+      import_react7.default.createElement("button", {
         type: "button",
         className: `iwb-textbtn iwb-small ${git.filters.branch === "" ? "iwb-primary" : ""}`,
         title: t2("git.branchFilter"),
         onClick: () => store.setGitFilters({ branch: git.filters.branch === "" ? slice.branch ?? "" : "" })
       }, git.filters.branch === "" ? t2("git.allBranches") : t2("git.currentBranchOnly")),
-      import_react6.default.createElement(
+      import_react7.default.createElement(
         "select",
         {
           className: "iwb-select",
@@ -7921,9 +7658,9 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
           value: git.filters.since ?? "",
           onChange: (event) => store.setGitFilters({ since: event.target.value })
         },
-        dateOptions.map(([value, key]) => import_react6.default.createElement("option", { key: value, value }, t2(key)))
+        dateOptions.map(([value, key]) => import_react7.default.createElement("option", { key: value, value }, t2(key)))
       ),
-      import_react6.default.createElement("input", {
+      import_react7.default.createElement("input", {
         className: "iwb-input",
         style: { width: 100 },
         placeholder: t2("git.authorFilter"),
@@ -7934,7 +7671,7 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
           queryTimer.current = setTimeout(() => store.setGitFilters({ author: value }), 350);
         }
       }),
-      import_react6.default.createElement("input", {
+      import_react7.default.createElement("input", {
         className: "iwb-input",
         style: { flex: 1, minWidth: 100, width: "auto" },
         placeholder: t2("git.queryFilter"),
@@ -7945,23 +7682,23 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
           queryTimer.current = setTimeout(() => store.setGitFilters({ query: value }), 350);
         }
       }),
-      git.filters.path !== void 0 && git.filters.path !== "" ? import_react6.default.createElement(
+      git.filters.path !== void 0 && git.filters.path !== "" ? import_react7.default.createElement(
         "span",
         { className: "iwb-path-chip", title: git.filters.path },
-        import_react6.default.createElement("span", { className: "iwb-path-chip-text" }, git.filters.path),
-        import_react6.default.createElement("button", {
+        import_react7.default.createElement("span", { className: "iwb-path-chip-text" }, git.filters.path),
+        import_react7.default.createElement("button", {
           type: "button",
           className: "iwb-path-chip-clear",
           title: t2("git.clearPath"),
           onClick: () => store.setGitFilters({ path: "" })
         }, "\xD7")
       ) : null,
-      git.selectedHash !== null && git.selectedHash !== void 0 && !drawerOpen ? import_react6.default.createElement("button", {
+      git.selectedHash !== null && git.selectedHash !== void 0 && !drawerOpen ? import_react7.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small",
         onClick: () => openDetail(git.selectedHash)
       }, t2("git.openDetails")) : null,
-      import_react6.default.createElement("button", {
+      import_react7.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("common.refresh"),
@@ -7970,61 +7707,61 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
           void store.loadBranches();
           void store.refreshStatus({ initial: true });
         }
-      }, import_react6.default.createElement(IconRefresh, { width: 14, height: 14 }))
+      }, import_react7.default.createElement(IconRefresh, { width: 14, height: 14 }))
     ),
-    import_react6.default.createElement(
+    import_react7.default.createElement(
       "div",
       { className: `iwb-git-main ${tableNarrow ? "iwb-git-narrow" : ""}`, ref: mainRef },
-      import_react6.default.createElement(
+      import_react7.default.createElement(
         "div",
         {
           className: "iwb-git-table",
           style: { "--iwb-graph-w": `${graphWidth}px` }
         },
-        import_react6.default.createElement(
+        import_react7.default.createElement(
           "div",
           { className: "iwb-git-head" },
-          import_react6.default.createElement("span", null, ""),
-          import_react6.default.createElement("span", null, "SHA"),
-          import_react6.default.createElement("span", null, t2("git.message")),
-          import_react6.default.createElement("span", null, t2("git.author")),
-          import_react6.default.createElement("span", null, t2("git.date"))
+          import_react7.default.createElement("span", null, ""),
+          import_react7.default.createElement("span", null, "SHA"),
+          import_react7.default.createElement("span", null, t2("git.message")),
+          import_react7.default.createElement("span", null, t2("git.author")),
+          import_react7.default.createElement("span", null, t2("git.date"))
         ),
-        import_react6.default.createElement(
+        import_react7.default.createElement(
           "div",
           { className: "iwb-git-scroll", ref: scrollRef, onScroll },
-          rows.length === 0 && git.loading !== true ? import_react6.default.createElement(
+          rows.length === 0 && git.loading !== true ? import_react7.default.createElement(
             "div",
             { className: "iwb-git-empty" },
-            import_react6.default.createElement(
+            import_react7.default.createElement(
               "div",
               null,
               slice.isRepo === true ? git.error ?? t2("git.noCommits") : t2("project.noRepoHint")
             ),
-            slice.isRepo !== true ? import_react6.default.createElement(
+            slice.isRepo !== true ? import_react7.default.createElement(
               "div",
               { className: "iwb-git-no-repo" },
-              import_react6.default.createElement(
+              import_react7.default.createElement(
                 "div",
                 { className: "iwb-git-detail-dim" },
                 label(t2, "git.pickRepoHint", "Choose a repository in the Terminal/Git header.")
               ),
-              gitRepoCandidates(slice).length > 0 ? import_react6.default.createElement("button", {
+              gitRepoCandidates(slice).length > 0 ? import_react7.default.createElement("button", {
                 type: "button",
                 className: "iwb-textbtn iwb-primary iwb-small",
                 onClick: (event) => {
                   const rect = event.currentTarget.getBoundingClientRect();
                   setRepoMenu({ x: rect.left, y: rect.bottom + 4 });
                 }
-              }, t2("project.chooseRepo")) : import_react6.default.createElement(
+              }, t2("project.chooseRepo")) : import_react7.default.createElement(
                 "div",
                 { className: "iwb-git-detail-dim" },
                 label(t2, "git.noRepoCandidate", "No Git repository candidate was found in this workspace.")
               )
-            ) : git.error !== null && git.error !== void 0 ? import_react6.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-small", style: { marginTop: 10 }, onClick: () => {
+            ) : git.error !== null && git.error !== void 0 ? import_react7.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-small", style: { marginTop: 10 }, onClick: () => {
               void store.loadLog(true);
             } }, t2("common.retry")) : null
-          ) : import_react6.default.createElement(
+          ) : import_react7.default.createElement(
             "div",
             { className: "iwb-git-rows", style: { height: `${rows.length * ROW_HEIGHT2}px` } },
             rows.slice(start, end).map((row, index) => {
@@ -8032,7 +7769,7 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
               const top2 = (start + index) * ROW_HEIGHT2;
               const selected = git.selectedHash === commit.hash;
               const inCompare = (git.compare ?? []).includes(commit.hash);
-              return import_react6.default.createElement(
+              return import_react7.default.createElement(
                 "div",
                 {
                   key: `${commit.hash}:${start + index}`,
@@ -8051,31 +7788,31 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
                   onKeyDown: (event) => onRowKeyDown(event, commit),
                   onContextMenu: (event) => onContextMenu(event, commit)
                 },
-                import_react6.default.createElement(
+                import_react7.default.createElement(
                   "div",
                   { className: "iwb-git-graph" },
-                  import_react6.default.createElement(GraphCell, { row, width: graphWidth, height: ROW_HEIGHT2, offset: 0 })
+                  import_react7.default.createElement(GraphCell, { row, width: graphWidth, height: ROW_HEIGHT2, offset: 0 })
                 ),
-                import_react6.default.createElement("span", { className: "iwb-sha" }, commit.shortHash),
-                import_react6.default.createElement(
+                import_react7.default.createElement("span", { className: "iwb-sha" }, commit.shortHash),
+                import_react7.default.createElement(
                   "span",
                   { className: "iwb-subject", style: { display: "flex", alignItems: "center", gap: 6, minWidth: 0 } },
-                  commit.refs.length > 0 ? import_react6.default.createElement(
+                  commit.refs.length > 0 ? import_react7.default.createElement(
                     "span",
                     { style: { display: "inline-flex", gap: 4, flex: "0 0 auto" } },
-                    commit.refs.slice(0, 2).map((ref) => import_react6.default.createElement(RefChip, { key: ref, value: ref }))
+                    commit.refs.slice(0, 2).map((ref) => import_react7.default.createElement(RefChip, { key: ref, value: ref }))
                   ) : null,
-                  import_react6.default.createElement("span", { style: { overflow: "hidden", textOverflow: "ellipsis" } }, commit.subject)
+                  import_react7.default.createElement("span", { style: { overflow: "hidden", textOverflow: "ellipsis" } }, commit.subject)
                 ),
-                import_react6.default.createElement("span", { className: "iwb-author", title: commit.email }, commit.author),
-                import_react6.default.createElement("span", { className: "iwb-date" }, formatGitDate(commit.date, tableNarrow))
+                import_react7.default.createElement("span", { className: "iwb-author", title: commit.email }, commit.author),
+                import_react7.default.createElement("span", { className: "iwb-date" }, formatGitDate(commit.date, tableNarrow))
               );
             }),
-            git.loading === true ? import_react6.default.createElement("div", { style: { position: "absolute", left: 0, right: 0, bottom: -26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--iwb-muted)", fontSize: 11 } }, t2("common.loading")) : null
+            git.loading === true ? import_react7.default.createElement("div", { style: { position: "absolute", left: 0, right: 0, bottom: -26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--iwb-muted)", fontSize: 11 } }, t2("common.loading")) : null
           )
         )
       ),
-      drawerOpen ? import_react6.default.createElement(CommitDrawer, {
+      drawerOpen ? import_react7.default.createElement(CommitDrawer, {
         store,
         git,
         narrow: drawerNarrow,
@@ -8084,8 +7821,8 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
         onClose: closeDetail
       }) : null
     ),
-    menu !== null ? import_react6.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
-    branchMenu !== null ? import_react6.default.createElement(BranchPopover, {
+    menu !== null ? import_react7.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
+    branchMenu !== null ? import_react7.default.createElement(BranchPopover, {
       store,
       branches: git.branches,
       currentBranch: slice.branch,
@@ -8093,7 +7830,7 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
       y: branchMenu.y,
       onClose: () => setBranchMenu(null)
     }) : null,
-    repoMenu !== null ? import_react6.default.createElement(RepoPopover, {
+    repoMenu !== null ? import_react7.default.createElement(RepoPopover, {
       store,
       x: repoMenu.x,
       y: repoMenu.y,
@@ -8103,7 +7840,7 @@ ${commit.shortHash} ${commit.subject}`, t2("git.revert"), () => {
 }
 
 // src/client/TerminalPanel.jsx
-var import_react7 = __toESM(require("react"), 1);
+var import_react8 = __toESM(require("react"), 1);
 
 // node_modules/@xterm/xterm/lib/xterm.mjs
 var zs = Object.defineProperty;
@@ -17256,14 +16993,14 @@ function token(root, name2, fallback2) {
 var MIN_FIT_WIDTH = 120;
 function TerminalView({ store, session, active, visible }) {
   const t2 = store.t;
-  const hostRef = (0, import_react7.useRef)(null);
-  const termRef = (0, import_react7.useRef)(null);
-  const fitRef = (0, import_react7.useRef)(null);
-  const socketRef = (0, import_react7.useRef)(null);
-  const scheduleRef = (0, import_react7.useRef)(null);
-  const [error, setError] = (0, import_react7.useState)(null);
-  const rootRef = (0, import_react7.useRef)(null);
-  (0, import_react7.useEffect)(() => {
+  const hostRef = (0, import_react8.useRef)(null);
+  const termRef = (0, import_react8.useRef)(null);
+  const fitRef = (0, import_react8.useRef)(null);
+  const socketRef = (0, import_react8.useRef)(null);
+  const scheduleRef = (0, import_react8.useRef)(null);
+  const [error, setError] = (0, import_react8.useState)(null);
+  const rootRef = (0, import_react8.useRef)(null);
+  (0, import_react8.useEffect)(() => {
     if (hostRef.current === null) return void 0;
     rootRef.current = document.querySelector(".iwb-root");
     const terminal = new Dl({
@@ -17457,7 +17194,7 @@ function TerminalView({ store, session, active, visible }) {
       fitRef.current = null;
     };
   }, [session.key]);
-  (0, import_react7.useEffect)(() => {
+  (0, import_react8.useEffect)(() => {
     if (active === true && visible !== false) {
       const terminal = termRef.current;
       if (terminal !== null) {
@@ -17472,17 +17209,17 @@ function TerminalView({ store, session, active, visible }) {
     }
   }, [active, visible]);
   if (error !== null) {
-    return import_react7.default.createElement(
+    return import_react8.default.createElement(
       "div",
       { className: "iwb-term-pane" },
-      import_react7.default.createElement("div", { className: "iwb-term-error" }, `${t2("terminal.failed")}
+      import_react8.default.createElement("div", { className: "iwb-term-error" }, `${t2("terminal.failed")}
 ${error}`)
     );
   }
-  return import_react7.default.createElement(
+  return import_react8.default.createElement(
     "div",
     { className: `iwb-term-pane ${active ? "" : "iwb-hidden"}` },
-    import_react7.default.createElement("div", { className: "iwb-term-host", ref: hostRef })
+    import_react8.default.createElement("div", { className: "iwb-term-host", ref: hostRef })
   );
 }
 function TerminalPanel({ store, state, visible = true }) {
@@ -17490,21 +17227,21 @@ function TerminalPanel({ store, state, visible = true }) {
   const slice = useStoreSlice(store, terminalSlice, shallowEqual);
   const sessions = slice.terminal.sessions;
   const activeKey = slice.terminal.activeKey ?? sessions[0]?.key ?? null;
-  const [renaming, setRenaming] = (0, import_react7.useState)(null);
-  const [renameValue, setRenameValue] = (0, import_react7.useState)("");
+  const [renaming, setRenaming] = (0, import_react8.useState)(null);
+  const [renameValue, setRenameValue] = (0, import_react8.useState)("");
   const commitRename = () => {
     if (renaming !== null && renameValue.trim() !== "") {
       store.patchTerminal(renaming, { title: renameValue.trim(), titleRenamed: true });
     }
     setRenaming(null);
   };
-  return import_react7.default.createElement(
+  return import_react8.default.createElement(
     "div",
     { className: "iwb-term" },
-    import_react7.default.createElement(
+    import_react8.default.createElement(
       "div",
       { className: "iwb-term-tabs" },
-      sessions.map((session) => import_react7.default.createElement(
+      sessions.map((session) => import_react8.default.createElement(
         "div",
         {
           key: session.key,
@@ -17516,7 +17253,7 @@ function TerminalPanel({ store, state, visible = true }) {
           },
           title: `${session.title} \u2014 ${session.cwd}`
         },
-        renaming === session.key ? import_react7.default.createElement("input", {
+        renaming === session.key ? import_react8.default.createElement("input", {
           autoFocus: true,
           className: "iwb-input",
           style: { height: 20, width: 120, padding: "0 4px" },
@@ -17528,9 +17265,9 @@ function TerminalPanel({ store, state, visible = true }) {
             if (event.key === "Enter") commitRename();
             if (event.key === "Escape") setRenaming(null);
           }
-        }) : import_react7.default.createElement("span", null, session.title),
-        import_react7.default.createElement("span", { className: `iwb-term-dot ${session.status === "running" ? "" : "iwb-exited"}` }),
-        import_react7.default.createElement("button", {
+        }) : import_react8.default.createElement("span", null, session.title),
+        import_react8.default.createElement("span", { className: `iwb-term-dot ${session.status === "running" ? "" : "iwb-exited"}` }),
+        import_react8.default.createElement("button", {
           type: "button",
           className: "iwb-iconbtn",
           style: { width: 16, height: 16 },
@@ -17539,15 +17276,15 @@ function TerminalPanel({ store, state, visible = true }) {
             event.stopPropagation();
             void store.closeTerminal(session.key);
           }
-        }, import_react7.default.createElement("span", { style: { fontSize: 13, lineHeight: 1 } }, "\xD7"))
+        }, import_react8.default.createElement("span", { style: { fontSize: 13, lineHeight: 1 } }, "\xD7"))
       )),
-      import_react7.default.createElement("button", {
+      import_react8.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("terminal.new"),
         onClick: () => store.addTerminal()
-      }, import_react7.default.createElement(IconPlus, { width: 13, height: 13 })),
-      import_react7.default.createElement("button", {
+      }, import_react8.default.createElement(IconPlus, { width: 13, height: 13 })),
+      import_react8.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("terminal.atFile"),
@@ -17556,24 +17293,24 @@ function TerminalPanel({ store, state, visible = true }) {
           if (active?.kind === "file") store.addTerminal({ cwd: dirName(active.path) });
           else store.addTerminal();
         }
-      }, import_react7.default.createElement(IconFolder, { width: 13, height: 13 })),
-      import_react7.default.createElement("span", { style: { flex: 1 } }),
-      import_react7.default.createElement(
+      }, import_react8.default.createElement(FileTypeIcon, { kind: "folder", size: 13 })),
+      import_react8.default.createElement("span", { style: { flex: 1 } }),
+      import_react8.default.createElement(
         "span",
         { style: { color: "var(--iwb-muted)", fontSize: 11, marginRight: 6 } },
         activeKey !== null ? sessions.find((session) => session.key === activeKey)?.cwd ?? "" : ""
       )
     ),
-    import_react7.default.createElement(
+    import_react8.default.createElement(
       "div",
       { className: "iwb-term-panes" },
-      sessions.length === 0 ? import_react7.default.createElement(
+      sessions.length === 0 ? import_react8.default.createElement(
         "div",
         { className: "iwb-empty" },
-        import_react7.default.createElement(IconTerminal, { width: 22, height: 22 }),
-        import_react7.default.createElement("div", { className: "iwb-empty-title" }, t2("terminal.hint")),
-        import_react7.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => store.addTerminal() }, t2("terminal.new"))
-      ) : sessions.map((session) => import_react7.default.createElement(TerminalView, {
+        import_react8.default.createElement(IconTerminal, { width: 22, height: 22 }),
+        import_react8.default.createElement("div", { className: "iwb-empty-title" }, t2("terminal.hint")),
+        import_react8.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => store.addTerminal() }, t2("terminal.new"))
+      ) : sessions.map((session) => import_react8.default.createElement(TerminalView, {
         key: session.key,
         store,
         session,
@@ -17585,10 +17322,10 @@ function TerminalPanel({ store, state, visible = true }) {
 }
 
 // src/client/EditorArea.jsx
-var import_react14 = __toESM(require("react"), 1);
+var import_react15 = __toESM(require("react"), 1);
 
 // src/client/CodeEditor.jsx
-var import_react8 = __toESM(require("react"), 1);
+var import_react9 = __toESM(require("react"), 1);
 
 // node_modules/@marijn/find-cluster-break/src/index.js
 var rangeFrom = [];
@@ -48068,17 +47805,17 @@ function CodeEditor({
   onSendToChat,
   chatLabels = {}
 }) {
-  const hostRef = (0, import_react8.useRef)(null);
-  const viewRef = (0, import_react8.useRef)(null);
-  const [menu, setMenu] = (0, import_react8.useState)(null);
-  const onSendToChatRef = (0, import_react8.useRef)(onSendToChat);
+  const hostRef = (0, import_react9.useRef)(null);
+  const viewRef = (0, import_react9.useRef)(null);
+  const [menu, setMenu] = (0, import_react9.useState)(null);
+  const onSendToChatRef = (0, import_react9.useRef)(onSendToChat);
   onSendToChatRef.current = onSendToChat;
-  const onChangeRef = (0, import_react8.useRef)(onChange);
-  const onSaveRef = (0, import_react8.useRef)(onSave);
-  const onCursorRef = (0, import_react8.useRef)(onCursor);
-  const onFindRef = (0, import_react8.useRef)(onFindRequest);
-  const onFindInFilesRef = (0, import_react8.useRef)(onFindInFiles);
-  const onReadyRef = (0, import_react8.useRef)(onReady);
+  const onChangeRef = (0, import_react9.useRef)(onChange);
+  const onSaveRef = (0, import_react9.useRef)(onSave);
+  const onCursorRef = (0, import_react9.useRef)(onCursor);
+  const onFindRef = (0, import_react9.useRef)(onFindRequest);
+  const onFindInFilesRef = (0, import_react9.useRef)(onFindInFiles);
+  const onReadyRef = (0, import_react9.useRef)(onReady);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onCursorRef.current = onCursor;
@@ -48101,7 +47838,7 @@ function CodeEditor({
       toLine
     });
   };
-  (0, import_react8.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     const host = hostRef.current;
     if (host === null) return void 0;
     const language2 = languageForPath(path2);
@@ -48239,7 +47976,7 @@ function CodeEditor({
       view.destroy();
     };
   }, [path2, resetToken, readOnly2]);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react9.useEffect)(() => {
     const view = viewRef.current;
     if (view === null || !Number.isInteger(revealLine) || revealLine <= 0) return;
     const line = view.state.doc.line(Math.min(revealLine, view.state.doc.lines));
@@ -48250,11 +47987,11 @@ function CodeEditor({
     if (current === null) return;
     onSendToChatRef.current?.({ text: current.text, fromLine: current.fromLine, toLine: current.toLine });
   };
-  return import_react8.default.createElement(
-    import_react8.default.Fragment,
+  return import_react9.default.createElement(
+    import_react9.default.Fragment,
     null,
-    import_react8.default.createElement("div", { className: "iwb-codemirror", ref: hostRef, onContextMenu }),
-    menu !== null ? import_react8.default.createElement(ContextMenu, {
+    import_react9.default.createElement("div", { className: "iwb-codemirror", ref: hostRef, onContextMenu }),
+    menu !== null ? import_react9.default.createElement(ContextMenu, {
       x: menu.x,
       y: menu.y,
       onClose: () => setMenu(null),
@@ -48274,7 +48011,7 @@ function CodeEditor({
 }
 
 // src/client/MarkdownView.jsx
-var import_react10 = __toESM(require("react"), 1);
+var import_react11 = __toESM(require("react"), 1);
 
 // src/client/markdown-outline.js
 function plainHeadingText(text) {
@@ -48311,7 +48048,7 @@ function extractHeadings(markdown2) {
 }
 
 // src/client/DomFindBar.jsx
-var import_react9 = __toESM(require("react"), 1);
+var import_react10 = __toESM(require("react"), 1);
 function textNodes(container) {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
     acceptNode(node2) {
@@ -48369,16 +48106,16 @@ function rangesFor(container, query, options) {
   return ranges;
 }
 function DomFindBar({ containerRef, t: t2, onClose }) {
-  const [query, setQuery] = (0, import_react9.useState)("");
-  const [caseSensitive, setCaseSensitive] = (0, import_react9.useState)(false);
-  const [wholeWord, setWholeWord] = (0, import_react9.useState)(false);
-  const [regexp, setRegexp] = (0, import_react9.useState)(false);
-  const [total, setTotal] = (0, import_react9.useState)(0);
-  const [active, setActive2] = (0, import_react9.useState)(-1);
-  const [error, setError] = (0, import_react9.useState)(null);
-  const inputRef = (0, import_react9.useRef)(null);
-  const timer = (0, import_react9.useRef)(null);
-  const rangesRef = (0, import_react9.useRef)([]);
+  const [query, setQuery] = (0, import_react10.useState)("");
+  const [caseSensitive, setCaseSensitive] = (0, import_react10.useState)(false);
+  const [wholeWord, setWholeWord] = (0, import_react10.useState)(false);
+  const [regexp, setRegexp] = (0, import_react10.useState)(false);
+  const [total, setTotal] = (0, import_react10.useState)(0);
+  const [active, setActive2] = (0, import_react10.useState)(-1);
+  const [error, setError] = (0, import_react10.useState)(null);
+  const inputRef = (0, import_react10.useRef)(null);
+  const timer = (0, import_react10.useRef)(null);
+  const rangesRef = (0, import_react10.useRef)([]);
   const paint = (ranges, index) => {
     rangesRef.current = ranges;
     if (typeof CSS === "undefined" || typeof Highlight === "undefined" || CSS.highlights === void 0) return;
@@ -48423,18 +48160,18 @@ function DomFindBar({ containerRef, t: t2, onClose }) {
       setError(caught instanceof Error ? caught.message : String(caught));
     }
   };
-  (0, import_react9.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
-  (0, import_react9.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => search2(query), 80);
     return () => {
       if (timer.current !== null) clearTimeout(timer.current);
     };
   }, [query, caseSensitive, wholeWord, regexp]);
-  (0, import_react9.useEffect)(() => () => {
+  (0, import_react10.useEffect)(() => () => {
     if (typeof CSS !== "undefined" && CSS.highlights !== void 0) {
       CSS.highlights.delete("iwb-dom-find");
       CSS.highlights.delete("iwb-dom-find-active");
@@ -48451,14 +48188,14 @@ function DomFindBar({ containerRef, t: t2, onClose }) {
     paint([], -1);
     onClose?.();
   };
-  const flag = (on2, label3, title, onClick) => import_react9.default.createElement("button", {
+  const flag = (on2, label3, title, onClick) => import_react10.default.createElement("button", {
     type: "button",
     className: `iwb-find-flag ${on2 ? "iwb-on" : ""}`,
     title,
     "aria-pressed": on2,
     onClick
   }, label3);
-  return import_react9.default.createElement(
+  return import_react10.default.createElement(
     "div",
     {
       className: "iwb-findbar iwb-dom-findbar",
@@ -48477,11 +48214,11 @@ function DomFindBar({ containerRef, t: t2, onClose }) {
         }
       }
     },
-    import_react9.default.createElement(
+    import_react10.default.createElement(
       "div",
       { className: "iwb-find-row" },
-      import_react9.default.createElement("span", { className: "iwb-find-label" }, t2("editor.find")),
-      import_react9.default.createElement("input", {
+      import_react10.default.createElement("span", { className: "iwb-find-label" }, t2("editor.find")),
+      import_react10.default.createElement("input", {
         ref: inputRef,
         className: `iwb-find-input ${error !== null ? "iwb-invalid" : ""}`,
         value: query,
@@ -48489,64 +48226,25 @@ function DomFindBar({ containerRef, t: t2, onClose }) {
         spellCheck: false,
         onChange: (event) => setQuery(event.target.value)
       }),
-      import_react9.default.createElement("span", { className: `iwb-find-count ${error !== null ? "iwb-invalid" : ""}` }, error !== null ? "!" : query === "" ? "0/0" : `${active + 1}/${total}`),
-      import_react9.default.createElement("button", { type: "button", className: "iwb-find-btn", title: t2("editor.findPrevious"), disabled: total === 0, onClick: () => move(-1) }, "\u2191"),
-      import_react9.default.createElement("button", { type: "button", className: "iwb-find-btn", title: t2("editor.findNext"), disabled: total === 0, onClick: () => move(1) }, "\u2193"),
+      import_react10.default.createElement("span", { className: `iwb-find-count ${error !== null ? "iwb-invalid" : ""}` }, error !== null ? "!" : query === "" ? "0/0" : `${active + 1}/${total}`),
+      import_react10.default.createElement("button", { type: "button", className: "iwb-find-btn", title: t2("editor.findPrevious"), disabled: total === 0, onClick: () => move(-1) }, "\u2191"),
+      import_react10.default.createElement("button", { type: "button", className: "iwb-find-btn", title: t2("editor.findNext"), disabled: total === 0, onClick: () => move(1) }, "\u2193"),
       flag(caseSensitive, "Aa", t2("editor.matchCase"), () => setCaseSensitive((value) => !value)),
       flag(wholeWord, "W", t2("editor.wholeWord"), () => setWholeWord((value) => !value)),
       flag(regexp, ".*", t2("editor.regexp"), () => setRegexp((value) => !value)),
-      import_react9.default.createElement(
+      import_react10.default.createElement(
         "button",
         { type: "button", className: "iwb-find-btn", title: t2("common.close"), onClick: close },
-        import_react9.default.createElement(IconClose, { width: 12, height: 12 })
+        import_react10.default.createElement(IconClose, { width: 12, height: 12 })
       )
     )
   );
 }
 
 // src/client/MarkdownView.jsx
-var markdownComponent = null;
-var primitivesLoading = null;
-var primitivesLoader = null;
-var primitivesListeners = /* @__PURE__ */ new Set();
-try {
-  const primitives = require("@deepseek-ai/dsh-client-ui-primitives");
-  markdownComponent = primitives?.MarkdownText ?? null;
-} catch {
-  markdownComponent = null;
-}
-function setPrimitivesLoader(loader) {
-  primitivesLoader = typeof loader === "function" ? loader : null;
-}
-function ensurePrimitives() {
-  if (markdownComponent !== null) return Promise.resolve(markdownComponent);
-  if (primitivesLoading !== null) return primitivesLoading;
-  if (primitivesLoader === null) return Promise.resolve(null);
-  primitivesLoading = primitivesLoader().then((module2) => {
-    markdownComponent = module2?.MarkdownText ?? null;
-    for (const listener of primitivesListeners) listener();
-    return markdownComponent;
-  }).catch(() => null);
-  return primitivesLoading;
-}
 function useMarkdownComponent() {
-  const [component, setComponent] = (0, import_react10.useState)(markdownComponent);
-  (0, import_react10.useEffect)(() => {
-    if (component !== null) return void 0;
-    let alive = true;
-    void ensurePrimitives().then((loaded) => {
-      if (alive && loaded !== null) setComponent(() => loaded);
-    });
-    const listener = () => {
-      if (alive && markdownComponent !== null) setComponent(() => markdownComponent);
-    };
-    primitivesListeners.add(listener);
-    return () => {
-      alive = false;
-      primitivesListeners.delete(listener);
-    };
-  }, [component]);
-  return component;
+  const primitives2 = useHostPrimitives();
+  return primitives2?.MarkdownText ?? null;
 }
 function markdownLabels(labels = {}) {
   return {
@@ -48572,7 +48270,7 @@ function FallbackMarkdown({ text }) {
     const heading2 = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
     if (heading2 !== null) {
       const tag = `h${heading2[1].length}`;
-      blocks.push(import_react10.default.createElement(tag, { key: key += 1 }, heading2[2]));
+      blocks.push(import_react11.default.createElement(tag, { key: key += 1 }, heading2[2]));
       index += 1;
       continue;
     }
@@ -48585,16 +48283,16 @@ function FallbackMarkdown({ text }) {
         index += 1;
       }
       index += 1;
-      blocks.push(import_react10.default.createElement("pre", { key: key += 1 }, import_react10.default.createElement("code", null, body.join("\n"))));
+      blocks.push(import_react11.default.createElement("pre", { key: key += 1 }, import_react11.default.createElement("code", null, body.join("\n"))));
       continue;
     }
     if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
       const items = [];
       while (index < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[index])) {
-        items.push(import_react10.default.createElement("li", { key: items.length }, lines[index].replace(/^\s*([-*+]|\d+\.)\s+/, "")));
+        items.push(import_react11.default.createElement("li", { key: items.length }, lines[index].replace(/^\s*([-*+]|\d+\.)\s+/, "")));
         index += 1;
       }
-      blocks.push(import_react10.default.createElement("ul", { key: key += 1 }, items));
+      blocks.push(import_react11.default.createElement("ul", { key: key += 1 }, items));
       continue;
     }
     if (line.trim() === "") {
@@ -48606,9 +48304,9 @@ function FallbackMarkdown({ text }) {
       paragraph.push(lines[index]);
       index += 1;
     }
-    blocks.push(import_react10.default.createElement("p", { key: key += 1 }, paragraph.join(" ")));
+    blocks.push(import_react11.default.createElement("p", { key: key += 1 }, paragraph.join(" ")));
   }
-  return import_react10.default.createElement("div", { className: "iwb-markdown-fallback" }, blocks);
+  return import_react11.default.createElement("div", { className: "iwb-markdown-fallback" }, blocks);
 }
 function MarkdownView({
   text,
@@ -48621,14 +48319,14 @@ function MarkdownView({
   onFindRequest
 }) {
   const MarkdownText = useMarkdownComponent();
-  const containerRef = (0, import_react10.useRef)(null);
-  const [activeSlug, setActiveSlug] = (0, import_react10.useState)("");
-  const headings = (0, import_react10.useMemo)(() => extractHeadings(text), [text]);
-  const headingKey = (0, import_react10.useMemo)(() => headings.map((heading2) => heading2.slug).join("|"), [headings]);
+  const containerRef = (0, import_react11.useRef)(null);
+  const [activeSlug, setActiveSlug] = (0, import_react11.useState)("");
+  const headings = (0, import_react11.useMemo)(() => extractHeadings(text), [text]);
+  const headingKey = (0, import_react11.useMemo)(() => headings.map((heading2) => heading2.slug).join("|"), [headings]);
   const openFind = () => {
     onFindRequest?.();
   };
-  (0, import_react10.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     const container = containerRef.current;
     if (container === null) return;
     const elements = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")];
@@ -48638,7 +48336,7 @@ function MarkdownView({
       if (elements[index].id !== heading2.slug) elements[index].id = heading2.slug;
     }
   }, [headingKey, MarkdownText]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     const container = containerRef.current;
     if (container === null || outlineOpen !== true) return void 0;
     let frame = 0;
@@ -48674,7 +48372,7 @@ function MarkdownView({
       setActiveSlug(slug);
     }
   };
-  return import_react10.default.createElement(
+  return import_react11.default.createElement(
     "div",
     {
       className: "iwb-markdown-wrap",
@@ -48693,32 +48391,32 @@ function MarkdownView({
         }
       }
     },
-    findOpen === true ? import_react10.default.createElement(DomFindBar, { containerRef, t: t2, onClose: () => onCloseFind?.() }) : null,
-    import_react10.default.createElement(
+    findOpen === true ? import_react11.default.createElement(DomFindBar, { containerRef, t: t2, onClose: () => onCloseFind?.() }) : null,
+    import_react11.default.createElement(
       "div",
       { className: "iwb-markdown", ref: containerRef },
-      MarkdownText !== null ? import_react10.default.createElement(MarkdownText, { text, labels: markdownLabels(labels) }) : import_react10.default.createElement(FallbackMarkdown, { text })
+      MarkdownText !== null ? import_react11.default.createElement(MarkdownText, { text, labels: markdownLabels(labels) }) : import_react11.default.createElement(FallbackMarkdown, { text })
     ),
-    outlineOpen === true ? import_react10.default.createElement(
+    outlineOpen === true ? import_react11.default.createElement(
       "div",
       { className: "iwb-outline", role: "navigation", "aria-label": labels.outline ?? "Outline" },
-      import_react10.default.createElement(
+      import_react11.default.createElement(
         "div",
         { className: "iwb-outline-head" },
-        import_react10.default.createElement(IconOutline, { width: 13, height: 13 }),
-        import_react10.default.createElement("span", null, labels.outline ?? "Outline"),
-        import_react10.default.createElement("button", {
+        import_react11.default.createElement(IconOutline, { width: 13, height: 13 }),
+        import_react11.default.createElement("span", null, labels.outline ?? "Outline"),
+        import_react11.default.createElement("button", {
           type: "button",
           className: "iwb-iconbtn",
           style: { width: 20, height: 20, marginLeft: "auto" },
           onClick: onToggleOutline,
           title: labels.close ?? "Close"
-        }, import_react10.default.createElement("span", { style: { fontSize: 14, lineHeight: 1 } }, "\xD7"))
+        }, import_react11.default.createElement("span", { style: { fontSize: 14, lineHeight: 1 } }, "\xD7"))
       ),
-      headings.length === 0 ? import_react10.default.createElement("div", { className: "iwb-outline-empty" }, labels.empty ?? "No headings") : import_react10.default.createElement(
+      headings.length === 0 ? import_react11.default.createElement("div", { className: "iwb-outline-empty" }, labels.empty ?? "No headings") : import_react11.default.createElement(
         "div",
         { className: "iwb-outline-list" },
-        headings.map((heading2, index) => import_react10.default.createElement("button", {
+        headings.map((heading2, index) => import_react11.default.createElement("button", {
           key: `${heading2.slug}-${index}`,
           type: "button",
           className: `iwb-outline-item ${activeSlug === heading2.slug ? "iwb-active" : ""}`,
@@ -48731,7 +48429,7 @@ function MarkdownView({
 }
 
 // src/client/DiffView.jsx
-var import_react12 = __toESM(require("react"), 1);
+var import_react13 = __toESM(require("react"), 1);
 
 // src/client/diff.js
 function parseUnifiedDiff(text) {
@@ -49010,19 +48708,19 @@ function buildPatch(file, selection) {
 }
 
 // src/client/FindBar.jsx
-var import_react11 = __toESM(require("react"), 1);
+var import_react12 = __toESM(require("react"), 1);
 function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = "", onClose }) {
   const t2 = store.t;
-  const [query, setQuery] = (0, import_react11.useState)(initialQuery);
-  const [replacement, setReplacement] = (0, import_react11.useState)("");
-  const [caseSensitive, setCaseSensitive] = (0, import_react11.useState)(false);
-  const [wholeWord, setWholeWord] = (0, import_react11.useState)(false);
-  const [regexp, setRegexp] = (0, import_react11.useState)(false);
-  const [total, setTotal] = (0, import_react11.useState)(0);
-  const [active, setActive2] = (0, import_react11.useState)(-1);
-  const [error, setError] = (0, import_react11.useState)(null);
-  const inputRef = (0, import_react11.useRef)(null);
-  const timer = (0, import_react11.useRef)(null);
+  const [query, setQuery] = (0, import_react12.useState)(initialQuery);
+  const [replacement, setReplacement] = (0, import_react12.useState)("");
+  const [caseSensitive, setCaseSensitive] = (0, import_react12.useState)(false);
+  const [wholeWord, setWholeWord] = (0, import_react12.useState)(false);
+  const [regexp, setRegexp] = (0, import_react12.useState)(false);
+  const [total, setTotal] = (0, import_react12.useState)(0);
+  const [active, setActive2] = (0, import_react12.useState)(-1);
+  const [error, setError] = (0, import_react12.useState)(null);
+  const inputRef = (0, import_react12.useRef)(null);
+  const timer = (0, import_react12.useRef)(null);
   const options = { caseSensitive, wholeWord, regexp };
   const apply2 = (text = query) => {
     if (editor === null || editor === void 0) return;
@@ -49038,19 +48736,19 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
     setActive2(result.active);
     setError(result.error ?? null);
   };
-  (0, import_react11.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
     apply2(query);
   }, [editor]);
-  (0, import_react11.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => apply2(query), 90);
     return () => {
       if (timer.current !== null) clearTimeout(timer.current);
     };
   }, [query, caseSensitive, wholeWord, regexp]);
-  (0, import_react11.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     const onKey = (event) => {
       if (event.key === "F3") {
         event.preventDefault();
@@ -49087,14 +48785,14 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
     const result = editor?.replaceAll(replacement, query, options);
     if ((result?.count ?? 0) > 0) apply2(query);
   };
-  const flag = (on2, label3, title, onClick) => import_react11.default.createElement("button", {
+  const flag = (on2, label3, title, onClick) => import_react12.default.createElement("button", {
     type: "button",
     className: `iwb-find-flag ${on2 ? "iwb-on" : ""}`,
     title,
     "aria-pressed": on2,
     onClick
   }, label3);
-  return import_react11.default.createElement(
+  return import_react12.default.createElement(
     "div",
     {
       className: "iwb-findbar",
@@ -49113,11 +48811,11 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
         }
       }
     },
-    import_react11.default.createElement(
+    import_react12.default.createElement(
       "div",
       { className: "iwb-find-row" },
-      import_react11.default.createElement("span", { className: "iwb-find-label" }, t2("editor.find")),
-      import_react11.default.createElement("input", {
+      import_react12.default.createElement("span", { className: "iwb-find-label" }, t2("editor.find")),
+      import_react12.default.createElement("input", {
         ref: inputRef,
         className: `iwb-find-input ${error !== null ? "iwb-invalid" : ""}`,
         value: query,
@@ -49131,18 +48829,18 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
           }
         }
       }),
-      import_react11.default.createElement("span", {
+      import_react12.default.createElement("span", {
         className: `iwb-find-count ${error !== null ? "iwb-invalid" : ""}`,
         title: error ?? ""
       }, error !== null ? "!" : query === "" ? "0/0" : `${active + 1}/${total}`),
-      import_react11.default.createElement("button", {
+      import_react12.default.createElement("button", {
         type: "button",
         className: "iwb-find-btn",
         title: t2("editor.findPrevious"),
         disabled: total === 0,
         onClick: () => move(-1)
       }, "\u2191"),
-      import_react11.default.createElement("button", {
+      import_react12.default.createElement("button", {
         type: "button",
         className: "iwb-find-btn",
         title: t2("editor.findNext"),
@@ -49152,18 +48850,18 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
       flag(caseSensitive, "Aa", t2("editor.matchCase"), () => setCaseSensitive((value) => !value)),
       flag(wholeWord, "W", t2("editor.wholeWord"), () => setWholeWord((value) => !value)),
       flag(regexp, ".*", t2("editor.regexp"), () => setRegexp((value) => !value)),
-      import_react11.default.createElement("button", {
+      import_react12.default.createElement("button", {
         type: "button",
         className: "iwb-find-btn",
         title: t2("common.close"),
         onClick: close
-      }, import_react11.default.createElement(IconClose, { width: 12, height: 12 }))
+      }, import_react12.default.createElement(IconClose, { width: 12, height: 12 }))
     ),
-    readOnly2 !== true ? import_react11.default.createElement(
+    readOnly2 !== true ? import_react12.default.createElement(
       "div",
       { className: "iwb-find-row" },
-      import_react11.default.createElement("span", { className: "iwb-find-label" }, t2("editor.replace")),
-      import_react11.default.createElement("input", {
+      import_react12.default.createElement("span", { className: "iwb-find-label" }, t2("editor.replace")),
+      import_react12.default.createElement("input", {
         className: "iwb-find-input",
         value: replacement,
         placeholder: t2("editor.replacePlaceholder"),
@@ -49176,13 +48874,13 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
           }
         }
       }),
-      import_react11.default.createElement("button", {
+      import_react12.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small",
         disabled: total === 0,
         onClick: replaceCurrent
       }, t2("editor.replaceOne")),
-      import_react11.default.createElement("button", {
+      import_react12.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small",
         disabled: total === 0,
@@ -49226,35 +48924,35 @@ function diffSlice(state) {
 function DiffView({ store, tab: tab3 }) {
   const t2 = store.t;
   const slice = useStoreSlice(store, diffSlice, shallowEqual);
-  const source = (0, import_react12.useMemo)(() => diffSource(tab3), [tab3]);
-  const parsed = (0, import_react12.useMemo)(() => parseUnifiedDiff(source.text), [source.text]);
+  const source = (0, import_react13.useMemo)(() => diffSource(tab3), [tab3]);
+  const parsed = (0, import_react13.useMemo)(() => parseUnifiedDiff(source.text), [source.text]);
   const mode = tab3.kind === "commit" ? "unified" : slice.commitMode ?? "side";
-  const [selection, setSelection] = (0, import_react12.useState)(() => /* @__PURE__ */ new Set());
-  const [scrollTop, setScrollTop] = (0, import_react12.useState)(0);
-  const [viewport, setViewport] = (0, import_react12.useState)(400);
-  const [applying, setApplying] = (0, import_react12.useState)(false);
-  const [openBlocks, setOpenBlocks] = (0, import_react12.useState)(() => /* @__PURE__ */ new Set());
-  const [wordLevel, setWordLevel] = (0, import_react12.useState)(false);
-  const [findOpen, setFindOpen] = (0, import_react12.useState)(false);
-  const [findRows, setFindRows] = (0, import_react12.useState)(() => /* @__PURE__ */ new Set());
-  const [findActiveRow, setFindActiveRow] = (0, import_react12.useState)(-1);
-  const scrollRef = (0, import_react12.useRef)(null);
-  const selecting = (0, import_react12.useRef)(false);
-  const findRowsRef = (0, import_react12.useRef)([]);
-  const findActiveRef = (0, import_react12.useRef)(-1);
-  const rowsRef = (0, import_react12.useRef)([]);
-  (0, import_react12.useEffect)(() => {
+  const [selection, setSelection] = (0, import_react13.useState)(() => /* @__PURE__ */ new Set());
+  const [scrollTop, setScrollTop] = (0, import_react13.useState)(0);
+  const [viewport, setViewport] = (0, import_react13.useState)(400);
+  const [applying, setApplying] = (0, import_react13.useState)(false);
+  const [openBlocks, setOpenBlocks] = (0, import_react13.useState)(() => /* @__PURE__ */ new Set());
+  const [wordLevel, setWordLevel] = (0, import_react13.useState)(false);
+  const [findOpen, setFindOpen] = (0, import_react13.useState)(false);
+  const [findRows, setFindRows] = (0, import_react13.useState)(() => /* @__PURE__ */ new Set());
+  const [findActiveRow, setFindActiveRow] = (0, import_react13.useState)(-1);
+  const scrollRef = (0, import_react13.useRef)(null);
+  const selecting = (0, import_react13.useRef)(false);
+  const findRowsRef = (0, import_react13.useRef)([]);
+  const findActiveRef = (0, import_react13.useRef)(-1);
+  const rowsRef = (0, import_react13.useRef)([]);
+  (0, import_react13.useEffect)(() => {
     setSelection(/* @__PURE__ */ new Set());
     setScrollTop(0);
   }, [tab3.id, mode]);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     const onUp = () => {
       selecting.current = false;
     };
     window.addEventListener("mouseup", onUp);
     return () => window.removeEventListener("mouseup", onUp);
   }, []);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     const element = scrollRef.current;
     if (element === null) return void 0;
     const observer = new ResizeObserver(() => setViewport(element.clientHeight));
@@ -49269,7 +48967,7 @@ function DiffView({ store, tab: tab3 }) {
   const singleFile = files.length === 1 ? files[0] : null;
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
-  const rows = (0, import_react12.useMemo)(() => {
+  const rows = (0, import_react13.useMemo)(() => {
     const output = [];
     for (const file of files) {
       const label3 = file.newPath !== "" ? file.newPath : file.oldPath;
@@ -49283,7 +48981,7 @@ function DiffView({ store, tab: tab3 }) {
     }
     return output;
   }, [files, mode, t2]);
-  const viewRows = (0, import_react12.useMemo)(() => {
+  const viewRows = (0, import_react13.useMemo)(() => {
     if (source.stageable) return rows;
     const output = [];
     let run = [];
@@ -49312,7 +49010,7 @@ function DiffView({ store, tab: tab3 }) {
   const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - 8);
   const end = Math.min(viewRows.length, Math.ceil((scrollTop + viewport) / LINE_HEIGHT) + 8);
   rowsRef.current = viewRows;
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     const onKey = (event) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
       if (event.key.toLowerCase() !== "f") return;
@@ -49325,14 +49023,14 @@ function DiffView({ store, tab: tab3 }) {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, []);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     setFindOpen(false);
     setFindRows(/* @__PURE__ */ new Set());
     setFindActiveRow(-1);
     findRowsRef.current = [];
     findActiveRef.current = -1;
   }, [tab3.id]);
-  const findController = (0, import_react12.useMemo)(() => {
+  const findController = (0, import_react13.useMemo)(() => {
     const rowText = (row) => {
       if (row === void 0) return "";
       if (row.kind === "side") return `${row.left?.text ?? ""}
@@ -49453,33 +49151,33 @@ ${row.right?.text ?? ""}`;
   const rowStyle = (offset) => ({ position: "absolute", top: `${offset * LINE_HEIGHT}px`, left: 0, right: 0, height: `${LINE_HEIGHT}px` });
   const renderChromeRow = (row, offset) => {
     if (row.kind === "file") {
-      return import_react12.default.createElement(
+      return import_react13.default.createElement(
         "div",
         {
           key: `file:${row.text}:${offset}`,
           className: "iwb-diff-hunk",
           style: { ...rowStyle(offset), background: "var(--iwb-panel-2)", color: "var(--iwb-fg)" }
         },
-        import_react12.default.createElement("span", { className: "iwb-hunk-text", style: { fontWeight: 600 } }, row.text),
-        import_react12.default.createElement("span", { className: "iwb-additions", style: { marginRight: 10 } }, `+${row.additions}`),
-        import_react12.default.createElement("span", { className: "iwb-deletions", style: { marginRight: 10 } }, `-${row.deletions}`)
+        import_react13.default.createElement("span", { className: "iwb-hunk-text", style: { fontWeight: 600 } }, row.text),
+        import_react13.default.createElement("span", { className: "iwb-additions", style: { marginRight: 10 } }, `+${row.additions}`),
+        import_react13.default.createElement("span", { className: "iwb-deletions", style: { marginRight: 10 } }, `-${row.deletions}`)
       );
     }
     if (row.kind === "binary") {
-      return import_react12.default.createElement(
+      return import_react13.default.createElement(
         "div",
         { key: `bin:${offset}`, className: "iwb-diff-hunk", style: rowStyle(offset) },
-        import_react12.default.createElement("span", { className: "iwb-hunk-text" }, row.text)
+        import_react13.default.createElement("span", { className: "iwb-hunk-text" }, row.text)
       );
     }
-    return import_react12.default.createElement(
+    return import_react13.default.createElement(
       "div",
       { key: `hunk:${offset}`, className: "iwb-diff-hunk", style: rowStyle(offset) },
-      import_react12.default.createElement("span", { className: "iwb-hunk-text" }, row.text),
-      source.stageable ? import_react12.default.createElement(
+      import_react13.default.createElement("span", { className: "iwb-hunk-text" }, row.text),
+      source.stageable ? import_react13.default.createElement(
         "span",
         { className: "iwb-hunk-actions" },
-        import_react12.default.createElement("button", {
+        import_react13.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn iwb-small",
           disabled: applying,
@@ -49494,14 +49192,14 @@ ${row.right?.text ?? ""}`;
     if (row.kind === "file" || row.kind === "binary" || row.kind === "hunk") return renderChromeRow(row, offset);
     const selected = typeof row.index === "number" && selection.has(row.index);
     const cls = row.kind === "add" ? "iwb-add" : row.kind === "del" ? "iwb-del" : "";
-    return import_react12.default.createElement(
+    return import_react13.default.createElement(
       "div",
       {
         key: `line:${row.index}`,
         className: `iwb-diff-row ${cls} ${selected ? "iwb-selected" : ""} ${findRows.has(offset) ? "iwb-diff-find" : ""} ${findActiveRow === offset ? "iwb-diff-find-active" : ""}`,
         style: rowStyle(offset)
       },
-      import_react12.default.createElement("span", {
+      import_react13.default.createElement("span", {
         className: "iwb-diff-gutter",
         onMouseDown: (event) => {
           if (source.stageable && row.kind !== "context") onGutterDown(event, row.index);
@@ -49510,28 +49208,28 @@ ${row.right?.text ?? ""}`;
           if (source.stageable && row.kind !== "context") onGutterEnter(row.index);
         }
       }, row.kind === "add" ? "+" : row.kind === "del" ? "\u2212" : ""),
-      import_react12.default.createElement("span", { className: "iwb-diff-num" }, row.oldNo ?? ""),
-      import_react12.default.createElement("span", { className: "iwb-diff-num" }, row.newNo ?? ""),
-      import_react12.default.createElement("span", { className: "iwb-diff-sign" }, row.kind === "add" ? "+" : row.kind === "del" ? "-" : " "),
-      import_react12.default.createElement("span", { className: "iwb-diff-text" }, row.text === "" ? "\xA0" : row.text)
+      import_react13.default.createElement("span", { className: "iwb-diff-num" }, row.oldNo ?? ""),
+      import_react13.default.createElement("span", { className: "iwb-diff-num" }, row.newNo ?? ""),
+      import_react13.default.createElement("span", { className: "iwb-diff-sign" }, row.kind === "add" ? "+" : row.kind === "del" ? "-" : " "),
+      import_react13.default.createElement("span", { className: "iwb-diff-text" }, row.text === "" ? "\xA0" : row.text)
     );
   };
   const renderSideCell = (side, isLeft, segments) => {
     if (side === null || side === void 0) {
-      return import_react12.default.createElement(
+      return import_react13.default.createElement(
         "div",
         { className: "iwb-diff-side-cell iwb-blank" },
-        import_react12.default.createElement("span", { className: "iwb-diff-num" }),
-        import_react12.default.createElement("span", { className: "iwb-diff-text" })
+        import_react13.default.createElement("span", { className: "iwb-diff-num" }),
+        import_react13.default.createElement("span", { className: "iwb-diff-text" })
       );
     }
     const selected = typeof side.index === "number" && selection.has(side.index);
-    return import_react12.default.createElement(
+    return import_react13.default.createElement(
       "div",
       {
         className: `iwb-diff-side-cell ${isLeft ? "iwb-del" : "iwb-add"} ${selected ? "iwb-selected" : ""}`
       },
-      import_react12.default.createElement("span", {
+      import_react13.default.createElement("span", {
         className: "iwb-diff-gutter",
         onMouseDown: (event) => {
           if (source.stageable) onGutterDown(event, side.index);
@@ -49540,52 +49238,52 @@ ${row.right?.text ?? ""}`;
           if (source.stageable) onGutterEnter(side.index);
         }
       }, isLeft ? "\u2212" : "+"),
-      import_react12.default.createElement("span", { className: "iwb-diff-num" }, side.no ?? ""),
-      import_react12.default.createElement(
+      import_react13.default.createElement("span", { className: "iwb-diff-num" }, side.no ?? ""),
+      import_react13.default.createElement(
         "span",
         { className: "iwb-diff-text" },
-        segments === null || segments === void 0 ? side.text === "" ? "\xA0" : side.text : segments.map((segment, index) => segment.changed ? import_react12.default.createElement("span", { key: index, className: isLeft ? "iwb-word-del" : "iwb-word-add" }, segment.text) : segment.text)
+        segments === null || segments === void 0 ? side.text === "" ? "\xA0" : side.text : segments.map((segment, index) => segment.changed ? import_react13.default.createElement("span", { key: index, className: isLeft ? "iwb-word-del" : "iwb-word-add" }, segment.text) : segment.text)
       )
     );
   };
   const renderSideRow = (row, offset) => {
     if (row.kind === "file" || row.kind === "binary" || row.kind === "hunk") return renderChromeRow(row, offset);
     const segments = wordLevel && row.kind === "change" ? wordSegments(row.left?.text ?? "", row.right?.text ?? "") : null;
-    return import_react12.default.createElement("div", {
+    return import_react13.default.createElement("div", {
       key: `side:${row.left?.index ?? "x"}:${row.right?.index ?? "y"}`,
       className: `iwb-diff-side ${findRows.has(offset) ? "iwb-diff-find" : ""} ${findActiveRow === offset ? "iwb-diff-find-active" : ""}`,
       style: { ...rowStyle(offset), display: "grid" }
     }, renderSideCell(row.left, true, segments?.left), renderSideCell(row.right, false, segments?.right));
   };
-  const toolbar = import_react12.default.createElement(
+  const toolbar = import_react13.default.createElement(
     "div",
     { className: "iwb-diff-toolbar" },
-    import_react12.default.createElement(IconRefresh, { width: 13, height: 13 }),
-    import_react12.default.createElement("span", { style: { color: "var(--iwb-fg)", marginLeft: 2 } }, source.path ?? ""),
-    import_react12.default.createElement("span", { className: "iwb-additions" }, `+${additions}`),
-    import_react12.default.createElement("span", { className: "iwb-deletions" }, `-${deletions}`),
-    import_react12.default.createElement("span", { className: "iwb-spacer" }),
-    tab3.kind !== "commit" ? import_react12.default.createElement(
+    import_react13.default.createElement(IconRefresh, { width: 13, height: 13 }),
+    import_react13.default.createElement("span", { style: { color: "var(--iwb-fg)", marginLeft: 2 } }, source.path ?? ""),
+    import_react13.default.createElement("span", { className: "iwb-additions" }, `+${additions}`),
+    import_react13.default.createElement("span", { className: "iwb-deletions" }, `-${deletions}`),
+    import_react13.default.createElement("span", { className: "iwb-spacer" }),
+    tab3.kind !== "commit" ? import_react13.default.createElement(
       "div",
       { className: "iwb-seg" },
-      import_react12.default.createElement("button", {
+      import_react13.default.createElement("button", {
         type: "button",
         className: mode === "side" ? "iwb-on" : "",
         onClick: () => store.setDiffMode("side")
       }, t2("commit.sideBySide")),
-      import_react12.default.createElement("button", {
+      import_react13.default.createElement("button", {
         type: "button",
         className: mode === "unified" ? "iwb-on" : "",
         onClick: () => store.setDiffMode("unified")
       }, t2("commit.unified"))
     ) : null,
-    import_react12.default.createElement("button", {
+    import_react13.default.createElement("button", {
       type: "button",
       className: `iwb-textbtn iwb-small ${wordLevel ? "iwb-primary" : ""}`,
       title: t2("commit.wordLevel"),
       onClick: () => setWordLevel((value) => !value)
     }, "Aa"),
-    source.stageable && selection.size > 0 ? import_react12.default.createElement("button", {
+    source.stageable && selection.size > 0 ? import_react13.default.createElement("button", {
       type: "button",
       className: "iwb-textbtn iwb-primary iwb-small",
       disabled: applying,
@@ -49593,7 +49291,7 @@ ${row.right?.text ?? ""}`;
         void applySelection([...selection], stageLabel);
       }
     }, `${stageLabel} (${selection.size})`) : null,
-    source.stageable && singleFile !== null ? import_react12.default.createElement("button", {
+    source.stageable && singleFile !== null ? import_react13.default.createElement("button", {
       type: "button",
       className: "iwb-textbtn iwb-small",
       onClick: () => {
@@ -49601,20 +49299,20 @@ ${row.right?.text ?? ""}`;
       }
     }, source.staged ? t2("commit.unstageAll") : t2("commit.stageAll")) : null
   );
-  const body = import_react12.default.createElement(
+  const body = import_react13.default.createElement(
     "div",
     {
       className: "iwb-diff-scroll",
       ref: scrollRef,
       onScroll: (event) => setScrollTop(event.currentTarget.scrollTop)
     },
-    viewRows.length === 0 ? import_react12.default.createElement("div", { className: "iwb-empty" }, t2("commit.selectFile")) : import_react12.default.createElement(
+    viewRows.length === 0 ? import_react13.default.createElement("div", { className: "iwb-empty" }, t2("commit.selectFile")) : import_react13.default.createElement(
       "div",
       { className: "iwb-diff-inner", style: { height: `${viewRows.length * LINE_HEIGHT}px` } },
       viewRows.slice(start, end).map((row, index) => {
         const offset = start + index;
         if (row.kind === "collapsed") {
-          return import_react12.default.createElement("div", {
+          return import_react13.default.createElement("div", {
             key: row.blockKey,
             className: "iwb-diff-collapsed",
             onClick: () => setOpenBlocks((previous) => /* @__PURE__ */ new Set([...previous, row.blockKey]))
@@ -49624,11 +49322,11 @@ ${row.right?.text ?? ""}`;
       })
     )
   );
-  return import_react12.default.createElement(
+  return import_react13.default.createElement(
     "div",
     { className: "iwb-diff" },
     toolbar,
-    findOpen === true ? import_react12.default.createElement(FindBar, {
+    findOpen === true ? import_react13.default.createElement(FindBar, {
       store,
       editor: findController,
       readOnly: true,
@@ -49639,9 +49337,9 @@ ${row.right?.text ?? ""}`;
 }
 
 // src/client/SearchView.jsx
-var import_react13 = __toESM(require("react"), 1);
+var import_react14 = __toESM(require("react"), 1);
 function Flag({ on: on2, label: label3, title, onClick }) {
-  return import_react13.default.createElement("button", {
+  return import_react14.default.createElement("button", {
     type: "button",
     className: `iwb-find-flag ${on2 ? "iwb-on" : ""}`,
     title,
@@ -49655,13 +49353,13 @@ function searchSlice(state) {
 function SearchView({ store }) {
   const t2 = store.t;
   const { search: search2 } = useStoreSlice(store, searchSlice, shallowEqual);
-  const [query, setQuery] = (0, import_react13.useState)(search2.query);
-  const [caseSensitive, setCaseSensitive] = (0, import_react13.useState)(search2.caseSensitive);
-  const [wholeWord, setWholeWord] = (0, import_react13.useState)(search2.wholeWord);
-  const [regexp, setRegexp] = (0, import_react13.useState)(search2.regexp);
-  const inputRef = (0, import_react13.useRef)(null);
-  const timer = (0, import_react13.useRef)(null);
-  (0, import_react13.useEffect)(() => {
+  const [query, setQuery] = (0, import_react14.useState)(search2.query);
+  const [caseSensitive, setCaseSensitive] = (0, import_react14.useState)(search2.caseSensitive);
+  const [wholeWord, setWholeWord] = (0, import_react14.useState)(search2.wholeWord);
+  const [regexp, setRegexp] = (0, import_react14.useState)(search2.regexp);
+  const inputRef = (0, import_react14.useRef)(null);
+  const timer = (0, import_react14.useRef)(null);
+  (0, import_react14.useEffect)(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
     const timerId = setTimeout(() => {
@@ -49670,10 +49368,10 @@ function SearchView({ store }) {
     }, 80);
     return () => clearTimeout(timerId);
   }, []);
-  (0, import_react13.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (search2.loading === false) inputRef.current?.focus();
   }, [search2.loading, search2.tookMs]);
-  (0, import_react13.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       timer.current = null;
@@ -49683,14 +49381,14 @@ function SearchView({ store }) {
       if (timer.current !== null) clearTimeout(timer.current);
     };
   }, [query, caseSensitive, wholeWord, regexp]);
-  const totals = (0, import_react13.useMemo)(() => {
+  const totals = (0, import_react14.useMemo)(() => {
     const matches = search2.results.reduce((sum, file) => sum + file.matches.length, 0);
     return { matches, files: search2.results.length };
   }, [search2.results]);
   const open = (result, match) => {
     store.openSearchResult(result.path, match.line);
   };
-  (0, import_react13.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     const onKey = (event) => {
       if (event.key !== "Enter" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
       if (store.state.activeId !== "search:in-files") return;
@@ -49703,14 +49401,14 @@ function SearchView({ store }) {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [search2.results, store]);
-  return import_react13.default.createElement(
+  return import_react14.default.createElement(
     "div",
     { className: "iwb-search" },
-    import_react13.default.createElement(
+    import_react14.default.createElement(
       "div",
       { className: "iwb-search-head" },
-      import_react13.default.createElement(IconSearch, { width: 14, height: 14, style: { color: "var(--iwb-muted)" } }),
-      import_react13.default.createElement("input", {
+      import_react14.default.createElement(IconSearch, { width: 14, height: 14, style: { color: "var(--iwb-muted)" } }),
+      import_react14.default.createElement("input", {
         ref: inputRef,
         className: "iwb-search-input",
         value: query,
@@ -49729,45 +49427,45 @@ function SearchView({ store }) {
           }
         }
       }),
-      import_react13.default.createElement(Flag, {
+      import_react14.default.createElement(Flag, {
         on: caseSensitive,
         label: "Aa",
         title: t2("search.caseSensitive"),
         onClick: () => setCaseSensitive((value) => !value)
       }),
-      import_react13.default.createElement(Flag, {
+      import_react14.default.createElement(Flag, {
         on: wholeWord,
         label: "W",
         title: t2("search.wholeWord"),
         onClick: () => setWholeWord((value) => !value)
       }),
-      import_react13.default.createElement(Flag, {
+      import_react14.default.createElement(Flag, {
         on: regexp,
         label: ".*",
         title: t2("search.regexp"),
         onClick: () => setRegexp((value) => !value)
       })
     ),
-    import_react13.default.createElement(
+    import_react14.default.createElement(
       "div",
       { className: "iwb-search-meta" },
       search2.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2.error !== null ? search2.error : `${totals.matches} ${t2("search.resultCount")} \xB7 ${totals.files} \xB7 ${search2.tookMs} ${t2("search.took")}`,
-      search2.truncated === true ? import_react13.default.createElement("span", { className: "iwb-search-warn" }, t2("search.truncated")) : null
+      search2.truncated === true ? import_react14.default.createElement("span", { className: "iwb-search-warn" }, t2("search.truncated")) : null
     ),
-    import_react13.default.createElement(
+    import_react14.default.createElement(
       "div",
       { className: "iwb-search-results" },
-      search2.error !== null && query !== "" ? import_react13.default.createElement("div", { className: "iwb-search-error" }, search2.error) : search2.results.length === 0 && query !== "" && search2.loading !== true ? import_react13.default.createElement("div", { className: "iwb-empty" }, t2("search.noResults")) : search2.results.map((file) => import_react13.default.createElement(
+      search2.error !== null && query !== "" ? import_react14.default.createElement("div", { className: "iwb-search-error" }, search2.error) : search2.results.length === 0 && query !== "" && search2.loading !== true ? import_react14.default.createElement("div", { className: "iwb-empty" }, t2("search.noResults")) : search2.results.map((file) => import_react14.default.createElement(
         "div",
         { key: file.path, className: "iwb-search-file" },
-        import_react13.default.createElement(
+        import_react14.default.createElement(
           "div",
           { className: "iwb-search-file-head", title: file.path },
-          import_react13.default.createElement("span", { className: "iwb-search-file-name" }, file.path.split("/").pop()),
-          import_react13.default.createElement("span", { className: "iwb-search-file-dir" }, file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""),
-          import_react13.default.createElement("span", { className: "iwb-count" }, file.matches.length)
+          import_react14.default.createElement("span", { className: "iwb-search-file-name" }, file.path.split("/").pop()),
+          import_react14.default.createElement("span", { className: "iwb-search-file-dir" }, file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""),
+          import_react14.default.createElement("span", { className: "iwb-count" }, file.matches.length)
         ),
-        file.matches.map((match, index) => import_react13.default.createElement(
+        file.matches.map((match, index) => import_react14.default.createElement(
           "button",
           {
             key: `${file.path}:${match.line}:${match.column}:${index}`,
@@ -49776,8 +49474,8 @@ function SearchView({ store }) {
             title: t2("search.openResult"),
             onClick: () => open(file, match)
           },
-          import_react13.default.createElement("span", { className: "iwb-search-line" }, match.line),
-          import_react13.default.createElement("span", { className: "iwb-search-preview" }, match.preview)
+          import_react14.default.createElement("span", { className: "iwb-search-line" }, match.line),
+          import_react14.default.createElement("span", { className: "iwb-search-preview" }, match.preview)
         ))
       ))
     )
@@ -49803,25 +49501,25 @@ function Welcome({ store, slice }) {
   const t2 = store.t;
   const branch = slice.status?.branch;
   const repoProjects = (slice.projects ?? []).filter((project) => project.isRepo === true && project.path !== slice.root);
-  const Shortcut = ({ shortcut, children }) => import_react14.default.createElement(Kbd, null, shortcut);
+  const Shortcut = ({ shortcut, children }) => import_react15.default.createElement(Kbd, null, shortcut);
   const actions = [
     { key: "project", icon: "project", title: t2("welcome.project"), shortcut: slice.shortcuts?.project ?? "Alt+1", onClick: () => store.showTool("project") },
     { key: "commit", icon: "commit", title: t2("welcome.commit"), shortcut: slice.shortcuts?.commit ?? "Alt+0", onClick: () => store.showTool("commit") },
     { key: "git", icon: "git", title: t2("welcome.git"), shortcut: slice.shortcuts?.git ?? "Alt+9", onClick: () => store.showTool("git") },
     { key: "terminal", icon: "terminal", title: t2("welcome.terminal"), shortcut: slice.shortcuts?.terminal ?? "Alt+F12", onClick: () => store.showTool("terminal") }
   ];
-  return import_react14.default.createElement(
+  return import_react15.default.createElement(
     "div",
     { className: "iwb-welcome" },
-    import_react14.default.createElement(
+    import_react15.default.createElement(
       "div",
       { className: "iwb-welcome-card" },
-      import_react14.default.createElement("h1", { className: "iwb-welcome-title" }, t2("welcome.title")),
-      import_react14.default.createElement("p", { className: "iwb-welcome-sub" }, t2("welcome.subtitle")),
-      import_react14.default.createElement(
+      import_react15.default.createElement("h1", { className: "iwb-welcome-title" }, t2("welcome.title")),
+      import_react15.default.createElement("p", { className: "iwb-welcome-sub" }, t2("welcome.subtitle")),
+      import_react15.default.createElement(
         "div",
         { className: "iwb-welcome-grid" },
-        actions.map((action) => import_react14.default.createElement(
+        actions.map((action) => import_react15.default.createElement(
           "button",
           {
             key: action.key,
@@ -49829,22 +49527,22 @@ function Welcome({ store, slice }) {
             className: "iwb-welcome-action",
             onClick: action.onClick
           },
-          import_react14.default.createElement(StripeIcon, { tool: action.icon, size: 17 }),
-          import_react14.default.createElement("span", null, action.title),
-          import_react14.default.createElement(Shortcut, { shortcut: action.shortcut, children: action.shortcut })
+          import_react15.default.createElement(StripeIcon, { tool: action.icon, size: 17 }),
+          import_react15.default.createElement("span", null, action.title),
+          import_react15.default.createElement(Shortcut, { shortcut: action.shortcut, children: action.shortcut })
         ))
       ),
-      import_react14.default.createElement(
+      import_react15.default.createElement(
         "div",
         { className: "iwb-welcome-meta" },
-        slice.status?.isRepo === true ? import_react14.default.createElement("span", null, `${t2("welcome.branch")}: ${slice.status.detached === true ? t2("git.detached") : branch ?? "HEAD"}`) : import_react14.default.createElement("span", null, t2("welcome.noRepo")),
-        import_react14.default.createElement("span", null, slice.root)
+        slice.status?.isRepo === true ? import_react15.default.createElement("span", null, `${t2("welcome.branch")}: ${slice.status.detached === true ? t2("git.detached") : branch ?? "HEAD"}`) : import_react15.default.createElement("span", null, t2("welcome.noRepo")),
+        import_react15.default.createElement("span", null, slice.root)
       ),
-      slice.status?.isRepo !== true && repoProjects.length > 0 ? import_react14.default.createElement(
+      slice.status?.isRepo !== true && repoProjects.length > 0 ? import_react15.default.createElement(
         "div",
         { className: "iwb-welcome-hint" },
-        import_react14.default.createElement("span", null, t2("project.noRepoHint")),
-        import_react14.default.createElement("button", {
+        import_react15.default.createElement("span", null, t2("project.noRepoHint")),
+        import_react15.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn iwb-small",
           onClick: () => store.openProjectPicker()
@@ -49855,8 +49553,8 @@ function Welcome({ store, slice }) {
 }
 function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, onFindInFiles, previewFind, onPreviewFindRequest, onClosePreviewFind }) {
   const t2 = store.t;
-  const scrollTimer = (0, import_react14.useRef)(null);
-  (0, import_react14.useEffect)(() => () => {
+  const scrollTimer = (0, import_react15.useRef)(null);
+  (0, import_react15.useEffect)(() => () => {
     if (scrollTimer.current !== null) clearTimeout(scrollTimer.current);
   }, []);
   const onScrollTop = (top2) => {
@@ -49867,34 +49565,34 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
     }, 400);
   };
   if (tab3.loading === true && tab3.payload === void 0) {
-    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.loading"));
+    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.loading"));
   }
   if (tab3.error !== null && tab3.error !== void 0) {
-    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, import_react14.default.createElement("div", { className: "iwb-error-box" }, tab3.error));
+    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, import_react15.default.createElement("div", { className: "iwb-error-box" }, tab3.error));
   }
   const payload = tab3.payload;
   if (payload === void 0 || payload === null) return null;
   if (payload.kind === "image") {
-    return import_react14.default.createElement(
+    return import_react15.default.createElement(
       "div",
       { className: "iwb-editor-empty", style: { flexDirection: "column", gap: 12 } },
-      import_react14.default.createElement("img", { src: payload.dataUrl, alt: tab3.name, style: { maxWidth: "92%", maxHeight: "82%", objectFit: "contain", borderRadius: 6, border: "1px solid var(--iwb-border)" } }),
-      import_react14.default.createElement("span", null, `${tab3.rel} \xB7 ${payload.size} B`)
+      import_react15.default.createElement("img", { src: payload.dataUrl, alt: tab3.name, style: { maxWidth: "92%", maxHeight: "82%", objectFit: "contain", borderRadius: 6, border: "1px solid var(--iwb-border)" } }),
+      import_react15.default.createElement("span", null, `${tab3.rel} \xB7 ${payload.size} B`)
     );
   }
   if (payload.kind === "binary") {
-    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.binary"));
+    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.binary"));
   }
   if (payload.kind === "too-large") {
-    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.tooLarge"));
+    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.tooLarge"));
   }
   if (payload.kind !== "text") {
-    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.binary"));
+    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.binary"));
   }
   const saved = payload.content ?? "";
   const text = tab3.dirty === true ? tab3.draft ?? saved : saved;
   if (tab3.editing === true && payload.truncated !== true) {
-    return import_react14.default.createElement(CodeEditor, {
+    return import_react15.default.createElement(CodeEditor, {
       key: `${tab3.id}:${tab3.resetToken ?? 0}`,
       value: tab3.draft ?? saved,
       path: tab3.path,
@@ -49915,7 +49613,7 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
     });
   }
   if (isMarkdownPath(tab3.path) && (tab3.view ?? "preview") === "preview") {
-    return import_react14.default.createElement(MarkdownView, {
+    return import_react15.default.createElement(MarkdownView, {
       key: tab3.id,
       text,
       t: t2,
@@ -49936,7 +49634,7 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
       }
     });
   }
-  return import_react14.default.createElement(CodeEditor, {
+  return import_react15.default.createElement(CodeEditor, {
     key: `${tab3.id}:readonly:${tab3.resetToken ?? 0}`,
     value: text,
     path: tab3.path,
@@ -49954,12 +49652,12 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
 }
 function TabBar({ store, slice }) {
   const t2 = store.t;
-  const [menu, setMenu] = (0, import_react14.useState)(null);
+  const [menu, setMenu] = (0, import_react15.useState)(null);
   const activeIndex = slice.tabs.findIndex((tab3) => tab3.id === slice.activeId);
-  return import_react14.default.createElement(
+  return import_react15.default.createElement(
     "div",
     { className: "iwb-tabbar" },
-    slice.tabs.map((tab3) => import_react14.default.createElement(
+    slice.tabs.map((tab3) => import_react15.default.createElement(
       "div",
       {
         key: tab3.id,
@@ -49977,10 +49675,10 @@ function TabBar({ store, slice }) {
           setMenu({ x: event.clientX, y: event.clientY, tab: tab3 });
         }
       },
-      tab3.kind === "commit" ? import_react14.default.createElement(IconMore, { width: 12, height: 12 }) : import_react14.default.createElement(FileTypeIcon, { name: tab3.name, isDir: false, size: 14 }),
-      import_react14.default.createElement("span", { className: "iwb-tab-name" }, tab3.kind === "commit" ? tab3.hash.slice(0, 8) : tab3.name),
-      tab3.dirty === true ? import_react14.default.createElement("span", { className: "iwb-tab-dirty", title: t2("editor.dirty") }) : tab3.preview ? import_react14.default.createElement("span", { className: "iwb-tab-dot", title: t2("common.preview") }) : null,
-      import_react14.default.createElement("button", {
+      tab3.kind === "commit" ? import_react15.default.createElement(IconMore, { width: 12, height: 12 }) : import_react15.default.createElement(FileTypeIcon, { path: tab3.name, size: 14 }),
+      import_react15.default.createElement("span", { className: "iwb-tab-name" }, tab3.kind === "commit" ? tab3.hash.slice(0, 8) : tab3.name),
+      tab3.dirty === true ? import_react15.default.createElement("span", { className: "iwb-tab-dirty", title: t2("editor.dirty") }) : tab3.preview ? import_react15.default.createElement("span", { className: "iwb-tab-dot", title: t2("common.preview") }) : null,
+      import_react15.default.createElement("button", {
         type: "button",
         className: "iwb-tab-close",
         title: t2("common.closeTab"),
@@ -49988,19 +49686,19 @@ function TabBar({ store, slice }) {
           event.stopPropagation();
           store.closeTab(tab3.id);
         }
-      }, import_react14.default.createElement(IconClose, { width: 11, height: 11 }))
+      }, import_react15.default.createElement(IconClose, { width: 11, height: 11 }))
     )),
-    import_react14.default.createElement(
+    import_react15.default.createElement(
       "div",
       { className: "iwb-tabbar-actions" },
-      activeIndex >= 0 && slice.tabs[activeIndex]?.kind === "file" && slice.tabs[activeIndex]?.preview ? import_react14.default.createElement("button", {
+      activeIndex >= 0 && slice.tabs[activeIndex]?.kind === "file" && slice.tabs[activeIndex]?.preview ? import_react15.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("common.pinTab"),
         onClick: () => store.pinTab(slice.tabs[activeIndex].id)
-      }, import_react14.default.createElement(IconPin, { width: 14, height: 14 })) : null
+      }, import_react15.default.createElement(IconPin, { width: 14, height: 14 })) : null
     ),
-    menu !== null ? import_react14.default.createElement(ContextMenu, {
+    menu !== null ? import_react15.default.createElement(ContextMenu, {
       x: menu.x,
       y: menu.y,
       onClose: () => setMenu(null),
@@ -50048,38 +49746,38 @@ function breadcrumbParts(directories, middle, fileSegment, mode) {
   const full = mode === "full";
   const parts = [];
   if (directories.length > 0) {
-    parts.push(import_react14.default.createElement("span", { key: "head" }, directories[0]));
+    parts.push(import_react15.default.createElement("span", { key: "head" }, directories[0]));
     if (middle.length > 0) {
-      parts.push(import_react14.default.createElement("span", { key: "head-sep", className: "iwb-sep" }, "\u203A"));
+      parts.push(import_react15.default.createElement("span", { key: "head-sep", className: "iwb-sep" }, "\u203A"));
     }
   }
   middle.forEach((segment, index) => {
-    parts.push(import_react14.default.createElement("span", {
+    parts.push(import_react15.default.createElement("span", {
       key: `mid-${index}`,
       className: full ? void 0 : "iwb-crumb-mid"
     }, segment));
     if (index < middle.length - 1) {
-      parts.push(import_react14.default.createElement("span", {
+      parts.push(import_react15.default.createElement("span", {
         key: `mid-sep-${index}`,
         className: full ? "iwb-sep" : "iwb-sep iwb-crumb-mid"
       }, "\u203A"));
     }
   });
   if (!full && middle.length > 0) {
-    parts.push(import_react14.default.createElement("span", { key: "more", className: "iwb-crumb-more" }, "\u2026"));
+    parts.push(import_react15.default.createElement("span", { key: "more", className: "iwb-crumb-more" }, "\u2026"));
   }
   if (directories.length > 0) {
-    parts.push(import_react14.default.createElement("span", { key: "file-sep", className: "iwb-sep" }, "\u203A"));
+    parts.push(import_react15.default.createElement("span", { key: "file-sep", className: "iwb-sep" }, "\u203A"));
   }
-  parts.push(import_react14.default.createElement("b", { key: "file" }, fileSegment));
+  parts.push(import_react15.default.createElement("b", { key: "file" }, fileSegment));
   return parts;
 }
 function EditorToolbar({ store, tab: tab3 }) {
   const t2 = store.t;
-  const [diffMenu, setDiffMenu] = (0, import_react14.useState)(null);
-  const [overflow, setOverflow] = (0, import_react14.useState)(false);
-  const breadcrumbRef = (0, import_react14.useRef)(null);
-  (0, import_react14.useEffect)(() => {
+  const [diffMenu, setDiffMenu] = (0, import_react15.useState)(null);
+  const [overflow, setOverflow] = (0, import_react15.useState)(false);
+  const breadcrumbRef = (0, import_react15.useRef)(null);
+  (0, import_react15.useEffect)(() => {
     const element = breadcrumbRef.current;
     if (element === null) return void 0;
     const measure = element.querySelector(".iwb-breadcrumb-measure");
@@ -50098,44 +49796,44 @@ function EditorToolbar({ store, tab: tab3 }) {
       const rect = event.currentTarget.getBoundingClientRect();
       setDiffMenu({ x: rect.left - 120, y: rect.bottom + 4 });
     };
-    return import_react14.default.createElement(
-      import_react14.default.Fragment,
+    return import_react15.default.createElement(
+      import_react15.default.Fragment,
       null,
-      import_react14.default.createElement(
+      import_react15.default.createElement(
         "div",
         { className: "iwb-editor-toolbar" },
-        import_react14.default.createElement(
+        import_react15.default.createElement(
           "div",
           { className: "iwb-breadcrumb" },
-          import_react14.default.createElement("span", null, t2("commit.title")),
-          import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
-          import_react14.default.createElement("b", null, variant),
-          import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
-          import_react14.default.createElement("b", null, baseName(tab3.rel))
+          import_react15.default.createElement("span", null, t2("commit.title")),
+          import_react15.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
+          import_react15.default.createElement("b", null, variant),
+          import_react15.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
+          import_react15.default.createElement("b", null, baseName(tab3.rel))
         ),
-        import_react14.default.createElement("div", { className: "iwb-spacer" }),
-        readOnly2 ? null : import_react14.default.createElement(
-          import_react14.default.Fragment,
+        import_react15.default.createElement("div", { className: "iwb-spacer" }),
+        readOnly2 ? null : import_react15.default.createElement(
+          import_react15.default.Fragment,
           null,
-          import_react14.default.createElement("button", {
+          import_react15.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-small",
             onClick: anchor
           }, t2("commit.showDiffWith"), " \u25BE"),
-          import_react14.default.createElement("button", {
+          import_react15.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-small",
             title: t2("commit.jumpToSource"),
             onClick: () => store.jumpToSource(tab3.rel)
           }, t2("commit.jumpToSource")),
-          import_react14.default.createElement("button", {
+          import_react15.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-small iwb-danger",
             onClick: () => store.revertChange({ path: tab3.rel, untracked: tab3.untracked === true })
           }, t2("commit.revert"))
         )
       ),
-      diffMenu !== null && !readOnly2 ? import_react14.default.createElement(ContextMenu, {
+      diffMenu !== null && !readOnly2 ? import_react15.default.createElement(ContextMenu, {
         x: diffMenu.x,
         y: diffMenu.y,
         items: [
@@ -50148,17 +49846,17 @@ function EditorToolbar({ store, tab: tab3 }) {
     );
   }
   if (tab3.kind === "commit") {
-    return import_react14.default.createElement(
+    return import_react15.default.createElement(
       "div",
       { className: "iwb-editor-toolbar" },
-      import_react14.default.createElement(
+      import_react15.default.createElement(
         "div",
         { className: "iwb-breadcrumb" },
-        import_react14.default.createElement("b", null, t2("git.details")),
-        import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
-        import_react14.default.createElement("b", { style: { fontFamily: "var(--iwb-mono)" } }, tab3.hash.slice(0, 10))
+        import_react15.default.createElement("b", null, t2("git.details")),
+        import_react15.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
+        import_react15.default.createElement("b", { style: { fontFamily: "var(--iwb-mono)" } }, tab3.hash.slice(0, 10))
       ),
-      import_react14.default.createElement("div", { className: "iwb-spacer" })
+      import_react15.default.createElement("div", { className: "iwb-spacer" })
     );
   }
   const segments = tab3.rel.split(/[\\/]/);
@@ -50172,51 +49870,51 @@ function EditorToolbar({ store, tab: tab3 }) {
   const view = tab3.view ?? (markdown2 ? "preview" : "code");
   const dirty = tab3.dirty === true;
   const saving = tab3.saving === true;
-  const dirtyBadge = dirty ? import_react14.default.createElement("span", { className: "iwb-toolbar-dirty", title: t2("editor.dirty") }, t2("editor.dirty")) : null;
-  return import_react14.default.createElement(
+  const dirtyBadge = dirty ? import_react15.default.createElement("span", { className: "iwb-toolbar-dirty", title: t2("editor.dirty") }, t2("editor.dirty")) : null;
+  return import_react15.default.createElement(
     "div",
     {
       className: "iwb-editor-toolbar",
       "data-overflow": overflow === true ? "true" : void 0
     },
-    import_react14.default.createElement(
+    import_react15.default.createElement(
       "div",
       { className: "iwb-breadcrumb", title: tab3.path, ref: breadcrumbRef },
       ...breadcrumbParts(directories, middle, fileSegment, "visible"),
       dirtyBadge,
       // The uncollapsed path, measured but never shown.
-      import_react14.default.createElement(
+      import_react15.default.createElement(
         "span",
         { className: "iwb-breadcrumb-measure", "aria-hidden": "true" },
         ...breadcrumbParts(directories, middle, fileSegment, "full"),
         dirtyBadge
       )
     ),
-    import_react14.default.createElement("div", { className: "iwb-spacer" }),
-    payload?.truncated === true ? import_react14.default.createElement("span", { style: { color: "var(--iwb-warn)" } }, t2("editor.truncated")) : null,
-    isText2 && markdown2 && !editing ? import_react14.default.createElement(
+    import_react15.default.createElement("div", { className: "iwb-spacer" }),
+    payload?.truncated === true ? import_react15.default.createElement("span", { style: { color: "var(--iwb-warn)" } }, t2("editor.truncated")) : null,
+    isText2 && markdown2 && !editing ? import_react15.default.createElement(
       "div",
       { className: "iwb-seg" },
-      import_react14.default.createElement("button", {
+      import_react15.default.createElement("button", {
         type: "button",
         className: view === "preview" ? "iwb-on" : "",
         title: t2("editor.preview"),
         onClick: () => store.setTabView(tab3.id, "preview")
-      }, import_react14.default.createElement(IconEye, { width: 12, height: 12 }), t2("editor.preview")),
-      import_react14.default.createElement("button", {
+      }, import_react15.default.createElement(IconEye, { width: 12, height: 12 }), t2("editor.preview")),
+      import_react15.default.createElement("button", {
         type: "button",
         className: view === "code" ? "iwb-on" : "",
         title: t2("editor.source"),
         onClick: () => store.setTabView(tab3.id, "code")
-      }, import_react14.default.createElement(IconCode, { width: 12, height: 12 }), t2("editor.source"))
+      }, import_react15.default.createElement(IconCode, { width: 12, height: 12 }), t2("editor.source"))
     ) : null,
-    isText2 && markdown2 && !editing && view === "preview" ? import_react14.default.createElement("button", {
+    isText2 && markdown2 && !editing && view === "preview" ? import_react15.default.createElement("button", {
       type: "button",
       className: `iwb-iconbtn ${tab3.outlineOpen === true ? "iwb-on" : ""}`,
       title: t2("editor.outline"),
       onClick: () => store.updateActiveTab({ outlineOpen: tab3.outlineOpen !== true })
-    }, import_react14.default.createElement(IconOutline, { width: 14, height: 14 })) : null,
-    isText2 ? import_react14.default.createElement(
+    }, import_react15.default.createElement(IconOutline, { width: 14, height: 14 })) : null,
+    isText2 ? import_react15.default.createElement(
       "button",
       {
         type: "button",
@@ -50224,13 +49922,13 @@ function EditorToolbar({ store, tab: tab3 }) {
         title: editing ? t2("editor.toReadOnly") : t2("editor.toEdit"),
         onClick: () => store.setTabEditing(tab3.id, !editing)
       },
-      import_react14.default.createElement(editing ? IconLock : IconEdit, { width: 12, height: 12 }),
+      import_react15.default.createElement(editing ? IconLock : IconEdit, { width: 12, height: 12 }),
       editing ? t2("editor.readonly") : t2("editor.edit")
     ) : null,
-    editing && isText2 ? import_react14.default.createElement(
-      import_react14.default.Fragment,
+    editing && isText2 ? import_react15.default.createElement(
+      import_react15.default.Fragment,
       null,
-      import_react14.default.createElement("button", {
+      import_react15.default.createElement("button", {
         type: "button",
         className: `iwb-textbtn iwb-small ${dirty ? "iwb-primary" : ""}`,
         disabled: !dirty || saving,
@@ -50238,18 +49936,18 @@ function EditorToolbar({ store, tab: tab3 }) {
         onClick: () => {
           void store.saveTab(tab3.id);
         }
-      }, import_react14.default.createElement(IconSave, { width: 12, height: 12 }), saving ? t2("editor.saving") : t2("editor.save")),
-      import_react14.default.createElement("button", {
+      }, import_react15.default.createElement(IconSave, { width: 12, height: 12 }), saving ? t2("editor.saving") : t2("editor.save")),
+      import_react15.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         disabled: !dirty,
         title: t2("editor.restore"),
         onClick: () => store.discardDraft(tab3.id)
-      }, import_react14.default.createElement(IconRestore, { width: 14, height: 14 }))
-    ) : isText2 && dirty ? import_react14.default.createElement(
-      import_react14.default.Fragment,
+      }, import_react15.default.createElement(IconRestore, { width: 14, height: 14 }))
+    ) : isText2 && dirty ? import_react15.default.createElement(
+      import_react15.default.Fragment,
       null,
-      import_react14.default.createElement("button", {
+      import_react15.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-primary iwb-small",
         disabled: saving,
@@ -50257,15 +49955,15 @@ function EditorToolbar({ store, tab: tab3 }) {
         onClick: () => {
           void store.saveTab(tab3.id);
         }
-      }, import_react14.default.createElement(IconSave, { width: 12, height: 12 }), saving ? t2("editor.saving") : t2("editor.save")),
-      import_react14.default.createElement("button", {
+      }, import_react15.default.createElement(IconSave, { width: 12, height: 12 }), saving ? t2("editor.saving") : t2("editor.save")),
+      import_react15.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("editor.restore"),
         onClick: () => store.discardDraft(tab3.id)
-      }, import_react14.default.createElement(IconRestore, { width: 14, height: 14 }))
+      }, import_react15.default.createElement(IconRestore, { width: 14, height: 14 }))
     ) : null,
-    import_react14.default.createElement("span", null, payload?.encoding ?? "utf-8")
+    import_react15.default.createElement("span", null, payload?.encoding ?? "utf-8")
   );
 }
 function isHtmlPath(path2) {
@@ -50274,10 +49972,10 @@ function isHtmlPath(path2) {
 function HtmlPreviewActions({ store, tab: tab3 }) {
   const t2 = store.t;
   if (tab3.kind !== "file" || !isHtmlPath(tab3.path)) return null;
-  return import_react14.default.createElement(
+  return import_react15.default.createElement(
     "div",
     { className: "iwb-html-actions" },
-    import_react14.default.createElement("button", {
+    import_react15.default.createElement("button", {
       type: "button",
       className: "iwb-html-action",
       title: t2("editor.htmlPreviewSidebar"),
@@ -50285,8 +49983,8 @@ function HtmlPreviewActions({ store, tab: tab3 }) {
       onClick: () => {
         void store.openInSidebar(tab3.path);
       }
-    }, import_react14.default.createElement(IconGlobe, { width: 15, height: 15 })),
-    import_react14.default.createElement("button", {
+    }, import_react15.default.createElement(IconGlobe, { width: 15, height: 15 })),
+    import_react15.default.createElement("button", {
       type: "button",
       className: "iwb-html-action iwb-chrome",
       title: t2("editor.htmlPreviewBrowser"),
@@ -50294,7 +49992,7 @@ function HtmlPreviewActions({ store, tab: tab3 }) {
       onClick: () => {
         void store.openInDefaultBrowser(tab3.path);
       }
-    }, import_react14.default.createElement(IconChrome, { width: 15, height: 15 }))
+    }, import_react15.default.createElement(IconChrome, { width: 15, height: 15 }))
   );
 }
 function buildConflictDialog(store, tab3) {
@@ -50384,22 +50082,22 @@ function createEditorKeyHandler(store, options) {
 function EditorArea({ store, state: _state }) {
   const slice = useStoreSlice(store, selectEditorSlice, shallowEqual);
   const active = slice.tabs.find((tab3) => tab3.id === slice.activeId);
-  const [findOpen, setFindOpen] = (0, import_react14.useState)(false);
-  const [previewFind, setPreviewFind] = (0, import_react14.useState)(false);
-  const [editorApi, setEditorApi] = (0, import_react14.useState)(null);
-  const [dismissedTab, setDismissedTab] = (0, import_react14.useState)(null);
-  const findOpenRef = (0, import_react14.useRef)(false);
+  const [findOpen, setFindOpen] = (0, import_react15.useState)(false);
+  const [previewFind, setPreviewFind] = (0, import_react15.useState)(false);
+  const [editorApi, setEditorApi] = (0, import_react15.useState)(null);
+  const [dismissedTab, setDismissedTab] = (0, import_react15.useState)(null);
+  const findOpenRef = (0, import_react15.useRef)(false);
   findOpenRef.current = findOpen;
-  const previewFindRef = (0, import_react14.useRef)(false);
+  const previewFindRef = (0, import_react15.useRef)(false);
   previewFindRef.current = previewFind;
   const textTab = active?.kind === "file" && active.payload?.kind === "text" && active.payload?.truncated !== true && !(isMarkdownPath(active.path) && (active.view ?? "preview") === "preview" && active.editing !== true);
   const previewTab = active?.kind === "file" && active.payload?.kind === "text" && active.payload?.truncated !== true && isMarkdownPath(active.path) && (active.view ?? "preview") === "preview" && active.editing !== true;
-  (0, import_react14.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     setFindOpen(false);
     setPreviewFind(false);
     setEditorApi(null);
   }, [active?.id]);
-  (0, import_react14.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     const onKeyDown = createEditorKeyHandler(store, {
       textTab,
       previewTab,
@@ -50412,7 +50110,7 @@ function EditorArea({ store, state: _state }) {
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [store, textTab, previewTab, editorApi]);
-  (0, import_react14.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     const onKeyDown = (event) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       const target = event.target;
@@ -50435,37 +50133,37 @@ function EditorArea({ store, state: _state }) {
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [store]);
-  const conflictTab = (0, import_react14.useMemo)(() => {
+  const conflictTab = (0, import_react15.useMemo)(() => {
     if (active?.conflict === null || active?.conflict === void 0) return null;
     return { id: active.id, conflict: { message: active.conflict.message ?? null } };
   }, [active?.id, active?.conflict?.message]);
-  const conflictDialog = (0, import_react14.useMemo)(() => {
+  const conflictDialog = (0, import_react15.useMemo)(() => {
     if (conflictTab === null || dismissedTab === conflictTab.id) return null;
     if (slice.confirm !== null && slice.confirm !== void 0) return null;
     return buildConflictDialog(store, conflictTab);
   }, [conflictTab, dismissedTab, slice.confirm, store]);
-  const closeConflict = (0, import_react14.useCallback)(() => setDismissedTab(conflictTab?.id ?? null), [conflictTab?.id]);
+  const closeConflict = (0, import_react15.useCallback)(() => setDismissedTab(conflictTab?.id ?? null), [conflictTab?.id]);
   const bufferStamp = active?.payload?.mtimeMs ?? null;
-  (0, import_react14.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     setDismissedTab(null);
   }, [bufferStamp]);
   if (active === void 0) {
-    return import_react14.default.createElement(
+    return import_react15.default.createElement(
       "div",
       { className: "iwb-editor" },
-      import_react14.default.createElement(TabBar, { store, slice }),
-      import_react14.default.createElement(Welcome, { store, slice })
+      import_react15.default.createElement(TabBar, { store, slice }),
+      import_react15.default.createElement(Welcome, { store, slice })
     );
   }
   if (active.kind === "search") {
-    return import_react14.default.createElement(
+    return import_react15.default.createElement(
       "div",
       { className: "iwb-editor" },
-      import_react14.default.createElement(TabBar, { store, slice }),
-      import_react14.default.createElement(SearchView, { store })
+      import_react15.default.createElement(TabBar, { store, slice }),
+      import_react15.default.createElement(SearchView, { store })
     );
   }
-  const content2 = active.kind === "file" ? import_react14.default.createElement(FilePreview, {
+  const content2 = active.kind === "file" ? import_react15.default.createElement(FilePreview, {
     store,
     slice,
     tab: active,
@@ -50475,21 +50173,21 @@ function EditorArea({ store, state: _state }) {
     onEditorReady: setEditorApi,
     onFindRequest: () => setFindOpen(true),
     onFindInFiles: () => store.openSearchTab()
-  }) : active.loading === true ? import_react14.default.createElement("div", { className: "iwb-editor-empty" }, store.t("common.loading")) : active.error !== null && active.error !== void 0 ? import_react14.default.createElement("div", { className: "iwb-editor-empty" }, import_react14.default.createElement("div", { className: "iwb-error-box" }, active.error)) : import_react14.default.createElement(DiffView, { store, tab: active });
-  return import_react14.default.createElement(
+  }) : active.loading === true ? import_react15.default.createElement("div", { className: "iwb-editor-empty" }, store.t("common.loading")) : active.error !== null && active.error !== void 0 ? import_react15.default.createElement("div", { className: "iwb-editor-empty" }, import_react15.default.createElement("div", { className: "iwb-error-box" }, active.error)) : import_react15.default.createElement(DiffView, { store, tab: active });
+  return import_react15.default.createElement(
     "div",
     { className: "iwb-editor" },
-    import_react14.default.createElement(TabBar, { store, slice }),
-    import_react14.default.createElement(EditorToolbar, { store, tab: active }),
-    findOpen === true && textTab && editorApi !== null ? import_react14.default.createElement(FindBar, {
+    import_react15.default.createElement(TabBar, { store, slice }),
+    import_react15.default.createElement(EditorToolbar, { store, tab: active }),
+    findOpen === true && textTab && editorApi !== null ? import_react15.default.createElement(FindBar, {
       store,
       editor: editorApi,
       readOnly: active.editing !== true,
       onClose: () => setFindOpen(false)
     }) : null,
     content2,
-    import_react14.default.createElement(HtmlPreviewActions, { store, tab: active }),
-    conflictDialog !== null ? import_react14.default.createElement(ConfirmModal, {
+    import_react15.default.createElement(HtmlPreviewActions, { store, tab: active }),
+    conflictDialog !== null ? import_react15.default.createElement(ConfirmModal, {
       dialog: conflictDialog,
       onClose: closeConflict,
       scope: "editor"
@@ -50498,7 +50196,7 @@ function EditorArea({ store, state: _state }) {
 }
 
 // src/client/SettingsPanel.jsx
-var import_react15 = __toESM(require("react"), 1);
+var import_react16 = __toESM(require("react"), 1);
 var SHORTCUT_FIELDS = [
   ["project", "projectShortcut"],
   ["commit", "commitShortcut"],
@@ -50511,40 +50209,40 @@ var SHORTCUT_FIELDS = [
   ["quickOpen", "quickOpenShortcut"]
 ];
 function Group({ title, description, children }) {
-  return import_react15.default.createElement(
+  return import_react16.default.createElement(
     "section",
     { className: "iwb-settings-group" },
-    import_react15.default.createElement("h3", { className: "iwb-settings-group-title" }, title),
-    description !== void 0 ? import_react15.default.createElement("p", { className: "iwb-settings-group-desc" }, description) : null,
-    import_react15.default.createElement("div", { className: "iwb-settings-rows" }, children)
+    import_react16.default.createElement("h3", { className: "iwb-settings-group-title" }, title),
+    description !== void 0 ? import_react16.default.createElement("p", { className: "iwb-settings-group-desc" }, description) : null,
+    import_react16.default.createElement("div", { className: "iwb-settings-rows" }, children)
   );
 }
 function Row({ label: label3, hint, children }) {
-  return import_react15.default.createElement(
+  return import_react16.default.createElement(
     "div",
     { className: "iwb-settings-row" },
-    import_react15.default.createElement(
+    import_react16.default.createElement(
       "div",
       { className: "iwb-settings-label" },
-      import_react15.default.createElement("div", { className: "iwb-settings-title" }, label3),
-      hint !== void 0 ? import_react15.default.createElement("div", { className: "iwb-settings-hint" }, hint) : null
+      import_react16.default.createElement("div", { className: "iwb-settings-title" }, label3),
+      hint !== void 0 ? import_react16.default.createElement("div", { className: "iwb-settings-hint" }, hint) : null
     ),
-    import_react15.default.createElement("div", { className: "iwb-settings-control" }, children)
+    import_react16.default.createElement("div", { className: "iwb-settings-control" }, children)
   );
 }
 function SettingsForm({ store, state, compact, onStatusChange }) {
   const t2 = store.t;
   const settings = state.settings ?? {};
-  const [draft, setDraft] = (0, import_react15.useState)(settings);
-  const [saved, setSaved] = (0, import_react15.useState)(false);
-  const [saving, setSaving] = (0, import_react15.useState)(false);
-  const [capturing, setCapturing] = (0, import_react15.useState)(false);
-  const timer = (0, import_react15.useRef)(null);
-  const savedTimer = (0, import_react15.useRef)(null);
-  const rootRef = (0, import_react15.useRef)(null);
-  const scrollRef = (0, import_react15.useRef)({ parent: null, top: 0 });
-  const pendingPatch = (0, import_react15.useRef)({});
-  const alive = (0, import_react15.useRef)(true);
+  const [draft, setDraft] = (0, import_react16.useState)(settings);
+  const [saved, setSaved] = (0, import_react16.useState)(false);
+  const [saving, setSaving] = (0, import_react16.useState)(false);
+  const [capturing, setCapturing] = (0, import_react16.useState)(false);
+  const timer = (0, import_react16.useRef)(null);
+  const savedTimer = (0, import_react16.useRef)(null);
+  const rootRef = (0, import_react16.useRef)(null);
+  const scrollRef = (0, import_react16.useRef)({ parent: null, top: 0 });
+  const pendingPatch = (0, import_react16.useRef)({});
+  const alive = (0, import_react16.useRef)(true);
   const captureScroll = () => {
     let node = rootRef.current?.parentElement ?? null;
     while (node !== null) {
@@ -50566,11 +50264,11 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(apply2);
     else apply2();
   };
-  (0, import_react15.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     if (Object.keys(pendingPatch.current).length > 0) return;
     setDraft(settings);
   }, [settings]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     onStatusChange?.({ saving, saved });
   }, [saving, saved]);
   const mergePatch = (base2, patch) => {
@@ -50600,7 +50298,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
       }, 1800);
     });
   };
-  (0, import_react15.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     alive.current = true;
     return () => {
       alive.current = false;
@@ -50640,23 +50338,23 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
     setDraft(next);
     commit(patch);
   };
-  return import_react15.default.createElement(
+  return import_react16.default.createElement(
     "div",
     { className: "iwb-settings", ref: rootRef },
-    import_react15.default.createElement(
+    import_react16.default.createElement(
       Group,
       {
         title: t2("settings.shortcuts"),
         description: t2("settings.shortcutsGroupHint")
       },
-      SHORTCUT_FIELDS.map(([field, labelKey]) => import_react15.default.createElement(
+      SHORTCUT_FIELDS.map(([field, labelKey]) => import_react16.default.createElement(
         Row,
         {
           key: field,
           label: t2(`settings.${labelKey}`),
           hint: t2(`settings.${labelKey}Hint`)
         },
-        import_react15.default.createElement(ShortcutCapture, {
+        import_react16.default.createElement(ShortcutCapture, {
           value: draft.shortcuts?.[field] ?? "",
           active: capturing,
           onActivate: setCapturing,
@@ -50666,36 +50364,36 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
         })
       ))
     ),
-    import_react15.default.createElement(
+    import_react16.default.createElement(
       Group,
       { title: t2("settings.terminalGroup") },
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.defaultShell"), hint: t2("settings.defaultShellHint") },
-        import_react15.default.createElement(
+        import_react16.default.createElement(
           "select",
           {
             className: "iwb-select",
             value: draft.terminal?.shell ?? "auto",
             onChange: (event) => update({ terminal: { shell: event.target.value } })
           },
-          import_react15.default.createElement("option", { value: "auto" }, t2("settings.auto")),
-          state.terminal.shells.map((shell) => import_react15.default.createElement("option", { key: shell.id, value: shell.id }, shell.label))
+          import_react16.default.createElement("option", { value: "auto" }, t2("settings.auto")),
+          state.terminal.shells.map((shell) => import_react16.default.createElement("option", { key: shell.id, value: shell.id }, shell.label))
         )
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.copyOnSelect") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.terminal?.copyOnSelect === true,
           onChange: (event) => update({ terminal: { copyOnSelect: event.target.checked } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.terminalFontSize") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "number",
           min: 10,
           max: 20,
@@ -50704,94 +50402,94 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
         })
       )
     ),
-    import_react15.default.createElement(
+    import_react16.default.createElement(
       Group,
       { title: t2("settings.filesGroup") },
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("project.alwaysSelect") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.project?.alwaysSelectOpened !== false,
           onChange: (event) => update({ project: { alwaysSelectOpened: event.target.checked } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("project.gitColors") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.git?.colors !== false,
           onChange: (event) => update({ git: { colors: event.target.checked } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.showHidden") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.project?.showHidden !== false,
           onChange: (event) => update({ project: { showHidden: event.target.checked } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.singleClickOpen"), hint: t2("settings.singleClickOpenHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.project?.singleClickOpen === true,
           onChange: (event) => update({ project: { singleClickOpen: event.target.checked } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.chatFileLinks"), hint: t2("settings.chatFileLinksHint") },
-        import_react15.default.createElement(
+        import_react16.default.createElement(
           "select",
           {
             className: "iwb-select",
             value: draft.links?.chatFiles === "sidebar" ? "sidebar" : "ide",
             onChange: (event) => update({ links: { chatFiles: event.target.value } })
           },
-          import_react15.default.createElement("option", { value: "ide" }, t2("settings.chatFileLinksIde")),
-          import_react15.default.createElement("option", { value: "sidebar" }, t2("settings.chatFileLinksSidebar"))
+          import_react16.default.createElement("option", { value: "ide" }, t2("settings.chatFileLinksIde")),
+          import_react16.default.createElement("option", { value: "sidebar" }, t2("settings.chatFileLinksSidebar"))
         )
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.showIgnored"), hint: t2("settings.showIgnoredHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.project?.showIgnored === true,
           onChange: (event) => update({ project: { showIgnored: event.target.checked } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.groupByDirectory"), hint: t2("settings.groupByDirectoryHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.commit?.groupByDirectory === true,
           onChange: (event) => update({ commit: { groupByDirectory: event.target.checked } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.useRecycleBin"), hint: t2("settings.useRecycleBinHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.delete?.useRecycleBin !== false,
           onChange: (event) => update({ delete: { useRecycleBin: event.target.checked } })
         })
       )
     ),
-    import_react15.default.createElement(
+    import_react16.default.createElement(
       Group,
       { title: t2("settings.ideGroup"), description: t2("settings.idePathHint") },
-      IDE_OPTIONS.map((ide) => import_react15.default.createElement(
+      IDE_OPTIONS.map((ide) => import_react16.default.createElement(
         Row,
         { key: ide.id, label: ide.title },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "text",
           className: "iwb-input",
           "aria-label": ide.title,
@@ -50801,27 +50499,27 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
         })
       ))
     ),
-    import_react15.default.createElement(
+    import_react16.default.createElement(
       Group,
       { title: t2("settings.editorGroup") },
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.openMode"), hint: t2("settings.openModeHint") },
-        import_react15.default.createElement(
+        import_react16.default.createElement(
           "select",
           {
             value: draft.editor?.openMode ?? "auto",
             onChange: (event) => update({ editor: { openMode: event.target.value } })
           },
-          import_react15.default.createElement("option", { value: "auto" }, t2("settings.openModeAuto")),
-          import_react15.default.createElement("option", { value: "editable" }, t2("settings.openModeEditable")),
-          import_react15.default.createElement("option", { value: "readonly" }, t2("settings.openModeReadonly"))
+          import_react16.default.createElement("option", { value: "auto" }, t2("settings.openModeAuto")),
+          import_react16.default.createElement("option", { value: "editable" }, t2("settings.openModeEditable")),
+          import_react16.default.createElement("option", { value: "readonly" }, t2("settings.openModeReadonly"))
         )
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.editableMaxBytes"), hint: t2("settings.editableMaxBytesHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "number",
           min: 64,
           max: 16384,
@@ -50830,10 +50528,10 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           onChange: (event) => update({ editor: { editableMaxBytes: (Number(event.target.value) || 1024) * 1024 } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.editorFontSize") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "number",
           min: 10,
           max: 20,
@@ -50841,93 +50539,93 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           onChange: (event) => update({ editor: { fontSize: Number(event.target.value) || 13 } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.markdownPreview"), hint: t2("settings.markdownPreviewHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.editor?.markdownPreview !== false,
           onChange: (event) => update({ editor: { markdownPreview: event.target.checked } })
         })
       )
     ),
-    import_react15.default.createElement(
+    import_react16.default.createElement(
       Group,
       { title: t2("settings.gitGroup") },
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.gitPath"), hint: t2("settings.gitPathHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "text",
           placeholder: "git",
           value: draft.git?.path ?? "",
           onChange: (event) => update({ git: { path: event.target.value } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.commitTemplate"), hint: t2("settings.commitTemplateHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "text",
           value: draft.git?.commitTemplate ?? "",
           onChange: (event) => update({ git: { commitTemplate: event.target.value } })
         })
       )
     ),
-    import_react15.default.createElement(
+    import_react16.default.createElement(
       Group,
       { title: t2("settings.commitGroup") },
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.testCommand"), hint: t2("settings.testCommandHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "text",
           placeholder: "npm test",
           value: draft.commit?.testCommand ?? "",
           onChange: (event) => update({ commit: { testCommand: event.target.value } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.optimizeCommand"), hint: t2("settings.optimizeCommandHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "text",
           value: draft.commit?.optimizeImportsCommand ?? "",
           onChange: (event) => update({ commit: { optimizeImportsCommand: event.target.value } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.cleanupCommand"), hint: t2("settings.cleanupCommandHint") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "text",
           value: draft.commit?.cleanupCommand ?? "",
           onChange: (event) => update({ commit: { cleanupCommand: event.target.value } })
         })
       )
     ),
-    import_react15.default.createElement(
+    import_react16.default.createElement(
       Group,
       { title: t2("settings.appearanceGroup") },
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.highlight") },
-        import_react15.default.createElement("input", {
+        import_react16.default.createElement("input", {
           type: "checkbox",
           checked: draft.editor?.highlight !== false,
           onChange: (event) => update({ editor: { highlight: event.target.checked } })
         })
       ),
-      import_react15.default.createElement(
+      import_react16.default.createElement(
         Row,
         { label: t2("settings.language"), hint: t2("settings.languageHint") },
-        import_react15.default.createElement("span", { className: "iwb-settings-value" }, t2("settings.followDsh"))
+        import_react16.default.createElement("span", { className: "iwb-settings-value" }, t2("settings.followDsh"))
       )
     ),
-    compact === true ? null : import_react15.default.createElement(
+    compact === true ? null : import_react16.default.createElement(
       "div",
       { className: "iwb-settings-footer" },
-      import_react15.default.createElement("button", {
+      import_react16.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small iwb-settings-reset",
         onClick: () => {
@@ -50959,20 +50657,20 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           commit(reset);
         }
       }, t2("settings.reset")),
-      saving === true ? import_react15.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : saved === true ? import_react15.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null
+      saving === true ? import_react16.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : saved === true ? import_react16.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null
     )
   );
 }
 function SettingsSection({ store, state }) {
-  return import_react15.default.createElement(
+  return import_react16.default.createElement(
     "div",
     { className: "iwb-settings-section" },
-    import_react15.default.createElement(SettingsForm, { store, state })
+    import_react16.default.createElement(SettingsForm, { store, state })
   );
 }
 
 // src/client/QuickOpen.jsx
-var import_react16 = __toESM(require("react"), 1);
+var import_react17 = __toESM(require("react"), 1);
 function quickScore(path2, query) {
   const text = String(path2).toLowerCase();
   const value = String(query).trim().toLowerCase();
@@ -50994,8 +50692,8 @@ function quickScore(path2, query) {
 function QuickOpen({ store, state }) {
   const t2 = store.t;
   const index = state.quickOpenIndex;
-  const inputRef = (0, import_react16.useRef)(null);
-  const results = (0, import_react16.useMemo)(() => {
+  const inputRef = (0, import_react17.useRef)(null);
+  const results = (0, import_react17.useMemo)(() => {
     const scored = [];
     for (const path2 of state.fileIndex) {
       const score = quickScore(path2, state.quickOpenQuery);
@@ -51005,11 +50703,11 @@ function QuickOpen({ store, state }) {
     scored.sort((left, right) => right.score - left.score || left.path.length - right.path.length || left.path.localeCompare(right.path));
     return scored.slice(0, 100).map((item) => item.path);
   }, [state.fileIndex, state.quickOpenQuery]);
-  (0, import_react16.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     if (state.quickOpen !== true) return;
     inputRef.current?.focus();
   }, [state.quickOpen]);
-  (0, import_react16.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     if (index >= results.length) store.set({ quickOpenIndex: Math.max(0, results.length - 1) });
   }, [results.length]);
   if (state.quickOpen !== true) return null;
@@ -51017,7 +50715,7 @@ function QuickOpen({ store, state }) {
   const open = (rel) => {
     if (rel !== void 0) store.openQuickOpenSelection(rel);
   };
-  return import_react16.default.createElement(
+  return import_react17.default.createElement(
     "div",
     {
       className: "iwb-quick-backdrop",
@@ -51025,14 +50723,14 @@ function QuickOpen({ store, state }) {
         if (event.target === event.currentTarget) store.closeQuickOpen();
       }
     },
-    import_react16.default.createElement(
+    import_react17.default.createElement(
       "div",
       { className: "iwb-quick", role: "dialog", "aria-modal": "true", "aria-label": t2("quickOpen.title") },
-      import_react16.default.createElement(
+      import_react17.default.createElement(
         "div",
         { className: "iwb-quick-head" },
-        import_react16.default.createElement("span", { className: "iwb-quick-title" }, t2("quickOpen.title")),
-        import_react16.default.createElement("input", {
+        import_react17.default.createElement("span", { className: "iwb-quick-title" }, t2("quickOpen.title")),
+        import_react17.default.createElement("input", {
           ref: inputRef,
           className: "iwb-quick-input",
           value: state.quickOpenQuery,
@@ -51056,10 +50754,10 @@ function QuickOpen({ store, state }) {
           }
         })
       ),
-      import_react16.default.createElement(
+      import_react17.default.createElement(
         "div",
         { className: "iwb-quick-list" },
-        state.fileIndexLoading === true && state.fileIndex.length === 0 ? import_react16.default.createElement("div", { className: "iwb-quick-empty" }, t2("common.loading")) : results.length === 0 ? import_react16.default.createElement("div", { className: "iwb-quick-empty" }, t2("quickOpen.empty")) : results.map((path2, position) => import_react16.default.createElement(
+        state.fileIndexLoading === true && state.fileIndex.length === 0 ? import_react17.default.createElement("div", { className: "iwb-quick-empty" }, t2("common.loading")) : results.length === 0 ? import_react17.default.createElement("div", { className: "iwb-quick-empty" }, t2("quickOpen.empty")) : results.map((path2, position) => import_react17.default.createElement(
           "button",
           {
             key: path2,
@@ -51068,11 +50766,11 @@ function QuickOpen({ store, state }) {
             onMouseEnter: () => store.set({ quickOpenIndex: position }),
             onClick: () => open(path2)
           },
-          import_react16.default.createElement("span", { className: "iwb-quick-name" }, path2.slice(path2.lastIndexOf("/") + 1)),
-          import_react16.default.createElement("span", { className: "iwb-quick-dir" }, path2.includes("/") ? path2.slice(0, path2.lastIndexOf("/")) : "")
+          import_react17.default.createElement("span", { className: "iwb-quick-name" }, path2.slice(path2.lastIndexOf("/") + 1)),
+          import_react17.default.createElement("span", { className: "iwb-quick-dir" }, path2.includes("/") ? path2.slice(0, path2.lastIndexOf("/")) : "")
         ))
       ),
-      import_react16.default.createElement(
+      import_react17.default.createElement(
         "div",
         { className: "iwb-quick-foot" },
         `${results.length} \xB7 ${t2("quickOpen.hint")}`,
@@ -51091,11 +50789,11 @@ function label2(t2, key, fallback2) {
   const value = t2(key);
   return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
 }
-var MemoEditorArea = import_react17.default.memo(EditorArea);
-var MemoProjectPanel = import_react17.default.memo(ProjectPanel);
-var MemoCommitPanel = import_react17.default.memo(CommitPanel);
-var MemoGitPanel = import_react17.default.memo(GitPanel);
-var MemoTerminalPanel = import_react17.default.memo(TerminalPanel);
+var MemoEditorArea = import_react18.default.memo(EditorArea);
+var MemoProjectPanel = import_react18.default.memo(ProjectPanel);
+var MemoCommitPanel = import_react18.default.memo(CommitPanel);
+var MemoGitPanel = import_react18.default.memo(GitPanel);
+var MemoTerminalPanel = import_react18.default.memo(TerminalPanel);
 function TopBar({ store, state, fullscreen, onOpenSettings }) {
   const t2 = store.t;
   const branch = state.status.branch;
@@ -51103,11 +50801,11 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
   const workspaceTitle = baseName(state.workspaceRoot) || t2("project.empty");
   const projectTitle = baseName(state.root);
   const showProject = state.root !== state.workspaceRoot && projectTitle !== "";
-  const [menu, setMenu] = (0, import_react17.useState)(null);
-  return import_react17.default.createElement(
+  const [menu, setMenu] = (0, import_react18.useState)(null);
+  return import_react18.default.createElement(
     "div",
     { className: "iwb-topbar" },
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "button",
       {
         type: "button",
@@ -51115,32 +50813,32 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
         title: state.workspaceRoot,
         onClick: (event) => setMenu({ x: event.clientX, y: event.clientY + 8 })
       },
-      import_react17.default.createElement(StripeIcon, { tool: "project", size: 16 }),
-      import_react17.default.createElement(
+      import_react18.default.createElement(StripeIcon, { tool: "project", size: 16 }),
+      import_react18.default.createElement(
         "span",
         { className: "iwb-project-name" },
         workspaceTitle,
-        showProject ? import_react17.default.createElement("span", { className: "iwb-project-current" }, ` / ${projectTitle}`) : null
+        showProject ? import_react18.default.createElement("span", { className: "iwb-project-current" }, ` / ${projectTitle}`) : null
       ),
-      import_react17.default.createElement("span", { className: "iwb-project-path" }, state.root || state.workspaceRoot)
+      import_react18.default.createElement("span", { className: "iwb-project-path" }, state.root || state.workspaceRoot)
     ),
-    state.status.isRepo === true ? import_react17.default.createElement(
+    state.status.isRepo === true ? import_react18.default.createElement(
       "span",
       { className: "iwb-branch-chip", title: state.status.upstream ?? "" },
-      import_react17.default.createElement(IconGit, { width: 12, height: 12 }),
-      import_react17.default.createElement("span", { className: "iwb-branch-name" }, detached ? (state.status.oid ?? "HEAD").slice(0, 7) : branch ?? "HEAD"),
-      detached ? import_react17.default.createElement("span", { className: "iwb-behind" }, t2("git.detached")) : null,
-      typeof state.status.ahead === "number" && state.status.ahead > 0 ? import_react17.default.createElement("span", { className: "iwb-ahead" }, `\u2191${state.status.ahead}`) : null,
-      typeof state.status.behind === "number" && state.status.behind > 0 ? import_react17.default.createElement("span", { className: "iwb-behind" }, `\u2193${state.status.behind}`) : null
+      import_react18.default.createElement(IconGit, { width: 12, height: 12 }),
+      import_react18.default.createElement("span", { className: "iwb-branch-name" }, detached ? (state.status.oid ?? "HEAD").slice(0, 7) : branch ?? "HEAD"),
+      detached ? import_react18.default.createElement("span", { className: "iwb-behind" }, t2("git.detached")) : null,
+      typeof state.status.ahead === "number" && state.status.ahead > 0 ? import_react18.default.createElement("span", { className: "iwb-ahead" }, `\u2191${state.status.ahead}`) : null,
+      typeof state.status.behind === "number" && state.status.behind > 0 ? import_react18.default.createElement("span", { className: "iwb-behind" }, `\u2193${state.status.behind}`) : null
     ) : null,
-    import_react17.default.createElement("div", { className: "iwb-top-spacer" }),
-    import_react17.default.createElement("button", {
+    import_react18.default.createElement("div", { className: "iwb-top-spacer" }),
+    import_react18.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn",
       title: t2("layout.hideAll"),
       onClick: () => store.toggleHideAll()
     }, "\u229F"),
-    import_react17.default.createElement("button", {
+    import_react18.default.createElement("button", {
       type: "button",
       className: `iwb-iconbtn ${fullscreen ? "iwb-on" : ""}`,
       title: t2(fullscreen ? "layout.exitFullscreen" : "layout.fullscreen"),
@@ -51148,7 +50846,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       "aria-pressed": fullscreen,
       onClick: (event) => store.toggleFullscreen(event.currentTarget)
     }, "\u26F6"),
-    import_react17.default.createElement("button", {
+    import_react18.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn",
       title: t2("common.refresh"),
@@ -51157,14 +50855,14 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
         void store.refreshStatus({ initial: true });
         void store.loadBranches();
       }
-    }, import_react17.default.createElement(IconRefresh, { width: 15, height: 15 })),
-    import_react17.default.createElement("button", {
+    }, import_react18.default.createElement(IconRefresh, { width: 15, height: 15 })),
+    import_react18.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn",
       title: t2("common.settings"),
       onClick: onOpenSettings
-    }, import_react17.default.createElement(IconGear, { width: 15, height: 15 })),
-    menu !== null ? import_react17.default.createElement(ContextMenu, {
+    }, import_react18.default.createElement(IconGear, { width: 15, height: 15 })),
+    menu !== null ? import_react18.default.createElement(ContextMenu, {
       x: menu.x,
       y: menu.y,
       onClose: () => setMenu(null),
@@ -51173,7 +50871,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
         ...state.workspaces.length > 0 ? state.workspaces.map((workspace) => ({
           key: workspace.path,
           text: workspace.title,
-          icon: workspace.path === state.workspaceRoot ? import_react17.default.createElement("span", { style: { color: "var(--iwb-accent)" } }, "\u25CF") : null,
+          icon: workspace.path === state.workspaceRoot ? import_react18.default.createElement("span", { style: { color: "var(--iwb-accent)" } }, "\u25CF") : null,
           action: () => {
             void store.setRoot(workspace.path);
           }
@@ -51188,57 +50886,57 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
 function Stripe({ store, state }) {
   const t2 = store.t;
   const sessions = state.terminal.sessions.length;
-  const button = (tool, active, children) => import_react17.default.createElement("button", {
+  const button = (tool, active, children) => import_react18.default.createElement("button", {
     type: "button",
     className: `iwb-stripe-btn ${active ? "iwb-on" : ""}`,
     title: `${t2(`${tool}.title`)} (${state.settings?.shortcuts?.[tool] ?? ""})`,
     onClick: () => store.toggleTool(tool)
   }, children);
-  return import_react17.default.createElement(
+  return import_react18.default.createElement(
     "div",
     { className: "iwb-stripe" },
     button(
       "project",
       state.layout.left === "project",
-      import_react17.default.createElement(StripeIcon, { tool: "project", size: 20 })
+      import_react18.default.createElement(StripeIcon, { tool: "project", size: 20 })
     ),
     button(
       "commit",
       state.layout.left === "commit",
-      import_react17.default.createElement(
+      import_react18.default.createElement(
         "span",
         null,
-        import_react17.default.createElement(StripeIcon, { tool: "commit", size: 20 }),
-        state.changeCount > 0 ? import_react17.default.createElement("span", { className: "iwb-badge" }, state.changeCount > 99 ? "99+" : state.changeCount) : null
+        import_react18.default.createElement(StripeIcon, { tool: "commit", size: 20 }),
+        state.changeCount > 0 ? import_react18.default.createElement("span", { className: "iwb-badge" }, state.changeCount > 99 ? "99+" : state.changeCount) : null
       )
     ),
-    import_react17.default.createElement("div", { className: "iwb-stripe-spacer" }),
+    import_react18.default.createElement("div", { className: "iwb-stripe-spacer" }),
     button(
       "git",
       state.layout.bottom === "git",
-      import_react17.default.createElement(StripeIcon, { tool: "git", size: 20 })
+      import_react18.default.createElement(StripeIcon, { tool: "git", size: 20 })
     ),
     button(
       "terminal",
       state.layout.bottom === "terminal",
-      import_react17.default.createElement(
+      import_react18.default.createElement(
         "span",
         null,
-        import_react17.default.createElement(StripeIcon, { tool: "terminal", size: 20 }),
-        sessions > 0 ? import_react17.default.createElement("span", { className: "iwb-badge iwb-badge-dirty" }, sessions) : null
+        import_react18.default.createElement(StripeIcon, { tool: "terminal", size: 20 }),
+        sessions > 0 ? import_react18.default.createElement("span", { className: "iwb-badge iwb-badge-dirty" }, sessions) : null
       )
     )
   );
 }
 function RepoSwitch({ store, state }) {
   const t2 = store.t;
-  const [anchor, setAnchor] = (0, import_react17.useState)(null);
-  const [placement, setPlacement] = (0, import_react17.useState)(null);
-  const holderRef = (0, import_react17.useRef)(null);
+  const [anchor, setAnchor] = (0, import_react18.useState)(null);
+  const [placement, setPlacement] = (0, import_react18.useState)(null);
+  const holderRef = (0, import_react18.useRef)(null);
   const current = typeof state.gitRepoRoot === "string" ? state.gitRepoRoot : "";
   const enabled = state.layout.bottom === "git";
   const name2 = current === "" ? "" : baseName(current) || current;
-  (0, import_react17.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     if (anchor === null) return void 0;
     const onDown = (event) => {
       if (event.target instanceof Element && event.target.closest(".iwb-branch-popover, .iwb-branch-switch") !== null) return;
@@ -51247,7 +50945,7 @@ function RepoSwitch({ store, state }) {
     window.addEventListener("mousedown", onDown, true);
     return () => window.removeEventListener("mousedown", onDown, true);
   }, [anchor]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     if (anchor === null) return void 0;
     const holder = holderRef.current;
     if (holder === null) return void 0;
@@ -51260,10 +50958,10 @@ function RepoSwitch({ store, state }) {
     setPlacement({ top: top2 });
     return void 0;
   }, [anchor]);
-  return import_react17.default.createElement(
-    import_react17.default.Fragment,
+  return import_react18.default.createElement(
+    import_react18.default.Fragment,
     null,
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "button",
       {
         type: "button",
@@ -51283,16 +50981,16 @@ function RepoSwitch({ store, state }) {
           setAnchor({ left, top: rect.top, bottom: rect.bottom });
         }
       },
-      import_react17.default.createElement("span", null, name2 === "" ? label2(t2, "git.pickRepo", "Choose repository") : name2),
-      import_react17.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
+      import_react18.default.createElement("span", null, name2 === "" ? label2(t2, "git.pickRepo", "Choose repository") : name2),
+      import_react18.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
     ),
-    anchor !== null ? import_react17.default.createElement(
+    anchor !== null ? import_react18.default.createElement(
       "div",
       {
         ref: holderRef,
         style: { width: 0, height: 0, opacity: placement === null ? 0 : 1 }
       },
-      import_react17.default.createElement(RepoPopover, {
+      import_react18.default.createElement(RepoPopover, {
         store,
         x: anchor.left,
         y: placement?.top ?? anchor.bottom + 4,
@@ -51305,32 +51003,32 @@ function BottomTabs({ store, state }) {
   const t2 = store.t;
   const tool = state.layout.bottom;
   if (tool === null || tool === void 0) return null;
-  return import_react17.default.createElement(
+  return import_react18.default.createElement(
     "div",
     { className: "iwb-bottom-tabs" },
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "button",
       {
         type: "button",
         className: `iwb-bottom-tab ${tool === "terminal" ? "iwb-on" : ""}`,
         onClick: () => store.showTool("terminal")
       },
-      import_react17.default.createElement(IconTerminal, { width: 13, height: 13 }),
+      import_react18.default.createElement(IconTerminal, { width: 13, height: 13 }),
       t2("terminal.title"),
-      state.terminal.sessions.length > 0 ? import_react17.default.createElement("span", { className: "iwb-badge" }, state.terminal.sessions.length) : null
+      state.terminal.sessions.length > 0 ? import_react18.default.createElement("span", { className: "iwb-badge" }, state.terminal.sessions.length) : null
     ),
-    import_react17.default.createElement("button", {
+    import_react18.default.createElement("button", {
       type: "button",
       className: `iwb-bottom-tab ${tool === "git" ? "iwb-on" : ""}`,
       onClick: () => store.showTool("git")
-    }, import_react17.default.createElement(IconGit, { width: 13, height: 13 }), t2("git.title")),
-    import_react17.default.createElement(RepoSwitch, { store, state }),
-    import_react17.default.createElement("button", {
+    }, import_react18.default.createElement(IconGit, { width: 13, height: 13 }), t2("git.title")),
+    import_react18.default.createElement(RepoSwitch, { store, state }),
+    import_react18.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn iwb-bottom-close",
       title: t2("common.close"),
       onClick: () => store.setLayout({ bottom: null })
-    }, import_react17.default.createElement("span", { style: { fontSize: 16, lineHeight: 1 } }, "\xD7"))
+    }, import_react18.default.createElement("span", { style: { fontSize: 16, lineHeight: 1 } }, "\xD7"))
   );
 }
 function StatusBar({ store, state }) {
@@ -51342,55 +51040,55 @@ function StatusBar({ store, state }) {
   const encoding = text === void 0 ? void 0 : text.encoding === "utf-8-bom" ? "UTF-8 BOM" : text.encoding === "utf-16le" ? "UTF-16 LE" : text.encoding === "utf-16be" ? "UTF-16 BE" : "UTF-8";
   const eol2 = text === void 0 ? void 0 : text.eol === "\r\n" ? "CRLF" : "LF";
   const cursor = state.cursor !== null && state.cursor !== void 0 && active?.editing === true ? state.cursor : null;
-  return import_react17.default.createElement(
+  return import_react18.default.createElement(
     "div",
     { className: "iwb-statusbar" },
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "span",
       { className: "iwb-status-item" },
-      import_react17.default.createElement("span", { className: `iwb-status-dot ${state.statusError !== null ? "iwb-busy" : ""}` }),
+      import_react18.default.createElement("span", { className: `iwb-status-dot ${state.statusError !== null ? "iwb-busy" : ""}` }),
       state.status.isRepo === true ? t2("status.ready") : t2("welcome.noRepo")
     ),
-    summary.branch !== void 0 ? import_react17.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("git") }, summary.branch) : null,
-    summary.changes > 0 ? import_react17.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("commit") }, `${summary.changes} ${t2("status.changes")}`) : null,
-    import_react17.default.createElement("div", { className: "iwb-spacer" }),
-    cursor !== null ? import_react17.default.createElement("span", { className: "iwb-status-item" }, `${t2("editor.line")} ${cursor.line}:${cursor.col}`) : null,
-    lines !== void 0 ? import_react17.default.createElement("span", { className: "iwb-status-item" }, `${lines} ${t2("editor.lines")}`) : null,
-    encoding !== void 0 ? import_react17.default.createElement("span", { className: "iwb-status-item" }, `${encoding} ${eol2}`) : null,
-    import_react17.default.createElement(
+    summary.branch !== void 0 ? import_react18.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("git") }, summary.branch) : null,
+    summary.changes > 0 ? import_react18.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("commit") }, `${summary.changes} ${t2("status.changes")}`) : null,
+    import_react18.default.createElement("div", { className: "iwb-spacer" }),
+    cursor !== null ? import_react18.default.createElement("span", { className: "iwb-status-item" }, `${t2("editor.line")} ${cursor.line}:${cursor.col}`) : null,
+    lines !== void 0 ? import_react18.default.createElement("span", { className: "iwb-status-item" }, `${lines} ${t2("editor.lines")}`) : null,
+    encoding !== void 0 ? import_react18.default.createElement("span", { className: "iwb-status-item" }, `${encoding} ${eol2}`) : null,
+    import_react18.default.createElement(
       "span",
       { className: "iwb-status-item" },
-      import_react17.default.createElement(Kbd, null, state.settings?.shortcuts?.project ?? "Alt+1"),
-      import_react17.default.createElement("span", { style: { marginLeft: 4 } }, t2("project.title"))
+      import_react18.default.createElement(Kbd, null, state.settings?.shortcuts?.project ?? "Alt+1"),
+      import_react18.default.createElement("span", { style: { marginLeft: 4 } }, t2("project.title"))
     ),
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "span",
       { className: "iwb-status-item" },
-      import_react17.default.createElement(Kbd, null, state.settings?.shortcuts?.terminal ?? "Alt+F12"),
-      import_react17.default.createElement("span", { style: { marginLeft: 4 } }, t2("terminal.title"))
+      import_react18.default.createElement(Kbd, null, state.settings?.shortcuts?.terminal ?? "Alt+F12"),
+      import_react18.default.createElement("span", { style: { marginLeft: 4 } }, t2("terminal.title"))
     )
   );
 }
 function RootPicker({ store, state }) {
   const t2 = store.t;
-  const [path2, setPath] = (0, import_react17.useState)("");
+  const [path2, setPath] = (0, import_react18.useState)("");
   if (state.rootPicker !== true) return null;
-  return import_react17.default.createElement(
+  return import_react18.default.createElement(
     "div",
     { className: "iwb-modal-backdrop", onMouseDown: (event) => {
       if (event.target === event.currentTarget) store.closeRootPicker();
     } },
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "div",
       { className: "iwb-modal", role: "dialog", "aria-modal": "true" },
-      import_react17.default.createElement("h2", null, t2("project.openWorkspace")),
-      import_react17.default.createElement(
+      import_react18.default.createElement("h2", null, t2("project.openWorkspace")),
+      import_react18.default.createElement(
         "div",
         { className: "iwb-root-picker" },
-        import_react17.default.createElement(
+        import_react18.default.createElement(
           "div",
           { className: "iwb-root-list" },
-          state.workspaces.map((workspace) => import_react17.default.createElement(
+          state.workspaces.map((workspace) => import_react18.default.createElement(
             "button",
             {
               key: workspace.path,
@@ -51401,19 +51099,19 @@ function RootPicker({ store, state }) {
                 void store.setRoot(workspace.path);
               }
             },
-            import_react17.default.createElement(StripeIcon, { tool: "project", size: 16 }),
-            import_react17.default.createElement(
+            import_react18.default.createElement(StripeIcon, { tool: "project", size: 16 }),
+            import_react18.default.createElement(
               "span",
               { style: { display: "flex", flexDirection: "column", minWidth: 0 } },
-              import_react17.default.createElement("b", null, workspace.title),
-              import_react17.default.createElement("span", { className: "iwb-root-path" }, workspace.path)
+              import_react18.default.createElement("b", null, workspace.title),
+              import_react18.default.createElement("span", { className: "iwb-root-path" }, workspace.path)
             )
           ))
         ),
-        import_react17.default.createElement(
+        import_react18.default.createElement(
           "div",
           { style: { display: "flex", gap: 8, marginTop: 4 } },
-          import_react17.default.createElement("input", {
+          import_react18.default.createElement("input", {
             className: "iwb-input",
             style: { flex: 1, width: "auto" },
             placeholder: t2("project.workspacePath"),
@@ -51425,7 +51123,7 @@ function RootPicker({ store, state }) {
               }
             }
           }),
-          import_react17.default.createElement("button", {
+          import_react18.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-primary",
             disabled: path2.trim() === "",
@@ -51435,10 +51133,10 @@ function RootPicker({ store, state }) {
           }, t2("common.open"))
         )
       ),
-      import_react17.default.createElement(
+      import_react18.default.createElement(
         "div",
         { className: "iwb-modal-actions", style: { marginTop: 16 } },
-        import_react17.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => store.closeRootPicker() }, t2("common.cancel"))
+        import_react18.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => store.closeRootPicker() }, t2("common.cancel"))
       )
     )
   );
@@ -51449,7 +51147,7 @@ function ProjectPicker({ store, state }) {
   const projects = Array.isArray(state.projects) ? state.projects : [];
   const root = projects.filter((project) => project.isRoot === true);
   const children = projects.filter((project) => project.isRoot !== true);
-  const choice = (project) => import_react17.default.createElement(
+  const choice = (project) => import_react18.default.createElement(
     "button",
     {
       key: project.path,
@@ -51460,21 +51158,21 @@ function ProjectPicker({ store, state }) {
         void store.selectProject(project.path);
       }
     },
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "span",
       { className: "iwb-project-choice-icon" },
-      project.isRepo === true ? import_react17.default.createElement(IconGit, { width: 15, height: 15 }) : import_react17.default.createElement(IconFolder, { size: 15 })
+      project.isRepo === true ? import_react18.default.createElement(IconGit, { width: 15, height: 15 }) : import_react18.default.createElement(FileTypeIcon, { kind: "folder", size: 15 })
     ),
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "span",
       { className: "iwb-project-choice-text" },
-      import_react17.default.createElement("b", null, project.name),
-      import_react17.default.createElement("span", { className: "iwb-project-choice-path" }, project.path)
+      import_react18.default.createElement("b", null, project.name),
+      import_react18.default.createElement("span", { className: "iwb-project-choice-path" }, project.path)
     ),
-    project.isRepo === true ? import_react17.default.createElement("span", { className: "iwb-project-repo-badge" }, t2("project.gitRepo")) : null,
-    project.path === state.root ? import_react17.default.createElement("span", { className: "iwb-project-current-badge" }, t2("project.current")) : null
+    project.isRepo === true ? import_react18.default.createElement("span", { className: "iwb-project-repo-badge" }, t2("project.gitRepo")) : null,
+    project.path === state.root ? import_react18.default.createElement("span", { className: "iwb-project-current-badge" }, t2("project.current")) : null
   );
-  return import_react17.default.createElement(
+  return import_react18.default.createElement(
     "div",
     {
       className: "iwb-modal-backdrop",
@@ -51482,34 +51180,34 @@ function ProjectPicker({ store, state }) {
         if (event.target === event.currentTarget) store.closeProjectPicker();
       }
     },
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "div",
       {
         className: "iwb-modal iwb-project-picker",
         role: "dialog",
         "aria-modal": "true"
       },
-      import_react17.default.createElement("h2", null, t2("project.selectProject")),
-      import_react17.default.createElement("p", { className: "iwb-modal-hint" }, t2("project.selectProjectHint")),
-      import_react17.default.createElement(
+      import_react18.default.createElement("h2", null, t2("project.selectProject")),
+      import_react18.default.createElement("p", { className: "iwb-modal-hint" }, t2("project.selectProjectHint")),
+      import_react18.default.createElement(
         "div",
         { className: "iwb-project-picker-list" },
-        import_react17.default.createElement("div", { className: "iwb-project-group" }, t2("project.workspaceRoot")),
+        import_react18.default.createElement("div", { className: "iwb-project-group" }, t2("project.workspaceRoot")),
         ...root.map(choice),
-        import_react17.default.createElement("div", { className: "iwb-project-group" }, t2("project.subdirectories")),
-        children.length === 0 ? import_react17.default.createElement("div", { className: "iwb-project-empty" }, t2("project.noSubdirectories")) : children.map(choice)
+        import_react18.default.createElement("div", { className: "iwb-project-group" }, t2("project.subdirectories")),
+        children.length === 0 ? import_react18.default.createElement("div", { className: "iwb-project-empty" }, t2("project.noSubdirectories")) : children.map(choice)
       ),
-      import_react17.default.createElement(
+      import_react18.default.createElement(
         "div",
         { className: "iwb-modal-actions" },
-        import_react17.default.createElement("button", {
+        import_react18.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn",
           onClick: () => {
             void store.loadProjects();
           }
-        }, import_react17.default.createElement(IconRefresh, { width: 12, height: 12 }), t2("project.refreshProjects")),
-        import_react17.default.createElement("button", {
+        }, import_react18.default.createElement(IconRefresh, { width: 12, height: 12 }), t2("project.refreshProjects")),
+        import_react18.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn",
           onClick: () => store.closeProjectPicker()
@@ -51520,56 +51218,56 @@ function ProjectPicker({ store, state }) {
 }
 function SettingsModal({ store, state, onClose }) {
   const t2 = store.t;
-  const [status, setStatus] = (0, import_react17.useState)({ saving: false, saved: false });
-  return import_react17.default.createElement(
+  const [status, setStatus] = (0, import_react18.useState)({ saving: false, saved: false });
+  return import_react18.default.createElement(
     "div",
     { className: "iwb-modal-backdrop", onMouseDown: (event) => {
       if (event.target === event.currentTarget) onClose();
     } },
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "div",
       { className: "iwb-modal iwb-settings-modal", role: "dialog", "aria-modal": "true" },
       // The header and the close control stay put while the long form scrolls;
       // the save feedback rides along so a toggle never disappears silently.
-      import_react17.default.createElement(
+      import_react18.default.createElement(
         "div",
         { className: "iwb-modal-head" },
-        import_react17.default.createElement("h2", null, t2("settings.title")),
-        status.saving === true ? import_react17.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : status.saved === true ? import_react17.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null,
-        import_react17.default.createElement("button", {
+        import_react18.default.createElement("h2", null, t2("settings.title")),
+        status.saving === true ? import_react18.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : status.saved === true ? import_react18.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null,
+        import_react18.default.createElement("button", {
           type: "button",
           className: "iwb-iconbtn",
           title: t2("common.close"),
           "aria-label": t2("common.close"),
           onClick: onClose
-        }, import_react17.default.createElement("span", { style: { fontSize: 17, lineHeight: 1 } }, "\xD7"))
+        }, import_react18.default.createElement("span", { style: { fontSize: 17, lineHeight: 1 } }, "\xD7"))
       ),
-      import_react17.default.createElement(
+      import_react18.default.createElement(
         "div",
         { className: "iwb-modal-body" },
-        import_react17.default.createElement(SettingsForm, { store, state, compact: true, onStatusChange: setStatus })
+        import_react18.default.createElement(SettingsForm, { store, state, compact: true, onStatusChange: setStatus })
       ),
-      import_react17.default.createElement(
+      import_react18.default.createElement(
         "div",
         { className: "iwb-modal-actions iwb-modal-foot" },
-        import_react17.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: onClose }, t2("common.close"))
+        import_react18.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: onClose }, t2("common.close"))
       )
     )
   );
 }
 function Workbench({ store, visible = true, fullscreen = false }) {
   const state = useWorkbench(store);
-  const [settingsOpen, setSettingsOpen] = (0, import_react17.useState)(false);
-  const leftRef = (0, import_react17.useRef)(null);
-  const rootRef = (0, import_react17.useRef)(null);
-  (0, import_react17.useEffect)(() => {
+  const [settingsOpen, setSettingsOpen] = (0, import_react18.useState)(false);
+  const leftRef = (0, import_react18.useRef)(null);
+  const rootRef = (0, import_react18.useRef)(null);
+  (0, import_react18.useEffect)(() => {
     if (!visible) return;
     store.activate();
     return () => {
       store.deactivate();
     };
   }, [store, visible]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     const element = rootRef.current;
     if (element === null || typeof ResizeObserver !== "function") return void 0;
     let measured = false;
@@ -51612,84 +51310,84 @@ function Workbench({ store, visible = true, fullscreen = false }) {
   };
   let left = null;
   if (state.layout.left !== null && state.layout.left !== void 0) {
-    left = import_react17.default.createElement(
+    left = import_react18.default.createElement(
       "div",
       {
         className: "iwb-left",
         ref: leftRef,
         style: { "--iwb-left-width": `${state.layout.leftWidth}px` }
       },
-      state.layout.left === "project" ? import_react17.default.createElement(MemoProjectPanel, { store }) : import_react17.default.createElement(MemoCommitPanel, { store }),
-      import_react17.default.createElement("div", { className: "iwb-left-resizer", onPointerDown: startLeftResize })
+      state.layout.left === "project" ? import_react18.default.createElement(MemoProjectPanel, { store }) : import_react18.default.createElement(MemoCommitPanel, { store }),
+      import_react18.default.createElement("div", { className: "iwb-left-resizer", onPointerDown: startLeftResize })
     );
   }
   const bottom = state.layout.bottom !== null && state.layout.bottom !== void 0 ? state.layout.bottom : null;
   const terminalKeep = state.terminal.sessions.length > 0;
-  const bottomNode = bottom !== null || terminalKeep ? import_react17.default.createElement(
+  const bottomNode = bottom !== null || terminalKeep ? import_react18.default.createElement(
     "div",
     {
       className: `iwb-bottom ${bottom === null ? "iwb-bottom-hidden" : ""}`,
       style: { height: bottom === null ? 0 : state.layout.bottomHeight }
     },
-    bottom !== null ? import_react17.default.createElement(
-      import_react17.default.Fragment,
+    bottom !== null ? import_react18.default.createElement(
+      import_react18.default.Fragment,
       null,
-      import_react17.default.createElement("div", { className: "iwb-bottom-resizer", onPointerDown: startBottomResize }),
-      import_react17.default.createElement(BottomTabs, { store, state })
+      import_react18.default.createElement("div", { className: "iwb-bottom-resizer", onPointerDown: startBottomResize }),
+      import_react18.default.createElement(BottomTabs, { store, state })
     ) : null,
-    import_react17.default.createElement(
+    import_react18.default.createElement(
       "div",
       { className: "iwb-bottom-body" },
-      bottom === "git" ? import_react17.default.createElement(MemoGitPanel, { store }) : null,
-      terminalKeep ? import_react17.default.createElement("div", {
+      bottom === "git" ? import_react18.default.createElement(MemoGitPanel, { store }) : null,
+      terminalKeep ? import_react18.default.createElement("div", {
         className: bottom === "terminal" ? "iwb-bottom-content" : "iwb-term-hidden"
-      }, import_react17.default.createElement(MemoTerminalPanel, { store, visible: bottom === "terminal" })) : bottom === "terminal" ? import_react17.default.createElement(MemoTerminalPanel, { store, visible: true }) : null
+      }, import_react18.default.createElement(MemoTerminalPanel, { store, visible: bottom === "terminal" })) : bottom === "terminal" ? import_react18.default.createElement(MemoTerminalPanel, { store, visible: true }) : null
     )
   ) : null;
-  return import_react17.default.createElement(
+  return import_react18.default.createElement(
     "div",
     { className: "iwb-root", ref: rootRef },
-    import_react17.default.createElement(TopBar, { store, state, fullscreen, onOpenSettings: () => setSettingsOpen(true) }),
-    import_react17.default.createElement(
+    import_react18.default.createElement(TopBar, { store, state, fullscreen, onOpenSettings: () => setSettingsOpen(true) }),
+    import_react18.default.createElement(
       "div",
       { className: "iwb-body" },
-      import_react17.default.createElement(Stripe, { store, state }),
+      import_react18.default.createElement(Stripe, { store, state }),
       left,
-      import_react17.default.createElement(
+      import_react18.default.createElement(
         "div",
         { className: "iwb-center" },
-        import_react17.default.createElement(MemoEditorArea, { store })
+        import_react18.default.createElement(MemoEditorArea, { store })
       )
     ),
     // The Terminal/Git dock spans the whole workbench width: it is a sibling
     // of the body, so the left dock shrinks above it instead of squeezing it.
     bottomNode,
-    import_react17.default.createElement(StatusBar, { store, state }),
-    state.phase === "booting" ? import_react17.default.createElement("div", { className: "iwb-empty", style: { position: "absolute", inset: 0, background: "var(--iwb-bg)" } }, store.t("common.loading")) : null,
-    state.fatal !== null && state.fatal !== void 0 ? import_react17.default.createElement(
+    import_react18.default.createElement(StatusBar, { store, state }),
+    state.phase === "booting" ? import_react18.default.createElement("div", { className: "iwb-empty", style: { position: "absolute", inset: 0, background: "var(--iwb-bg)" } }, store.t("common.loading")) : null,
+    state.fatal !== null && state.fatal !== void 0 ? import_react18.default.createElement(
       "div",
       { className: "iwb-modal-backdrop" },
-      import_react17.default.createElement(
+      import_react18.default.createElement(
         "div",
         { className: "iwb-modal" },
-        import_react17.default.createElement("h2", null, store.t("common.error")),
-        import_react17.default.createElement("p", null, state.fatal),
-        import_react17.default.createElement(
+        import_react18.default.createElement("h2", null, store.t("common.error")),
+        import_react18.default.createElement("p", null, state.fatal),
+        import_react18.default.createElement(
           "div",
           { className: "iwb-modal-actions" },
-          import_react17.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => {
+          import_react18.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => {
             store.set({ fatal: null });
             void store.init();
           } }, store.t("common.retry"))
         )
       )
     ) : null,
-    import_react17.default.createElement(ConfirmModal, { dialog: state.confirm, onClose: () => store.dismissConfirm() }),
-    import_react17.default.createElement(QuickOpen, { store, state }),
-    import_react17.default.createElement(Toast, { toast: state.toast }),
-    import_react17.default.createElement(RootPicker, { store, state }),
-    import_react17.default.createElement(ProjectPicker, { store, state }),
-    settingsOpen ? import_react17.default.createElement(SettingsModal, { store, state, onClose: () => setSettingsOpen(false) }) : null
+    import_react18.default.createElement(ConfirmModal, { dialog: state.confirm, onClose: () => store.dismissConfirm() }),
+    import_react18.default.createElement(QuickOpen, { store, state }),
+    import_react18.default.createElement(Toast, { toast: state.toast }),
+    import_react18.default.createElement(RootPicker, { store, state }),
+    import_react18.default.createElement(ProjectPicker, { store, state }),
+    settingsOpen ? import_react18.default.createElement(SettingsModal, { store, state, onClose: () => setSettingsOpen(false) }) : null
   );
 }
 
@@ -52052,6 +51750,9 @@ var CSS2 = `
 .iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty { cursor: pointer; border-radius: 3px; }
 .iwb-tree-twisty.iwb-tree-twisty-click:hover,
 .iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .16); }
+/* The host's file glyph is an inline SVG in a flex row: keep it from being
+   squeezed when a long name squeezes the row. */
+.iwb-file-icon { flex: 0 0 auto; }
 .iwb-tree-name { overflow: hidden; text-overflow: ellipsis; }
 .iwb-tree-name.iwb-dir { font-weight: 500; }
 .iwb-tree-row.iwb-git-untracked .iwb-tree-name { color: var(--iwb-git-untracked); }
@@ -52704,7 +52405,7 @@ var CSS2 = `
 var inject = ["slots", "locale", "sidebarRight", "sidebarRightTabs", "sessions"];
 var PANEL_ID = "ide-workbench";
 function PanelIcon({ size = 20 }) {
-  return import_react18.default.createElement(
+  return import_react19.default.createElement(
     "svg",
     {
       viewBox: "0 0 20 20",
@@ -52716,15 +52417,15 @@ function PanelIcon({ size = 20 }) {
       strokeLinejoin: "round",
       "aria-hidden": true
     },
-    import_react18.default.createElement("rect", { x: 2, y: 2.5, width: 16, height: 15, rx: 2 }),
-    import_react18.default.createElement("line", { x1: 7.4, y1: 2.5, x2: 7.4, y2: 17.5 }),
-    import_react18.default.createElement("line", { x1: 7.4, y1: 11.5, x2: 18, y2: 11.5 }),
-    import_react18.default.createElement("polyline", { points: "9.6 14.2 11 15.4 13.6 13.6" })
+    import_react19.default.createElement("rect", { x: 2, y: 2.5, width: 16, height: 15, rx: 2 }),
+    import_react19.default.createElement("line", { x1: 7.4, y1: 2.5, x2: 7.4, y2: 17.5 }),
+    import_react19.default.createElement("line", { x1: 7.4, y1: 11.5, x2: 18, y2: 11.5 }),
+    import_react19.default.createElement("polyline", { points: "9.6 14.2 11 15.4 13.6 13.6" })
   );
 }
 function useMountedSession(ctx) {
   const mounted = ctx.sidebarRight?.mounted;
-  return (0, import_react18.useSyncExternalStore)(
+  return (0, import_react19.useSyncExternalStore)(
     (callback) => typeof mounted?.subscribe === "function" ? mounted.subscribe(callback) : () => {
     },
     () => typeof mounted?.getSnapshot === "function" ? mounted.getSnapshot() : void 0,
@@ -52734,8 +52435,8 @@ function useMountedSession(ctx) {
 function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
   const address = typeof tab3.contentId === "string" ? tab3.contentId : "";
   const line = tab3.navigation?.params?.line;
-  const [view, setView] = import_react18.default.useState({ phase: "opening", absolute: "" });
-  const replaceWithIde = import_react18.default.useCallback(() => {
+  const [view, setView] = import_react19.default.useState({ phase: "opening", absolute: "" });
+  const replaceWithIde = import_react19.default.useCallback(() => {
     try {
       ctx.sidebarRight.openTab(PANEL_ID, { replaceTab: tab3.id });
       return true;
@@ -52743,19 +52444,19 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
       return false;
     }
   }, [ctx, tab3.id]);
-  const openDefault = import_react18.default.useCallback(() => openInDefaultSidebar(ctx, address, {
+  const openDefault = import_react19.default.useCallback(() => openInDefaultSidebar(ctx, address, {
     ownKind: PANEL_ID,
     line,
     replaceTab: tab3.id,
     suppressSelf
   }), [ctx, address, line, tab3.id, suppressSelf]);
-  const close = import_react18.default.useCallback(() => {
+  const close = import_react19.default.useCallback(() => {
     try {
       ctx.sidebarRight.close(tab3.id);
     } catch {
     }
   }, [ctx, tab3.id]);
-  const begin = import_react18.default.useCallback(async (switchProject) => {
+  const begin = import_react19.default.useCallback(async (switchProject) => {
     setView((current) => ({ ...current, phase: "opening" }));
     let result;
     try {
@@ -52773,33 +52474,33 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
     const phase = result.status === "needs-project-switch" ? "prompt" : result.status === "dirty" ? "dirty" : "failed";
     setView({ phase, absolute: result.absolute ?? "" });
   }, [store, address, line, replaceWithIde, openDefault]);
-  (0, import_react18.useLayoutEffect)(() => {
+  (0, import_react19.useLayoutEffect)(() => {
     void begin(false);
   }, [begin]);
   const path2 = view.absolute !== "" ? view.absolute : address;
-  const button = (key, label3, extra, onClick) => import_react18.default.createElement("button", {
+  const button = (key, label3, extra, onClick) => import_react19.default.createElement("button", {
     key,
     type: "button",
     className: `iwb-textbtn ${extra}`.trim(),
     onClick
   }, store.t(label3));
-  const card = (title, body, actions) => import_react18.default.createElement(
+  const card = (title, body, actions) => import_react19.default.createElement(
     "div",
     { className: "iwb-empty iwb-link-prompt" },
-    import_react18.default.createElement("div", { className: "iwb-empty-title" }, store.t(title)),
-    body === "" ? null : import_react18.default.createElement("div", { className: "iwb-link-body" }, store.t(body)),
-    path2 === "" ? null : import_react18.default.createElement("div", { className: "iwb-link-path" }, path2),
-    import_react18.default.createElement("div", { className: "iwb-link-actions" }, actions)
+    import_react19.default.createElement("div", { className: "iwb-empty-title" }, store.t(title)),
+    body === "" ? null : import_react19.default.createElement("div", { className: "iwb-link-body" }, store.t(body)),
+    path2 === "" ? null : import_react19.default.createElement("div", { className: "iwb-link-path" }, path2),
+    import_react19.default.createElement("div", { className: "iwb-link-actions" }, actions)
   );
   const defaultButton = () => button("default", "links.openInDefaultSidebar", "", () => {
     if (!openDefault()) setView({ phase: "failed", absolute: path2 });
   });
   let content2;
   if (view.phase === "opening") {
-    content2 = import_react18.default.createElement(
+    content2 = import_react19.default.createElement(
       "div",
       { className: "iwb-empty" },
-      import_react18.default.createElement("div", { className: "iwb-empty-title" }, store.t("common.loading"))
+      import_react19.default.createElement("div", { className: "iwb-empty-title" }, store.t("common.loading"))
     );
   } else if (view.phase === "prompt") {
     content2 = card("links.switchProjectTitle", "links.switchProjectBody", [
@@ -52825,7 +52526,7 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
       button("close", "common.close", "", close)
     ]);
   }
-  return import_react18.default.createElement("div", { className: "iwb-link-shell" }, content2);
+  return import_react19.default.createElement("div", { className: "iwb-link-shell" }, content2);
 }
 function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, suppressSelf }) {
   const { tab: tab3, sidebar } = useTabInfo();
@@ -52834,35 +52535,35 @@ function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, s
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === "function";
   const isMounted = !hasMounted || mountedId === void 0 || mountedId === sessionId;
   const fileLink = isFileAddress(tab3.contentId);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     if (isMounted) void store.init();
   }, [store, isMounted]);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     if (fileLink) return void 0;
     reportVisible(sessionId, isMounted && tab3.visible === true);
     return () => reportVisible(sessionId, false);
   }, [sessionId, isMounted, tab3.visible, fileLink, reportVisible]);
   if (fileLink) {
-    return import_react18.default.createElement(FileLinkBridge, { store, tab: tab3, ctx, suppressSelf });
+    return import_react19.default.createElement(FileLinkBridge, { store, tab: tab3, ctx, suppressSelf });
   }
   if (!isMounted) return null;
-  return import_react18.default.createElement(Workbench, { store, visible: tab3.visible, fullscreen: sidebar.fullscreen });
+  return import_react19.default.createElement(Workbench, { store, visible: tab3.visible, fullscreen: sidebar.fullscreen });
 }
 function BoundSettings({ store }) {
   const state = useWorkbench(store);
-  return import_react18.default.createElement(SettingsSection, { store, state });
+  return import_react19.default.createElement(SettingsSection, { store, state });
 }
 function OpenButton({ open, t: t2 }) {
-  return import_react18.default.createElement("button", {
+  return import_react19.default.createElement("button", {
     type: "button",
     title: t2("panelLabel"),
     "aria-label": t2("panelLabel"),
     className: "iwb-sidebar-open",
     onClick: open
-  }, import_react18.default.createElement(PanelIcon, { size: 18 }));
+  }, import_react19.default.createElement(PanelIcon, { size: 18 }));
 }
 function ChatInputBridge({ sessionId, inputActions }) {
-  (0, import_react18.useLayoutEffect)(() => {
+  (0, import_react19.useLayoutEffect)(() => {
     if (typeof sessionId !== "string" || sessionId === "") return void 0;
     return registerChatInput(sessionId, inputActions);
   }, [sessionId, inputActions]);
@@ -52887,7 +52588,7 @@ function apply(ctx) {
       suppressFileLinkClaim = false;
     };
   };
-  const Styles = () => import_react18.default.createElement("style", { "data-dsh-ide-workbench": "" }, `${xterm_default}
+  const Styles = () => import_react19.default.createElement("style", { "data-dsh-ide-workbench": "" }, `${xterm_default}
 ${CSS2}`);
   let sessionSnapshot = null;
   let sessionSnapshotValid = false;
@@ -53053,11 +52754,11 @@ ${CSS2}`);
   ctx.effect(() => ctx.slots.inject("sidebar.right.pane.tab", () => ctx.slots.register({
     name: "sidebar.right.pane.tab",
     key: "dsh-ide-workbench"
-  }, (props) => import_react18.default.createElement(
-    import_react18.default.Fragment,
+  }, (props) => import_react19.default.createElement(
+    import_react19.default.Fragment,
     null,
-    import_react18.default.createElement(Styles),
-    import_react18.default.createElement(BoundWorkbench, {
+    import_react19.default.createElement(Styles),
+    import_react19.default.createElement(BoundWorkbench, {
       ...props,
       getStore,
       ctx,
@@ -53070,39 +52771,39 @@ ${CSS2}`);
     id: PANEL_ID,
     order: 30,
     label: () => t2("panelLabel")
-  }, () => import_react18.default.createElement(
-    import_react18.default.Fragment,
+  }, () => import_react19.default.createElement(
+    import_react19.default.Fragment,
     null,
-    import_react18.default.createElement(Styles),
-    import_react18.default.createElement(OpenButton, { open: toggle, t: t2 })
+    import_react19.default.createElement(Styles),
+    import_react19.default.createElement(OpenButton, { open: toggle, t: t2 })
   ))), "dsh-ide-workbench: sidebar entry");
   ctx.effect(() => ctx.slots.inject("conversation.hero.options", () => ctx.slots.register({
     name: "conversation.hero.options",
     id: PANEL_ID,
     order: 40,
     label: () => t2("panelLabel")
-  }, () => import_react18.default.createElement(
-    import_react18.default.Fragment,
+  }, () => import_react19.default.createElement(
+    import_react19.default.Fragment,
     null,
-    import_react18.default.createElement(Styles),
-    import_react18.default.createElement(OpenButton, { open, t: t2 })
+    import_react19.default.createElement(Styles),
+    import_react19.default.createElement(OpenButton, { open, t: t2 })
   ))), "dsh-ide-workbench: new-session entry");
   ctx.effect(() => ctx.slots.inject("conversation.input.dock", () => ctx.slots.register({
     name: "conversation.input.dock",
     id: "ide-workbench-chat-input",
     order: 80,
     label: () => t2("chat.sendToChat")
-  }, (props) => import_react18.default.createElement(ChatInputBridge, props))), "dsh-ide-workbench: composer chat bridge");
+  }, (props) => import_react19.default.createElement(ChatInputBridge, props))), "dsh-ide-workbench: composer chat bridge");
   ctx.effect(() => ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
     name: "sidebar.footer.action",
     id: PANEL_ID,
     order: 20,
     label: () => t2("panelLabel")
-  }, () => import_react18.default.createElement(
-    import_react18.default.Fragment,
+  }, () => import_react19.default.createElement(
+    import_react19.default.Fragment,
     null,
-    import_react18.default.createElement(Styles),
-    import_react18.default.createElement(OpenButton, { open, t: t2 })
+    import_react19.default.createElement(Styles),
+    import_react19.default.createElement(OpenButton, { open, t: t2 })
   ))), "dsh-ide-workbench: sidebar footer entry");
   ctx.effect(() => {
     const mounted = ctx.sidebarRight?.mounted;
@@ -53142,11 +52843,11 @@ ${CSS2}`);
     id: PANEL_ID,
     order: 60,
     label: () => t2("settings.nav")
-  }, () => import_react18.default.createElement(
-    import_react18.default.Fragment,
+  }, () => import_react19.default.createElement(
+    import_react19.default.Fragment,
     null,
-    import_react18.default.createElement(Styles),
-    import_react18.default.createElement(BoundSettings, { store: settingsStore })
+    import_react19.default.createElement(Styles),
+    import_react19.default.createElement(BoundSettings, { store: settingsStore })
   ))), "dsh-ide-workbench: settings section");
   ctx.effect(() => {
     const onKeyDown = (event) => {

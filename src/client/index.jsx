@@ -6,7 +6,7 @@ import { StoreCache, WorkbenchStore } from './store.js'
 import { Workbench } from './Workbench.jsx'
 import { SettingsSection } from './SettingsPanel.jsx'
 import { CSS } from './styles.js'
-import { setPrimitivesLoader } from './MarkdownView.jsx'
+import { setPrimitivesLoader } from './host-primitives.js'
 import { matchesShortcut, isTerminalTarget } from './util.js'
 import { useWorkbench } from './hooks.js'
 import {
