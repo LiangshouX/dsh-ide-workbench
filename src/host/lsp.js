@@ -35,7 +35,7 @@ import { constants as osConstants, freemem, setPriority, totalmem } from 'node:o
 import { dirname, join, resolve as resolvePath } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { ApiError } from './wire.js'
-import { DEFAULT_LSP_SETTINGS } from './settings-defaults.js'
+import { BUILD_REQUEST_TIMEOUT_MS, DEFAULT_LSP_SETTINGS } from './settings-defaults.js'
 
 /**
  * The language registry (PRD §3.2).
@@ -1313,16 +1313,29 @@ export class LspManager {
        * The requests the client sent and the server has not answered yet.
        *
        * The key is the JSON-RPC id, the value the moment the request went
-       * out. Only the worker knows which payload is a request and which is a
-       * notification, so it reports both (`request` and `answered`).
+       * out and whether it was the handshake. Only the worker knows which
+       * payload is a request and which is a notification, so it reports both
+       * (`request` and `answered`) - and it also reports whether the request
+       * was the `initialize`, because the watchdog treats the two
+       * differently (see `realAnswers`).
        *
        * The watchdog counts the entries that ran into their deadline. A
        * notification is not in this map - a language server never answers
        * one - so a server that is busy building its program is not killed for
        * staying silent.
-       * @type {Map<number|string, number>}
+       * @type {Map<number|string, { at: number, handshake: boolean }>}
        */
       pendingRequests: new Map(),
+      /**
+       * The answers of the server that were not the handshake.
+       *
+       * The `initialize` is answered in milliseconds, while the first
+       * *semantic* request waits for the program build of the project - more
+       * than ten minutes on a large project (PRD-v5 §0.2 #3). The watchdog
+       * is therefore patient until the server has answered one request that
+       * is not the handshake; from then on the configured timeout applies.
+       */
+      realAnswers: 0,
       exited: false,
       intentionalExit: false,
       /**
@@ -1446,19 +1459,46 @@ export class LspManager {
     const previous = session.handle
     session.generation += 1
     const generation = session.generation
+    // The frame worker of the previous generation is stopped as well. An old
+    // worker keeps running (a thread that nothing waits for any more) and it
+    // keeps posting frames: those frames were written into the stdin of the
+    // NEW server - a protocol violation (the new server received a
+    // `didChange` of the old generation) and, if the old process was already
+    // gone, a write into a broken pipe.
+    this.#stopWorker(session)
     if (previous !== null && previous !== undefined) {
       session.intentionalExit = true
-      try { previous.terminate() } catch { /* it is already gone */ }
+      // The handle is cleared before the process is terminated: a frame that
+      // is still on its way must not be written into the pipe of a process
+      // that is about to die.
       session.handle = null
+      try { previous.terminate() } catch { /* it is already gone */ }
     }
     const worker = this.#createWorker({
       memoryLimitMB: session.memoryLimitMB,
       injectMemoryLimit: session.supportsMemoryLimit,
     })
     session.worker = worker
-    worker.on?.('message', (message) => { this.#onWorkerMessage(entry, session, message) })
+    worker.on?.('message', (message) => {
+      // The fence of the stdout path: a worker of an older generation must
+      // not feed the session that took its place. Without it the frames of
+      // the old worker were written into the stdin of the new server.
+      if (session.generation !== generation) return
+      this.#onWorkerMessage(entry, session, message)
+    })
     worker.on?.('error', (error) => {
+      // The same fence: the death of an old worker may not be reported into
+      // the session that replaced it.
+      if (session.generation !== generation) return
       this.#safely(this.#onCrash(entry, session, `the frame worker failed: ${messageOf(error)}`), 'the crash handler')
+    })
+    worker.on?.('messageerror', (error) => {
+      // A message of the port that could not be deserialized. The port emits
+      // 'messageerror' for it, and without a listener the error is an
+      // *uncaught exception* - which ends the whole DSH host process.
+      try {
+        this.#ctx?.logger?.warn?.('lsp: the frame worker could not read a message: %s', messageOf(error))
+      } catch { /* a broken logger may not take the host down */ }
     })
 
     const argv = resolution.scriptPath !== null && resolution.scriptPath !== undefined
@@ -1485,6 +1525,28 @@ export class LspManager {
     }
     session.handle = handle
     session.intentionalExit = false
+    // The new process starts at zero. The requests of the old one will
+    // never be answered, and the program of the project is built again -
+    // so the first semantic request after a restart is a long one too.
+    session.realAnswers = 0
+    session.pendingRequests.clear()
+    // The stdin of the server is the half of the frame channel that breaks
+    // first, and it breaks silently: a write into a pipe whose reader is
+    // gone fails ASYNCHRONOUSLY, and the only sign of it is the 'error'
+    // event of the stream. The try/catch around the write cannot catch it
+    // (the write has already returned by then), and a stream without an
+    // 'error' listener turns that error into an *uncaught exception* - the
+    // EventEmitter throws, and the whole DSH host process dies with it (the
+    // EPIPE that ended the IDE when the project was switched).
+    if (handle.stdin) {
+      handle.stdin.on('error', (error) => {
+        // The handler must never throw: it runs inside the error path of
+        // the stream, and a throw here is an uncaught exception as well.
+        try {
+          this.#ctx?.logger?.warn?.('lsp: the language server closed its stdin: %s', messageOf(error))
+        } catch { /* a broken logger may not take the host down */ }
+      })
+    }
     // The session is alive again: the flag of the process that died must not
     // swallow the death of the new one (a server that dies silently after a
     // restart would go unnoticed).
@@ -1603,10 +1665,12 @@ export class LspManager {
     }
     if (message.type === 'request') {
       // A request of the client that the server has to answer. The id comes
-      // from the worker: only that thread may parse the payloads.
+      // from the worker: only that thread may parse the payloads. The flag
+      // tells the host that the request is the handshake - the watchdog
+      // treats the two differently.
       const id = message.id
       if (typeof id === 'number' || typeof id === 'string') {
-        session.pendingRequests.set(id, this.#now())
+        session.pendingRequests.set(id, { at: this.#now(), handshake: message.handshake === true })
       }
       return
     }
@@ -1615,6 +1679,12 @@ export class LspManager {
       // handshake cache). The request is not outstanding any more.
       const id = message.id
       if (typeof id === 'number' || typeof id === 'string') {
+        const pending = session.pendingRequests.get(id)
+        // The first answer that is not the handshake is the end of the
+        // patience: from then on the configured timeout applies. The
+        // handshake itself is answered in milliseconds and says nothing
+        // about the speed of the server.
+        if (pending !== undefined && pending.handshake !== true) session.realAnswers += 1
         session.pendingRequests.delete(id)
         session.timeouts = 0
       }
@@ -1948,6 +2018,16 @@ export class LspManager {
    *
    * One request is counted once: it is dropped from the pending list when it
    * is counted, so the next tick does not count it again.
+   *
+   * The budget depends on what the server has answered so far. As long as
+   * it has not answered a request that is not the handshake, the watchdog is
+   * patient: the first semantic request of a session waits for the program
+   * build of the project, and that build was measured at more than ten
+   * minutes on a large project (PRD-v5 §0.2 #3). Counting it with the
+   * normal budget killed the server that was doing the work, and the
+   * restart began the whole build again - the "building → killed →
+   * rebuilding" loop. After the first real answer the configured timeout
+   * applies exactly as before.
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {number} timeout the request timeout
@@ -1956,15 +2036,18 @@ export class LspManager {
     try {
       if (entry.session !== session) return
       if (session.state !== 'ready' && session.state !== 'building') return
+      const budget = session.realAnswers > 0 ? timeout : BUILD_REQUEST_TIMEOUT_MS
       const now = this.#now()
       let oldest = null
-      for (const [id, sentAt] of session.pendingRequests) {
-        if (now - sentAt < timeout) continue
-        if (oldest === null || sentAt < oldest.sentAt) oldest = { id, sentAt }
+      for (const [id, pending] of session.pendingRequests) {
+        if (now - pending.at < budget) continue
+        if (oldest === null || pending.at < oldest.at) oldest = { id, at: pending.at }
       }
       // Nothing is outstanding: the server may be silent for ever, that is
       // not a timeout.
       if (oldest === null) return
+      // The request leaves the pending list when it is counted: it is
+      // counted once, not once per tick of the watchdog.
       session.pendingRequests.delete(oldest.id)
       this.#noteTimeout(entry, session, 'the language server stopped responding')
     } catch (error) {
@@ -2009,6 +2092,11 @@ export class LspManager {
     }
     const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
     this.#transition(session, 'crashed', reason)
+    // The handle of the dead process is cleared: for the whole restart
+    // backoff (two seconds by default) `session.handle` pointed at the
+    // process that is already gone, and every frame that arrived in that
+    // window was written into a broken pipe.
+    session.handle = null
     // The timers of the crashed session go away with it: the restart arms
     // new ones, and a session that stays crashed must not keep a watchdog
     // alive.
@@ -2096,6 +2184,12 @@ export class LspManager {
   async #terminateAndWait(session) {
     const handle = session.handle
     if (handle === undefined || handle === null) return
+    // The handle is cleared BEFORE the process is terminated: a frame that
+    // is still on its way (the frame worker is a thread - it answers in a
+    // later turn of the event loop) would otherwise be written into the
+    // pipe of a process that is about to die. The write into a broken pipe
+    // fails asynchronously and took the whole host down with it.
+    session.handle = null
     try {
       handle.terminate()
     } catch {

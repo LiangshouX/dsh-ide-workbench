@@ -18,7 +18,11 @@
  *    (PRD §0.2 #6). The extensions are therefore assembled by hand.
  * 3. **The request timeout is raised.** The library defaults to 3000 ms,
  *    which silently times out on a large project; the setting
- *    `lsp.requestTimeoutMs` (30000 by default) is used instead.
+ *    `lsp.requestTimeoutMs` (30000 by default) is used instead. The *first*
+ *    semantic request of a session gets a far bigger budget
+ *    (`BUILD_REQUEST_TIMEOUT_MS`, ten minutes): it is the request that makes
+ *    the language server build the program of the whole project, and that
+ *    takes minutes on a large project (PRD-v5 §0.2 #3, review S6).
  * 4. **The HTML of a hover is sanitized.** The server's Markdown may contain
  *    arbitrary HTML, so `sanitizeHTML` is part of the client configuration.
  *
@@ -37,6 +41,7 @@ import { sanitizeHTML } from './lsp-sanitize.js'
 import { createLspTransport } from './lsp-transport.js'
 import { fileUriOf, languageIdForPath } from './lsp-uri.js'
 import { WorkbenchWorkspace } from './lsp-workspace.js'
+import { BUILD_REQUEST_TIMEOUT_MS } from '../host/settings-defaults.js'
 
 /** The fallback keys, used when the settings do not carry them. */
 const DEFAULT_SHORTCUTS = {
@@ -107,6 +112,53 @@ let mappingRedirected = false
  * @type {{consecutiveFailures: number, consecutiveTimeouts: number, lastFailure: {message: string, at: number} | null}}
  */
 let health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null }
+/**
+ * How many semantic requests of the session have been answered.
+ *
+ * The counter decides how long a request may take: the first semantic
+ * request of a session is the one that makes the language server build the
+ * program of the whole project, and that takes minutes on a large project
+ * (PRD-v5 §0.2 #3). Every request before the first answered one therefore
+ * gets the long budget of {@link requestBudgetOf}.
+ *
+ * The counter belongs to one session: a new client, another project or a
+ * restarted language server all start over, because the new server has to
+ * build its program again.
+ * @type {number}
+ */
+let semanticAnswers = 0
+
+/**
+ * The complaints of the server about a document outside the project.
+ *
+ * The language server only knows the documents of the project. A file that
+ * lives outside of it is announced by nobody, and the server reacts to such a
+ * document with a complaint ("Unexpected resource file:///…", "not part of
+ * the workspace", …). The complaint is noise for the user - the workbench
+ * never asked for anything wrong - so it must not become an error toast
+ * (review S8).
+ */
+const OUTSIDE_PROJECT_COMPLAINTS = [
+  /unexpected resource/i,
+  /not part of the workspace/i,
+  /outside the project/i,
+  /not in the project/i,
+]
+
+/**
+ * Whether one report of the server is about a document outside the project.
+ *
+ * The filter is deliberately narrow: only the four complaints that name the
+ * problem are recognised, so every other error of the server still reaches
+ * the user as a toast.
+ * @param {string} message the message of the library
+ * @param {string} detail the detail of the error
+ * @returns {boolean} true when the report is about a document outside the project
+ */
+function isOutsideProjectComplaint(message, detail) {
+  const text = `${message ?? ''} ${detail ?? ''}`
+  return OUTSIDE_PROJECT_COMPLAINTS.some(pattern => pattern.test(text))
+}
 
 /**
  * Send the reports of the language server to the workbench toast.
@@ -116,6 +168,11 @@ let health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null
  * the cross. The workbench already has a transient toast that sits above the
  * status bar, so the message goes there instead - it stays visible (PRD
  * §7.1) without covering anything.
+ *
+ * One kind of report is dropped: the complaint of the server about a
+ * document outside the project. The workbench never announces such a
+ * document (the workspace has a fence), so the complaint is only noise - and
+ * a toast would blame the user for something they did not do.
  *
  * The library is not changed on disk; its prototype is redirected once, when
  * the first session starts.
@@ -127,6 +184,10 @@ export function redirectErrorsToToast() {
   LSPPlugin.prototype.reportError = function reportError(message, err) {
     const detail = err?.message ?? String(err ?? '')
     console.warn('[lsp]', message, detail)
+    // A complaint about a document outside the project is logged and dropped:
+    // neither a toast nor the panel of the library may blame the user for a
+    // file the workbench deliberately never announced.
+    if (isOutsideProjectComplaint(message, detail)) return
     const store = sessionStore
     if (store !== null && typeof store.toast === 'function') {
       try {
@@ -164,9 +225,14 @@ export function lspHealth() {
  * The health belongs to one project: the failures of the old language server
  * say nothing about the new one, so the counter starts at zero again when
  * the project changes.
+ *
+ * The answered semantic requests are forgotten with it: the new language
+ * server has to build its program again, so its first semantic request needs
+ * the long budget again.
  */
 export function resetLspHealth() {
   health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null }
+  semanticAnswers = 0
   publishHealth()
 }
 
@@ -239,6 +305,30 @@ function isTimeout(message) {
 }
 
 /**
+ * Whether one rejection is the client's own deadline.
+ *
+ * The library gives up on a request with `new Error("Request timed out")`,
+ * and that is the ONE rejection that means the server did not answer. Every
+ * other rejection is an answer of the server: the library hands the JSON-RPC
+ * error object of the server to the caller (a plain object, not an `Error`).
+ * The program of the project is built when the server answers - even with an
+ * error - so the next request is a short one again.
+ *
+ * The check is deliberately exact: a server whose error *message* mentions a
+ * timeout must not be mistaken for the client's own deadline. The loose
+ * {@link isTimeout} is used for the health counter, where a false positive
+ * only changes the wording of the status bar.
+ *
+ * The function is exported so that the rule can be pinned by a test: the
+ * library's own deadline cannot be reached in a test without waiting for it.
+ * @param {unknown} error the rejection of the request
+ * @returns {boolean} true when the client gave up on the request
+ */
+export function isClientDeadline(error) {
+  if (!(error instanceof Error)) return false
+  return /^request timed out$/i.test(error.message ?? '')
+}
+/**
  * Note that a semantic request worked.
  *
  * One success is enough: the features work again, so the status bar must
@@ -272,22 +362,44 @@ function noteSemanticFailure(error) {
  * synced - and the status bar must only react to the former. The request
  * method of the client is therefore wrapped: only the semantic methods are
  * counted, a success resets the counter, and a timeout is counted on its own.
+ *
+ * The wrapper also carries the request budget: it is written into the client
+ * before the request is created, because the library reads `client.timeout`
+ * when it builds the request.
  * @param {any} client the client of the session
  */
 function watchSemanticRequests(client) {
   const original = client.request.bind(client)
   client.request = function request(method, params) {
+    // The budget has to be in effect *before* the request is created: the
+    // library reads `client.timeout` when it builds the request, so the first
+    // semantic request - the one that makes the server build the program of
+    // the project - would be given the short budget otherwise.
+    applyRequestBudget(client)
     // A new find cycle: the files of the last one are stale.
     if (method === 'textDocument/references') clearRequestCache()
     const promise = original(method, params)
     if (!SEMANTIC_METHODS.has(method)) return promise
     return promise.then(
       result => {
+        // The server answered: from now on the incremental requests are
+        // quick, and the configured timeout is the right budget again.
+        semanticAnswers += 1
         noteSemanticSuccess()
         return result
       },
       error => {
         noteSemanticFailure(error)
+        // A rejection that is not the client's own deadline means the server
+        // DID answer - with an error, but with an answer. The program of the
+        // project is built then, so the next request is a short one again.
+        //
+        // The host counts the same thing (the first answered request that is
+        // not the handshake), and the two sides have to agree: if the host
+        // switched to the short budget while the client still waited with
+        // the long one, the host would kill the very server the client is
+        // still waiting for.
+        if (!isClientDeadline(error)) semanticAnswers += 1
         // The error goes on to the library, which reports it as a toast.
         throw error
       },
@@ -544,6 +656,48 @@ function requestTimeoutOf(store) {
 }
 
 /**
+ * The budget of one request, in milliseconds.
+ *
+ * The budget follows the *answered* semantic requests of the session: the
+ * first one is the request that makes the language server build the program
+ * of the whole project, and PRD-v5 §0.2 #3 measured that at more than ten
+ * minutes. A 30 s budget turns it into a "Request timed out" the user
+ * cannot do anything about - and, because the host counts the unanswered
+ * requests, into a server that is killed and restarted (review S6).
+ *
+ * The mirrored state of the session is deliberately *not* used: the host
+ * marks a session `ready` about ten milliseconds after the server answered
+ * `initialize`, while the long program build happens minutes later - on the
+ * first semantic request. A budget that followed the state would therefore
+ * never apply to the request that actually takes ten minutes.
+ *
+ * After the first answered semantic request the server is up and answers the
+ * incremental requests quickly, so the configured timeout applies again.
+ * @param {any} store the workbench store
+ * @returns {number} the budget in milliseconds
+ */
+export function requestBudgetOf(store) {
+  const configured = requestTimeoutOf(store)
+  if (semanticAnswers > 0) return configured
+  return Math.max(configured, BUILD_REQUEST_TIMEOUT_MS)
+}
+
+/**
+ * Write the current request budget into the client.
+ *
+ * The library reads `client.timeout` when it *creates* a request, so the
+ * budget has to be written before the request is built and not when the
+ * settings change.
+ * @param {any} client the client of the session
+ */
+function applyRequestBudget(client) {
+  if (client === null || client === undefined) return
+  const budget = requestBudgetOf(sessionStore)
+  if (client.timeout === budget) return
+  client.timeout = budget
+}
+
+/**
  * Whether the semantic features may be used right now.
  * @returns {boolean} true when the server is ready and offers the feature
  */
@@ -582,9 +736,15 @@ function startLsp() {
   redirectErrorsToToast()
   redirectMappingPositions()
   const root = typeof store.state?.root === 'string' ? store.state.root : ''
+  // A new client is a new session: no semantic request has been answered
+  // yet, so the first one gets the long budget.
+  semanticAnswers = 0
   currentClient = new LSPClient({
     rootUri: fileUriOf(root),
-    timeout: requestTimeoutOf(store),
+    // The budget of the construction is the budget of the session, so that a
+    // request which is sent before the first wrapper call is not short
+    // either.
+    timeout: requestBudgetOf(store),
     sanitizeHTML,
     workspace: (client) => {
       currentWorkspace = new WorkbenchWorkspace(client, store, { viewRegistry })
@@ -683,14 +843,18 @@ function reinitializeLsp() {
   if (currentClient === null || currentTransport === null) return
   try {
     currentClient.disconnect()
+    // The socket opened again, so the language server was restarted (the
+    // user asked for a new index, or the server died). The failures of the
+    // old server say nothing about the new one - and the new server has to
+    // build its program again, so its handshake needs the long budget as
+    // well. Both have to happen before the handshake is sent: the library
+    // reads the budget of the client when it creates the request.
+    resetLspHealth()
+    applyRequestBudget(currentClient)
     currentClient.connect(currentTransport)
     // The new handshake has to be watched as well: a session whose handshake
     // failed has to be able to try again.
     watchHandshake(currentClient)
-    // The socket opened again, so the language server was restarted (the
-    // user asked for a new index, or the server died). The failures of the
-    // old server say nothing about the new one.
-    resetLspHealth()
   } catch (error) {
     console.warn('[lsp] the handshake could not be repeated:', error instanceof Error ? error.message : error)
   }
@@ -721,7 +885,9 @@ function stopLsp() {
   currentWorkspace = null
   currentTransport = null
   // The health belongs to the running session: when it ends, the failures
-  // of the old server say nothing about the next one.
+  // of the old server say nothing about the next one. The answered semantic
+  // requests go with it - the next session starts with a server that has to
+  // build its program again.
   resetLspHealth()
   bumpVersion()
 }

@@ -339,6 +339,14 @@ function run(options) {
   const memoryLimitMB = Number.isFinite(options.memoryLimitMB) ? options.memoryLimitMB : null
   const handshake = new Handshake()
 
+  // A message of the host that could not be deserialized: the port emits
+  // 'messageerror' for it, and without a listener the error is an uncaught
+  // exception in this thread - which would kill the frame worker (and with
+  // it the language server of the project).
+  parentPort.on('messageerror', (error) => {
+    console.warn('[lsp] the frame worker could not read a message:', error instanceof Error ? error.message : error)
+  })
+
   parentPort.on('message', (message) => {
     if (message === null || typeof message !== 'object') return
     if (message.type === 'stdout') {
@@ -383,8 +391,16 @@ function run(options) {
         }
         // A request the server has to answer. The host counts the ones that
         // never get an answer - a notification is not one of them.
+        //
+        // The flag tells the host that this request is the handshake: the
+        // `initialize` is answered in milliseconds, while the first
+        // *semantic* request waits for the program build of the project (up
+        // to ten minutes on a large project). The watchdog is patient until
+        // the server has answered a request that is not the handshake.
         const request = requestIdOf(text)
-        if (request !== null) parentPort.postMessage({ type: 'request', id: request })
+        if (request !== null) {
+          parentPort.postMessage({ type: 'request', id: request, handshake: handshake.isInitialize(text) })
+        }
       }
       const payload = message.origin === 'host' ? text : withMemoryLimit(text, injectMemoryLimit ? memoryLimitMB : null)
       if (message.origin !== 'host' && handshake.isInitialize(payload)) {

@@ -772,7 +772,8 @@ export const CSS = `
 .iwb-settings-control input[type="text"], .iwb-settings-control input[type="number"],
 .iwb-settings-control select,
 .iwb-settings-field-control input[type="text"], .iwb-settings-field-control input[type="number"],
-.iwb-settings-field-control select {
+.iwb-settings-field-control select,
+.iwb-settings-language input[type="number"] {
   height: 32px; min-width: 0; padding: 0 10px; color: var(--iwb-fg);
   border: 1px solid var(--iwb-border-strong); border-radius: 6px; background: var(--iwb-bg);
   font-size: 13px; outline: none; transition: border-color .12s ease, box-shadow .12s ease;
@@ -783,9 +784,11 @@ export const CSS = `
   width: 96px; padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;
 }
 .iwb-settings-control :is(input[type="text"], input[type="number"], select):hover,
-.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):hover { border-color: var(--iwb-muted); }
+.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):hover,
+.iwb-settings-language input[type="number"]:hover { border-color: var(--iwb-muted); }
 .iwb-settings-control :is(input[type="text"], input[type="number"], select):focus,
-.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):focus {
+.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):focus,
+.iwb-settings-language input[type="number"]:focus {
   border-color: var(--iwb-accent); box-shadow: 0 0 0 1px var(--iwb-accent);
 }
 .iwb-settings-control input[type="checkbox"] {
@@ -813,6 +816,10 @@ export const CSS = `
   display: inline-flex; align-items: center; gap: 6px; min-width: 0;
   font-size: 12.5px; color: var(--iwb-fg);
 }
+/* The switch and the name of the language: one label, so clicking the name
+   switches the language off. The ceiling input stands outside of it - a
+   label hands its click to the first control it holds. */
+.iwb-settings-language-toggle { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .iwb-settings-language input[type="checkbox"] {
   width: 16px; height: 16px; margin: 0; accent-color: var(--iwb-accent); cursor: pointer;
 }
@@ -821,6 +828,12 @@ export const CSS = `
   color: var(--iwb-muted); font-size: 11px; font-family: var(--iwb-mono);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* The ceiling of one language: narrow, because the row is a compact line and
+   not a settings row. */
+.iwb-settings-language input[type="number"] {
+  width: 76px; padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;
+}
+.iwb-settings-language-unit { color: var(--iwb-muted); font-size: 11px; }
 .iwb-settings-shortcut {
   display: inline-flex; align-items: center; justify-content: center; min-width: 150px; height: 32px; padding: 0 12px;
   border: 1px solid var(--iwb-border-strong); border-radius: 7px; background: var(--iwb-panel-2);

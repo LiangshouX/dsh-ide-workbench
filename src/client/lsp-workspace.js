@@ -11,7 +11,10 @@
  *
  * The other half of the job is the fence: a language server may answer with
  * a path outside the project. Such a path is never opened and never read;
- * `displayFile` returns `null` and the user gets a toast.
+ * `displayFile` returns `null` and the user gets a toast. The fence holds in
+ * the other direction too: a document outside the project is never announced
+ * to the server, because the server only knows the documents of the project
+ * and complains about the others.
  *
  * A third job was added later (PRD-v5 §3.2, USAGE-01): the library asks the
  * workspace for the file of *every* reference it got, and its own answer
@@ -295,6 +298,12 @@ export class WorkbenchWorkspace extends Workspace {
    *
    * The content that is announced is the editor buffer (the draft), never the
    * file on disk.
+   *
+   * A document outside the project is *not* announced: the language server
+   * only knows the documents of the project and complains about the others
+   * ("Unexpected resource …"), and that complaint reaches the workbench as a
+   * fake error (review S8). The file itself stays known to the editor - the
+   * tab needs it - it is only kept away from the server.
    * @param {string} uri the document URI
    * @param {string} languageId the LSP language id
    * @param {any} view the editor
@@ -313,12 +322,19 @@ export class WorkbenchWorkspace extends Workspace {
       version: 1,
       doc: textOf(content),
       view,
+      /** Whether the server was told about this document. */
+      announced: false,
       /** @returns {any} the editor that shows this document */
       getView() {
         return this.view ?? null
       },
     }
     this.files.push(file)
+    // The fence of the workspace: the server only knows the documents of the
+    // project, and a URI that is not a file path cannot belong to it.
+    const absolute = pathOfFileUri(uri)
+    if (absolute === null || !this.insideRoot(absolute)) return
+    file.announced = true
     this.client.didOpen(file)
   }
 
@@ -359,6 +375,8 @@ export class WorkbenchWorkspace extends Workspace {
       languageId: languageIdForPath(absolute),
       version: 1,
       doc: textOf(content),
+      /** The file is only read, never announced to the server. */
+      announced: false,
       /** @returns {any} the editor - there is none, the file is only read */
       getView() {
         return null
@@ -440,7 +458,10 @@ export class WorkbenchWorkspace extends Workspace {
    * Push the pending edits of every open document to the server.
    *
    * Only the documents that actually changed are reported, and the change is
-   * incremental.
+   * incremental. A document that was never announced to the server (a file
+   * outside the project) is kept up to date locally, but it is not reported:
+   * the server does not know it and would complain about an unknown
+   * document.
    * @returns {Array<any>} the updates
    */
   syncFiles() {
@@ -454,6 +475,7 @@ export class WorkbenchWorkspace extends Workspace {
       const prevDoc = file.doc
       file.doc = textOf(next)
       file.version += 1
+      if (file.announced !== true) continue
       updates.push({ file, prevDoc, changes })
     }
     return updates
@@ -558,12 +580,17 @@ export class WorkbenchWorkspace extends Workspace {
 
   /**
    * Close one document with the server.
+   *
+   * A document that was never announced (a file outside the project) is
+   * closed locally only: the server does not know it, and a `didClose` for
+   * an unknown document is another complaint it would answer with.
    * @param {string} uri the document URI
    */
   closeFile(uri) {
     const index = this.files.findIndex(file => file.uri === uri)
     if (index < 0) return
-    this.files.splice(index, 1)
+    const [file] = this.files.splice(index, 1)
+    if (file.announced !== true) return
     this.client.didClose(uri)
   }
 }

@@ -209,6 +209,65 @@ test('closeFile removes the document and tells the server', () => {
   assert.equal(closed.uri, 'file:///C:/work/demo/src/app.ts')
 })
 
+/**
+ * The fence of the workspace, the other way round: a document outside the
+ * project must never reach the language server.
+ *
+ * The server only knows the documents of the project and answers every other
+ * one with a complaint ("Unexpected resource …"), which the workbench would
+ * turn into a fake error toast (review S8).
+ */
+test('a file inside the project is announced to the server', () => {
+  const client = recordingClient()
+  const { store } = recordingStore({ root: 'C:/work/demo' })
+  const workspace = new WorkbenchWorkspace(client, store, {})
+  workspace.openFile('file:///C:/work/demo/src/app.ts', 'typescript', null)
+  const opened = client.calls.find(call => call.kind === 'didOpen')
+  assert.ok(opened !== undefined, 'the server was told about the file')
+  assert.equal(opened.uri, 'file:///C:/work/demo/src/app.ts')
+})
+
+test('a file outside the project is not announced to the server', () => {
+  const client = recordingClient()
+  const { store } = recordingStore({ root: 'C:/work/demo' })
+  const workspace = new WorkbenchWorkspace(client, store, {})
+  workspace.openFile('file:///C:/elsewhere/secret.ts', 'typescript', null)
+  assert.equal(
+    client.calls.find(call => call.kind === 'didOpen'),
+    undefined,
+    'the server was not told about the file',
+  )
+  // The file is still tracked: the editor needs it.
+  assert.equal(workspace.files.length, 1)
+  assert.equal(workspace.files[0].uri, 'file:///C:/elsewhere/secret.ts')
+})
+
+test('a file outside the project is not closed with the server', () => {
+  const client = recordingClient()
+  const { store } = recordingStore({ root: 'C:/work/demo' })
+  const workspace = new WorkbenchWorkspace(client, store, {})
+  workspace.openFile('file:///C:/elsewhere/secret.ts', 'typescript', null)
+  workspace.closeFile('file:///C:/elsewhere/secret.ts', null)
+  assert.equal(workspace.files.length, 0, 'the file is closed locally')
+  assert.equal(
+    client.calls.find(call => call.kind === 'didClose'),
+    undefined,
+    'the server was not told about a document it never knew',
+  )
+})
+
+test('the changes of a file outside the project are not reported to the server', () => {
+  const client = recordingClient()
+  const { store } = recordingStore({ root: 'C:/work/demo' })
+  const workspace = new WorkbenchWorkspace(client, store, {})
+  let text = 'const typed = 1\n'
+  const view = { state: { doc: { toString: () => text } } }
+  workspace.openFile('file:///C:/elsewhere/secret.ts', 'typescript', view)
+  text = 'const typed = 2\n'
+  const updates = workspace.syncFiles()
+  assert.equal(updates.length, 0, 'the server hears nothing about the file')
+})
+
 test('closeFile of an unknown document does nothing', () => {
   const client = recordingClient()
   const { store } = recordingStore()

@@ -16,7 +16,8 @@
  */
 import { randomUUID } from 'node:crypto'
 import { stat, unlink } from 'node:fs/promises'
-import { relative, sep } from 'node:path'
+import { dirname, relative, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
 import { runGit, repoRootOf, status as gitStatus, diff as gitDiff, diffRev as gitDiffRev, diffRefs as gitDiffRefs, stage as gitStage, unstage as gitUnstage, discard as gitDiscard, applyPatch as gitApplyPatch, commit as gitCommit, push as gitPush, log as gitLog, branches as gitBranches, checkout as gitCheckout, revert as gitRevert, commitDetail, commitFileDiff, showFile, recentMessages } from './host/git.js'
 import { SettingsStore, settingsFile } from './host/settings-store.js'
@@ -32,6 +33,7 @@ import {
 import { listFiles, searchFiles } from './host/search.js'
 import { LspManager, shutdownAll } from './host/lsp.js'
 import { registerLspWebSocket, shutdownLspWebSocket } from './host/lsp-ws.js'
+import { guardEmitter } from './host/guard.js'
 import {
   ApiError, optionalBoolean, optionalInteger, readJsonBody, requireString, stringArray,
   writeError, writeOk,
@@ -44,6 +46,142 @@ export const inject = ['webServer', 'connection', 'subprocess', 'workspaceRegist
 
 const API_PREFIX = '/ide-workbench/api/'
 const WS_PATH = '/ide-workbench/ws/terminal'
+
+/**
+ * The directory of the plugin's own sources.
+ *
+ * The error boundary below has to tell "an error of this plugin" from "an
+ * error of the host", and a stack trace is the only evidence it has. The
+ * plugin's own directory is the precise marker: the path of the plugin is
+ * part of the stack of every frame of its own code, and of no other.
+ */
+const PLUGIN_DIR = dirname(fileURLToPath(import.meta.url)).split(sep).join('/')
+
+/**
+ * The stack of one error, with its causes, normalized to forward slashes.
+ *
+ * A stack trace prints the source as a `file://` URL on every platform, so
+ * the paths are compared in that form; a Windows path with backslashes
+ * would never match.
+ * @param {unknown} error the error
+ * @returns {string} the stack
+ */
+function stackOf(error) {
+  const parts = []
+  const seen = new Set()
+  let current = error
+  while (current !== null && current !== undefined && !seen.has(current)) {
+    seen.add(current)
+    if (typeof current.stack === 'string') parts.push(current.stack)
+    current = current.cause
+  }
+  return parts.join('\n').split('\\').join('/')
+}
+
+/**
+ * Whether one error comes from the plugin's own code.
+ *
+ * The attribution has to be narrow. The DSH host ends its process on an
+ * uncaught exception - that is the right policy for the host - and a
+ * plugin that took every error away from the host would turn that safety
+ * net into a no-op. Only an error whose stack points into this plugin's
+ * own sources is the plugin's business.
+ * @param {unknown} error the error
+ * @returns {boolean} true when the error belongs to the plugin
+ */
+function isPluginFault(error) {
+  if (error === null || typeof error !== 'object') return false
+  return stackOf(error).includes(PLUGIN_DIR)
+}
+
+/**
+ * Make one emitter safe.
+ *
+ * An 'error' event without a listener is an uncaught exception, and an
+ * uncaught exception ends the DSH host process. Every socket and every
+ * server of the plugin therefore carries a listener: a terminal that cannot
+ * be opened must not take the IDE down with it.
+ *
+ * The helper lives in `host/guard.js` so that the host half and the plugin
+ * entry can share it; it is re-exported here because the plugin entry is
+ * the public face of the package.
+ */
+export { guardEmitter } from './host/guard.js'
+
+/**
+ * Install the error boundary of the plugin.
+ *
+ * The DSH host installs a fail-loud handler: an uncaught exception is
+ * written to the log and the process is ended. For the host itself that is
+ * the right behaviour, but a plugin must not be able to take the whole IDE
+ * down with it - one language server whose pipe breaks has to cost the user
+ * the semantic features, not the application (the crash report of the
+ * second review round: `Error: write EPIPE` killed the host while the user
+ * was switching the project).
+ *
+ * The plugin therefore TAKES THE EVENT OVER: the handlers that were
+ * installed before are remembered and called for every error that is not
+ * the plugin's own, so the host keeps its fail-loud policy unchanged. Only
+ * an error that comes from the plugin's own sources is contained, and it is
+ * reported instead.
+ *
+ * Taking the event over (instead of adding a listener) is deliberate: Node
+ * copies the handler array before it calls the handlers, so a listener that
+ * removes the other handlers while it runs cannot stop them from being
+ * called in the same turn - the host's handler would end the process before
+ * the boundary could do anything about it.
+ *
+ * @param {any} ctx the cordis host context
+ * @param {(error: unknown) => void} onFault what to do with a contained fault
+ * @returns {() => void} the uninstaller
+ */
+function installErrorBoundary(ctx, onFault) {
+  /**
+   * Take one event over.
+   * @param {'uncaughtException' | 'unhandledRejection'} event the event
+   * @returns {{ handler: Function, inherited: Function[] }} the new handler and the inherited ones
+   */
+  const takeover = (event) => {
+    const inherited = process.listeners(event)
+    const handler = function boundary(error) {
+      if (isPluginFault(error)) {
+        try {
+          ctx.logger?.error?.(
+            'dsh-ide-workbench: contained a %s of the plugin: %s',
+            event === 'uncaughtException' ? 'fatal exception' : 'rejected promise',
+            error instanceof Error ? (error.stack ?? error.message) : String(error),
+          )
+          onFault(error)
+        } catch (fault) {
+          ctx.logger?.error?.('dsh-ide-workbench: the fault handler failed: %s', fault instanceof Error ? fault.stack : String(fault))
+        }
+        return
+      }
+      // A failure that is not the plugin's own: the handlers that were
+      // installed before must see it exactly as before - the fail-loud
+      // handler of the host included.
+      for (const listener of inherited) {
+        try { listener(error) } catch { /* the handler of the host decides what happens next */ }
+      }
+    }
+    process.removeAllListeners(event)
+    process.on(event, handler)
+    return { handler, inherited }
+  }
+  const exceptions = takeover('uncaughtException')
+  const rejections = takeover('unhandledRejection')
+  return () => {
+    process.removeListener('uncaughtException', exceptions.handler)
+    process.removeListener('unhandledRejection', rejections.handler)
+    // The handlers of the host go back where they were.
+    for (const listener of exceptions.inherited) {
+      if (!process.listeners('uncaughtException').includes(listener)) process.on('uncaughtException', listener)
+    }
+    for (const listener of rejections.inherited) {
+      if (!process.listeners('unhandledRejection').includes(listener)) process.on('unhandledRejection', listener)
+    }
+  }
+}
 
 /** Clamp a numeric query parameter. */
 function clamp(value, min, max, fallback) {
@@ -555,6 +693,11 @@ export function apply(ctx) {
 
   // ── Terminal WebSocket ─────────────────────────────────────────────────
   const wss = new WebSocketServer({ noServer: true })
+  // The WebSocket server is a source of errors of its own. An 'error' event
+  // without a listener is an uncaught exception, and an uncaught exception
+  // ends the DSH host process - a terminal that cannot be opened must not
+  // take the whole IDE with it.
+  guardEmitter(ctx, wss, 'WebSocket server')
 
   /**
    * Serve one terminal socket: allocate a real PTY, stream output, accept
@@ -563,6 +706,9 @@ export function apply(ctx) {
    */
   const attachTerminal = async (ws, req) => {
     const url = new URL(req.url ?? '/', 'http://dsh.internal')
+    // A socket that fails is a closed tab, not a reason to end the IDE: the
+    // 'error' event of a socket without a listener is an uncaught exception.
+    guardEmitter(ctx, ws, 'terminal socket')
     let handle
     let sessionId = randomUUID()
     try {
@@ -667,6 +813,26 @@ export function apply(ctx) {
     const relay = registerLspWebSocket(ctx, { manager: lsp, fence })
     return () => relay.close()
   }, 'dsh-ide-workbench: LSP WebSocket')
+
+  // ── error boundary ─────────────────────────────────────────────────────
+  // One language server must never take the whole IDE down with it. The
+  // boundary is an effect, so it goes away with the plugin and leaves no
+  // listener behind in the host.
+  ctx.effect(() => installErrorBoundary(ctx, () => {
+    // The semantic features of the running servers are degraded: the pipe of
+    // a language server is broken, so its session is not usable any more and
+    // the status bar must not keep saying "ready".
+    const states = lsp.liveStates()
+    const roots = states instanceof Map ? [...states.keys()] : Object.keys(states ?? {})
+    for (const root of roots) {
+      try {
+        lsp.transition(root, 'degraded', 'the language server reported a broken pipe')
+      } catch {
+        /* not every state may be degraded - the crash handler of the manager
+           deals with the rest */
+      }
+    }
+  }), 'dsh-ide-workbench: error boundary')
 
   // ── teardown ───────────────────────────────────────────────────────────
   ctx.effect(() => () => {

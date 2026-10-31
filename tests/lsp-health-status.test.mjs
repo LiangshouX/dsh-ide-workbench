@@ -13,6 +13,8 @@
  */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import {
   configureLsp,
   lspClient,
@@ -20,6 +22,13 @@ import {
   resetLspHealth,
   shutdownLsp,
 } from '../src/client/lsp-session.js'
+import { makeManager, sleep, waitFor } from './lsp-fixtures.mjs'
+import { encodeFrame } from '../src/host/lsp-frame.js'
+
+/** A project root that no other test uses. */
+function rootOf(name) {
+  return join(tmpdir(), `iwb-lsp-health-${name}`)
+}
 
 /**
  * One fake WebSocket.
@@ -363,4 +372,57 @@ test('the position of a reference in a file that is not open can be mapped', asy
   const offset = mapping.mapPosition('file:///C:/work/demo/src/other.ts', { line: 1, character: 6 }, 1)
   // The second line starts at the "const" of "const second = 2".
   assert.equal(offset, 'const other = 1\nconst second = 2\n'.indexOf('second'))
+})
+
+// ── the host side of the health: the first request of a session is patient ─
+//
+// The counter of the host ("the requests the server did not answer in time")
+// is the truth the client cannot see. It must not turn the silence of a
+// server that is still building its program into a crash: the first
+// *semantic* request of a session waits for the program build of the project
+// - more than ten minutes on a large project (PRD-v5 §0.2 #3). The watchdog
+// is patient until the server has answered one request that is not the
+// handshake; from then on the configured timeout applies and a server that
+// stops answering is killed.
+
+test('the first request of a session is patient, the next ones are not', async () => {
+  const { manager, spawned, workers, handle } = makeManager({ lsp: { requestTimeoutMs: 400 } })
+  const root = rootOf('first-request-budget')
+  await manager.start({ root })
+
+  // The first request that is never answered: the server may still be
+  // building its program, so it is not counted.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'textDocument/definition', params: {},
+  }))
+  await sleep(900)
+
+  assert.equal(manager.stateOf(root).timeouts, 0, 'the first request was not counted')
+  assert.equal(spawned.length, 1, 'the language server was not killed')
+  assert.equal(handle().terminateCalls, 0, 'the process was not terminated')
+
+  // Now the server answers a request that is not the handshake: from now on
+  // the configured timeout applies.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id: 2, method: 'textDocument/definition', params: {},
+  }))
+  workers[0].postMessage({
+    type: 'stdout',
+    data: encodeFrame(JSON.stringify({ jsonrpc: '2.0', id: 2, result: null })),
+  })
+  assert.equal(
+    await waitFor(() => manager.stateOf(root).state === 'ready'),
+    true,
+    'the answer of the server was processed',
+  )
+
+  // A request that is never answered is counted from now on.
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id: 3, method: 'textDocument/definition', params: {},
+  }))
+  assert.equal(
+    await waitFor(() => manager.stateOf(root).timeouts >= 1),
+    true,
+    'the timeout of a server that has answered once is counted',
+  )
 })

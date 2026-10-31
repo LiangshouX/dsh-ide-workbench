@@ -606,8 +606,10 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
           )
         : null,
     ),
-    // The language servers of the machine, one switch each (SET-02). The
-    // field `lsp.servers[languageId].enabled` existed but had no control.
+    // The language servers of the machine, one switch and one ceiling each
+    // (SET-02). The field `lsp.servers[languageId].enabled` existed but had
+    // no control, and the global ceiling could only lower a language: the
+    // user had no way to give one language more than the global cap.
     availableServers.length > 0
       ? React.createElement(Group, { title: t('settings.lspServersGroup'), description: t('settings.lspServersGroupHint') },
           // One line per language, not one settings row per language: a
@@ -617,24 +619,67 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
               const servers = draft.lsp?.servers ?? {}
               const entry = servers[server.languageId] ?? {}
               const enabled = entry.enabled !== false
-              return React.createElement('label', {
+              // The ceiling of this language. `null` and a missing key both
+              // mean "no ceiling of its own" - the global one applies.
+              const limit = entry.memoryLimitMB
+              return React.createElement('div', {
                 key: server.languageId,
                 className: 'iwb-settings-language',
-                title: server.resolvedPath ?? server.command,
               },
+                // The switch and the name stay in one label, so clicking the
+                // name switches the language off. The ceiling input is
+                // outside of it: a label hands its click to the first
+                // control it holds, and that has to stay the switch.
+                React.createElement('label', {
+                  className: 'iwb-settings-language-toggle',
+                  title: server.resolvedPath ?? server.command,
+                },
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: enabled,
+                    onChange: event => {
+                      const nextServers = {
+                        ...servers,
+                        [server.languageId]: { ...entry, enabled: event.target.checked },
+                      }
+                      update({ lsp: { servers: nextServers } })
+                    },
+                  }),
+                  React.createElement('span', { className: 'iwb-settings-language-name' }, server.languageId),
+                  React.createElement('span', { className: 'iwb-settings-language-command' }, server.command),
+                ),
+                // The ceiling of this one language. Empty means "no ceiling
+                // of its own": the global one applies. A number here
+                // replaces the global ceiling for this language, so it may
+                // be higher than the global one.
                 React.createElement('input', {
-                  type: 'checkbox',
-                  checked: enabled,
+                  type: 'number',
+                  className: 'iwb-settings-language-limit',
+                  min: 64, max: 32768, step: 64,
+                  value: Number.isFinite(limit) ? String(limit) : '',
+                  'aria-label': `${server.languageId}: ${t('settings.lspServerMemoryLimit')}`,
+                  title: t('settings.lspServerMemoryLimitHint'),
                   onChange: event => {
+                    const raw = String(event.target.value ?? '').trim()
+                    const parsed = Number(raw)
+                    const nextEntry = { ...entry }
+                    if (raw === '' || !Number.isFinite(parsed) || parsed <= 0) {
+                      // `null` and not a missing key: the host merges a
+                      // patch into the document, and a missing key would
+                      // leave the old ceiling standing - the field would
+                      // fill itself again after the next save.
+                      nextEntry.memoryLimitMB = null
+                    } else {
+                      nextEntry.memoryLimitMB = parsed
+                    }
                     const nextServers = {
                       ...servers,
-                      [server.languageId]: { ...entry, enabled: event.target.checked },
+                      [server.languageId]: nextEntry,
                     }
                     update({ lsp: { servers: nextServers } })
                   },
                 }),
-                React.createElement('span', { className: 'iwb-settings-language-name' }, server.languageId),
-                React.createElement('span', { className: 'iwb-settings-language-command' }, server.command),
+                React.createElement('span', { className: 'iwb-settings-language-unit' }, 'MB'),
               )
             }),
           ),

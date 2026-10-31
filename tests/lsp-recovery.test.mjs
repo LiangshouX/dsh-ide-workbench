@@ -257,3 +257,87 @@ test('an illegal state change is reported and does not kill the host', async () 
     watcher.stop()
   }
 })
+
+// ── a broken pipe may not kill the host ───────────────────────────────────
+//
+// The EPIPE of a language server that is already gone arrives ASYNCHRONOUSLY
+// through the 'error' event of the stdin stream: the write has returned by
+// then, so the try/catch around it cannot catch anything. A stream without an
+// 'error' listener turns that error into an *uncaught exception* - and an
+// uncaught exception in the host ends the whole DSH process (the crash the
+// user saw when the project was switched or a build was chosen).
+
+test('writing to a dead server\'s stdin does not kill the host', async () => {
+  const uncaught = []
+  const onUncaught = error => { uncaught.push(error) }
+  process.on('uncaughtException', onUncaught)
+  try {
+    const { manager, handle } = makeManager({ failStdin: true, restartBackoffMs: 10 })
+    const root = rootOf('epipe')
+    await manager.start({ root })
+
+    // A frame that is written into the pipe of a server that is already gone.
+    manager.relayToServer(root, JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'textDocument/hover', params: {},
+    }))
+    // The error of the stream arrives in a later turn of the event loop.
+    await sleep(100)
+
+    assert.deepEqual(uncaught.map(String), [], 'the host did not see an uncaught exception')
+    assert.ok(
+      handle().stdin.listenerCount('error') > 0,
+      'the manager listens for the error of the stdin stream',
+    )
+  } finally {
+    process.off('uncaughtException', onUncaught)
+  }
+})
+
+test('a frame that arrives after the server was stopped is not written into the dead pipe', async () => {
+  const { manager, workers, handle } = makeManager({ graceMs: 20 })
+  const root = rootOf('dead-pipe')
+  await manager.start({ root })
+  const dead = handle()
+
+  await manager.cancelIndex({ root })
+
+  // The frame worker is a thread: it answers in a later turn of the event
+  // loop, so a frame can still be on its way while the process dies. Such a
+  // frame must not be written into the pipe of the dead process - the write
+  // into a broken pipe is what ended the host.
+  workers[0].emit('message', { type: 'stdin', data: Buffer.from('a late frame') })
+  await sleep(50)
+
+  const chunks = dead.stdinChunks.map(chunk => chunk.toString('utf8'))
+  assert.equal(
+    chunks.some(chunk => chunk.includes('a late frame')),
+    false,
+    'the dead pipe was not written into',
+  )
+})
+
+test('the frames of the worker of the previous generation do not reach the new server', async () => {
+  const { manager, spawned, workers, handle } = makeManager({ restartBackoffMs: 10 })
+  const root = rootOf('generation-fence')
+  await manager.start({ root })
+
+  // The server dies and is started again.
+  handle().exit(134)
+  await sleep(150)
+  assert.equal(spawned.length, 2, 'the language server was started again')
+  assert.equal(workers[0].terminated, true, 'the worker of the old generation was stopped')
+
+  // A frame of the old worker that arrives after the restart. It belongs to
+  // the previous generation: the new server must never see it - a
+  // `didChange` with a stale version is a protocol violation, and the pipe of
+  // the old process may be broken already.
+  workers[0].emit('message', { type: 'stdin', data: Buffer.from('a frame of the old generation') })
+  await sleep(50)
+
+  const chunks = handle(1).stdinChunks.map(chunk => chunk.toString('utf8'))
+  assert.equal(
+    chunks.some(chunk => chunk.includes('a frame of the old generation')),
+    false,
+    'the frame of the old worker did not reach the new server',
+  )
+})

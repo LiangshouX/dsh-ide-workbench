@@ -222,3 +222,68 @@ test('the redirection happens only once', () => {
   assert.equal(toasts.length, 1, 'the toast is shown once')
   assert.equal(dispatched.length, 0, 'no panel is opened')
 })
+
+/**
+ * The complaint of the server about a document outside the project.
+ *
+ * The workbench never announces such a document (the workspace has a fence),
+ * so the complaint is noise - and a toast would blame the user for a file
+ * they only opened (review S8).
+ */
+test('a complaint about a document outside the project does not become a toast', () => {
+  const { store, toasts } = fakeStore()
+  configureLsp(store)
+  redirectErrorsToToast()
+  const { view, dispatched } = fakeView()
+
+  quietly(() => {
+    LSPPlugin.prototype.reportError.call(
+      { view },
+      'Find definition failed',
+      new Error('Unexpected resource file:///C:/elsewhere/secret.ts'),
+    )
+  })
+
+  assert.equal(toasts.length, 0, 'no toast for a document outside the project')
+  assert.equal(dispatched.length, 0, 'the panel of the library is not opened either')
+})
+
+test('a complaint about a document outside the project stays a warning in the log', () => {
+  const { store, toasts } = fakeStore()
+  configureLsp(store)
+  redirectErrorsToToast()
+  const { view } = fakeView()
+
+  const warnings = []
+  const original = console.warn
+  console.warn = (...args) => { warnings.push(args.join(' ')) }
+  try {
+    LSPPlugin.prototype.reportError.call(
+      { view },
+      'Find definition failed',
+      new Error('not part of the workspace'),
+    )
+  } finally {
+    console.warn = original
+  }
+
+  assert.equal(toasts.length, 0, 'no toast for a document outside the project')
+  assert.ok(
+    warnings.some(line => line.includes('not part of the workspace')),
+    'the complaint is logged as a warning',
+  )
+})
+
+test('an ordinary error of the server still becomes a toast', () => {
+  const { store, toasts } = fakeStore()
+  configureLsp(store)
+  redirectErrorsToToast()
+  const { view } = fakeView()
+
+  quietly(() => {
+    LSPPlugin.prototype.reportError.call({ view }, 'Find definition failed', new Error('boom'))
+  })
+
+  assert.equal(toasts.length, 1, 'the workbench shows one toast')
+  assert.equal(toasts[0].level, 'error')
+})

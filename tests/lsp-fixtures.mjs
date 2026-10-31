@@ -52,6 +52,9 @@ export async function waitFor(condition, timeoutMs = 3000, stepMs = 10) {
  * @param {number} [options.terminateDelayMs] how long the process takes to
  *   die after `terminate()` - the window in which a second cancel arrives
  *   while the first one is still running
+ * @param {boolean} [options.failStdin] when true the stdin is a broken pipe:
+ *   every write fails ASYNCHRONOUSLY, exactly like the pipe of a process
+ *   that is already gone
  * @returns {object} the fake handle
  */
 export function makeFakeHandle(options = {}) {
@@ -61,6 +64,19 @@ export function makeFakeHandle(options = {}) {
   const stdin = new Writable({
     write(chunk, encoding, callback) {
       stdinChunks.push(Buffer.from(chunk))
+      if (options.failStdin === true) {
+        // The write fails ASYNCHRONOUSLY: the error of the stream arrives
+        // after the write has returned, so the try/catch of the caller
+        // cannot catch it - and a stream without an 'error' listener turns
+        // it into an uncaught exception that kills the whole host. That is
+        // the shape of the EPIPE that ended the DSH process, and a
+        // synchronous throw would prove nothing.
+        setImmediate(() => {
+          const error = new Error('write EPIPE')
+          error.code = 'EPIPE'
+          stdin.emit('error', error)
+        })
+      }
       callback()
     },
   })
@@ -204,9 +220,13 @@ export function makeFakeWorker(workerData = {}) {
             return
           }
           // A request the server has to answer: the host counts the ones that
-          // never get one. A notification is not a request.
+          // never get one. A notification is not a request. The flag tells
+          // the host that the request is the handshake - the watchdog treats
+          // the handshake and the first semantic request differently.
           const request = requestIdOf(text)
-          if (request !== null) worker.emit('message', { type: 'request', id: request })
+          if (request !== null) {
+            worker.emit('message', { type: 'request', id: request, handshake: handshake.isInitialize(text) })
+          }
         }
         // The real worker injects the memory ceiling into the handshake, so
         // the fake one has to do the same - otherwise the ceiling of the
@@ -250,6 +270,8 @@ export function decodeChunks(chunks) {
  *   start (the window in which the session may change its state)
  * @param {number} [options.terminateDelayMs] how long the fake process takes
  *   to die after `terminate()`
+ * @param {boolean} [options.failStdin] when true the stdin of the fake
+ *   process is a broken pipe: every write fails asynchronously
  * @returns {object} the manager and the recorded calls
  */
 export function makeManager(options = {}) {
@@ -273,7 +295,10 @@ export function makeManager(options = {}) {
     },
     spawnServer: async (spec) => {
       if (spawnDelayMs > 0) await sleep(spawnDelayMs)
-      const handle = makeFakeHandle({ terminateDelayMs: options.terminateDelayMs })
+      const handle = makeFakeHandle({
+        terminateDelayMs: options.terminateDelayMs,
+        failStdin: options.failStdin,
+      })
       spawned.push({ spec, handle })
       return handle
     },

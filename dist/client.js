@@ -382,7 +382,10 @@ var en = {
   "settings.lspIndexAlways": "Always index",
   "settings.lspIndexNever": "Never index (basic mode only)",
   "settings.lspMemoryLimit": "Language server memory limit (MB)",
-  "settings.lspMemoryLimitHint": "The ceiling handed to the server itself \u2014 not the threshold that decides whether it may start. A server that cannot be limited is noted in the status bar",
+  // The global limit is a cap over EVERY language server, and a language
+  // that carries its own ceiling keeps it. The user raised this value and
+  // still saw the old one, so the sentence has to say what it really does.
+  "settings.lspMemoryLimitHint": "The ceiling for all language servers at once: lowering it lowers every language, and raising it cannot push a language past its own built-in ceiling",
   "settings.lspFreeMemory": "Conservative fallback for free memory (MB)",
   "settings.lspFreeMemoryHint": "Only used when no memory estimate is available. With an estimate the threshold comes from the estimate, so a large value here does not block a start",
   "settings.lspHeadroom": "Memory headroom factor",
@@ -390,7 +393,7 @@ var en = {
   "settings.lspHardFloor": "Hard memory floor (MB)",
   "settings.lspHardFloorHint": "Below this amount of free memory no language server is started at all",
   "settings.lspMemoryGroup": "Memory and thresholds",
-  "settings.lspMemoryLimitShort": "The ceiling for the server",
+  "settings.lspMemoryLimitShort": "The ceiling for every server",
   "settings.lspFreeMemoryShort": "The floor without an estimate",
   "settings.lspHeadroomShort": "The factor of the estimate",
   "settings.lspHardFloorShort": "Below this nothing starts",
@@ -404,6 +407,10 @@ var en = {
   "settings.lspMemoryState.low": "not enough",
   "settings.lspServersGroup": "Language servers",
   "settings.lspServersGroupHint": "Turn a language off to keep its language server from running",
+  "settings.lspServerMemoryLimit": "Memory ceiling of this language (MB)",
+  // The per-language ceiling replaces the global one for this language, so
+  // it is the only way to give a language more memory than the global cap.
+  "settings.lspServerMemoryLimitHint": "Leave empty to use the global ceiling above; a number here replaces the global ceiling for this language and may be higher than it",
   "settings.lspServerRunning": "{count} language server process(es) are running; turning the switch off ends them immediately",
   "settings.lspIdleTimeout": "Idle exit (minutes)",
   "settings.lspIdleTimeoutHint": "The server exits after this much time without activity, and its memory is released",
@@ -958,7 +965,9 @@ var zh = {
   "settings.lspIndexAlways": "\u603B\u662F\u7D22\u5F15",
   "settings.lspIndexNever": "\u4ECE\u4E0D\u7D22\u5F15\uFF08\u4EC5\u4FDD\u5B88\u7248\uFF09",
   "settings.lspMemoryLimit": "\u8BED\u8A00\u670D\u52A1\u5668\u5185\u5B58\u4E0A\u9650 (MB)",
-  "settings.lspMemoryLimitHint": "\u8FD9\u662F\u8BED\u8A00\u670D\u52A1\u5668\u7684\u5185\u5B58\u4E0A\u9650\uFF0C\u4E0D\u662F\u542F\u52A8\u95E8\u69DB\u3002\u4E0D\u652F\u6301\u4E0A\u9650\u7684\u670D\u52A1\u5668\u4F1A\u5728\u72B6\u6001\u680F\u6CE8\u660E",
+  // 全局上限是所有语言服务器共同的上限，而自带上限的语言保留自己的上限。
+  // 用户调高了它却仍然看到旧值，所以这句话必须说清楚它真正的作用。
+  "settings.lspMemoryLimitHint": "\u6240\u6709\u8BED\u8A00\u670D\u52A1\u5668\u5171\u540C\u7684\u4E0A\u9650\uFF1A\u8C03\u4F4E\u5B83\u4F1A\u8BA9\u6BCF\u4E2A\u8BED\u8A00\u90FD\u7528\u66F4\u5C0F\u7684\u4E0A\u9650\uFF0C\u8C03\u9AD8\u5B83\u4E5F\u65E0\u6CD5\u8BA9\u67D0\u4E2A\u8BED\u8A00\u7A81\u7834\u81EA\u8EAB\u7684\u5185\u7F6E\u4E0A\u9650",
   "settings.lspFreeMemory": "\u4FDD\u5B88\u515C\u5E95\u4E0B\u9650 (MB)",
   "settings.lspFreeMemoryHint": "\u4EC5\u5728\u65E0\u6CD5\u4F30\u7B97\u5185\u5B58\u9700\u6C42\u65F6\u4F7F\u7528\u3002\u6709\u4F30\u7B97\u503C\u65F6\u542F\u52A8\u95E8\u69DB\u6765\u81EA\u4F30\u7B97\u503C\uFF0C\u56E0\u6B64\u628A\u5B83\u8C03\u5927\u4E0D\u4F1A\u963B\u6B62\u542F\u52A8",
   "settings.lspHeadroom": "\u5185\u5B58\u4F59\u91CF\u7CFB\u6570",
@@ -966,7 +975,7 @@ var zh = {
   "settings.lspHardFloor": "\u5185\u5B58\u786C\u4E0B\u9650 (MB)",
   "settings.lspHardFloorHint": "\u53EF\u7528\u5185\u5B58\u4F4E\u4E8E\u8BE5\u503C\u65F6\uFF0C\u4EFB\u4F55\u8BED\u8A00\u670D\u52A1\u5668\u90FD\u4E0D\u4F1A\u542F\u52A8",
   "settings.lspMemoryGroup": "\u5185\u5B58\u4E0E\u9608\u503C",
-  "settings.lspMemoryLimitShort": "\u670D\u52A1\u5668\u53EF\u7528\u5185\u5B58\u7684\u4E0A\u9650",
+  "settings.lspMemoryLimitShort": "\u6240\u6709\u670D\u52A1\u5668\u5171\u540C\u7684\u4E0A\u9650",
   "settings.lspFreeMemoryShort": "\u65E0\u6CD5\u4F30\u7B97\u65F6\u7684\u515C\u5E95\u4E0B\u9650",
   "settings.lspHeadroomShort": "\u4F30\u7B97\u503C\u7684\u500D\u6570",
   "settings.lspHardFloorShort": "\u4F4E\u4E8E\u6B64\u503C\u4E00\u5F8B\u4E0D\u542F\u52A8",
@@ -980,6 +989,10 @@ var zh = {
   "settings.lspMemoryState.low": "\u5185\u5B58\u4E0D\u8DB3",
   "settings.lspServersGroup": "\u8BED\u8A00\u670D\u52A1\u5668",
   "settings.lspServersGroupHint": "\u5173\u95ED\u67D0\u4E2A\u8BED\u8A00\u540E\uFF0C\u5B83\u7684\u8BED\u8A00\u670D\u52A1\u5668\u4E0D\u4F1A\u542F\u52A8",
+  "settings.lspServerMemoryLimit": "\u8FD9\u4E2A\u8BED\u8A00\u7684\u5185\u5B58\u4E0A\u9650 (MB)",
+  // 按语言的上限会替换这个语言的全局上限，因此它是给某个语言更多内存的
+  // 唯一途径。
+  "settings.lspServerMemoryLimitHint": "\u7559\u7A7A\u5219\u4F7F\u7528\u4E0A\u9762\u7684\u5168\u5C40\u4E0A\u9650\uFF1B\u586B\u5165\u7684\u6570\u5B57\u4F1A\u66FF\u6362\u8FD9\u4E2A\u8BED\u8A00\u7684\u5168\u5C40\u4E0A\u9650\uFF0C\u53EF\u4EE5\u6BD4\u5168\u5C40\u4E0A\u9650\u66F4\u9AD8",
   "settings.lspServerRunning": "\u5F53\u524D\u6709 {count} \u4E2A\u8BED\u8A00\u670D\u52A1\u5668\u8FDB\u7A0B\u5728\u8FD0\u884C\uFF0C\u5173\u95ED\u5F00\u5173\u4F1A\u7ACB\u5373\u7ED3\u675F\u5B83\u4EEC",
   "settings.lspIdleTimeout": "\u7A7A\u95F2\u9000\u51FA (\u5206\u949F)",
   "settings.lspIdleTimeoutHint": "\u670D\u52A1\u5668\u5728\u8FD9\u4E48\u4E45\u6CA1\u6709\u6D3B\u52A8\u540E\u9000\u51FA\uFF0C\u5185\u5B58\u968F\u4E4B\u91CA\u653E",
@@ -55113,6 +55126,12 @@ var WorkbenchWorkspace = class extends Workspace {
    *
    * The content that is announced is the editor buffer (the draft), never the
    * file on disk.
+   *
+   * A document outside the project is *not* announced: the language server
+   * only knows the documents of the project and complains about the others
+   * ("Unexpected resource …"), and that complaint reaches the workbench as a
+   * fake error (review S8). The file itself stays known to the editor - the
+   * tab needs it - it is only kept away from the server.
    * @param {string} uri the document URI
    * @param {string} languageId the LSP language id
    * @param {any} view the editor
@@ -55131,12 +55150,17 @@ var WorkbenchWorkspace = class extends Workspace {
       version: 1,
       doc: textOf(content2),
       view,
+      /** Whether the server was told about this document. */
+      announced: false,
       /** @returns {any} the editor that shows this document */
       getView() {
         return this.view ?? null;
       }
     };
     this.files.push(file);
+    const absolute = pathOfFileUri(uri);
+    if (absolute === null || !this.insideRoot(absolute)) return;
+    file.announced = true;
     this.client.didOpen(file);
   }
   /**
@@ -55176,6 +55200,8 @@ var WorkbenchWorkspace = class extends Workspace {
       languageId: languageIdForPath(absolute),
       version: 1,
       doc: textOf(content2),
+      /** The file is only read, never announced to the server. */
+      announced: false,
       /** @returns {any} the editor - there is none, the file is only read */
       getView() {
         return null;
@@ -55251,7 +55277,10 @@ var WorkbenchWorkspace = class extends Workspace {
    * Push the pending edits of every open document to the server.
    *
    * Only the documents that actually changed are reported, and the change is
-   * incremental.
+   * incremental. A document that was never announced to the server (a file
+   * outside the project) is kept up to date locally, but it is not reported:
+   * the server does not know it and would complain about an unknown
+   * document.
    * @returns {Array<any>} the updates
    */
   syncFiles() {
@@ -55265,6 +55294,7 @@ var WorkbenchWorkspace = class extends Workspace {
       const prevDoc = file.doc;
       file.doc = textOf(next);
       file.version += 1;
+      if (file.announced !== true) continue;
       updates.push({ file, prevDoc, changes });
     }
     return updates;
@@ -55357,14 +55387,66 @@ var WorkbenchWorkspace = class extends Workspace {
   }
   /**
    * Close one document with the server.
+   *
+   * A document that was never announced (a file outside the project) is
+   * closed locally only: the server does not know it, and a `didClose` for
+   * an unknown document is another complaint it would answer with.
    * @param {string} uri the document URI
    */
   closeFile(uri) {
-    const index = this.files.findIndex((file) => file.uri === uri);
+    const index = this.files.findIndex((file2) => file2.uri === uri);
     if (index < 0) return;
-    this.files.splice(index, 1);
+    const [file] = this.files.splice(index, 1);
+    if (file.announced !== true) return;
     this.client.didClose(uri);
   }
+};
+
+// src/host/settings-defaults.js
+var BUILD_REQUEST_TIMEOUT_MS = 6e5;
+var DEFAULT_LSP_SETTINGS = {
+  /** Master switch. false = never start a language server. */
+  enabled: true,
+  /** 'ask' = ask; 'always' = always index; 'never' = never index. */
+  indexOnOpen: "ask",
+  /** Memory ceiling handed to the language server (MB). */
+  memoryLimitMB: 2048,
+  /**
+   * Conservative fallback floor (MB): the free memory that is required when
+   * no estimate of the language is known. It is not a gate for a language
+   * that has an estimate (PRD §4.4).
+   */
+  freeMemoryThresholdMB: 512,
+  /** Factor between the estimate of a language server and the memory it needs. */
+  memoryHeadroom: 1.5,
+  /** Free memory below which no language server starts at all (MB). */
+  memoryHardFloorMB: 256,
+  /** Idle time after which the language server exits (ms). */
+  idleTimeoutMs: 6e5,
+  /** LSP request timeout (ms). Must stay >= 30000: the client library's own
+   * default is 3000, which silently times out on large projects. */
+  requestTimeoutMs: 3e4,
+  /** How long an index may run before the cancel button appears (ms). */
+  cancelAfterMs: 6e4,
+  /** Whether an idle language server may exit on its own. */
+  autoExit: true,
+  /** Whether a crashed language server is restarted once. */
+  autoRestart: true,
+  /**
+   * Per-language overrides: { [languageId]: { enabled, command, args } }.
+   *
+   * `enabled: false` switches one language off: its server is never
+   * started and the language stays in the conservative mode. `command` and
+   * `args` replace the registered ones; `memoryLimitMB` lowers the
+   * ceiling of one language; `memoryBaselineMB` replaces the estimate the
+   * free memory is compared with.
+   */
+  servers: {},
+  /** Project roots that completed a first build: { [absPath]: { at, languageId } }. */
+  indexedRoots: {},
+  /** Project roots the user has already been warned about on a tight memory
+   * budget: { [absPath]: true }. The same project is not asked twice. */
+  memoryWarnedRoots: {}
 };
 
 // src/client/lsp-session.js
@@ -55401,6 +55483,17 @@ var handshakeTimer = null;
 var handshakeRetries = 0;
 var mappingRedirected = false;
 var health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null };
+var semanticAnswers = 0;
+var OUTSIDE_PROJECT_COMPLAINTS = [
+  /unexpected resource/i,
+  /not part of the workspace/i,
+  /outside the project/i,
+  /not in the project/i
+];
+function isOutsideProjectComplaint(message, detail) {
+  const text = `${message ?? ""} ${detail ?? ""}`;
+  return OUTSIDE_PROJECT_COMPLAINTS.some((pattern) => pattern.test(text));
+}
 function redirectErrorsToToast() {
   if (reportErrorRedirected) return;
   reportErrorRedirected = true;
@@ -55408,6 +55501,7 @@ function redirectErrorsToToast() {
   LSPPlugin.prototype.reportError = function reportError(message, err) {
     const detail = err?.message ?? String(err ?? "");
     console.warn("[lsp]", message, detail);
+    if (isOutsideProjectComplaint(message, detail)) return;
     const store = sessionStore;
     if (store !== null && typeof store.toast === "function") {
       try {
@@ -55421,6 +55515,7 @@ function redirectErrorsToToast() {
 }
 function resetLspHealth() {
   health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null };
+  semanticAnswers = 0;
   publishHealth();
 }
 function sameFailure(left, right) {
@@ -55451,6 +55546,10 @@ function failureMessage(error) {
 function isTimeout(message) {
   return /timed out|timeout/i.test(message);
 }
+function isClientDeadline(error) {
+  if (!(error instanceof Error)) return false;
+  return /^request timed out$/i.test(error.message ?? "");
+}
 function noteSemanticSuccess() {
   health.consecutiveFailures = 0;
   health.consecutiveTimeouts = 0;
@@ -55466,16 +55565,19 @@ function noteSemanticFailure(error) {
 function watchSemanticRequests(client) {
   const original = client.request.bind(client);
   client.request = function request(method, params) {
+    applyRequestBudget(client);
     if (method === "textDocument/references") clearRequestCache();
     const promise = original(method, params);
     if (!SEMANTIC_METHODS.has(method)) return promise;
     return promise.then(
       (result) => {
+        semanticAnswers += 1;
         noteSemanticSuccess();
         return result;
       },
       (error) => {
         noteSemanticFailure(error);
+        if (!isClientDeadline(error)) semanticAnswers += 1;
         throw error;
       }
     );
@@ -55620,6 +55722,17 @@ function requestTimeoutOf(store) {
   if (Number.isFinite(configured) && configured >= 3e4) return configured;
   return 3e4;
 }
+function requestBudgetOf(store) {
+  const configured = requestTimeoutOf(store);
+  if (semanticAnswers > 0) return configured;
+  return Math.max(configured, BUILD_REQUEST_TIMEOUT_MS);
+}
+function applyRequestBudget(client) {
+  if (client === null || client === void 0) return;
+  const budget = requestBudgetOf(sessionStore);
+  if (client.timeout === budget) return;
+  client.timeout = budget;
+}
 function capabilityAvailable(name2) {
   const capabilities = currentClient?.serverCapabilities ?? null;
   if (capabilities === null) return false;
@@ -55643,9 +55756,13 @@ function startLsp() {
   redirectErrorsToToast();
   redirectMappingPositions();
   const root = typeof store.state?.root === "string" ? store.state.root : "";
+  semanticAnswers = 0;
   currentClient = new LSPClient({
     rootUri: fileUriOf(root),
-    timeout: requestTimeoutOf(store),
+    // The budget of the construction is the budget of the session, so that a
+    // request which is sent before the first wrapper call is not short
+    // either.
+    timeout: requestBudgetOf(store),
     sanitizeHTML,
     workspace: (client) => {
       currentWorkspace = new WorkbenchWorkspace(client, store, { viewRegistry });
@@ -55705,9 +55822,10 @@ function reinitializeLsp() {
   if (currentClient === null || currentTransport === null) return;
   try {
     currentClient.disconnect();
+    resetLspHealth();
+    applyRequestBudget(currentClient);
     currentClient.connect(currentTransport);
     watchHandshake(currentClient);
-    resetLspHealth();
   } catch (error) {
     console.warn("[lsp] the handshake could not be repeated:", error instanceof Error ? error.message : error);
   }
@@ -58706,54 +58824,6 @@ function EditorArea({ store, state: _state }) {
 
 // src/client/SettingsPanel.jsx
 var import_react16 = __toESM(require("react"), 1);
-
-// src/host/settings-defaults.js
-var DEFAULT_LSP_SETTINGS = {
-  /** Master switch. false = never start a language server. */
-  enabled: true,
-  /** 'ask' = ask; 'always' = always index; 'never' = never index. */
-  indexOnOpen: "ask",
-  /** Memory ceiling handed to the language server (MB). */
-  memoryLimitMB: 2048,
-  /**
-   * Conservative fallback floor (MB): the free memory that is required when
-   * no estimate of the language is known. It is not a gate for a language
-   * that has an estimate (PRD §4.4).
-   */
-  freeMemoryThresholdMB: 512,
-  /** Factor between the estimate of a language server and the memory it needs. */
-  memoryHeadroom: 1.5,
-  /** Free memory below which no language server starts at all (MB). */
-  memoryHardFloorMB: 256,
-  /** Idle time after which the language server exits (ms). */
-  idleTimeoutMs: 6e5,
-  /** LSP request timeout (ms). Must stay >= 30000: the client library's own
-   * default is 3000, which silently times out on large projects. */
-  requestTimeoutMs: 3e4,
-  /** How long an index may run before the cancel button appears (ms). */
-  cancelAfterMs: 6e4,
-  /** Whether an idle language server may exit on its own. */
-  autoExit: true,
-  /** Whether a crashed language server is restarted once. */
-  autoRestart: true,
-  /**
-   * Per-language overrides: { [languageId]: { enabled, command, args } }.
-   *
-   * `enabled: false` switches one language off: its server is never
-   * started and the language stays in the conservative mode. `command` and
-   * `args` replace the registered ones; `memoryLimitMB` lowers the
-   * ceiling of one language; `memoryBaselineMB` replaces the estimate the
-   * free memory is compared with.
-   */
-  servers: {},
-  /** Project roots that completed a first build: { [absPath]: { at, languageId } }. */
-  indexedRoots: {},
-  /** Project roots the user has already been warned about on a tight memory
-   * budget: { [absPath]: true }. The same project is not asked twice. */
-  memoryWarnedRoots: {}
-};
-
-// src/client/SettingsPanel.jsx
 var SHORTCUT_FIELDS = [
   ["project", "projectShortcut"],
   ["commit", "commitShortcut"],
@@ -59397,8 +59467,10 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
         })
       ) : null
     ),
-    // The language servers of the machine, one switch each (SET-02). The
-    // field `lsp.servers[languageId].enabled` existed but had no control.
+    // The language servers of the machine, one switch and one ceiling each
+    // (SET-02). The field `lsp.servers[languageId].enabled` existed but had
+    // no control, and the global ceiling could only lower a language: the
+    // user had no way to give one language more than the global cap.
     availableServers.length > 0 ? import_react16.default.createElement(
       Group,
       { title: t2("settings.lspServersGroup"), description: t2("settings.lspServersGroupHint") },
@@ -59411,26 +59483,67 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           const servers = draft.lsp?.servers ?? {};
           const entry = servers[server.languageId] ?? {};
           const enabled = entry.enabled !== false;
+          const limit = entry.memoryLimitMB;
           return import_react16.default.createElement(
-            "label",
+            "div",
             {
               key: server.languageId,
-              className: "iwb-settings-language",
-              title: server.resolvedPath ?? server.command
+              className: "iwb-settings-language"
             },
+            // The switch and the name stay in one label, so clicking the
+            // name switches the language off. The ceiling input is
+            // outside of it: a label hands its click to the first
+            // control it holds, and that has to stay the switch.
+            import_react16.default.createElement(
+              "label",
+              {
+                className: "iwb-settings-language-toggle",
+                title: server.resolvedPath ?? server.command
+              },
+              import_react16.default.createElement("input", {
+                type: "checkbox",
+                checked: enabled,
+                onChange: (event) => {
+                  const nextServers = {
+                    ...servers,
+                    [server.languageId]: { ...entry, enabled: event.target.checked }
+                  };
+                  update({ lsp: { servers: nextServers } });
+                }
+              }),
+              import_react16.default.createElement("span", { className: "iwb-settings-language-name" }, server.languageId),
+              import_react16.default.createElement("span", { className: "iwb-settings-language-command" }, server.command)
+            ),
+            // The ceiling of this one language. Empty means "no ceiling
+            // of its own": the global one applies. A number here
+            // replaces the global ceiling for this language, so it may
+            // be higher than the global one.
             import_react16.default.createElement("input", {
-              type: "checkbox",
-              checked: enabled,
+              type: "number",
+              className: "iwb-settings-language-limit",
+              min: 64,
+              max: 32768,
+              step: 64,
+              value: Number.isFinite(limit) ? String(limit) : "",
+              "aria-label": `${server.languageId}: ${t2("settings.lspServerMemoryLimit")}`,
+              title: t2("settings.lspServerMemoryLimitHint"),
               onChange: (event) => {
+                const raw = String(event.target.value ?? "").trim();
+                const parsed = Number(raw);
+                const nextEntry = { ...entry };
+                if (raw === "" || !Number.isFinite(parsed) || parsed <= 0) {
+                  nextEntry.memoryLimitMB = null;
+                } else {
+                  nextEntry.memoryLimitMB = parsed;
+                }
                 const nextServers = {
                   ...servers,
-                  [server.languageId]: { ...entry, enabled: event.target.checked }
+                  [server.languageId]: nextEntry
                 };
                 update({ lsp: { servers: nextServers } });
               }
             }),
-            import_react16.default.createElement("span", { className: "iwb-settings-language-name" }, server.languageId),
-            import_react16.default.createElement("span", { className: "iwb-settings-language-command" }, server.command)
+            import_react16.default.createElement("span", { className: "iwb-settings-language-unit" }, "MB")
           );
         })
       ),
@@ -61722,7 +61835,8 @@ var CSS2 = `
 .iwb-settings-control input[type="text"], .iwb-settings-control input[type="number"],
 .iwb-settings-control select,
 .iwb-settings-field-control input[type="text"], .iwb-settings-field-control input[type="number"],
-.iwb-settings-field-control select {
+.iwb-settings-field-control select,
+.iwb-settings-language input[type="number"] {
   height: 32px; min-width: 0; padding: 0 10px; color: var(--iwb-fg);
   border: 1px solid var(--iwb-border-strong); border-radius: 6px; background: var(--iwb-bg);
   font-size: 13px; outline: none; transition: border-color .12s ease, box-shadow .12s ease;
@@ -61733,9 +61847,11 @@ var CSS2 = `
   width: 96px; padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;
 }
 .iwb-settings-control :is(input[type="text"], input[type="number"], select):hover,
-.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):hover { border-color: var(--iwb-muted); }
+.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):hover,
+.iwb-settings-language input[type="number"]:hover { border-color: var(--iwb-muted); }
 .iwb-settings-control :is(input[type="text"], input[type="number"], select):focus,
-.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):focus {
+.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):focus,
+.iwb-settings-language input[type="number"]:focus {
   border-color: var(--iwb-accent); box-shadow: 0 0 0 1px var(--iwb-accent);
 }
 .iwb-settings-control input[type="checkbox"] {
@@ -61763,6 +61879,10 @@ var CSS2 = `
   display: inline-flex; align-items: center; gap: 6px; min-width: 0;
   font-size: 12.5px; color: var(--iwb-fg);
 }
+/* The switch and the name of the language: one label, so clicking the name
+   switches the language off. The ceiling input stands outside of it - a
+   label hands its click to the first control it holds. */
+.iwb-settings-language-toggle { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .iwb-settings-language input[type="checkbox"] {
   width: 16px; height: 16px; margin: 0; accent-color: var(--iwb-accent); cursor: pointer;
 }
@@ -61771,6 +61891,12 @@ var CSS2 = `
   color: var(--iwb-muted); font-size: 11px; font-family: var(--iwb-mono);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* The ceiling of one language: narrow, because the row is a compact line and
+   not a settings row. */
+.iwb-settings-language input[type="number"] {
+  width: 76px; padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;
+}
+.iwb-settings-language-unit { color: var(--iwb-muted); font-size: 11px; }
 .iwb-settings-shortcut {
   display: inline-flex; align-items: center; justify-content: center; min-width: 150px; height: 32px; padding: 0 12px;
   border: 1px solid var(--iwb-border-strong); border-radius: 7px; background: var(--iwb-panel-2);

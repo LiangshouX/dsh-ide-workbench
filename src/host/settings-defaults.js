@@ -10,6 +10,25 @@
  * `src/host/settings-store.js` builds its `DEFAULT_SETTINGS.lsp` from this
  * object, so the two can never disagree.
  */
+/**
+ * The budget of one request while the language server is still building its
+ * program (ms).
+ *
+ * The default request timeout (30 s) is meant for the *incremental* requests
+ * of a server that is up and answering. The first semantic request of a
+ * large project is a different animal: PRD-v5 §0.2 #3 measured it at more
+ * than ten minutes, because the server is busy building the program of the
+ * whole project. A 30 s budget turns that into a "Request timed out" that
+ * the user cannot do anything about - and, because the host counts the
+ * unanswered requests, into a server that is killed and restarted (and
+ * therefore into the "building → killed → rebuilding" loop).
+ *
+ * The value is a constant and not a setting: it is a fact about the language
+ * servers, not a preference of the user, and both halves of the plugin (the
+ * host watchdog and the client budget) have to agree on it.
+ */
+export const BUILD_REQUEST_TIMEOUT_MS = 600000
+
 export const DEFAULT_LSP_SETTINGS = {
   /** Master switch. false = never start a language server. */
   enabled: true,

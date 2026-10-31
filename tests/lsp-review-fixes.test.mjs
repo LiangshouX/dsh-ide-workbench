@@ -60,6 +60,37 @@ function didOpenText(uri = 'file:///workspace/app.ts') {
   })
 }
 
+/**
+ * Let the language server answer one request that is not the handshake.
+ *
+ * The watchdog is patient until the server has answered a request that is
+ * not the handshake: the first request of a session is the `initialize`
+ * (answered in milliseconds), while the first *semantic* request waits for
+ * the program build of the project - up to ten minutes on a large project
+ * (PRD-v5 §0.2 #3). Only after that first real answer does the configured
+ * timeout apply, so a test that wants to see the watchdog count a request
+ * has to let the server answer once first.
+ * @param {object} manager the manager
+ * @param {string} root the project root
+ * @param {object[]} workers the fake workers of the manager
+ * @param {number} [id] the id of the request
+ */
+async function answerOnce(manager, root, workers, id = 7) {
+  manager.relayToServer(root, JSON.stringify({
+    jsonrpc: '2.0', id, method: 'textDocument/definition', params: {},
+  }))
+  workers[0].postMessage({
+    type: 'stdout',
+    data: encodeFrame(JSON.stringify({ jsonrpc: '2.0', id, result: null })),
+  })
+  // The answer was processed: the session knows that the server is up.
+  assert.equal(
+    await waitFor(() => manager.stateOf(root).state === 'ready'),
+    true,
+    'the language server answered once',
+  )
+}
+
 // ── N1: the handshake has to reach the stdin of the language server ────────
 
 test('the held handshake reaches the stdin of the language server', async () => {
@@ -130,9 +161,13 @@ test('a notification is not an unanswered request', async () => {
 })
 
 test('one slow request does not kill the language server', async () => {
-  const { manager, spawned } = makeManager({ lsp: { requestTimeoutMs: 40 } })
+  const { manager, spawned, workers } = makeManager({ lsp: { requestTimeoutMs: 40 } })
   const root = rootOf('n2-slow')
   await manager.start({ root })
+
+  // The server has answered a request that is not the handshake: from now
+  // on the configured timeout applies (see `answerOnce`).
+  await answerOnce(manager, root, workers)
 
   // A request that is never answered.
   manager.relayToServer(root, JSON.stringify({
@@ -147,9 +182,13 @@ test('one slow request does not kill the language server', async () => {
 })
 
 test('three unanswered requests kill the language server', async () => {
-  const { manager, spawned } = makeManager({ lsp: { requestTimeoutMs: 40 } })
+  const { manager, spawned, workers } = makeManager({ lsp: { requestTimeoutMs: 40 } })
   const root = rootOf('n2-reset')
   await manager.start({ root })
+
+  // The server has answered a request that is not the handshake: from now
+  // on the configured timeout applies (see `answerOnce`).
+  await answerOnce(manager, root, workers)
 
   manager.relayToServer(root, JSON.stringify({
     jsonrpc: '2.0', id: 1, method: 'textDocument/definition', params: {},
@@ -181,6 +220,10 @@ test('the timeout counter is reset when the server answers again', async () => {
   const { manager, spawned, workers } = makeManager({ lsp: { requestTimeoutMs: 40 } })
   const root = rootOf('n2-counter-reset')
   await manager.start({ root })
+
+  // The server has answered a request that is not the handshake: from now
+  // on the configured timeout applies (see `answerOnce`).
+  await answerOnce(manager, root, workers)
 
   for (let round = 1; round <= 3; round += 1) {
     manager.relayToServer(root, JSON.stringify({

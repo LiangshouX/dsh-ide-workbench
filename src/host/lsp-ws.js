@@ -18,6 +18,7 @@
  */
 import { isAbsolute, resolve as resolvePath } from 'node:path'
 import { WebSocket, WebSocketServer } from 'ws'
+import { guardEmitter } from './guard.js'
 
 /** The WebSocket path of the language server relay. */
 export const LSP_WS_PATH = '/ide-workbench/ws/lsp'
@@ -55,6 +56,10 @@ export function registerLspWebSocket(ctx, { manager, fence } = {}) {
     throw new Error('registerLspWebSocket needs a manager')
   }
   const wss = new WebSocketServer({ noServer: true })
+  // The relay's own server is a source of errors as well: `ws` emits
+  // 'error' on the server when an upgrade fails. An 'error' event without a
+  // listener is an uncaught exception, and that ends the DSH host process.
+  guardEmitter(ctx, wss, 'language server relay')
   const sockets = new Set()
 
   /**

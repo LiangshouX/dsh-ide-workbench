@@ -73,4 +73,20 @@ test('the field inputs are painted by the same rule as the row inputs', async ()
     /\.iwb-settings-field-control select/,
     'the field selects share the rule of the row selects',
   )
+  // The per-language ceiling of the language-server list lives outside of
+  // both wrappers, so it needs the rule by name - otherwise it falls back to
+  // the browser's own input and the row looks broken.
+  assert.match(
+    selector[0],
+    /\.iwb-settings-language input\[type="number"\]/,
+    'the per-language ceiling shares the rule of the row inputs',
+  )
+})
+
+test('the per-language ceiling input has a width of its own', async () => {
+  const css = await readFile(join(clientDir, 'styles.js'), 'utf8')
+  // The language row is a compact line, not a settings row: the ceiling
+  // field is narrower than the number fields of the rows.
+  const width = /\.iwb-settings-language input\[type="number"\]\s*\{[^}]*width:\s*\d+px/.exec(css)
+  assert.ok(width !== null, 'the per-language ceiling input has a width')
 })

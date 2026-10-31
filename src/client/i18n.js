@@ -58,7 +58,10 @@ export const en = {
   'settings.lspIndexAlways': 'Always index',
   'settings.lspIndexNever': 'Never index (basic mode only)',
   'settings.lspMemoryLimit': 'Language server memory limit (MB)',
-  'settings.lspMemoryLimitHint': 'The ceiling handed to the server itself — not the threshold that decides whether it may start. A server that cannot be limited is noted in the status bar',
+  // The global limit is a cap over EVERY language server, and a language
+  // that carries its own ceiling keeps it. The user raised this value and
+  // still saw the old one, so the sentence has to say what it really does.
+  'settings.lspMemoryLimitHint': 'The ceiling for all language servers at once: lowering it lowers every language, and raising it cannot push a language past its own built-in ceiling',
   'settings.lspFreeMemory': 'Conservative fallback for free memory (MB)',
   'settings.lspFreeMemoryHint': 'Only used when no memory estimate is available. With an estimate the threshold comes from the estimate, so a large value here does not block a start',
   'settings.lspHeadroom': 'Memory headroom factor',
@@ -66,7 +69,7 @@ export const en = {
   'settings.lspHardFloor': 'Hard memory floor (MB)',
   'settings.lspHardFloorHint': 'Below this amount of free memory no language server is started at all',
   'settings.lspMemoryGroup': 'Memory and thresholds',
-  'settings.lspMemoryLimitShort': 'The ceiling for the server',
+  'settings.lspMemoryLimitShort': 'The ceiling for every server',
   'settings.lspFreeMemoryShort': 'The floor without an estimate',
   'settings.lspHeadroomShort': 'The factor of the estimate',
   'settings.lspHardFloorShort': 'Below this nothing starts',
@@ -80,6 +83,10 @@ export const en = {
   'settings.lspMemoryState.low': 'not enough',
   'settings.lspServersGroup': 'Language servers',
   'settings.lspServersGroupHint': 'Turn a language off to keep its language server from running',
+  'settings.lspServerMemoryLimit': 'Memory ceiling of this language (MB)',
+  // The per-language ceiling replaces the global one for this language, so
+  // it is the only way to give a language more memory than the global cap.
+  'settings.lspServerMemoryLimitHint': 'Leave empty to use the global ceiling above; a number here replaces the global ceiling for this language and may be higher than it',
   'settings.lspServerRunning': '{count} language server process(es) are running; turning the switch off ends them immediately',
   'settings.lspIdleTimeout': 'Idle exit (minutes)',
   'settings.lspIdleTimeoutHint': 'The server exits after this much time without activity, and its memory is released',
@@ -652,7 +659,9 @@ export const zh = {
   'settings.lspIndexAlways': '总是索引',
   'settings.lspIndexNever': '从不索引（仅保守版）',
   'settings.lspMemoryLimit': '语言服务器内存上限 (MB)',
-  'settings.lspMemoryLimitHint': '这是语言服务器的内存上限，不是启动门槛。不支持上限的服务器会在状态栏注明',
+  // 全局上限是所有语言服务器共同的上限，而自带上限的语言保留自己的上限。
+  // 用户调高了它却仍然看到旧值，所以这句话必须说清楚它真正的作用。
+  'settings.lspMemoryLimitHint': '所有语言服务器共同的上限：调低它会让每个语言都用更小的上限，调高它也无法让某个语言突破自身的内置上限',
   'settings.lspFreeMemory': '保守兜底下限 (MB)',
   'settings.lspFreeMemoryHint': '仅在无法估算内存需求时使用。有估算值时启动门槛来自估算值，因此把它调大不会阻止启动',
   'settings.lspHeadroom': '内存余量系数',
@@ -660,7 +669,7 @@ export const zh = {
   'settings.lspHardFloor': '内存硬下限 (MB)',
   'settings.lspHardFloorHint': '可用内存低于该值时，任何语言服务器都不会启动',
   'settings.lspMemoryGroup': '内存与阈值',
-  'settings.lspMemoryLimitShort': '服务器可用内存的上限',
+  'settings.lspMemoryLimitShort': '所有服务器共同的上限',
   'settings.lspFreeMemoryShort': '无法估算时的兜底下限',
   'settings.lspHeadroomShort': '估算值的倍数',
   'settings.lspHardFloorShort': '低于此值一律不启动',
@@ -674,6 +683,10 @@ export const zh = {
   'settings.lspMemoryState.low': '内存不足',
   'settings.lspServersGroup': '语言服务器',
   'settings.lspServersGroupHint': '关闭某个语言后，它的语言服务器不会启动',
+  'settings.lspServerMemoryLimit': '这个语言的内存上限 (MB)',
+  // 按语言的上限会替换这个语言的全局上限，因此它是给某个语言更多内存的
+  // 唯一途径。
+  'settings.lspServerMemoryLimitHint': '留空则使用上面的全局上限；填入的数字会替换这个语言的全局上限，可以比全局上限更高',
   'settings.lspServerRunning': '当前有 {count} 个语言服务器进程在运行，关闭开关会立即结束它们',
   'settings.lspIdleTimeout': '空闲退出 (分钟)',
   'settings.lspIdleTimeoutHint': '服务器在这么久没有活动后退出，内存随之释放',
