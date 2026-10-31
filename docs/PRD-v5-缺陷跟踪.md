@@ -4,7 +4,7 @@
 > 另一个会话接手时，先读本文件，再读 `docs/PRD-v5-实施进展.md`（规格落地与偏差）。
 >
 > 仓库：`dsh-ide-workbench`，基线 commit `dd6dc175f8cf1b6a891cc37f81ac21a3d81839a4`。
-> 本文件最后更新：2026-10-31 16:35（Asia/Shanghai）。
+> 本文件最后更新：2026-10-31 18:20（Asia/Shanghai）—— 补入代码检视报告的发现（D10–D14）并修正了交接清单。
 
 ---
 
@@ -12,17 +12,25 @@
 
 | # | 缺陷 | 严重度 | 状态 | 验证方式 |
 |---|---|---|---|---|
-| **D1** | **DSH 宿主进程崩溃**（`host exited with 1`，整个应用退出，需禁用插件 + 清设置才能恢复） | **致命** | ✅ 已修 | `docs/bench/crash-recovery.mjs` + `tests/lsp-recovery.test.mjs` |
-| **D2** | 状态永远停在「语义分析：索引中…」 | 高 | ✅ 已修 | `docs/bench/repro-order.mjs` + `tests/lsp-handshake.test.mjs` |
+| **D1** | **DSH 宿主进程崩溃**（`host exited with 1`，整个应用退出，需禁用插件 + 清设置才能恢复） | **致命** | ✅ 已修 | `docs/bench/crash-recovery.mjs` + `tests/lsp-recovery.test.mjs` 的「宿主不死」用例（崩溃 / 重启竞态 / 非法迁移三例） |
+| **D2** | 状态永远停在「语义分析：索引中…」 | 高 | ✅ 已修 | `docs/bench/repro-order.mjs` + `tests/lsp-handshake.test.mjs` + `tests/lsp-review-fixes.test.mjs`（**stdin 级**断言） |
 | **D3** | `Ctrl+点击` 100% 报 `Find definition failed: Request timed out` | 高 | ✅ 已修（D2 的连带症状） | `docs/bench/repro-order.mjs` 第 6 步 |
 | **D4** | 错误浮层盖在内容区上方、要手动叉掉 | 中 | ✅ 已修（改走工作台 toast） | `tests/lsp-error-toast.test.mjs` |
 | **D5** | 插件装上后起不来：`TypeError: Invalid effect` | 高 | ✅ 已修 | `tests/plugin-mount.test.mjs` |
 | **D6** | `tests/perf-cold-workspace.test.mjs:123` 偶发失败 | 低 | ✅ 已修（定时器泄漏） | 全量 `npm test` 连跑 |
-| **D7** | 重启后的语言服务器**静默死亡不被察觉** | 中 | ✅ 已修 | `tests/lsp-handshake.test.mjs` 第 4 例 |
+| **D7** | 重启后的语言服务器**静默死亡不被察觉** | 中 | ✅ 已修 | `tests/lsp-recovery.test.mjs`「重启后死亡不被吞掉」用例 |
 | **D8** | 已索引的仓库**永远显示「正在更新索引…」** | 中 | ✅ 已修 | `tests/lsp-status-progress.test.mjs` |
 | **D9** | 悬停卡片 / 补全弹窗**文字看不清**；Ctrl+悬浮**没有跳转提示** | 中 | ✅ 已修 | `tests/ctrl-hover.test.mjs` |
+| **D10** | 握手重放的**时序错误**：帧在进程存在之前就交给 worker，被静默丢弃 | 高 | ✅ 已修 | `tests/lsp-review-fixes.test.mjs`（stdin 级断言）+ `docs/bench/repro-order.mjs` |
+| **D11** | 看门狗**按 tick 计数**：一个挂起请求 ~2 秒就把语言服务器打死 | 高 | ✅ 已修 | `tests/lsp-review-fixes.test.mjs` |
+| **D12** | 取消 / 崩溃 / 空闲退出**泄漏宿主定时器** | 中 | ✅ 已修 | `tests/lsp-review-fixes.test.mjs` |
+| **D13** | 重复 `initialize` **仍被转发给服务器**（协议违规） | 中 | ✅ 已修 | `tests/lsp-review-fixes.test.mjs`（真 worker 线程级断言） |
+| **D14** | `pending` 淘汰会**丢掉握手**（D2 原样复现） | 中 | ✅ 已修 | `tests/lsp-review-fixes.test.mjs` |
 
-**当前测试数：523 项 / 523 通过 / 0 失败**（基线 329 + 本轮 194）。
+**当前测试数：544 项 / 544 通过 / 0 失败**（基线 329 + 本轮 215）。
+
+> D10–D14 来自 `docs/PRD-v5-代码检视报告.md`（外部代码检视）的 N1–N5，
+> 完整的复核与修复记录见该报告的 §6。
 
 ---
 
@@ -83,11 +91,22 @@ node docs\bench\crash-recovery.mjs
 
 脚本会：起一个假语言服务器 → 把它杀掉（模拟崩溃）→ 等自动重启 →
 断言 **没有未处理的 rejection**、宿主进程仍然活着。
+脚本现在**以退出码说话**：0 = 通过，1 = 某一步失败，2 = 这台机器跑不了这个场景
+（内存不够 / 没装语言服务器）—— 不会再「失败了也 exit 0」。
+
+自动化用例（2026-10-31 补上，代码检视报告 §3.2）：
+
+```powershell
+node --test tests/lsp-recovery.test.mjs
+```
+
+其中三例专门守「宿主不死」：`process.on('unhandledRejection')` 与
+`process.on('uncaughtException')` 全程监听，断言一个都没被触发。
 
 ### 1.5 还没做的（接手者要补）
 
-- [ ] 崩溃路径的**自动化测试**（目前只有 `docs/bench/` 里的脚本，没有进 `tests/`）。
-      `tests/lsp-recovery.test.mjs` 已有替身，可以在那里加「崩溃后宿主不死」的用例。
+- [x] 崩溃路径的**自动化测试**（`tests/lsp-recovery.test.mjs`：
+      「崩溃不泄漏 rejection」「重启竞态中取消」「非法迁移」三例）。
 - [ ] `#safely` 的覆盖面复查：目前只审了 `src/host/lsp.js` 与 `src/host/lsp-ws.js`；
       `src/index.js` 的 API 路由有 try/catch，终端 WS 的 `attachTerminal` 也有。
 - [ ] 客户端（renderer）侧还有大量 `void this.xxx()`（`src/client/store.js` 约 60 处），
@@ -124,12 +143,17 @@ T1  用户选项目 → 宿主才 lsp.start() → 语言服务器才起来
 | 位置 | 改动 |
 |---|---|
 | `src/host/lsp.js` | root entry 增加 `pending: []`：没有会话时到达的客户端载荷**不再丢弃**，先存起来（上限 64 条）。 |
-| `src/host/lsp.js` | `#spawn()` 建好 worker 之后，先发 `entry.handshake`、再 `#replayPending()` 按原顺序把缓冲的载荷交给服务器。 |
-| `src/host/lsp.js` | root entry 增加 `handshake: ''`：worker 报来 `{type:'handshake', text}` 时存下握手原文，**崩溃重启后新进程还能拿到它**（否则新进程同样收不到 `initialize`）。 |
-| `src/host/lsp-worker.js` | `Handshake` 只转发**第一次** `initialize`（一个进程只允许初始化一次）；重复的握手 id 记进 `duplicates`，等服务器回答第一个之后用缓存的能力值补答。 |
+| `src/host/lsp.js` | root entry 增加 `handshake: ''`：**第一次**握手有独立的槽位（worker 报来 `{type:'handshake', text}` 时存下），**崩溃重启后新进程还能拿到它**（否则新进程同样收不到 `initialize`）。 |
+| `src/host/lsp.js` | `#spawn()` 里，握手与缓冲载荷交给 worker 的时机在**进程起来之后**（2026-10-31 修，见 D10）：worker 回送的是帧字节，主线程只能写进**已经存在**的 stdin。 |
+| `src/host/lsp-worker.js` | `Handshake` 只转发**第一次** `initialize`（一个进程只允许初始化一次）；重复的握手 id 记进 `duplicates`，等服务器回答第一个之后用缓存的能力值补答，**不再写进服务器的 stdin**（2026-10-31 修，见 D13）。 |
 
 > **主线程不解析任何载荷**：`pending` / `handshake` 都是**不透明的字符串**，
 > 主线程只是搬运；"这是不是一个 initialize" 由 worker 判断（worker 是唯一允许解析的地方）。
+>
+> ⚠️ 唯一的例外（2026-10-31，D14）：主线程对**等待队列里的载荷**做一次**结构性的字符串检查**
+> （`/"method"\s*:\s*"initialize"/`，和 worker 用的是同一个正则），只为的是
+> **握手不会被淘汰队列丢掉** —— 队列满了丢的是最旧的一条，而握手正是最旧的一条。
+> 这不是解析：不生成对象、不解码 JSON，帧的编解码仍然全部在 worker 里（PRD §3.3）。
 
 ### 2.4 验证
 
@@ -148,6 +172,13 @@ node docs\bench\repro-order.mjs
 5. lsp.status -> ready (good)
 6. textDocument/definition -> [{"uri":"file:///…/src/client/lsp-uri.js","range":{…}}]
 ```
+
+> 「23 capabilities」里的**数字随语言服务器版本变化**，不要把它当成断言 ——
+> 脚本断言的是「服务器回答了握手」，不是「有 23 项能力」。
+>
+> 脚本现在**以退出码说话**：0 = 通过，1 = 某一步失败，2 = 这台机器跑不了这个场景。
+> 它用一份一次性的 profile（`DSH_PROFILE_DIR`）把内存门槛调低，
+> 所以在内存不宽裕的机器上也能真正跑到 D2 的场景。
 
 ---
 
@@ -215,6 +246,14 @@ ctx.effect(() => {
 前两个用例没清掉 store 的后台树定时器，泄漏到下一个用例的断言窗口里，
 机器一忙就报 “expected 1, got 2”。加 `clearTimeout(store.restoredTimer)` 即可。
 
+> **2026-10-31 补记**：这一类抖动没有消失，只是换了受害者 ——
+> 满载时全量 `npm test` 观察到 `tests/definition.test.mjs` 的
+> 「an identifier is recognized」偶发失败一次（该用例要把客户端打包后动态 import，
+> 机器忙时更容易出问题）。**单独跑必绿**（连跑 5 次全绿），
+> 之后的连续三次全量 `npm test` 也是 544/544 全绿。
+> 这不是本轮改动引入的：它走的是 esbuild 打包 + 动态 import 的老路径。
+> 根因与处置记在这里，别把它误判成新缺陷。
+
 ---
 
 ## 7. D7 —— 重启后的语言服务器静默死亡不被察觉
@@ -227,6 +266,16 @@ ctx.effect(() => {
 
 顺带把 `relayToServer()` 的 `#peek()` 换成 `#entry()`：根目录的条目不存在时
 （socket 还没接上）载荷会被创建出来并暂存，而不是被丢掉。
+
+**验证**（2026-10-31 补上，代码检视报告 N10 指出这一条原本没有用例）：
+
+```powershell
+node --test tests/lsp-recovery.test.mjs
+```
+
+用例「a language server that dies after a restart is not swallowed」：
+崩溃 → 自动重启 → 新进程的 stdout 结束 → 断言会话**不再停在 `building`**，
+即 `session.exited = false` 这一行有人守着。
 
 ---
 
@@ -323,23 +372,107 @@ node --test tests/ctrl-hover.test.mjs      # 7 个用例
 
 ---
 
-## 10. 交接清单
+## 10. 代码检视报告的发现（D10–D14）
 
-### 10.1 已完成
+> 来源：`docs/PRD-v5-代码检视报告.md`（外部代码检视）的 N1–N5。
+> 那份报告还提了 N6–N13（低危与文档级问题），也一并修了，
+> 完整记录见该报告的 §6。
 
-- [x] D1 崩溃（结构性的三层修复 + 复现脚本）
-- [x] D2 索引中卡死（握手缓冲 + 握手缓存 + worker 去重）
+### 10.1 D10 —— 握手重放的时序错误（高）
+
+`#spawn()` 原来把握手交给 worker 的时机在**进程被创建之前**、在 `session.handle`
+被赋值之前。worker 回送的是**帧字节**，主线程只能写进**已经存在**的 stdin ——
+早一步交出去，帧就被 `if (stdin === undefined || stdin === null) return` 静默丢掉。
+
+生产环境当时是对的，但只靠两个偶然性质撑着：真 worker 的回送是异步的，
+且 `ctx.subprocess.spawn` 是同步的。任何一条变了，握手就没了，
+症状恰好是 D2（永远卡在「索引中」）。
+
+**修复**：握手与缓冲载荷在 `session.handle = handle` **之后**才交给 worker。
+
+**为什么测试之前没发现**：`tests/lsp-handshake.test.mjs` 全部断言在
+`worker.posted`（*交给 worker 的东西*）这一层，从不检查 `handle().stdinChunks`
+（*真正写进服务器的东西*）—— 这条路径即使整条断掉，用例照样全绿。
+
+**验证**：`tests/lsp-review-fixes.test.mjs` 现在有 **stdin 级**断言
+（解码 `handle().stdinChunks`），假 worker 的同步回送也必须能通过。
+
+### 10.2 D11 —— 看门狗按 tick 计数（高）
+
+`#checkTimeouts()` 在条件成立时**每个 tick**（默认 1 秒）记一次超时，
+而超时后 `lastClientActivityAt` 不前进 → 条件持续成立 →
+**一个挂起的请求在 ~2 秒内就凑满 3 次**，语言服务器被误杀。
+`session.timeouts` 也**从不在成功响应后复位**，是累计值而不是注释里说的「连续」。
+
+PRD §11.2 自己记录了「大型项目语义请求可超 10 分钟」：默认超时 30 秒，
+任何一次超过 30 秒的语义请求都会在约 32 秒后把语言服务器打死。
+
+**修复**：
+
+- 超时**每个请求只记一次**（`session.timeoutStallAt` 记住计数时对应的客户端活动）；
+- 服务器一有回答就把计数器**复位为 0**；
+- 文案从「N consecutive request timeouts」改成「N request timeouts」（它本来就不是连续的）。
+
+### 10.3 D12 —— 取消 / 崩溃 / 空闲退出泄漏定时器（中）
+
+`#clearIdleTimer` / `#clearWatchdog` 只在 `#armIdleTimer`、`#armWatchdog`
+和 `#shutdownEntry` 里被调用 —— `cancelIndex`、`#exitIdle`、`#onCrash` 三条路径都不清。
+实测每取消一轮就多一个**永久空转的 1 秒看门狗**和一个 10 分钟空闲定时器。
+
+**修复**：新增 `#teardownSession(session)`（清空闲定时器、看门狗、就绪定时器、
+重启定时器，并停掉 worker），在 `cancelIndex`、`#exitIdle`、`#onCrash`、
+`#shutdownEntry`、`#startSession`（替换旧会话时）与 `shutdownAll()` 里统一调用。
+
+### 10.4 D13 —— 重复 `initialize` 仍被转发给服务器（中）
+
+worker 的 `noteForwarded()` 对重复握手返回 `false`，但那只是**记账** ——
+下一行仍然把帧写进了服务器的 stdin。一个进程只允许初始化一次，
+而 `java/go/rust/cpp` 走 PATH 探测（`jdt.ls`、`gopls`、`rust-analyzer`
+对重复 `initialize` 的反应未知）。
+
+**修复**：worker 用新的 `Handshake.isInitialize()` 区分「这是握手」与
+「这是第二次握手」；重复的握手**不再写 stdin**，由 `duplicates` 记账，
+等服务器回答第一个之后用缓存的能力值补答。
+
+### 10.5 D14 —— `pending` 淘汰会丢掉握手（中）
+
+`entry.pending` 满了之后丢的是**最旧**的一条，而握手是最先到达的 → **握手最先被丢**。
+丢掉后服务器永远收不到 `initialize` → **D2 原样复现**。
+
+**修复**：第一次握手有**独立槽位**（`entry.handshake`），不排队；
+队列淘汰时**跳过握手**（第二次及以后的握手留在队列里，由 worker 吸收并补答）。
+
+---
+
+## 11. 交接清单
+
+### 11.1 已完成
+
+- [x] D1 崩溃（结构性的三层修复 + 复现脚本 + 自动化用例）
+- [x] D2 索引中卡死（握手缓冲 + 握手缓存 + worker 去重 + stdin 级断言）
 - [x] D3 跳转定义超时（D2 的连带症状，已修）
 - [x] D4 错误浮层（改走 toast）
 - [x] D5 插件不激活
 - [x] D6 测试抖动
 - [x] D7 重启后静默死亡
+- [x] D8 索引进度残留（状态栏永远显示「正在更新索引…」）
+- [x] D9 悬停 / 补全看不清 + Ctrl+悬浮没有提示
+- [x] D10 握手重放的时序错误
+- [x] D11 看门狗按 tick 计数
+- [x] D12 取消 / 崩溃 / 空闲退出泄漏定时器
+- [x] D13 重复 `initialize` 被转发
+- [x] D14 `pending` 淘汰丢掉握手
 
-### 10.2 接手者要做
+### 11.2 接手者要做
 
-1. **重装并实测**：插件是 `link:` 安装（profile 的 `package.json` 里指向工作目录），
-   改完代码后 `plugin_manager set_bundle dsh-ide-workbench enabled=false` 再 `true`，
-   **浏览器要刷新**才能拿到新的 `dist/client.js`。
+1. **重新构建并刷新浏览器**（顺序很重要）：
+   ```powershell
+   cd dsh-ide-workbench
+   npm run build          # 浏览器加载的是 dist/client.js，不是 src/
+   ```
+   插件是 `link:` 安装（profile 的 `package.json` 里指向工作目录），
+   改完宿主侧代码后要 `plugin_manager set_bundle dsh-ide-workbench enabled=false`
+   再 `true`，**浏览器要刷新**才能拿到新的 `dist/client.js`。
 2. **人工走查**（`docs/PRD-v5-实施进展.md` §5.3 的清单），重点：
    - 状态栏能在「就绪」和「保守版」之间正确切换；
    - `Ctrl+点击` 能跳到定义并定位到列；
@@ -347,25 +480,38 @@ node --test tests/ctrl-hover.test.mjs      # 7 个用例
    - 索引超过 60 s 出现【取消索引】，点掉后 ≤ 2 s 变成「已取消（保守版）」且无残留进程；
    - 手动 kill 语言服务器 → 状态栏变红 + toast → 自动重启一次 → 功能恢复；
    - 空闲 10 分钟 → 进程退出、内存回落。
-3. **跑全量**：`npm test`（512 项）+ `npm run build`。
+3. **跑全量**：`npm test`（544 项）+ `npm run build`。
 
-### 10.3 复现脚本（在 `docs/bench/`，不进 npm 包）
+> ⚠️ 走查**必须在 `npm run build` 之后**：浏览器加载的是构建产物 `dist/client.js`，
+> 改了 `src/client/**` 而没重新构建，走查看到的还是旧界面（白跑一遍）。
 
-| 脚本 | 作用 |
-|---|---|
-| `node docs\bench\live-lsp.mjs` | 用**真的** `typescript-language-server` 跑通完整链路（握手 → 定义请求 → 重连） |
-| `node docs\bench\repro-order.mjs` | 复现并验证 D2（浏览器真实顺序：先连 socket、后启动服务器） |
-| `node docs\bench\crash-recovery.mjs` | 复现并验证 D1（语言服务器崩溃 → 宿主必须活着） |
+### 11.3 复现脚本（在 `docs/bench/`，不进 npm 包）
 
-### 10.4 新增的回归测试
+| 脚本 | 作用 | 前提 |
+|---|---|---|
+| `node docs\bench\live-lsp.mjs` | 用**真的** `typescript-language-server` 跑通完整链路（握手 → 定义请求 → 重连） | 仓库 `node_modules` 里有 `typescript-language-server`（实测 6.0.2） |
+| `node docs\bench\repro-order.mjs` | 复现并验证 D2 / D10（浏览器真实顺序：先连 socket、后启动服务器） | 同上；脚本自己用一次性 profile 把内存门槛调低 |
+| `node docs\bench\crash-recovery.mjs` | 复现并验证 D1（语言服务器崩溃 → 宿主必须活着） | 无（纯假件） |
+
+> 三个脚本现在**都以退出码说话**：0 = 通过，1 = 某一步失败，2 = 这台机器跑不了这个场景。
+> 前提不满足时脚本会自己说明（见 `docs/bench/README.md`）。
+
+### 11.4 新增的回归测试
+
+本轮共新增 **21 个测试文件**（`git diff --name-status dd6dc17..HEAD -- tests/`），
+其中与代码智能直接相关的：
 
 | 文件 | 用例 | 覆盖 |
 |---|---|---|
 | `tests/lsp-handshake.test.mjs` | 9 | 握手被暂存而不是丢弃、服务器起来后按序重放、握手被记住（崩溃重启路径）、`Handshake` 只转发一次、重复握手的补答、缓冲上限 64 |
+| `tests/lsp-review-fixes.test.mjs` | 16 | **本轮新增**：握手到达 **stdin**（D10/D2）、等待中的载荷按序到达、看门狗按请求计数（D11）、取消 / 崩溃 / 替换会话不泄漏定时器（D12）、重复 `initialize` 不进服务器（D13，真 worker 线程）、握手不被队列淘汰（D14）、路径归一（N6）、关掉的语言不启动（N7） |
+| `tests/lsp-recovery.test.mjs` | 11 | 崩溃后自动重启一次、stdout 结束算崩溃、超时算崩溃、重启后死亡不被吞掉（D7）、**宿主不死**（崩溃 / 重启竞态 / 非法迁移） |
 | `tests/lsp-error-toast.test.mjs` | 6 | 错误走 toast 而不是库的面板、toast 文案带 message+detail、store 没有 toast / toast 抛错时回落到库、只重定向一次 |
-| `tests/plugin-mount.test.mjs` | 4 | 插件能挂上路由与 WS、每个 effect 都交回 Cordis 接受的 disposer |
+| `tests/lsp-status-progress.test.mjs` | 4 | D8：非 building 时清空 `progress` / `startedAt` / `cancellable`，`ready` 分支不再看 `progress` |
+| `tests/ctrl-hover.test.mjs` | 7 | D9：标识符范围、Ctrl+悬浮装饰、**样式表用的是库真实渲染的类名** |
+| `tests/plugin-mount.test.mjs` | 4 | D5：插件能挂上路由与 WS、每个 effect 都交回 Cordis 接受的 disposer |
 
-### 10.5 交接时容易踩的坑
+### 11.5 交接时容易踩的坑
 
 - **`ctx.subprocess.spawn()` 是同步的**，返回句柄而不是 Promise。写假件时别写成 `async`，
   否则 `handle.done` 变成 undefined，会被误判成「进程以 code null 退出」。
@@ -374,3 +520,5 @@ node --test tests/ctrl-hover.test.mjs      # 7 个用例
 - **`ctx.effect()` 的回调只能返回函数或空**，返回对象会让插件不激活。
 - 语言服务器在 Windows 上**不能用 `.cmd` shim 启动**（`spawn EINVAL`）：用的是
   `process.execPath` + 包自己的 JS 入口。
+- **帧字节只能写进已经存在的 stdin**：交给 worker 的时机必须在 `session.handle` 赋值之后（D10）。
+- **假 worker 是同步回送的**，真 worker 是异步回送 —— 宿主侧不能依赖这个时序（D10）。

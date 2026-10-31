@@ -10,11 +10,14 @@
 
 | 项 | 结果 |
 |---|---|
-| 自动化测试 | **493 项 / 493 通过 / 0 失败**（基线 329 + 本轮新增 164） |
-| 客户端构建 | `npm run build` 成功，`dist/client.js` **2,762,422 字节（2,695.8 KiB）** |
-| 客户端体积增量 | **+284 KB**（基线 2,471,316 字节 → 预算 ≤ 400 KB ✅） |
+| 自动化测试 | **544 项 / 544 通过 / 0 失败**（基线 329 + 本轮新增 215） |
+| 客户端构建 | `npm run build` 成功，`dist/client.js` **2,772,340 字节（2,705.5 KiB）** |
+| 客户端体积增量 | **+301 KB**（基线 2,471,316 字节 → 预算 ≤ 400 KB ✅） |
 | 新增源码 | 10 个文件（宿主 4 + 客户端 6），改造 12 个文件 |
-| 新增测试 | 17 个文件、164 个用例 |
+| 新增测试 | 22 个文件、214 个用例 |
+
+> 上表已按 2026-10-31 的实测回填（含 D4–D9 与代码检视报告的 D10–D14 修复）。
+> 更早一版这里写的是「493 项 / 2,762,422 字节 / +284 KB」，那是 D4–D9 修复之前的数。
 
 | 里程碑 | 条目 | 状态 |
 |---|---|---|
@@ -44,7 +47,7 @@
 
 `tests/perf-cold-workspace.test.mjs:123`（"the restored folders are listed in the background"）是**时序敏感**用例。
 在三位队友并行跑构建/测试、机器满载时会偶发失败（期望 1 实得 2）；单独跑 `node --test tests/perf-cold-workspace.test.mjs` **3/3 通过**，
-机器空闲时连跑两次全量 `npm test` 也是 **493/493 全绿**。
+机器空闲时连跑两次全量 `npm test` 也是 **544/544 全绿**。
 PRD 提到的历史失败（基线 commit `dd6dc17` 之前）已由基线 commit 自身修复；此处只记录**抖动**事实，不做处置。
 
 ---
@@ -62,6 +65,9 @@ PRD 提到的历史失败（基线 commit `dd6dc17` 之前）已由基线 commit
   宿主侧是**透明中继**（帧编解码是唯一的解析动作，且它在 worker 里）。
 - worker 额外做三件"必须看载荷才能做"的事：校验客户端载荷是不是 JSON、跟踪 `didOpen/didClose/didChange`（取消时知道要关哪些文档、崩溃重启后知道要重开哪些）、
   给 `initialize` 注入 `initializationOptions.maxTsServerMemory`（tsserver 的内存上限只有这一个入口）。
+- **唯一的例外（2026-10-31，代码检视报告 D14）**：主线程对**等待队列里的载荷**做一次**字符串级的结构检查**
+  （`/"method"\s*:\s*"initialize"/`，与 worker 同一个正则），只为让**握手不会被淘汰队列丢掉**。
+  它不生成对象、不解码 JSON；帧的编解码仍然全部在 worker 里。
 
 ### 2.2 浏览器端用库的 `LSPClient`，宿主侧不实现 JSON-RPC（§1.3）
 
@@ -139,7 +145,7 @@ PRD 提到的历史失败（基线 commit `dd6dc17` 之前）已由基线 commit
 | `yaml-language-server` | `dependencies` | `^2.0.0` | YAML 打包语言服务器 |
 | `@codemirror/lsp-client` | `devDependencies` | `^6.3.0` | 客户端侧，会被 esbuild 打进 `dist/client.js` |
 | `@codemirror/autocomplete` | `devDependencies` | `^6.20.4` | 原本只是传递依赖，现显式声明（§0.2 附注 / 风险 #15） |
-| `marked` | `devDependencies` | `^15.0.12` | 悬停 Markdown 渲染 |
+| ~~`marked`~~ | ~~`devDependencies`~~ | ~~`^15.0.12`~~ | **2026-10-31 删除**：它不是插件的直接依赖，而是 `@codemirror/lsp-client` 的传递依赖；悬停的 Markdown 渲染是**库自己**做的，插件只提供 `sanitizeHTML`。原先的声明是多余的 |
 
 - 语言服务器**不进** `bundleDependencies`：离线 tarball 会因此增加约 50 MB，得不偿失（§6.3 / 风险 #21）。
   代价是**离线安装的用户拿不到打包的语言服务器**，他们走 PATH 探测路径；这一点在设置页（`settings.lspOfflineNote`）与首次提示里说明。
@@ -164,7 +170,7 @@ PRD 提到的历史失败（基线 commit `dd6dc17` 之前）已由基线 commit
 
 | 指标 | 预算 | 实测 | 结论 |
 |---|---|---|---|
-| `dist/client.js` 增量 | ≤ 400 KB | **+284 KB**（2,471,316 → 2,762,422 字节） | ✅ |
+| `dist/client.js` 增量 | ≤ 400 KB | **+301 KB**（2,471,316 → 2,772,340 字节） | ✅ |
 | 宿主主线程事件循环漂移 | p95 ≤ 30 ms | 主线程**不解析任何 LSP 载荷**，帧解析全在 worker | ✅（结构上满足） |
 | 宿主进程内存增量（空闲） | ≤ 20 MB | LSP 管理器 + 一个 worker 线程 + 一条 WebSocket；语言服务器是独立进程 | ✅（结构上满足） |
 | 语言服务器进程树 RSS | ≤ `memoryLimitMB` + 200 MB | tsserver 收到 `maxTsServerMemory`（= `memoryLimitMB`），换算成 `--max-old-space-size` | ✅（结构上满足） |
@@ -298,7 +304,7 @@ src/client/ui.jsx          ContextMenu 的 title 透传
 
 ## 8. 实机发现的缺陷（已修）
 
-三个实机缺陷的完整分析在 **`docs/PRD-v5-缺陷跟踪.md`**。这里只留结论：
+**九个**实机缺陷的完整分析在 **`docs/PRD-v5-缺陷跟踪.md`**。这里只留结论：
 
 | # | 现象 | 根因 | 修复 |
 |---|---|---|---|
@@ -306,6 +312,16 @@ src/client/ui.jsx          ContextMenu 的 title 透传
 | **D2** | 状态永远停在「语义分析：索引中…」 | 浏览器**先连 socket、后启动服务器**，那期间的 `initialize` 被 `relayToServer()` **直接丢弃** → 服务器永不初始化 → 永不回答 → 就绪判定永不触发 | 宿主把无会话时到达的载荷**存进 `entry.pending`**，服务器起来后按序重放；`entry.handshake` 让崩溃重启后的新进程也能被初始化 |
 | **D3** | `Ctrl+点击` 100% `Request timed out` | D2 的连带症状：服务器没收到 `initialize`，任何请求都不回答 | 随 D2 一并解决 |
 | **D4** | 错误浮层盖住内容区、要手动叉掉 | 库的 `LSPPlugin.reportError()` 用 `showDialog(..., {top:true})` 开了一个**永不关闭**的编辑器面板 | 改成走工作台的 toast（9 秒自动消失，不挡内容）；store 不可用时才回落到库的原实现 |
+| **D5** | 插件装上后起不来（`Invalid effect`） | `ctx.effect()` 的回调返回了对象 `{wss, close}`，Cordis 只接受函数或空 | 改成返回 disposer；`tests/plugin-mount.test.mjs` 守着 |
+| **D6** | `perf-cold-workspace` 偶发失败 | 前两个用例没清掉 store 的后台树定时器，泄漏到下一个用例的断言窗口 | `clearTimeout(store.restoredTimer)` |
+| **D7** | 重启后的语言服务器**静默死亡** | `session.exited` 在崩溃路径上被置 `true`，`#spawn()` 没清回去 → 新进程 stdout 结束时死亡被吞掉 | `#spawn()` 里 `session.exited = false`；`tests/lsp-recovery.test.mjs` 有用例守着 |
+| **D8** | 已索引的仓库永远显示「正在更新索引…」 | `store.refreshLspStatus()` 把上一份快照的 `progress` / `startedAt` / `cancellable` 摊到下一份上，状态栏的 `ready` 分支又看 `progress` | store 在非 `building` 时清空这三个值；视图的 `ready` 分支不再看 `progress` |
+| **D9** | 悬停卡片 / 补全弹窗**看不清**；Ctrl+悬浮**没有提示** | 样式写的是 `.cm-lsp-hover`，库渲染的是 **`.cm-lsp-hover-tooltip`**（一条都没匹配上）；补全配色在 `styles.js` 与 `CodeEditor.jsx` 的 THEME 里打架 | 改用库真实类名、补全配色收敛到 `styles.js` 一处；新增 `iwb-ctrl-hover-symbol` 装饰（Ctrl+悬浮变蓝 + 下划线） |
+
+代码检视报告（`docs/PRD-v5-代码检视报告.md`）另外发现并修好了 **D10–D14**
+（握手重放的时序、看门狗按 tick 计数、取消/崩溃泄漏定时器、
+重复 `initialize` 被转发、`pending` 淘汰丢掉握手）——
+完整分析见缺陷跟踪文档 §10。
 
 复现与验证脚本（都在 `docs/bench/`，不进 npm 包）：
 
@@ -314,5 +330,7 @@ node docs\bench\live-lsp.mjs        # 真语言服务器跑通完整链路
 node docs\bench\repro-order.mjs      # 浏览器真实顺序（先连 socket、后启动服务器）
 node docs\bench\crash-recovery.mjs   # 语言服务器崩溃 → 宿主必须活着
 ```
+
+三个脚本现在**都以退出码说话**：0 = 通过，1 = 某一步失败，2 = 这台机器跑不了这个场景。
 
 
