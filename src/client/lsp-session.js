@@ -10,7 +10,8 @@
  * 1. **Nothing happens when the feature is off.** With `settings.lsp.enabled`
  *    off (or without a store) no client is created and no socket is opened -
  *    the workbench keeps its conservative mode (local completion plus text
- *    search for usages).
+ *    search for usages). The language server of the *host* is stopped as
+ *    well, so switching the feature off really ends the process (SET-01).
  * 2. **The library's own keymaps are not used.** `languageServerExtensions()`
  *    would install `renameKeymap` (F2) and `formatKeymap` (Shift-Alt-f),
  *    both of which the workbench already uses for other things
@@ -20,9 +21,18 @@
  *    `lsp.requestTimeoutMs` (30000 by default) is used instead.
  * 4. **The HTML of a hover is sanitized.** The server's Markdown may contain
  *    arbitrary HTML, so `sanitizeHTML` is part of the client configuration.
+ *
+ * The session also watches the *health* of the semantic features
+ * (PRD-v5 §2.4, MEM-03): the request method of the client is wrapped, and
+ * only the failures of the semantic requests are counted. A failure that
+ * has nothing to do with the semantics (a document that cannot be synced,
+ * for example) must not turn the status bar yellow - but three failed
+ * semantic requests in a row, or two timeouts, mean that the language
+ * server is not really working any more, and the user has to see that
+ * (PRD-v5 §0.4 #3).
  */
-import { LSPClient, LSPPlugin, hoverTooltips, serverCompletion, signatureHelp } from '@codemirror/lsp-client'
-import { wsUrl } from './api.js'
+import { LSPClient, LSPPlugin, WorkspaceMapping, hoverTooltips, serverCompletion, signatureHelp } from '@codemirror/lsp-client'
+import { call, wsUrl } from './api.js'
 import { sanitizeHTML } from './lsp-sanitize.js'
 import { createLspTransport } from './lsp-transport.js'
 import { fileUriOf, languageIdForPath } from './lsp-uri.js'
@@ -39,10 +49,30 @@ const DEFAULT_SHORTCUTS = {
 /** The WebSocket route of the host side LSP relay. */
 const LSP_WS_PATH = 'ide-workbench/ws/lsp'
 
+/**
+ * The requests whose failures say something about the semantic features.
+ *
+ * Everything else - the handshake, the document synchronization, the
+ * formatting - is not part of the features the status bar talks about, so
+ * its failures must not be counted.
+ */
+const SEMANTIC_METHODS = new Set([
+  'textDocument/references',
+  'textDocument/definition',
+  'textDocument/declaration',
+  'textDocument/typeDefinition',
+  'textDocument/implementation',
+  'textDocument/hover',
+  'textDocument/completion',
+  'textDocument/signatureHelp',
+])
+
 /** The store the session belongs to. */
 let sessionStore = null
 /** The one LSP client of the session. */
 let currentClient = null
+/** The workspace of the client, the host of the documents. */
+let currentWorkspace = null
 /** The transport of the client. */
 let currentTransport = null
 /** Whether the session wants a client at all. */
@@ -57,8 +87,22 @@ const sessionListeners = new Set()
 let unsubscribeStore = null
 /** The last combination of settings and root the session was started for. */
 let sessionKey = null
+/** The project root the running client belongs to. */
+let sessionRoot = ''
 /** Whether the error reports of the library were redirected already. */
 let reportErrorRedirected = false
+/** Whether the positions of the workspace mapping were redirected already. */
+let mappingRedirected = false
+/**
+ * The health of the semantic features.
+ *
+ * `consecutiveFailures` counts the failed semantic requests since the last
+ * successful one, `consecutiveTimeouts` the timed out ones among them (a
+ * timeout is the typical silent failure and has its own limit), and
+ * `lastFailure` describes the last failure.
+ * @type {{consecutiveFailures: number, consecutiveTimeouts: number, lastFailure: {message: string, at: number} | null}}
+ */
+let health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null }
 
 /**
  * Send the reports of the language server to the workbench toast.
@@ -90,6 +134,254 @@ export function redirectErrorsToToast() {
     }
     original.call(this, message, err)
   }
+}
+
+/**
+ * The health of the semantic features.
+ *
+ * The values are published into the `lsp` slice of the store (see
+ * {@link publishHealth}), so the status bar never has to import this
+ * module. This function is the readable form of the same state - it is
+ * cheap, and it never throws, not even when there is no client at all,
+ * which is the normal state while the feature is off.
+ * @returns {{consecutiveFailures: number, consecutiveTimeouts: number, lastFailure: {message: string, at: number} | null}} the health
+ */
+export function lspHealth() {
+  return {
+    consecutiveFailures: health.consecutiveFailures,
+    consecutiveTimeouts: health.consecutiveTimeouts,
+    lastFailure: health.lastFailure === null ? null : { ...health.lastFailure },
+  }
+}
+
+/**
+ * Forget the failures of the last project.
+ *
+ * The health belongs to one project: the failures of the old language server
+ * say nothing about the new one, so the counter starts at zero again when
+ * the project changes.
+ */
+export function resetLspHealth() {
+  health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null }
+  publishHealth()
+}
+
+/**
+ * Whether two failures describe the same event.
+ *
+ * The store compares the failures by their content and not by their
+ * identity: a new object with the same message and the same time is the
+ * same failure, and writing it again would wake the React subscribers for
+ * nothing.
+ * @param {any} left the first failure
+ * @param {any} right the second failure
+ * @returns {boolean} true when both describe the same failure
+ */
+function sameFailure(left, right) {
+  if (left === right) return true
+  if (left === null || left === undefined || right === null || right === undefined) return false
+  return left.message === right.message && left.at === right.at
+}
+
+/**
+ * Publish the health of the semantic features into the store.
+ *
+ * The store does not read the health from this module: importing the LSP
+ * client into the store would drag `@codemirror/lsp-client` into every test
+ * that touches the store. The session therefore writes the three fields
+ * into the `lsp` slice of the store itself - the slice already declares
+ * them.
+ */
+function publishHealth() {
+  const store = sessionStore
+  if (store === null || store === undefined) return
+  if (typeof store.set !== 'function') return
+  const lsp = store.state?.lsp
+  if (lsp === null || lsp === undefined) return
+  const next = {
+    ...lsp,
+    consecutiveFailures: health.consecutiveFailures,
+    consecutiveTimeouts: health.consecutiveTimeouts,
+    lastFailure: health.lastFailure === null ? null : { ...health.lastFailure },
+  }
+  if (lsp.consecutiveFailures === next.consecutiveFailures
+    && lsp.consecutiveTimeouts === next.consecutiveTimeouts
+    && sameFailure(lsp.lastFailure, next.lastFailure)) return
+  store.set({ lsp: next })
+}
+
+/**
+ * The message of one failed request.
+ * @param {unknown} error the rejection of the request
+ * @returns {string} the message
+ */
+function failureMessage(error) {
+  if (typeof error === 'string') return error
+  if (error !== null && typeof error === 'object' && typeof error.message === 'string') return error.message
+  return String(error ?? '')
+}
+
+/**
+ * Whether one failure was a timeout.
+ *
+ * A timeout is the typical silent failure of a language server: the request
+ * never comes back, and the user only sees that nothing happens. It is
+ * therefore counted on its own (PRD-v5 §0.4 #3).
+ * @param {string} message the message of the failure
+ * @returns {boolean} true when the request timed out
+ */
+function isTimeout(message) {
+  return /timed out|timeout/i.test(message)
+}
+
+/**
+ * Note that a semantic request worked.
+ *
+ * One success is enough: the features work again, so the status bar must
+ * not keep the warning of the failures before it. The timeouts are reset as
+ * well - they are counted as a *run* of timeouts, and a request that
+ * worked in between breaks that run.
+ */
+function noteSemanticSuccess() {
+  health.consecutiveFailures = 0
+  health.consecutiveTimeouts = 0
+  publishHealth()
+}
+
+/**
+ * Note that a semantic request failed.
+ * @param {unknown} error the rejection of the request
+ */
+function noteSemanticFailure(error) {
+  const message = failureMessage(error)
+  health.consecutiveFailures += 1
+  if (isTimeout(message)) health.consecutiveTimeouts += 1
+  health.lastFailure = { message, at: Date.now() }
+  publishHealth()
+}
+
+/**
+ * Count the failures of the semantic requests.
+ *
+ * The library reports a failed request through `LSPPlugin.reportError`,
+ * which cannot tell a semantic failure from a document that cannot be
+ * synced - and the status bar must only react to the former. The request
+ * method of the client is therefore wrapped: only the semantic methods are
+ * counted, a success resets the counter, and a timeout is counted on its own.
+ * @param {any} client the client of the session
+ */
+function watchSemanticRequests(client) {
+  const original = client.request.bind(client)
+  client.request = function request(method, params) {
+    // A new find cycle: the files of the last one are stale.
+    if (method === 'textDocument/references') clearRequestCache()
+    const promise = original(method, params)
+    if (!SEMANTIC_METHODS.has(method)) return promise
+    return promise.then(
+      result => {
+        noteSemanticSuccess()
+        return result
+      },
+      error => {
+        noteSemanticFailure(error)
+        // The error goes on to the library, which reports it as a toast.
+        throw error
+      },
+    )
+  }
+}
+
+/**
+ * Forget the files that were read for the last find cycle.
+ *
+ * The cache of the workspace belongs to one search: the next search has to
+ * see the files as they are now.
+ */
+function clearRequestCache() {
+  const workspace = currentWorkspace
+  if (workspace === null || workspace === undefined) return
+  if (typeof workspace.clearRequestCache !== 'function') return
+  try {
+    workspace.clearRequestCache()
+  } catch (error) {
+    console.warn('[lsp] the request cache could not be cleared:', error instanceof Error ? error.message : error)
+  }
+}
+
+/**
+ * The document of one URI, when the workspace knows it.
+ * @param {any} client the LSP client
+ * @param {string} uri the document URI
+ * @returns {any} the document, or `null`
+ */
+function documentOf(client, uri) {
+  const workspace = client?.workspace ?? null
+  if (workspace === null || workspace === undefined) return null
+  if (typeof workspace.documentFor !== 'function') return null
+  try {
+    return workspace.documentFor(uri) ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The offset of an LSP position inside a document.
+ * @param {any} doc the document
+ * @param {{line?: number, character?: number}} pos the position
+ * @returns {number} the offset
+ */
+function offsetOfPosition(doc, pos) {
+  const line = Number.isFinite(pos?.line) ? pos.line + 1 : 1
+  const text = doc.line(Math.min(Math.max(line, 1), doc.lines))
+  const character = Number.isFinite(pos?.character) ? pos.character : 0
+  return text.from + Math.min(Math.max(character, 0), text.length)
+}
+
+/**
+ * Let the reference panel show the files that are not open in an editor.
+ *
+ * The library maps the position of a reference with the workspace mapping
+ * it created when the search started. That mapping knows the documents that
+ * were open *at that moment* - a file that was only read for the panel has
+ * no entry, and the library throws "Cannot map from a file that's not in
+ * the workspace" while the panel is rendered. Such a file cannot have
+ * unsaved changes, so its position needs no mapping at all: only the
+ * conversion of an LSP position into an offset.
+ *
+ * The library is not changed on disk; its prototype is redirected once, when
+ * the first session starts.
+ */
+function redirectMappingPositions() {
+  if (mappingRedirected) return
+  mappingRedirected = true
+  const original = WorkspaceMapping.prototype.mapPosition
+  WorkspaceMapping.prototype.mapPosition = function mapPosition(uri, pos, assoc = -1, mode) {
+    try {
+      return original.call(this, uri, pos, assoc, mode)
+    } catch (error) {
+      const doc = documentOf(this.client, uri)
+      if (doc === null) throw error
+      return offsetOfPosition(doc, pos)
+    }
+  }
+}
+
+/**
+ * Stop the language server of the host.
+ *
+ * The feature is switched off, so the language server process has to die
+ * now and not after the ten minute idle timeout of the host (SET-01). The
+ * call is not awaited - switching the feature off must not wait for the
+ * host - and a failure is only logged: the client closes its socket either
+ * way.
+ * @param {string} root the project root
+ */
+function shutdownHostLsp(root) {
+  if (typeof root !== 'string' || root === '') return
+  void call('lsp.shutdown', { root }).catch(error => {
+    console.warn('[lsp] the language server could not be stopped:', error instanceof Error ? error.message : error)
+  })
 }
 
 /**
@@ -284,16 +576,23 @@ function startLsp() {
   const store = sessionStore
   if (store === null || store === undefined) return
   redirectErrorsToToast()
+  redirectMappingPositions()
   const root = typeof store.state?.root === 'string' ? store.state.root : ''
   currentClient = new LSPClient({
     rootUri: fileUriOf(root),
     timeout: requestTimeoutOf(store),
     sanitizeHTML,
-    workspace: client => new WorkbenchWorkspace(client, store, { viewRegistry }),
+    workspace: (client) => {
+      currentWorkspace = new WorkbenchWorkspace(client, store, { viewRegistry })
+      return currentWorkspace
+    },
     // The editor extensions are added by `lspExtensions()` instead, so that
     // the workbench can keep them out of the editors that have no client.
     extensions: [],
   })
+  // The health of the features is watched on the request method of the
+  // client, so that only the semantic failures are counted.
+  watchSemanticRequests(currentClient)
   currentTransport = createLspTransport({
     url: () => lspSocketUrl(root),
     onOpen: (info) => {
@@ -325,6 +624,10 @@ function reinitializeLsp() {
   try {
     currentClient.disconnect()
     currentClient.connect(currentTransport)
+    // The socket opened again, so the language server was restarted (the
+    // user asked for a new index, or the server died). The failures of the
+    // old server say nothing about the new one.
+    resetLspHealth()
   } catch (error) {
     console.warn('[lsp] the handshake could not be repeated:', error instanceof Error ? error.message : error)
   }
@@ -347,16 +650,25 @@ function stopLsp() {
     }
   }
   currentClient = null
+  currentWorkspace = null
   currentTransport = null
+  // The health belongs to the running session: when it ends, the failures
+  // of the old server say nothing about the next one.
+  resetLspHealth()
   bumpVersion()
 }
 
 /** Apply the current settings to the session. */
 function refreshLsp() {
+  // The store rebuilds its `lsp` slice every two seconds (the status poll),
+  // and that rebuild can drop the health of the session. The health is
+  // written back here, so it always survives.
+  publishHealth()
   const store = sessionStore
   if (store === null || store === undefined) {
     if (sessionKey !== null) {
       sessionKey = null
+      sessionRoot = ''
       stopLsp()
     }
     return
@@ -369,13 +681,27 @@ function refreshLsp() {
   const key = `${enabled}|${root}`
   if (key === sessionKey) return
   const hadClient = currentClient !== null
+  // The root of the client that is running now: it is the project whose
+  // language server has to be stopped.
+  const previousRoot = sessionRoot
   sessionKey = key
+  sessionRoot = root
+  if (previousRoot !== root) {
+    // Another project: the failures of the old language server say nothing
+    // about the new one.
+    resetLspHealth()
+  }
   if (wanted) {
     // A different project means a different server: the old client is
     // closed first, so its socket cannot outlive the project.
     if (hadClient) stopLsp()
     startLsp(store)
   } else if (hadClient) {
+    // The feature is off: the language server of the host has to die now
+    // and not after its ten minute idle timeout (SET-01). The call happens
+    // before the socket is closed, so the host learns about it while the
+    // session is still alive.
+    shutdownHostLsp(previousRoot)
     stopLsp()
   }
 }
@@ -394,6 +720,7 @@ export function configureLsp(store) {
     unsubscribeStore = null
   }
   sessionKey = null
+  sessionRoot = ''
   if (typeof store?.subscribe === 'function') {
     // The settings and the project root arrive after the store was created,
     // so the session follows the state of the store.

@@ -213,6 +213,48 @@ function initialState() {
       indexedRoots: [],
       /** The language-server registry (`lsp.servers`), fetched once per language. */
       servers: { available: [], missing: [], disabled: [] },
+      /**
+       * The health of the semantic features on the client side.
+       *
+       * The host owns the state machine, but it cannot see a request that
+       * timed out: only the client knows that the server stopped answering.
+       * Without this counter the status bar kept saying "ready" while every
+       * semantic request failed (PRD-v5 supplement, MEM-03).
+       */
+      /** Consecutive failed semantic requests (a success resets it). */
+      consecutiveFailures: 0,
+      /** Consecutive timed-out semantic requests. */
+      consecutiveTimeouts: 0,
+      /** The last semantic failure: `{ message, at }`. */
+      lastFailure: null,
+      /** The host's memory snapshot (`lsp.resources`), when it was fetched. */
+      resources: null,
+      /** The last lines the language server wrote to stderr. */
+      stderrLines: [],
+      /** True while the workbench is rebuilding the index. */
+      rebuilding: false,
+    },
+    /**
+     * The Find in Files popup (PRD-v5 supplement, FIND-01).
+     *
+     * The results live in the `search` slice - the two entries (Find in Files
+     * and the text version of Find Usages) share them and differ only in
+     * `search.textMatch`. The popup itself is a float above the editor, so
+     * a search never takes a tab away from the code.
+     */
+    searchPopup: {
+      open: false,
+      /** The index of the selected hit in the flattened hit list. */
+      index: 0,
+      /**
+       * Bumped every time the popup opens.
+       *
+       * The popup takes its query from the store when it mounts, so the
+       * generation remounts it: a popup that opens with a new query (the
+       * identifier of "find usages") never shows the query of the last
+       * session for a moment.
+       */
+      generation: 0,
     },
     /**
      * The pending index decision (PRD-v5 §2.3).
@@ -221,12 +263,21 @@ function initialState() {
      * (the project it is about and whether it is the workspace root).
      */
     indexDecision: null,
+    /**
+     * The pending memory warning (PRD-v5 §2.3, MEM-02).
+     *
+     * `null` while no dialog is open; otherwise the numbers the dialog
+     * renders (the free memory, the estimated need and the language).
+     */
+    memoryDecision: null,
     commit: {
       message: '',
       amend: false,
       messages: [],
       messagesLoading: false,
       committing: false,
+      /** True while a push is running (it may take a minute). */
+      pushing: false,
       error: null,
       mode: 'side',
       /** Explicitly checked / unchecked paths (checkbox = include in commit). */
@@ -310,6 +361,8 @@ export class WorkbenchStore {
     this.lspPollTimer = null
     /** Resolver of the pending index decision, if a dialog is open. */
     this.indexDecisionResolve = null
+    /** Resolver of the pending memory warning, if a dialog is open. */
+    this.memoryDecisionResolve = null
     /** The languages whose server registry was already fetched. */
     this.lspServersChecked = new Set()
   }
@@ -953,6 +1006,8 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The search popup belongs to the project that was left.
+      searchPopup: initialState().searchPopup,
       // The language-server status belongs to the project that was left; the
       // server registry does not, so it survives the switch.
       lsp: { ...initialState().lsp, servers: this.state.lsp.servers },
@@ -990,11 +1045,31 @@ export class WorkbenchStore {
       return true
     }
     if (this.state.tabs.some(tab => tab.dirty === true)) {
-      this.askConfirm(
+      // The warning has to be above the project picker (LAYER-01) and it has
+      // to say what is going to happen: three ways out, not two.
+      const dirty = this.state.tabs.filter(tab => tab.dirty === true).length
+      const target = typeof project.name === 'string' && project.name !== '' ? project.name : baseName(project.path)
+      this.askChoice(
         this.t('editor.unsavedTitle'),
-        this.t('editor.unsavedSwitchRoot'),
-        this.t('editor.discardChanges'),
-        () => { void this.#switchProjectWithIndex(project, options.askIndex !== false) },
+        this.#tpl('editor.unsavedSwitchRoot', { target, count: dirty }),
+        [
+          { key: 'cancel', label: this.t('common.cancel'), action: () => {} },
+          {
+            key: 'discard', label: this.t('editor.discardAndSwitch'), danger: true,
+            action: () => { void this.#switchProjectWithIndex(project, options.askIndex !== false) },
+          },
+          {
+            key: 'save', label: this.t('editor.saveAndSwitch'), primary: true,
+            action: () => {
+              void this.saveDirtyTabs().then(() => {
+                // A save that failed must not lose the edits: the switch only
+                // happens when every draft was written.
+                if (this.state.tabs.some(tab => tab.dirty === true)) return
+                void this.#switchProjectWithIndex(project, options.askIndex !== false)
+              })
+            },
+          },
+        ],
       )
       return false
     }
@@ -1015,17 +1090,20 @@ export class WorkbenchStore {
     if (choice === 'cancel') return false
     await this.#switchProject(project.path)
     if (choice === 'build') await this.#startLsp(project.path)
+    if (choice === 'build-forced') await this.#startLsp(project.path, { force: true })
     return true
   }
 
   /**
    * The index decision for one project root (PRD-v5 §2.3).
    *
-   * Resolves with `'build'` (start the language server), `'conservative'`
-   * (stay in the basic mode) or `'cancel'` (do not switch the project).
+   * Resolves with `'build'` (start the language server), `'build-forced'`
+   * (start it although the memory is tight - the user said so),
+   * `'conservative'` (stay in the basic mode) or `'cancel'` (do not switch
+   * the project).
    * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
    * @param {boolean} [ask] false skips the dialog and stays conservative
-   * @returns {Promise<'build'|'conservative'|'cancel'>}
+   * @returns {Promise<'build'|'build-forced'|'conservative'|'cancel'>}
    */
   async #decideIndex(project, ask = true) {
     const lsp = this.state.settings?.lsp
@@ -1037,12 +1115,31 @@ export class WorkbenchStore {
     // in the conservative mode: no language server is started at all.
     if (lsp.enabled === false) return 'conservative'
     if ((lsp.indexOnOpen ?? 'ask') === 'never') return 'conservative'
-    // The memory pre-check runs before every start (PRD-v5 §2.2). When the
-    // machine cannot afford the server, asking the user is pointless: every
-    // answer would fail the same way, so the workbench degrades right away.
+    // The memory pre-check runs before every start (PRD-v5 §2.2). It has
+    // three bands now:
+    //
+    //   - enough memory      -> start
+    //   - tight              -> ask the user (the host refuses to start
+    //                           without an explicit "yes")
+    //   - below the floor    -> degrade right away
+    //
+    // The old model had a single gate of 2 GB, so a YAML project on a
+    // machine with 300 MB free could never start its server.
     const resources = await this.#lspResources(project.path)
+    // The "tight" band comes first: in the window between the hard floor and
+    // the estimate the host refuses to start without a forced start, and the
+    // user has to decide. The hard-floor band (below the floor) is the only
+    // one that degrades right away.
+    if (resources !== null && resources.tight === true && this.#memoryWarned(project.path) === false) {
+      const choice = await this.#askMemoryDecision(project, resources)
+      // The answer is remembered either way: the same project must not ask
+      // again, but the user may change their mind in the settings.
+      this.#rememberMemoryWarning(project.path)
+      if (choice === 'conservative') return 'conservative'
+      return 'build-forced'
+    }
     if (resources !== null && resources.canIndex === false) {
-      const need = Math.round((resources.thresholdBytes ?? resources.memoryLimitBytes ?? 0) / (1024 * 1024))
+      const need = Math.round(resources.needMB ?? ((resources.thresholdBytes ?? resources.memoryLimitBytes ?? 0) / (1024 * 1024)))
       const free = Math.round((resources.freeBytes ?? 0) / (1024 * 1024))
       this.toast('error', this.#tpl('lsp.lowMemory', { need, free }), this.t('lsp.lowMemoryHint'))
       return 'conservative'
@@ -1053,7 +1150,74 @@ export class WorkbenchStore {
     if ((lsp.indexOnOpen ?? 'ask') === 'always') return 'build'
     // Without a dialog to answer it, the workbench stays conservative.
     if (ask === false) return 'conservative'
-    return this.#askIndexDecision(project)
+    return this.#askIndexDecision(project, resources)
+  }
+
+  /**
+   * Whether the user was already warned about the memory of one project.
+   * @param {string} root the project root
+   * @returns {boolean} true when the warning must not be shown again
+   */
+  #memoryWarned(root) {
+    const warned = this.state.settings?.lsp?.memoryWarnedRoots
+    if (warned === null || warned === undefined || typeof warned !== 'object') return false
+    return Object.keys(warned).some(key => sameScopePath(key, root))
+  }
+
+  /**
+   * Remember that the user answered the memory warning for one project.
+   *
+   * The answer is written to the settings, so it survives a restart of the
+   * workbench. A failure is not fatal: the user is asked again next time.
+   * @param {string} root the project root
+   */
+  #rememberMemoryWarning(root) {
+    const warned = this.state.settings?.lsp?.memoryWarnedRoots
+    const next = { ...(warned !== null && typeof warned === 'object' ? warned : {}), [root]: true }
+    this.set({ settings: { ...this.state.settings, lsp: { ...this.state.settings.lsp, memoryWarnedRoots: next } } })
+    void call('settings.update', { patch: { lsp: { memoryWarnedRoots: next } } }).catch(() => {})
+  }
+
+  /**
+   * Show the memory warning and wait for the user's answer.
+   *
+   * The host refuses to start a language server on a tight budget unless the
+   * start is forced, so this dialog is the only way out of the "tight" band.
+   * @param {{path: string, name?: string}} project
+   * @param {{needMB?: number, freeBytes?: number, languageId?: string}} resources
+   * @returns {Promise<'start'|'conservative'>}
+   */
+  #askMemoryDecision(project, resources) {
+    // A second request supersedes the first one: the old promise must not
+    // hang forever.
+    if (this.memoryDecisionResolve !== null) this.memoryDecisionResolve('conservative')
+    const language = typeof resources.languageId === 'string' && resources.languageId !== ''
+      ? resources.languageId
+      : 'semantic analysis'
+    return new Promise(resolve => {
+      this.memoryDecisionResolve = resolve
+      this.set({
+        memoryDecision: {
+          path: project.path,
+          name: typeof project.name === 'string' && project.name !== '' ? project.name : baseName(project.path),
+          language,
+          needMB: Math.round(resources.needMB ?? 0),
+          freeMB: Math.round((resources.freeBytes ?? 0) / (1024 * 1024)),
+        },
+      })
+    })
+  }
+
+  /**
+   * Answer the pending memory warning.
+   * @param {'start'|'conservative'} choice
+   */
+  resolveMemoryDecision(choice) {
+    const resolve = this.memoryDecisionResolve
+    this.memoryDecisionResolve = null
+    this.set({ memoryDecision: null })
+    if (resolve === null) return
+    resolve(choice === 'start' ? 'start' : 'conservative')
   }
 
   /**
@@ -1073,9 +1237,11 @@ export class WorkbenchStore {
   /**
    * Show the index decision and wait for the user's answer.
    * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
+   * @param {{languageId?: string, needMB?: number}} [resources] the memory
+   *   estimate of the host, so the dialog can say what the build costs.
    * @returns {Promise<'build'|'conservative'|'cancel'>}
    */
-  #askIndexDecision(project) {
+  #askIndexDecision(project, resources = null) {
     // A second request supersedes the first one: the old promise must not
     // hang forever.
     if (this.indexDecisionResolve !== null) this.indexDecisionResolve('cancel')
@@ -1087,6 +1253,8 @@ export class WorkbenchStore {
           name: typeof project.name === 'string' && project.name !== '' ? project.name : baseName(project.path),
           isRoot: project.isRoot === true,
           isRepo: project.isRepo === true,
+          language: typeof resources?.languageId === 'string' ? resources.languageId : '',
+          needMB: Number.isFinite(resources?.needMB) ? resources.needMB : 0,
         },
       })
     })
@@ -1131,17 +1299,84 @@ export class WorkbenchStore {
    * The client never sets the state itself: the host owns the transition, so
    * the two sides cannot fight over it.
    * @param {string} root
+   * @param {{force?: boolean}} [options] `force` skips the host's memory
+   *   pre-check - it is only set after the user answered the memory warning.
    * @returns {Promise<unknown>} the host's answer, or null on failure
    */
-  async #startLsp(root) {
+  async #startLsp(root, options = {}) {
     try {
-      const result = await call('lsp.start', { root })
+      const result = await call('lsp.start', { root, force: options.force === true })
       await this.refreshLspStatus()
       return result
     } catch {
       // The status bar shows the failure; a toast here would only add noise.
       return null
     }
+  }
+
+  /**
+   * Rebuild the index of the current project.
+   *
+   * A degraded or crashed session used to be recoverable only by switching
+   * the project away and back. The old session is shut down first: otherwise
+   * the new one would find the memory the old one still holds.
+   * @returns {Promise<void>}
+   */
+  async restartLsp() {
+    const root = this.state.root
+    if (root === '') return
+    this.patch('lsp', { rebuilding: true })
+    try {
+      await call('lsp.shutdown', { root })
+    } catch {
+      // A session that is already gone is not an error here.
+    }
+    try {
+      await call('lsp.start', { root })
+    } catch {
+      // The status bar shows the failure.
+    }
+    await this.refreshLspStatus()
+    this.patch('lsp', { rebuilding: false })
+  }
+
+  /**
+   * Fall back to the conservative mode: the language server of the current
+   * project is stopped and its memory is released.
+   * @returns {Promise<void>}
+   */
+  async degradeLsp() {
+    const root = this.state.root
+    if (root === '') return
+    try {
+      await call('lsp.shutdown', { root })
+    } catch {
+      // Nothing to stop.
+    }
+    await this.refreshLspStatus()
+  }
+
+  /**
+   * Read the host's memory snapshot and the server log for the current
+   * project.
+   *
+   * The snapshot is not polled: it is read when the diagnostics panel opens
+   * and when the settings page asks for it, because a number that changes
+   * every second would only distract.
+   * @returns {Promise<void>}
+   */
+  async loadLspResources() {
+    const root = this.state.root
+    if (root === '') return
+    const resources = await this.#lspResources(root)
+    let stderrLines = this.state.lsp.stderrLines ?? []
+    try {
+      const logs = await call('lsp.logs', { root })
+      if (logs !== null && typeof logs === 'object' && Array.isArray(logs.lines)) stderrLines = logs.lines
+    } catch {
+      // The log is a nicety: a host without one does not break the panel.
+    }
+    this.patch('lsp', { resources, stderrLines })
   }
 
   /**
@@ -1219,6 +1454,8 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The search popup belongs to the project that was left.
+      searchPopup: initialState().searchPopup,
       // The language-server status belongs to the project that was left; the
       // server registry does not, so it survives the switch.
       lsp: { ...initialState().lsp, servers: this.state.lsp.servers },
@@ -1522,6 +1759,17 @@ export class WorkbenchStore {
       // The registry is optional: without it the status bar shows the generic
       // state of the host.
     }
+  }
+
+  /**
+   * Read the language-server registry.
+   *
+   * The status bar only needs it once per language, but the settings page
+   * lists every language, so it asks for it on its own.
+   * @returns {Promise<void>}
+   */
+  async loadLspServers() {
+    await this.#loadLspServers()
   }
 
   /**
@@ -1861,42 +2109,109 @@ export class WorkbenchStore {
 
   /** Cycle through Find in Files hits with F8 / Shift+F8. */
   openNextSearchResult(delta = 1) {
-    const hits = []
-    for (const file of this.state.search.results ?? []) {
-      for (const match of file.matches ?? []) hits.push({ path: file.path, line: match.line })
-    }
+    const hits = this.searchHits()
     if (hits.length === 0) return
     this.searchIndex = (this.searchIndex + (delta >= 0 ? 1 : -1) + hits.length) % hits.length
     const hit = hits[this.searchIndex]
     this.openSearchResult(hit.path, hit.line)
   }
 
+  /**
+   * The hits of the current search, flattened over the files.
+   *
+   * The popup shows the files on top and the hits of the selected file in
+   * the preview below; this flat list is what "F8 cycles the hits" walks.
+   * @returns {Array<{path: string, line: number, column: number, match: object, file: object}>}
+   */
+  searchHits() {
+    const hits = []
+    for (const file of this.state.search.results ?? []) {
+      for (const match of file.matches ?? []) {
+        hits.push({
+          path: file.path,
+          line: match.line,
+          column: match.column,
+          match,
+          file,
+        })
+      }
+    }
+    return hits
+  }
+
+  /**
+   * The file the Find in Files popup has selected.
+   *
+   * The upper half of the popup is a list of files; the preview below shows
+   * the hits of this one.
+   * @returns {object|null} the file, or `null`
+   */
+  selectedSearchFile() {
+    const files = (this.state.search.results ?? []).filter(file => (file.matches ?? []).length > 0)
+    if (files.length === 0) return null
+    const index = Math.min(Math.max(this.state.searchPopup?.index ?? 0, 0), files.length - 1)
+    return files[index] ?? null
+  }
+
   /** Open one Find in Files hit at its line. */
   openSearchResult(rel, line) {
     if (typeof rel !== 'string' || rel === '') return
     const absolute = this.#absoluteOf(rel)
+    // The popup is a one-shot tool: opening a hit ends it, so the code the
+    // user was working on stays in front.
+    this.closeSearchPopup()
     this.openFile(absolute, { rel, preview: false, line: Number.isInteger(line) ? line : 1 })
   }
 
-  /** Open (or focus) the Find in Files editor tab. */
-  openSearchTab(query = '') {
-    const id = 'search:in-files'
-    const existing = this.state.tabs.find(tab => tab.id === id)
-    if (existing !== undefined) {
-      this.set({ activeId: id })
-    } else {
-      this.set({
-        tabs: [...this.state.tabs, {
-          id, kind: 'search', name: this.t('search.title'), preview: false, pinned: true,
-          loading: false, error: null, scrollTop: 0,
-        }],
-        activeId: id,
-      })
-    }
+  /**
+   * Open the Find in Files popup.
+   *
+   * The results used to live in a tab of the editor area, which took a tab
+   * away from the code the user was working on. The popup floats above the
+   * editor instead (PRD-v5 supplement, FIND-01).
+   * @param {string} [query] the query to run right away
+   */
+  openSearchPopup(query = '') {
+    this.set({ searchPopup: { open: true, index: 0, generation: (this.state.searchPopup?.generation ?? 0) + 1 } })
     // A plain Find in Files run is not a text-match run: the label of the
     // usages view must not leak into it.
     this.patch('search', { textMatch: false })
-    if (typeof query === 'string' && query !== '') this.runSearch(query)
+    if (typeof query === 'string' && query !== '') void this.runSearch(query)
+  }
+
+  /** Close the Find in Files popup. */
+  closeSearchPopup() {
+    if (this.state.searchPopup?.open !== true) return
+    this.set({ searchPopup: { ...this.state.searchPopup, open: false, index: 0 } })
+  }
+
+  /**
+   * Move the selection inside the Find in Files popup.
+   *
+   * The upper half of the popup lists the files that matched, so the
+   * selection walks the files - the hits of a file are in its preview.
+   * @param {number} delta how far to move
+   */
+  moveSearchSelection(delta) {
+    const files = (this.state.search.results ?? []).filter(file => (file.matches ?? []).length > 0)
+    if (files.length === 0) return
+    const current = this.state.searchPopup?.index ?? 0
+    const step = Number.isFinite(delta) ? Math.trunc(delta) : 1
+    // The modulo is done twice: the first one folds the step into the list
+    // length, the second one keeps the result positive.
+    const index = (((current + step) % files.length) + files.length) % files.length
+    this.set({ searchPopup: { ...this.state.searchPopup, open: true, index } })
+  }
+
+  /**
+   * The old entry point of the Find in Files view.
+   *
+   * The results live in a popup now; the name is kept so a saved layout or
+   * an old shortcut still finds the feature.
+   * @param {string} [query] the query to run right away
+   */
+  openSearchTab(query = '') {
+    this.openSearchPopup(query)
   }
 
   /**
@@ -1911,19 +2226,9 @@ export class WorkbenchStore {
   async findUsagesText(identifier) {
     const query = typeof identifier === 'string' ? identifier.trim() : ''
     if (query === '') return
-    const id = 'search:usages'
-    const existing = this.state.tabs.find(tab => tab.id === id)
-    if (existing === undefined) {
-      this.set({
-        tabs: [...this.state.tabs, {
-          id, kind: 'search', name: this.t('nav.usagesTitle'), preview: false, pinned: true,
-          loading: false, error: null, scrollTop: 0,
-        }],
-        activeId: id,
-      })
-    } else {
-      this.set({ activeId: id })
-    }
+    // The text version of Find Usages shares the popup with Find in Files:
+    // two tabs over one data slice overwrote each other's query.
+    this.set({ searchPopup: { open: true, index: 0, generation: (this.state.searchPopup?.generation ?? 0) + 1 } })
     this.patch('search', {
       query,
       wholeWord: true,
@@ -1948,6 +2253,9 @@ export class WorkbenchStore {
     }
     const token = ++this.searchToken
     this.searchIndex = -1
+    // A new result set starts at the first hit: the old index would point
+    // into a list that no longer exists.
+    if (this.state.searchPopup?.open === true) this.set({ searchPopup: { ...this.state.searchPopup, index: 0 } })
     this.patch('search', {
       query: value, ...flags, loading: value !== '', error: null,
       results: value === '' ? [] : this.state.search.results,
@@ -2585,6 +2893,19 @@ export class WorkbenchStore {
     })
   }
 
+  /**
+   * Save every tab that has unsaved changes.
+   *
+   * The tabs are saved one after the other: a second write would race the
+   * first one over the same file.
+   * @returns {Promise<void>}
+   */
+  async saveDirtyTabs() {
+    for (const tab of this.state.tabs.filter(item => item.dirty === true)) {
+      await this.saveTab(tab.id)
+    }
+  }
+
   /** Persist one edited file through the host's fenced writer. */
   async saveTab(id, options = {}) {
     const tab = this.state.tabs.find(item => item.id === id)
@@ -3174,15 +3495,47 @@ export class WorkbenchStore {
     }
   }
 
+  /**
+   * Push the commits the current branch is ahead of.
+   *
+   * The Commit panel has its own Push button, so a user who already committed
+   * does not have to open a terminal. The state of the push is mirrored in
+   * `commit.pushing`: a push may take a minute, and the button has to say so.
+   * @param {{afterCommit?: boolean}} [options]
+   * @returns {Promise<void>}
+   */
   async push(options = {}) {
+    this.patch('commit', { pushing: true })
     try {
       await call('git.push', { root: this.gitRoot })
       this.toast('success', this.t('commit.pushed'))
       await this.refreshStatus({ initial: false })
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error)
-      this.toast('error', options.afterCommit === true ? this.t('commit.pushFailed') : this.t('commit.failed'), text)
+      // A branch without an upstream is the most common failure, and the raw
+      // git message is English and cryptic ("The current branch master has
+      // no upstream branch"). The user gets the command to run instead.
+      if (/no upstream branch|set-upstream|does not appear to be a git repository/i.test(text)) {
+        this.toast('error', this.t('commit.pushNoUpstream'), this.#pushUpstreamHint())
+      } else {
+        this.toast('error', options.afterCommit === true ? this.t('commit.pushFailed') : this.t('commit.failed'), text)
+      }
+    } finally {
+      this.patch('commit', { pushing: false })
     }
+  }
+
+  /**
+   * The command that sets the upstream of the current branch.
+   *
+   * The branch name comes from the status the host reported, so the hint is
+   * the command the user would have to type.
+   * @returns {string} the command
+   */
+  #pushUpstreamHint() {
+    const branch = this.state.status.branch
+    const name = typeof branch === 'string' && branch !== '' ? branch : 'HEAD'
+    return `git push --set-upstream origin ${name}`
   }
 
   // ── git window ────────────────────────────────────────────────────────

@@ -95,7 +95,7 @@ test('a crashed language server is not restarted when the memory is not enough',
   const status = await manager.status({ root })
   assert.equal(status.state, 'degraded')
   assert.match(status.detail, /64 MB/, 'the message names the free memory')
-  assert.match(status.detail, /2048 MB/, 'the message names the memory that is needed')
+  assert.match(status.detail, /384 MB/, 'the message names the memory that is needed')
 })
 
 test('the documents of the user are opened again after a restart', async () => {

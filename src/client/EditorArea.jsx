@@ -605,7 +605,7 @@ export function createEditorKeyHandler(store, options) {
     if (mod && ((event.shiftKey && !event.altKey && key === 'r') || (event.altKey && !event.shiftKey && key === 'f'))) {
       event.preventDefault()
       event.stopPropagation()
-      store.openSearchTab()
+      store.openSearchPopup()
       return
     }
     if (mod && !event.altKey && !event.shiftKey && key === 'f' && textTab) {
@@ -769,7 +769,7 @@ export function EditorArea({ store, state: _state }) {
         onClosePreviewFind: () => setPreviewFind(false),
         onEditorReady: setEditorApi,
         onFindRequest: () => setFindOpen(true),
-        onFindInFiles: () => store.openSearchTab(),
+        onFindInFiles: () => store.openSearchPopup(),
       })
     : (active.loading === true
         ? React.createElement('div', { className: 'iwb-editor-empty' }, store.t('common.loading'))

@@ -9,18 +9,49 @@ import { LEFT_PANE_RATIO, STACK_WIDTH } from './layout.js'
 export const CSS = `
 .iwb-root, .iwb-settings, .iwb-link-shell {
   --iwb-bg: var(--dsw-alias-bg-base, #15171c);
-  --iwb-panel: var(--dsw-alias-bg-layer-1, #1b1e24);
+  --iwb-panel: var(--dsw-alias-bg-layer-1, #191d24);
   --iwb-panel-2: var(--dsw-alias-bg-layer-2, #22262e);
   --iwb-overlay: var(--dsw-alias-bg-overlay, #262b34);
   --iwb-border: var(--dsw-alias-border-l1, #2c313a);
   --iwb-border-strong: var(--dsw-alias-border-l2, #3b424e);
   --iwb-divider: var(--dsw-alias-border-l2, #3b424e);
-  --iwb-fg: var(--dsw-alias-label-primary, #d8dce3);
+  --iwb-fg: var(--dsw-alias-label-primary, #ccd2da);
   --iwb-muted: var(--dsw-alias-label-secondary, #8a93a1);
   --iwb-accent: var(--dsw-alias-brand-primary, #4c9aff);
   --iwb-error: var(--dsw-alias-state-error-primary, #e2686f);
   --iwb-success: var(--dsw-alias-state-success-primary, #4fb477);
   --iwb-warn: var(--dsw-alias-state-warn-primary, #d7a24a);
+  /* ── smart-code surfaces (THEME-01 / THEME-02 / THEME-03) ─────────────────
+     The completion popup, the hover card, the signature help and the
+     reference panel used to carry a fixed dark palette, so they kept a
+     black code block and white text in a light host theme. Every colour of
+     those widgets now comes from a token, and the token comes from the host
+     design system - so the widgets follow the theme instead of fighting it.
+     A code block is a *layer* of the host, not a dark hole: in a light theme
+     it is a light surface with dark text, in a dark theme a dark surface
+     with light text. */
+  --iwb-code-bg: var(--dsw-alias-bg-layer-2, #232830);
+  --iwb-code-fg: var(--dsw-alias-label-primary, #ccd2da);
+  --iwb-code-border: var(--dsw-alias-border-l1, #333a45);
+  --iwb-code-muted: var(--dsw-alias-label-secondary, #8a93a1);
+  /* The text on a solid brand surface. The host knows how bright its brand
+     colour is; the fallback is dark on purpose - a light brand colour with
+     white text is unreadable. */
+  --iwb-on-accent: var(--dsw-alias-label-on-brand, #0d1117);
+  --iwb-shadow: var(--dsw-alias-shadow-1, rgba(0, 0, 0, .32));
+  /* The syntax palette. The host has no syntax aliases yet, so the
+     fallbacks carry it: mid tones that read on a light *and* on a dark code
+     layer - never the old fixed dark palette. */
+  --iwb-syn-comment: var(--dsw-alias-label-secondary, #6b7482);
+  --iwb-syn-string: var(--dsw-alias-code-string, #2a8359);
+  --iwb-syn-keyword: var(--dsw-alias-code-keyword, #9455b5);
+  --iwb-syn-type: var(--dsw-alias-code-type, #12838d);
+  --iwb-syn-number: var(--dsw-alias-code-number, #a1651c);
+  --iwb-syn-function: var(--dsw-alias-code-function, #2a6cbd);
+  --iwb-syn-property: var(--dsw-alias-code-property, #4a63b8);
+  --iwb-syn-tag: var(--dsw-alias-code-tag, #bb404f);
+  --iwb-syn-heading: var(--dsw-alias-code-heading, #1e70e2);
+  --iwb-syn-invalid: var(--dsw-alias-code-invalid, #bb352c);
   --iwb-sidebar: var(--dsw-specific-sidebar-fill, #181b21);
   --iwb-mod: #4c9aff;
   --iwb-add: #4fb477;
@@ -90,6 +121,10 @@ export const CSS = `
 .iwb-branch-chip .iwb-branch-name { color: var(--iwb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-ahead { color: var(--iwb-success); font-variant-numeric: tabular-nums; }
 .iwb-behind { color: var(--iwb-warn); font-variant-numeric: tabular-nums; }
+/* The badge is a button (PUSH-02): it keeps the colour of the badge it
+   replaces and only adds the affordance of something clickable. */
+.iwb-ahead-btn { background: transparent; border: 0; padding: 0 2px; cursor: pointer; }
+.iwb-ahead-btn:hover { text-decoration: underline; }
 .iwb-top-spacer { flex: 1; }
 .iwb-iconbtn {
   width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
@@ -103,10 +138,14 @@ export const CSS = `
   border: 1px solid var(--iwb-border); color: var(--iwb-fg); background: var(--iwb-panel-2);
 }
 .iwb-textbtn:hover { border-color: var(--iwb-border-strong); }
-.iwb-textbtn.iwb-primary { background: var(--iwb-accent); border-color: transparent; color: #fff; }
+/* The primary button sits on the brand colour, so its text is the host's
+   "on brand" label - a pale brand colour would make white text unreadable. */
+.iwb-textbtn.iwb-primary { background: var(--iwb-accent); border-color: transparent; color: var(--iwb-on-accent); }
 .iwb-textbtn.iwb-primary:hover { filter: brightness(1.08); }
 .iwb-textbtn:disabled { opacity: .45; cursor: default; }
 .iwb-textbtn.iwb-danger { color: var(--iwb-error); }
+/* The solid danger button sits on the error colour, not on the brand colour,
+   so it keeps its own white text. */
 .iwb-textbtn.iwb-danger-solid { background: var(--iwb-error); color: #fff; border-color: transparent; }
 .iwb-textbtn.iwb-small { height: 22px; padding: 0 8px; font-size: 11.5px; }
 
@@ -125,9 +164,11 @@ export const CSS = `
 .iwb-stripe-btn.iwb-on::before {
   content: ''; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--iwb-accent);
 }
+/* The badge counts something on the brand colour: its text is the host's
+   "on brand" label, so a pale brand colour keeps the number readable. */
 .iwb-badge {
   position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; padding: 0 4px;
-  border-radius: 999px; background: var(--iwb-accent); color: #fff; font-size: 10px; font-weight: 700;
+  border-radius: 999px; background: var(--iwb-accent); color: var(--iwb-on-accent); font-size: 10px; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center; line-height: 1;
 }
 .iwb-badge.iwb-badge-dirty { background: var(--iwb-success); }
@@ -251,14 +292,16 @@ export const CSS = `
   color: var(--iwb-muted); opacity: .65; font-variant-numeric: tabular-nums; user-select: none;
 }
 .iwb-code-text { flex: 1; padding-right: 24px; tab-size: 4; }
-.iwb-tok-comment { color: #7a8596; font-style: italic; }
-.iwb-tok-string { color: #5f8f3f; }
-.iwb-tok-number { color: #b57a2a; }
-.iwb-tok-keyword { color: #a15fb0; }
-.iwb-tok-type { color: #2f8f83; }
-.iwb-tok-fn { color: #8a6a1f; }
-.iwb-tok-tag { color: #c05a63; }
-.iwb-tok-attr { color: #3f6f9f; }
+/* The read-only preview shares the syntax palette of the editor, so both
+   read the same way and the host theme reaches both of them. */
+.iwb-tok-comment { color: var(--iwb-syn-comment); font-style: italic; }
+.iwb-tok-string { color: var(--iwb-syn-string); }
+.iwb-tok-number { color: var(--iwb-syn-number); }
+.iwb-tok-keyword { color: var(--iwb-syn-keyword); }
+.iwb-tok-type { color: var(--iwb-syn-type); }
+.iwb-tok-fn { color: var(--iwb-syn-function); }
+.iwb-tok-tag { color: var(--iwb-syn-tag); }
+.iwb-tok-attr { color: var(--iwb-syn-property); }
 .iwb-editor-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--iwb-muted); padding: 24px; text-align: center; }
 
 .iwb-codemirror { flex: 1; min-height: 0; min-width: 0; display: flex; }
@@ -713,24 +756,57 @@ export const CSS = `
   flex: 0 0 auto; margin-left: auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
 }
 .iwb-settings-control input[type="text"], .iwb-settings-control input[type="number"],
-.iwb-settings-control select {
+.iwb-settings-control select,
+.iwb-settings-field-control input[type="text"], .iwb-settings-field-control input[type="number"],
+.iwb-settings-field-control select {
   height: 32px; min-width: 0; padding: 0 10px; color: var(--iwb-fg);
   border: 1px solid var(--iwb-border-strong); border-radius: 6px; background: var(--iwb-bg);
   font-size: 13px; outline: none; transition: border-color .12s ease, box-shadow .12s ease;
 }
-.iwb-settings-control input[type="text"] { width: 300px; }
-.iwb-settings-control select { width: 220px; padding-right: 26px; }
-.iwb-settings-control input[type="number"] {
+.iwb-settings-control input[type="text"], .iwb-settings-field-control input[type="text"] { width: 300px; }
+.iwb-settings-control select, .iwb-settings-field-control select { width: 220px; padding-right: 26px; }
+.iwb-settings-control input[type="number"], .iwb-settings-field-control input[type="number"] {
   width: 96px; padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;
 }
-.iwb-settings-control :is(input[type="text"], input[type="number"], select):hover { border-color: var(--iwb-muted); }
-.iwb-settings-control :is(input[type="text"], input[type="number"], select):focus {
+.iwb-settings-control :is(input[type="text"], input[type="number"], select):hover,
+.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):hover { border-color: var(--iwb-muted); }
+.iwb-settings-control :is(input[type="text"], input[type="number"], select):focus,
+.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):focus {
   border-color: var(--iwb-accent); box-shadow: 0 0 0 1px var(--iwb-accent);
 }
 .iwb-settings-control input[type="checkbox"] {
   width: 16px; height: 16px; margin: 0; accent-color: var(--iwb-accent); cursor: pointer;
 }
 .iwb-settings-value { color: var(--iwb-muted); font-size: 13px; }
+/* A block of related fields: the numbers keep their own label above them
+   and the block takes a third of the height of one row per number. */
+.iwb-settings-subgroup { padding: 10px 0 4px; }
+.iwb-settings-subgroup-title {
+  margin-bottom: 8px; color: var(--iwb-muted); font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.iwb-settings-fields {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 20px;
+}
+.iwb-settings-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.iwb-settings-field-label { color: var(--iwb-fg); font-size: 12.5px; line-height: 18px; }
+.iwb-settings-field-hint { color: var(--iwb-muted); font-size: 11px; line-height: 16px; }
+.iwb-settings-field-control { display: flex; }
+/* The language servers: one compact line per language. */
+.iwb-settings-languages { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.iwb-settings-language {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  font-size: 12.5px; color: var(--iwb-fg);
+}
+.iwb-settings-language input[type="checkbox"] {
+  width: 16px; height: 16px; margin: 0; accent-color: var(--iwb-accent); cursor: pointer;
+}
+.iwb-settings-language-name { white-space: nowrap; }
+.iwb-settings-language-command {
+  color: var(--iwb-muted); font-size: 11px; font-family: var(--iwb-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .iwb-settings-shortcut {
   display: inline-flex; align-items: center; justify-content: center; min-width: 150px; height: 32px; padding: 0 12px;
   border: 1px solid var(--iwb-border-strong); border-radius: 7px; background: var(--iwb-panel-2);
@@ -765,6 +841,12 @@ export const CSS = `
 .iwb-modal-backdrop {
   position: absolute; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: center; justify-content: center; z-index: 50;
 }
+/* A blocking confirmation has to be above the dialog it answers: the
+   "unsaved changes" warning is raised while the project picker is still
+   open, and both backdrops share the same z-index and the same containing
+   block - so the later one in the DOM would cover the warning. The deeper
+   dim also keeps the two layers from stacking into a black screen. */
+.iwb-modal-backdrop.iwb-confirm-backdrop { z-index: 55; background: rgba(0, 0, 0, .6); }
 .iwb-modal {
   width: min(440px, calc(100% - 40px)); border-radius: 10px; border: 1px solid var(--iwb-border-strong);
   background: var(--iwb-overlay); box-shadow: 0 24px 60px rgba(0, 0, 0, .45); padding: 16px 18px;
@@ -785,7 +867,29 @@ export const CSS = `
 .iwb-modal-head h2 { margin: 0; flex: 1; }
 .iwb-modal-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 18px; }
 .iwb-modal-foot { flex: 0 0 auto; padding: 10px 18px 13px; border-top: 1px solid var(--iwb-border); background: var(--iwb-overlay); }
-.iwb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.iwb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+/* The buttons of a dialog have to read as buttons. The plain border of a
+   text button is one hairline on the dialog surface - invisible in practice
+   - so a dialog gets a stronger border, a little more room and a background
+   that is one layer away from the surface it sits on. */
+.iwb-modal-actions .iwb-textbtn {
+  height: 30px; padding: 0 14px; font-size: 12.5px;
+  border-color: var(--iwb-border-strong); background: var(--iwb-panel-2);
+}
+.iwb-modal-actions .iwb-textbtn:hover {
+  border-color: var(--iwb-muted); background: var(--iwb-panel);
+}
+/* The primary and the solid danger button carry their own colour and must
+   keep it - the rule above would otherwise repaint them like a plain one. */
+.iwb-modal-actions .iwb-textbtn.iwb-primary {
+  background: var(--iwb-accent); border-color: transparent; color: var(--iwb-on-accent);
+}
+.iwb-modal-actions .iwb-textbtn.iwb-primary:hover {
+  background: var(--iwb-accent); border-color: transparent; filter: brightness(1.08);
+}
+.iwb-modal-actions .iwb-textbtn.iwb-danger-solid {
+  background: var(--iwb-error); border-color: transparent; color: #fff;
+}
 .iwb-toast {
   position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: 8px;
   border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay); box-shadow: 0 10px 30px rgba(0,0,0,.4);
@@ -924,6 +1028,58 @@ export const CSS = `
 .iwb-quick-empty { padding: 18px; text-align: center; color: var(--iwb-muted); font-size: 12px; }
 .iwb-quick-foot { padding: 6px 10px; border-top: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 10.5px; }
 
+/* ── Find in Files popup (FIND-01 / FIND-02) ───────────────────────────── */
+/* The popup reuses the Quick Open skeleton: the same backdrop (z-index 70,
+   above every modal), the same panel, the same head and foot. Only the body
+   differs - the hits on top (40%), the context of the selected hit below
+   (60%), so a click never takes the code away from the user. */
+.iwb-search-popup-backdrop { padding-top: 4vh; }
+.iwb-search-popup {
+  width: min(900px, 92vw); height: min(640px, 80vh); max-height: none;
+  display: flex; flex-direction: column;
+}
+.iwb-search-popup-meta {
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+  border-bottom: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 10.5px;
+}
+.iwb-search-popup-list { flex: 0 0 40%; min-height: 0; overflow: auto; padding: 4px; }
+/* The upper half is a plain list of the files that matched - one row per
+   file, with its match count. The matches themselves are the preview below:
+   repeating them under the file row made the list a wall of text and left
+   the preview empty. */
+.iwb-search-popup-file {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 9px;
+  border-radius: 5px; text-align: left; font-size: 12px; color: var(--iwb-fg);
+}
+.iwb-search-popup-file:hover { background: rgba(127, 127, 127, .1); }
+.iwb-search-popup-file.iwb-selected { background: color-mix(in srgb, var(--iwb-accent) 20%, transparent); }
+.iwb-search-popup-file-name { flex: 0 0 auto; white-space: nowrap; }
+.iwb-search-popup-file-dir { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--iwb-muted); font-size: 10.5px; }
+.iwb-search-popup-file-count {
+  flex: 0 0 auto; margin-left: auto; color: var(--iwb-muted); font-size: 10.5px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.iwb-search-popup-preview { flex: 1 1 60%; min-height: 0; overflow: auto; border-top: 1px solid var(--iwb-border); }
+.iwb-search-popup-blocks { padding: 6px 0 12px; }
+/* One hit of the selected file with the lines around it. */
+.iwb-search-popup-block { padding-bottom: 8px; }
+.iwb-search-popup-block-head {
+  display: flex; align-items: baseline; gap: 10px; padding: 2px 10px;
+  color: var(--iwb-muted); font-size: 10.5px;
+}
+.iwb-search-popup-block-pos { flex: 0 0 auto; font-family: var(--iwb-mono); }
+.iwb-search-popup-block-preview {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.iwb-search-popup-code { padding: 2px 0; font-family: var(--iwb-mono); font-size: 11.5px; line-height: 1.6; }
+.iwb-search-popup-line { display: flex; gap: 10px; padding: 0 10px; color: var(--iwb-muted); opacity: .75; }
+.iwb-search-popup-line.iwb-hit { background: color-mix(in srgb, var(--iwb-accent) 16%, transparent); color: var(--iwb-fg); opacity: 1; }
+.iwb-search-popup-number {
+  flex: 0 0 44px; width: 44px; text-align: right; color: var(--iwb-muted);
+  font-variant-numeric: tabular-nums; user-select: none;
+}
+.iwb-search-popup-text { flex: 1 1 auto; min-width: 0; white-space: pre; }
+
 /* ── Project filter modes / opened-vs-selected ───────────────────────── */
 .iwb-filter-mode { display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 4px; overflow: hidden; flex: 0 0 auto; }
 .iwb-filter-mode button { height: 20px; padding: 0 6px; color: var(--iwb-muted); font-size: 10.5px; }
@@ -1034,9 +1190,12 @@ export const CSS = `
   color: var(--iwb-fg) !important;
   border: 1px solid var(--iwb-border-strong) !important;
   border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
+  box-shadow: 0 8px 24px var(--iwb-shadow);
 }
-.iwb-codemirror .cm-tooltip * { color: inherit; }
+/* The library paints some of its own elements (the completion list, the
+   documentation blocks) with a background of its own. Clearing it keeps a
+   white block out of a dark card and a black block out of a light one. */
+.iwb-codemirror .cm-tooltip * { color: inherit; background: transparent; }
 
 /* ── completion popup (COMP-01 / COMP-02) ──────────────────────────────── */
 .iwb-codemirror .cm-tooltip.cm-tooltip-autocomplete {
@@ -1044,7 +1203,7 @@ export const CSS = `
   border: 1px solid var(--iwb-border-strong) !important;
   border-radius: 6px;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
+  box-shadow: 0 8px 24px var(--iwb-shadow);
 }
 .iwb-codemirror .cm-tooltip-autocomplete > ul {
   font-family: var(--iwb-mono);
@@ -1060,13 +1219,14 @@ export const CSS = `
   border-radius: 4px;
   margin: 1px 3px;
 }
-/* The selected row is a solid accent bar with white text: readable on both a
-   light and a dark workbench, and impossible to confuse with the others. */
+/* The selected row is a solid accent bar: the text colour is the host's "on
+   brand" label, so it stays readable on a light brand colour instead of
+   forcing white text onto it. */
 .iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] {
   background: var(--iwb-accent) !important;
-  color: #fff !important;
+  color: var(--iwb-on-accent) !important;
 }
-.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] * { color: #fff !important; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] * { color: var(--iwb-on-accent) !important; }
 .iwb-codemirror .cm-tooltip-autocomplete-disabled > ul > li[aria-selected] {
   background: var(--iwb-muted) !important;
   color: var(--iwb-bg) !important;
@@ -1075,7 +1235,7 @@ export const CSS = `
 .iwb-codemirror .cm-completionIcon::after { content: '\\25CF'; }
 .iwb-codemirror .cm-completionLabel { color: inherit !important; }
 .iwb-codemirror .cm-completionDetail { color: var(--iwb-muted) !important; font-style: italic; margin-left: 6px; }
-.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail { color: rgba(255, 255, 255, .82) !important; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail { color: color-mix(in srgb, var(--iwb-on-accent) 82%, transparent) !important; }
 .iwb-codemirror .cm-completionMatchedText { color: inherit !important; text-decoration: none; font-weight: 700; }
 .iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionMatchedText { text-decoration: underline; }
 .iwb-codemirror .cm-tooltip.cm-completionInfo {
@@ -1104,7 +1264,7 @@ export const CSS = `
   max-width: 34em;
   font-size: 12px;
   line-height: 1.55;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
+  box-shadow: 0 8px 24px var(--iwb-shadow);
 }
 .iwb-codemirror .cm-lsp-documentation { color: inherit; padding: 0; }
 .iwb-codemirror .cm-lsp-documentation p,
@@ -1117,15 +1277,16 @@ export const CSS = `
 .iwb-codemirror .cm-lsp-documentation h2,
 .iwb-codemirror .cm-lsp-documentation h3,
 .iwb-codemirror .cm-lsp-documentation h4 { color: var(--iwb-fg) !important; font-size: 12.5px; margin: 6px 0 3px; }
-/* JSDoc and signatures are rendered as highlighted code. The token colours
-   are made for a dark surface, so the block gets one in both modes: readable
-   everywhere, and it reads as "this is code". */
+/* JSDoc and signatures are rendered as highlighted code. The block is a
+   layer of the host theme - a light surface with dark text in a light theme,
+   a dark surface with light text in a dark one - so the card never carries
+   a foreign black rectangle. */
 .iwb-codemirror .cm-lsp-documentation pre,
 .iwb-codemirror .cm-lsp-documentation code,
 .iwb-codemirror .cm-lsp-signature {
   font-family: var(--iwb-mono);
-  background: #1b1e24 !important;
-  color: #d8dce3 !important;
+  background: var(--iwb-code-bg) !important;
+  color: var(--iwb-code-fg) !important;
   border-radius: 4px;
 }
 .iwb-codemirror .cm-lsp-documentation pre {
@@ -1134,11 +1295,14 @@ export const CSS = `
   overflow: auto;
   max-height: 18em;
   white-space: pre-wrap;
+  border: 1px solid var(--iwb-code-border);
 }
 .iwb-codemirror .cm-lsp-documentation code { padding: 0 4px; }
 .iwb-codemirror .cm-lsp-signature { padding: 4px 7px; }
-.iwb-codemirror .cm-lsp-active-parameter { color: #7fb8ff !important; font-weight: 700; }
-.iwb-codemirror .cm-lsp-signature-num { color: var(--iwb-muted) !important; }
+/* The parameter the call is currently on: the brand colour is enough to
+   find it, and it is bold, so it does not need a second hue. */
+.iwb-codemirror .cm-lsp-active-parameter { color: var(--iwb-accent) !important; font-weight: 700; }
+.iwb-codemirror .cm-lsp-signature-num { color: var(--iwb-code-muted) !important; }
 
 /* ── reference panel (NAV-02) ──────────────────────────────────────────── */
 .iwb-codemirror .cm-lsp-references-panel {
@@ -1152,11 +1316,11 @@ export const CSS = `
 }
 .iwb-codemirror .cm-lsp-references-panel ul { list-style: none; margin: 0; padding: 0; }
 .iwb-codemirror .cm-lsp-references-panel li { padding: 2px 8px; cursor: pointer; color: var(--iwb-fg) !important; }
-.iwb-codemirror .cm-lsp-references-panel li[aria-selected] { background: var(--iwb-accent) !important; color: #fff !important; }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] { background: var(--iwb-accent) !important; color: var(--iwb-on-accent) !important; }
 .iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-name { color: var(--iwb-accent) !important; }
-.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-name { color: #fff !important; }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-name { color: var(--iwb-on-accent) !important; }
 .iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-file { color: var(--iwb-muted) !important; }
-.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-file { color: rgba(255, 255, 255, .82) !important; }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-file { color: color-mix(in srgb, var(--iwb-on-accent) 82%, transparent) !important; }
 .iwb-codemirror .cm-lsp-diagnostic-error { border-left: 3px solid var(--iwb-error); }
 .iwb-codemirror .cm-lsp-diagnostic-warning { border-left: 3px solid var(--iwb-warn); }
 .iwb-codemirror .cm-lsp-diagnostic-info { border-left: 3px solid var(--iwb-accent); }
@@ -1189,7 +1353,7 @@ export const CSS = `
 }
 
 /* ── index decision dialog (PRD-v5 §2.3) ───────────────────────────────── */
-.iwb-index-decision { max-width: 520px; }
+.iwb-index-decision { width: min(520px, calc(100% - 40px)); }
 .iwb-index-decision-warning {
   display: block; margin-top: 10px; padding: 9px 11px;
   border-left: 3px solid var(--iwb-warn); border-radius: 0 6px 6px 0;
@@ -1198,6 +1362,24 @@ export const CSS = `
 .iwb-index-decision-warning-title {
   display: block; margin-bottom: 3px; color: var(--iwb-warn);
   font-size: 11px; font-weight: 700; letter-spacing: .02em;
+}
+
+/* ── semantic diagnostics panel (MEM-03) ───────────────────────────────── */
+/* The panel answers "what is the language server doing": the state, the
+   failure counter, the memory estimate and the tail of its stderr. The body
+   scrolls, so a long log never pushes the actions out of the dialog. */
+.iwb-lsp-diagnostics {
+  width: min(520px, calc(100% - 40px)); max-height: 82%;
+  display: flex; flex-direction: column;
+}
+.iwb-lsp-diagnostics-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.iwb-lsp-diagnostics-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--iwb-border); }
+.iwb-lsp-diagnostics-key { flex: 0 0 130px; color: var(--iwb-muted); font-size: 11.5px; }
+.iwb-lsp-diagnostics-value { flex: 1 1 auto; min-width: 0; word-break: break-word; font-size: 12px; }
+.iwb-lsp-diagnostics-logs {
+  font-family: var(--iwb-mono); font-size: 10.5px; color: var(--iwb-muted);
+  max-height: 160px; overflow: auto; white-space: pre-wrap; user-select: text;
+  background: var(--iwb-panel); border: 1px solid var(--iwb-border); border-radius: 6px; padding: 6px 8px;
 }
 
 @container ide-workbench (max-width: 760px) {

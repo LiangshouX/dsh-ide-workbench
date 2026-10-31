@@ -119,7 +119,7 @@ function makeHandler(createEditorKeyHandler, overrides = {}) {
   const store = {
     state: { active: true },
     t: key => key,
-    openSearchTab() { calls.push('openSearchTab') },
+    openSearchPopup() { calls.push('openSearchPopup') },
   }
   const handler = createEditorKeyHandler(store, {
     textTab: true,
@@ -139,7 +139,7 @@ test('Ctrl+Shift+R opens the global Find in Files view', async () => {
   const { handler, calls } = makeHandler(mod.createEditorKeyHandler)
   const event = keyEvent({ key: 'R', ctrlKey: true, shiftKey: true })
   handler(event)
-  assert.deepEqual(calls, ['openSearchTab'])
+  assert.deepEqual(calls, ['openSearchPopup'])
   assert.equal(event.prevented, 1)
 })
 
@@ -166,7 +166,7 @@ test('Ctrl+Alt+F stays the documented fallback alias', async () => {
   const { handler, calls } = makeHandler(mod.createEditorKeyHandler)
   const event = keyEvent({ key: 'f', ctrlKey: true, altKey: true })
   handler(event)
-  assert.deepEqual(calls, ['openSearchTab'])
+  assert.deepEqual(calls, ['openSearchPopup'])
   assert.equal(event.prevented, 1)
 })
 

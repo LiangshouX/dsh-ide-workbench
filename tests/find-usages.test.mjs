@@ -207,12 +207,10 @@ test('the text version of Find Usages always works and searches the whole word',
   const store = fakeStore()
   try {
     await store.findUsagesText('needle')
-    // One search tab, titled as the usages view.
-    assert.equal(store.state.tabs.length, 1)
-    assert.equal(store.state.tabs[0].id, 'search:usages')
-    assert.equal(store.state.tabs[0].kind, 'search')
-    assert.equal(store.state.tabs[0].name, 'nav.usagesTitle')
-    assert.equal(store.state.activeId, 'search:usages')
+    // The results live in the popup, not in a tab: a search must not take a
+    // tab away from the code (FIND-01).
+    assert.equal(store.state.tabs.length, 0)
+    assert.equal(store.state.searchPopup.open, true)
     // The search slice describes a text match.
     assert.equal(store.state.search.query, 'needle')
     assert.equal(store.state.search.wholeWord, true)

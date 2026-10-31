@@ -499,6 +499,9 @@ export function apply(ctx) {
     'lsp.start': async (payload) => lsp.start({
       root: requireString(payload, 'root'),
       languageId: typeof payload?.languageId === 'string' ? payload.languageId : undefined,
+      // The user answered the memory question and asked for the server
+      // anyway: the host skips its memory pre-check then (PRD §2.3).
+      force: payload?.force === true,
     }),
 
     'lsp.cancelIndex': async (payload) => lsp.cancelIndex({ root: requireString(payload, 'root') }),

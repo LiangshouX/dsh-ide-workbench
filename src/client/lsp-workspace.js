@@ -13,6 +13,14 @@
  * a path outside the project. Such a path is never opened and never read;
  * `displayFile` returns `null` and the user gets a toast.
  *
+ * A third job was added later (PRD-v5 §3.2, USAGE-01): the library asks the
+ * workspace for the file of *every* reference it got, and its own answer
+ * only knows the files that have an editor. Every reference in a file that
+ * is not open was therefore dropped, and "find usages" was almost always
+ * empty. `requestFile` reads those files from the disk (through the host's
+ * `fs.read`, so the fence of the host applies) and answers with a document
+ * that has no editor - no tab is opened for it.
+ *
  * Dependencies on the store (kept defensive so the module can be unit tested
  * with a small fake):
  *
@@ -25,11 +33,22 @@
  */
 import { ChangeSet, Text } from '@codemirror/state'
 import { Workspace } from '@codemirror/lsp-client'
-import { pathOfFileUri } from './lsp-uri.js'
+import { call } from './api.js'
+import { languageIdForPath, pathOfFileUri } from './lsp-uri.js'
 import { isPathWithin, normalizeScopePath } from './workspace-scope.js'
 
 /** How long `displayFile` waits for the editor of a freshly opened file. */
 const VIEW_WAIT_MS = 5000
+
+/**
+ * How many files the workspace keeps in the request cache.
+ *
+ * One "find usages" can touch dozens of files, and every one of them has to
+ * be read from the disk. The cache holds the files of the current find
+ * cycle, so a file with many hits is read only once; the cap keeps the
+ * memory of a huge project bounded.
+ */
+const REQUEST_CACHE_LIMIT = 64
 
 /**
  * Split a text into lines, keeping the line break at the end of each line.
@@ -206,6 +225,8 @@ export class WorkbenchWorkspace extends Workspace {
     this.viewRegistry = options.viewRegistry ?? null
     /** @type {Array<any>} the documents the server knows about */
     this.files = []
+    /** @type {Map<string, any>} the files that were read for the references */
+    this.requestCache = new Map()
   }
 
   /**
@@ -299,6 +320,120 @@ export class WorkbenchWorkspace extends Workspace {
     }
     this.files.push(file)
     this.client.didOpen(file)
+  }
+
+  /**
+   * The file of one URI, whether or not it is open in an editor.
+   *
+   * The library's own answer only knows the files that have an editor, and
+   * `findReferences` drops every reference whose file is not in that list -
+   * which is why the usages of a symbol, which usually live in other files,
+   * were almost never shown. This method reads the missing files from the
+   * disk instead.
+   *
+   * Three rules keep the method harmless:
+   *
+   * 1. **No tab is opened.** The file is only needed to render the context
+   *    of a reference row; opening it would turn one search into a batch of
+   *    opened files.
+   * 2. **The fence holds.** A path outside the project is not read and does
+   *    not even produce a toast - one search may touch dozens of files, and
+   *    dozens of toasts would bury the panel.
+   * 3. **The file is cached.** One search reads the same file again for
+   *    every reference in it.
+   * @param {string} uri the document URI
+   * @returns {Promise<any>} the file, or `null` when it cannot be read
+   */
+  async requestFile(uri) {
+    const existing = this.getFile(uri)
+    if (existing !== null && existing !== undefined) return existing
+    const cached = this.requestCache.get(uri)
+    if (cached !== undefined) return cached
+    const absolute = pathOfFileUri(uri)
+    if (absolute === null) return null
+    if (!this.insideRoot(absolute)) return null
+    const content = await this.readFileContent(absolute)
+    if (content === null) return null
+    const file = {
+      uri,
+      languageId: languageIdForPath(absolute),
+      version: 1,
+      doc: textOf(content),
+      /** @returns {any} the editor - there is none, the file is only read */
+      getView() {
+        return null
+      },
+    }
+    this.rememberRequest(file)
+    return file
+  }
+
+  /**
+   * The content of one file on disk, read through the host.
+   *
+   * The host route `fs.read` resolves the path inside the project root, so
+   * the fence of the host applies a second time - the client never builds a
+   * path of its own.
+   * @param {string} absolute the absolute path
+   * @returns {Promise<string | null>} the content, or `null` when the file
+   *   cannot be read
+   */
+  async readFileContent(absolute) {
+    const root = this.store?.state?.root
+    if (typeof root !== 'string' || root === '') return null
+    let result = null
+    try {
+      result = await call('fs.read', { root, path: absolute })
+    } catch (error) {
+      console.warn('[lsp] the file could not be read:', absolute, error instanceof Error ? error.message : error)
+      return null
+    }
+    if (result === null || typeof result !== 'object') return null
+    // A binary or an image has no text to show.
+    if (result.kind !== 'text') return null
+    return typeof result.content === 'string' ? result.content : ''
+  }
+
+  /**
+   * Remember one requested file, dropping the oldest one when the cache is
+   * full.
+   * @param {any} file the file
+   */
+  rememberRequest(file) {
+    this.requestCache.set(file.uri, file)
+    while (this.requestCache.size > REQUEST_CACHE_LIMIT) {
+      const oldest = this.requestCache.keys().next()
+      if (oldest.done === true) break
+      this.requestCache.delete(oldest.value)
+    }
+  }
+
+  /**
+   * Forget the files that were read for the last find cycle.
+   *
+   * The session calls this when a new reference request starts, so that
+   * every search reads the files of the project as they are *now*.
+   */
+  clearRequestCache() {
+    this.requestCache.clear()
+  }
+
+  /**
+   * The document of one URI, when the workspace knows it.
+   *
+   * The library maps the positions of a reference with the workspace
+   * mapping it created when the search started; that mapping only knows the
+   * documents that were open at that moment. This method gives the mapping
+   * the document of a file that was read for the panel.
+   * @param {string} uri the document URI
+   * @returns {any} the document, or `null` when the URI is unknown
+   */
+  documentFor(uri) {
+    const open = this.getFile(uri)
+    if (open !== null && open !== undefined) return open.doc ?? null
+    const requested = this.requestCache.get(uri)
+    if (requested !== undefined) return requested.doc ?? null
+    return null
   }
 
   /**

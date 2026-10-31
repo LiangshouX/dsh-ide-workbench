@@ -11,7 +11,16 @@ import { dirname, join } from 'node:path'
 import { ApiError } from './wire.js'
 
 /** The settings schema version this build writes. */
-export const SETTINGS_VERSION = 3
+export const SETTINGS_VERSION = 4
+
+/**
+ * The free-memory threshold of the documents written before schema 4.
+ *
+ * It was the hard gate of the semantic analysis then, and its default was
+ * two gigabytes. The value is only rewritten when it is exactly this one:
+ * a threshold the user chose is never touched.
+ */
+const LEGACY_FREE_MEMORY_THRESHOLD_MB = 2048
 
 /** Deep defaults; a saved document is merged over this at load time. */
 export const DEFAULT_SETTINGS = {
@@ -107,8 +116,16 @@ export const DEFAULT_SETTINGS = {
     indexOnOpen: 'ask',
     /** Memory ceiling handed to the language server (MB). */
     memoryLimitMB: 2048,
-    /** Free system memory required before a server may start (MB). */
-    freeMemoryThresholdMB: 2048,
+    /**
+     * Conservative fallback floor (MB): the free memory that is required when
+     * no estimate of the language is known. It is not a gate for a language
+     * that has an estimate (PRD §4.4).
+     */
+    freeMemoryThresholdMB: 512,
+    /** Factor between the estimate of a language server and the memory it needs. */
+    memoryHeadroom: 1.5,
+    /** Free memory below which no language server starts at all (MB). */
+    memoryHardFloorMB: 256,
     /** Idle time after which the language server exits (ms). */
     idleTimeoutMs: 600000,
     /** LSP request timeout (ms). Must stay >= 30000: the client library's own
@@ -126,11 +143,15 @@ export const DEFAULT_SETTINGS = {
      * `enabled: false` switches one language off: its server is never
      * started and the language stays in the conservative mode. `command` and
      * `args` replace the registered ones; `memoryLimitMB` lowers the
-     * ceiling of one language.
+     * ceiling of one language; `memoryBaselineMB` replaces the estimate the
+     * free memory is compared with.
      */
     servers: {},
     /** Project roots that completed a first build: { [absPath]: { at, languageId } }. */
     indexedRoots: {},
+    /** Project roots the user has already been warned about on a tight memory
+     * budget: { [absPath]: true }. The same project is not asked twice. */
+    memoryWarnedRoots: {},
   },
   shortcuts: {
     project: 'Alt+1',
@@ -215,12 +236,18 @@ export function migrateLegacyShortcuts(value) {
 }
 
 /**
- * Fill in the `lsp` section of a document written before schema 3.
+ * Fill in the `lsp` section of a document written before schema 4.
  *
  * The migration only touches the `lsp` section: every other setting the user
  * made survives untouched, which is the whole point of the schema bump. A
  * request timeout below the library's own 3000 ms default is raised, because
  * that value silently times out on a large project.
+ *
+ * The memory threshold changes its meaning with schema 4: it was the hard
+ * gate that kept every language behind two gigabytes, and it is the
+ * conservative fallback now (PRD §4.4). A document that still carries the old
+ * default would keep that gate alive, so the exact legacy value is rewritten.
+ * A value the user chose is never touched.
  * @param {any} value the merged settings document
  * @returns {any} the same document, migrated in place
  */
@@ -233,6 +260,16 @@ export function migrateLspSettings(value) {
   }
   if (!isPlainObject(migrated.indexedRoots)) migrated.indexedRoots = {}
   if (!isPlainObject(migrated.servers)) migrated.servers = {}
+  if (!isPlainObject(migrated.memoryWarnedRoots)) migrated.memoryWarnedRoots = {}
+  if (migrated.freeMemoryThresholdMB === LEGACY_FREE_MEMORY_THRESHOLD_MB) {
+    migrated.freeMemoryThresholdMB = DEFAULT_SETTINGS.lsp.freeMemoryThresholdMB
+  }
+  if (!Number.isFinite(migrated.memoryHeadroom) || migrated.memoryHeadroom <= 0) {
+    migrated.memoryHeadroom = DEFAULT_SETTINGS.lsp.memoryHeadroom
+  }
+  if (!Number.isSafeInteger(migrated.memoryHardFloorMB) || migrated.memoryHardFloorMB < 0) {
+    migrated.memoryHardFloorMB = DEFAULT_SETTINGS.lsp.memoryHardFloorMB
+  }
   value.lsp = migrated
   return value
 }

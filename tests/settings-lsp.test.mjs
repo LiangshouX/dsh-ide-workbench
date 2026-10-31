@@ -26,9 +26,9 @@ async function withProfile(document, run) {
   }
 }
 
-test('the settings schema is version 3', () => {
-  assert.equal(SETTINGS_VERSION, 3)
-  assert.equal(DEFAULT_SETTINGS.version, 3)
+test('the settings schema is version 4', () => {
+  assert.equal(SETTINGS_VERSION, 4)
+  assert.equal(DEFAULT_SETTINGS.version, 4)
 })
 
 test('the lsp section carries the PRD-v5 defaults', () => {
@@ -36,13 +36,17 @@ test('the lsp section carries the PRD-v5 defaults', () => {
   assert.equal(lsp.enabled, true)
   assert.equal(lsp.indexOnOpen, 'ask')
   assert.equal(lsp.memoryLimitMB, 2048)
-  assert.equal(lsp.freeMemoryThresholdMB, 2048)
+  // The free memory is a conservative fallback now, not a hard gate.
+  assert.equal(lsp.freeMemoryThresholdMB, 512)
+  assert.equal(lsp.memoryHeadroom, 1.5)
+  assert.equal(lsp.memoryHardFloorMB, 256)
   assert.equal(lsp.idleTimeoutMs, 600000)
   assert.equal(lsp.cancelAfterMs, 60000)
   assert.equal(lsp.autoExit, true)
   assert.equal(lsp.autoRestart, true)
   assert.deepEqual(lsp.servers, {})
   assert.deepEqual(lsp.indexedRoots, {})
+  assert.deepEqual(lsp.memoryWarnedRoots, {})
 })
 
 test('the LSP request timeout never falls below the library default of 3000 ms', () => {
@@ -83,7 +87,7 @@ test('a schema 2 document without an lsp section keeps every other setting', asy
   }, async () => {
     const store = new SettingsStore()
     const value = await store.get()
-    assert.equal(value.version, 3)
+    assert.equal(value.version, 4)
     // The old settings survived.
     assert.equal(value.lastRoot, 'D:\\Code\\keep-me')
     assert.equal(value.git.path, 'C:\\git\\bin\\git.exe')

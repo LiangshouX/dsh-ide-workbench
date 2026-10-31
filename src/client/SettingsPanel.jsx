@@ -47,6 +47,57 @@ function Row({ label, hint, children }) {
   )
 }
 
+/**
+ * Fill the `{placeholder}` slots of one text.
+ *
+ * The harness translate function does not interpolate, so the settings page
+ * completes the numbers of the memory line here.
+ * @param {string} text
+ * @param {Record<string, string|number>} values
+ * @returns {string}
+ */
+function interpolate(text, values) {
+  let out = typeof text === 'string' ? text : ''
+  for (const [name, value] of Object.entries(values)) {
+    out = out.replaceAll(`{${name}}`, String(value))
+  }
+  return out
+}
+
+/**
+ * A block of related fields with a caption.
+ *
+ * The settings rows are wide and airy; a block of numbers (the memory
+ * model, the timeouts) reads better as one dense grid with a caption than
+ * as four full-width rows that each carry a single number.
+ * @param {{title: string, children: any}} props the caption and the fields
+ */
+function SubGroup({ title, children }) {
+  return React.createElement('div', { className: 'iwb-settings-subgroup' },
+    React.createElement('div', { className: 'iwb-settings-subgroup-title' }, title),
+    React.createElement('div', { className: 'iwb-settings-fields' }, children),
+  )
+}
+
+/**
+ * One labelled control inside a field block.
+ *
+ * The label sits above the control, so a number always carries its own
+ * meaning - a bare input in a column of inputs says nothing. The long
+ * explanation lives in the tooltip: the field itself stays short.
+ * @param {{label: string, hint?: string, title?: string, children: any}} props
+ *   the label, the optional hint, the optional tooltip and the control
+ */
+function Field({ label, hint, title, children }) {
+  return React.createElement('div', { className: 'iwb-settings-field', title },
+    React.createElement('div', { className: 'iwb-settings-field-label' }, label),
+    hint !== undefined
+      ? React.createElement('div', { className: 'iwb-settings-field-hint' }, hint)
+      : null,
+    React.createElement('div', { className: 'iwb-settings-field-control' }, children),
+  )
+}
+
 export function SettingsForm({ store, state, compact, onStatusChange }) {
   const t = store.t
   const settings = state.settings ?? {}
@@ -54,6 +105,12 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
   const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : []
   /** Language servers that are switched off in the settings file. */
   const disabledServers = Array.isArray(state.lsp?.servers?.disabled) ? state.lsp.servers.disabled : []
+  /** The language servers the host found and that are not switched off. */
+  const availableServers = Array.isArray(state.lsp?.servers?.available) ? state.lsp.servers.available : []
+  /** The memory snapshot of the host, when it was fetched. */
+  const lspResources = state.lsp?.resources ?? null
+  /** How many language server processes run right now. */
+  const runningServers = ['starting', 'building', 'ready', 'restarting'].includes(state.lsp?.state) ? 1 : 0
   const [draft, setDraft] = useState(settings)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -65,6 +122,14 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
   /** Settings changed but not yet sent; merged so rapid edits never drop one. */
   const pendingPatch = useRef({})
   const alive = useRef(true)
+
+  // The registry and the memory snapshot are facts of the machine, not
+  // settings: they are read when the page opens and never written back.
+  useEffect(() => {
+    void store.loadLspServers?.()
+    void store.loadLspResources?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // The native settings page owns the scroll container around this section.
   // Remember where the user was before a debounced save and put it back after
@@ -380,14 +445,14 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
       ),
     ),
     React.createElement(Group, { title: t('settings.lspGroup'), description: t('settings.lspGroupHint') },
-      React.createElement('Row', { label: t('settings.lspEnabled'), hint: t('settings.lspEnabledHint') },
+      React.createElement(Row, { label: t('settings.lspEnabled'), hint: t('settings.lspEnabledHint') },
         React.createElement('input', {
           type: 'checkbox',
           checked: draft.lsp?.enabled !== false,
           onChange: event => update({ lsp: { enabled: event.target.checked } }),
         }),
       ),
-      React.createElement('Row', { label: t('settings.lspIndexOnOpen'), hint: t('settings.lspIndexOnOpenHint') },
+      React.createElement(Row, { label: t('settings.lspIndexOnOpen'), hint: t('settings.lspIndexOnOpenHint') },
         React.createElement('select', {
           className: 'iwb-select',
           value: draft.lsp?.indexOnOpen ?? 'ask',
@@ -398,42 +463,63 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
           React.createElement('option', { value: 'never' }, t('settings.lspIndexNever')),
         ),
       ),
-      React.createElement('Row', { label: t('settings.lspMemoryLimit'), hint: t('settings.lspMemoryLimitHint') },
-        React.createElement('input', {
-          type: 'number', min: 256, max: 32768, step: 256,
-          value: draft.lsp?.memoryLimitMB ?? 2048,
-          onChange: event => update({ lsp: { memoryLimitMB: Number(event.target.value) || 2048 } }),
-        }),
+      // The four memory numbers are one topic, so they are one block: each
+      // number keeps its own label, and the block takes a third of the
+      // height of four separate rows.
+      React.createElement(SubGroup, { title: t('settings.lspMemoryGroup') },
+        React.createElement(Field, { label: t('settings.lspMemoryLimit'), hint: t('settings.lspMemoryLimitShort'), title: t('settings.lspMemoryLimitHint') },
+          React.createElement('input', {
+            type: 'number', min: 256, max: 32768, step: 256,
+            value: draft.lsp?.memoryLimitMB ?? 2048,
+            onChange: event => update({ lsp: { memoryLimitMB: Number(event.target.value) || 2048 } }),
+          }),
+        ),
+        React.createElement(Field, { label: t('settings.lspFreeMemory'), hint: t('settings.lspFreeMemoryShort'), title: t('settings.lspFreeMemoryHint') },
+          React.createElement('input', {
+            type: 'number', min: 256, max: 32768, step: 256,
+            value: draft.lsp?.freeMemoryThresholdMB ?? 512,
+            onChange: event => update({ lsp: { freeMemoryThresholdMB: Number(event.target.value) || 512 } }),
+          }),
+        ),
+        React.createElement(Field, { label: t('settings.lspHeadroom'), hint: t('settings.lspHeadroomShort'), title: t('settings.lspHeadroomHint') },
+          React.createElement('input', {
+            type: 'number', min: 1, max: 8, step: 0.1,
+            value: draft.lsp?.memoryHeadroom ?? 1.5,
+            onChange: event => update({ lsp: { memoryHeadroom: Number(event.target.value) || 1.5 } }),
+          }),
+        ),
+        React.createElement(Field, { label: t('settings.lspHardFloor'), hint: t('settings.lspHardFloorShort'), title: t('settings.lspHardFloorHint') },
+          React.createElement('input', {
+            type: 'number', min: 64, max: 8192, step: 64,
+            value: draft.lsp?.memoryHardFloorMB ?? 256,
+            onChange: event => update({ lsp: { memoryHardFloorMB: Number(event.target.value) || 256 } }),
+          }),
+        ),
       ),
-      React.createElement('Row', { label: t('settings.lspFreeMemory'), hint: t('settings.lspFreeMemoryHint') },
-        React.createElement('input', {
-          type: 'number', min: 256, max: 32768, step: 256,
-          value: draft.lsp?.freeMemoryThresholdMB ?? 2048,
-          onChange: event => update({ lsp: { freeMemoryThresholdMB: Number(event.target.value) || 2048 } }),
-        }),
+      React.createElement(SubGroup, { title: t('settings.lspTimeoutGroup') },
+        React.createElement(Field, { label: t('settings.lspIdleTimeout'), hint: t('settings.lspIdleTimeoutShort'), title: t('settings.lspIdleTimeoutHint') },
+          React.createElement('input', {
+            type: 'number', min: 1, max: 240,
+            value: Math.round((draft.lsp?.idleTimeoutMs ?? 600000) / 60000),
+            onChange: event => update({ lsp: { idleTimeoutMs: (Number(event.target.value) || 10) * 60000 } }),
+          }),
+        ),
+        React.createElement(Field, { label: t('settings.lspRequestTimeout'), hint: t('settings.lspRequestTimeoutShort'), title: t('settings.lspRequestTimeoutHint') },
+          React.createElement('input', {
+            type: 'number', min: 30000, max: 600000, step: 1000,
+            value: draft.lsp?.requestTimeoutMs ?? 30000,
+            onChange: event => update({ lsp: { requestTimeoutMs: Math.max(30000, Number(event.target.value) || 30000) } }),
+          }),
+        ),
       ),
-      React.createElement('Row', { label: t('settings.lspIdleTimeout'), hint: t('settings.lspIdleTimeoutHint') },
-        React.createElement('input', {
-          type: 'number', min: 1, max: 240,
-          value: Math.round((draft.lsp?.idleTimeoutMs ?? 600000) / 60000),
-          onChange: event => update({ lsp: { idleTimeoutMs: (Number(event.target.value) || 10) * 60000 } }),
-        }),
-      ),
-      React.createElement('Row', { label: t('settings.lspRequestTimeout'), hint: t('settings.lspRequestTimeoutHint') },
-        React.createElement('input', {
-          type: 'number', min: 30000, max: 600000, step: 1000,
-          value: draft.lsp?.requestTimeoutMs ?? 30000,
-          onChange: event => update({ lsp: { requestTimeoutMs: Math.max(30000, Number(event.target.value) || 30000) } }),
-        }),
-      ),
-      React.createElement('Row', { label: t('settings.lspAutoExit') },
+      React.createElement(Row, { label: t('settings.lspAutoExit') },
         React.createElement('input', {
           type: 'checkbox',
           checked: draft.lsp?.autoExit !== false,
           onChange: event => update({ lsp: { autoExit: event.target.checked } }),
         }),
       ),
-      React.createElement('Row', { label: t('settings.lspAutoRestart') },
+      React.createElement(Row, { label: t('settings.lspAutoRestart') },
         React.createElement('input', {
           type: 'checkbox',
           checked: draft.lsp?.autoRestart !== false,
@@ -443,7 +529,7 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
       // The missing servers are a fact of the machine, not a setting: they are
       // listed so the user knows which language stays in the basic mode.
       missingServers.length > 0
-        ? React.createElement('Row', { label: t('settings.lspServersMissing'), hint: t('settings.lspServersMissingHint') },
+        ? React.createElement(Row, { label: t('settings.lspServersMissing'), hint: t('settings.lspServersMissingHint') },
             React.createElement('span', { className: 'iwb-settings-value' },
               missingServers.map(server => `${server.languageId} (${server.command})`).join(', '),
             ),
@@ -458,8 +544,69 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
             ),
           )
         : null,
-      React.createElement('div', { className: 'iwb-settings-hint', style: { gridColumn: '1 / -1' } }, t('settings.lspOfflineNote')),
+      React.createElement('div', { className: 'iwb-settings-hint' }, t('settings.lspOfflineNote')),
+      // The memory situation of the machine, as a fact the user can judge:
+      // "384 MB needed" is a number, "the machine is short on memory" is a
+      // decision. Without an open project there is no language to estimate,
+      // so only the free memory is shown.
+      lspResources !== null
+        ? React.createElement('div', { className: 'iwb-settings-hint' },
+            typeof lspResources.languageId === 'string' && lspResources.languageId !== ''
+              ? interpolate(t('settings.lspMemoryNow'), {
+                  free: Math.round((lspResources.freeBytes ?? 0) / (1024 * 1024)),
+                  need: Math.round(lspResources.needMB ?? 0),
+                  floor: Math.round(lspResources.hardFloorMB ?? 256),
+                  language: lspResources.languageId,
+                  state: lspResources.tight === true
+                    ? t('settings.lspMemoryState.tight')
+                    : (lspResources.canIndex === false ? t('settings.lspMemoryState.low') : t('settings.lspMemoryState.ok')),
+                })
+              : interpolate(t('settings.lspMemoryNowNoProject'), {
+                  free: Math.round((lspResources.freeBytes ?? 0) / (1024 * 1024)),
+                }),
+          )
+        : null,
     ),
+    // The language servers of the machine, one switch each (SET-02). The
+    // field `lsp.servers[languageId].enabled` existed but had no control.
+    availableServers.length > 0
+      ? React.createElement(Group, { title: t('settings.lspServersGroup'), description: t('settings.lspServersGroupHint') },
+          // One line per language, not one settings row per language: a
+          // dozen rows of "a switch and a command" is a wall of text.
+          React.createElement('div', { className: 'iwb-settings-languages' },
+            availableServers.map(server => {
+              const servers = draft.lsp?.servers ?? {}
+              const entry = servers[server.languageId] ?? {}
+              const enabled = entry.enabled !== false
+              return React.createElement('label', {
+                key: server.languageId,
+                className: 'iwb-settings-language',
+                title: server.resolvedPath ?? server.command,
+              },
+                React.createElement('input', {
+                  type: 'checkbox',
+                  checked: enabled,
+                  onChange: event => {
+                    const nextServers = {
+                      ...servers,
+                      [server.languageId]: { ...entry, enabled: event.target.checked },
+                    }
+                    update({ lsp: { servers: nextServers } })
+                  },
+                }),
+                React.createElement('span', { className: 'iwb-settings-language-name' }, server.languageId),
+                React.createElement('span', { className: 'iwb-settings-language-command' }, server.command),
+              )
+            }),
+          ),
+          // A language server that is running right now: the master switch
+          // ends it, and the user deserves to know that.
+          runningServers > 0
+            ? React.createElement('div', { className: 'iwb-settings-hint' },
+                interpolate(t('settings.lspServerRunning'), { count: runningServers }))
+            : null,
+        )
+      : null,
     React.createElement(Group, { title: t('settings.appearanceGroup') },
       React.createElement(Row, { label: t('settings.highlight') },
         React.createElement('input', {

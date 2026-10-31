@@ -13,6 +13,7 @@ import { TerminalPanel } from './TerminalPanel.jsx'
 import { EditorArea } from './EditorArea.jsx'
 import { SettingsForm } from './SettingsPanel.jsx'
 import { QuickOpen } from './QuickOpen.jsx'
+import { SearchPopup } from './SearchPopup.jsx'
 import { ContextMenu, ConfirmModal, Kbd, Toast } from './ui.jsx'
 import { baseName } from './util.js'
 import { STACK_WIDTH } from './layout.js'
@@ -62,6 +63,10 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
   const projectTitle = baseName(state.root)
   const showProject = state.root !== state.workspaceRoot && projectTitle !== ''
   const [menu, setMenu] = useState(null)
+  const [pushMenu, setPushMenu] = useState(null)
+  const ahead = typeof state.status.ahead === 'number' ? state.status.ahead : 0
+  const behind = typeof state.status.behind === 'number' ? state.status.behind : 0
+  const upstream = typeof state.status.upstream === 'string' ? state.status.upstream : ''
   return React.createElement('div', { className: 'iwb-topbar' },
     React.createElement('button', {
       type: 'button',
@@ -81,11 +86,29 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
           React.createElement(IconGit, { width: 12, height: 12 }),
           React.createElement('span', { className: 'iwb-branch-name' }, detached ? (state.status.oid ?? 'HEAD').slice(0, 7) : (branch ?? 'HEAD')),
           detached ? React.createElement('span', { className: 'iwb-behind' }, t('git.detached')) : null,
-          typeof state.status.ahead === 'number' && state.status.ahead > 0
-            ? React.createElement('span', { className: 'iwb-ahead' }, `↑${state.status.ahead}`)
+          // The "ahead" badge is a button: it is the only place that offers
+          // the push without a terminal (PUSH-02).
+          ahead > 0
+            ? React.createElement('button', {
+                type: 'button',
+                className: 'iwb-ahead iwb-ahead-btn',
+                title: interpolate(t('git.aheadTitle'), { upstream: upstream === '' ? t('common.branch') : upstream, count: ahead }),
+                onClick: event => {
+                  event.stopPropagation()
+                  setPushMenu({ x: event.clientX, y: event.clientY + 8 })
+                },
+              }, `↑${ahead}`)
             : null,
-          typeof state.status.behind === 'number' && state.status.behind > 0
-            ? React.createElement('span', { className: 'iwb-behind' }, `↓${state.status.behind}`)
+          behind > 0
+            ? React.createElement('button', {
+                type: 'button',
+                className: 'iwb-behind iwb-ahead-btn',
+                title: interpolate(t('git.behindTitle'), { count: behind }),
+                onClick: event => {
+                  event.stopPropagation()
+                  setPushMenu({ x: event.clientX, y: event.clientY + 8 })
+                },
+              }, `↓${behind}`)
             : null,
         )
       : null,
@@ -124,6 +147,19 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
             null,
             { key: 'project', text: t('project.selectProject'), action: () => store.openProjectPicker() },
             { key: 'open', text: t('project.openWorkspace'), action: () => store.openRootPicker() },
+          ],
+        })
+      : null,
+    pushMenu !== null
+      ? React.createElement(ContextMenu, {
+          x: pushMenu.x, y: pushMenu.y, onClose: () => setPushMenu(null),
+          items: [
+            { label: interpolate(t('git.aheadTitle'), { upstream: upstream === '' ? t('common.branch') : upstream, count: ahead }) },
+            { key: 'push', text: t('git.aheadPush'), disabled: ahead === 0, action: () => { void store.push() } },
+            { key: 'history', text: t('git.aheadHistory'), action: () => store.showTool('git') },
+            ...(behind > 0
+              ? [{ key: 'behind', text: interpolate(t('git.behindTitle'), { count: behind }), disabled: true }]
+              : []),
           ],
         })
       : null,
@@ -265,11 +301,26 @@ function BottomTabs({ store, state }) {
 }
 
 /**
+ * How many failed semantic requests make the session "unstable".
+ *
+ * The host owns the state machine, but it cannot see a request that timed
+ * out: only the client knows that the server stopped answering. Three
+ * failures (or two timeouts, which is the most typical silent failure) turn
+ * the status bar yellow instead of green.
+ */
+export const LSP_UNSTABLE_FAILURES = 3
+export const LSP_UNSTABLE_TIMEOUTS = 2
+
+/**
  * The semantic-analysis status of the workbench (PRD-v5 §4.3).
  *
  * The host owns the state machine; this only maps it to a label, a tone and
  * an optional action. The tone picks the colour class of the status item, and
  * the action says what a click on it does.
+ *
+ * Two sources are combined: the state the host reports and the health the
+ * client measured. A server that says "ready" while every semantic request
+ * fails is not ready - that mismatch is exactly what the user reported.
  *
  * The mapping is exported so the tests can assert the seven states without
  * mounting the whole workbench.
@@ -307,6 +358,10 @@ export function lspStatusView(store, state) {
       title: interpolate(t('lsp.serverMissing'), { language: missingOnly.languageId }),
     }
   }
+  // The health the client measured. It only matters while the server claims
+  // to be ready.
+  const failures = Number.isFinite(lsp.consecutiveFailures) ? lsp.consecutiveFailures : 0
+  const timeouts = Number.isFinite(lsp.consecutiveTimeouts) ? lsp.consecutiveTimeouts : 0
   switch (current) {
     case 'starting':
     case 'restarting':
@@ -329,18 +384,29 @@ export function lspStatusView(store, state) {
       // here - the `progress` value belongs to a build and the store clears it
       // when the build ends. Showing "updating" on a leftover value kept the
       // status bar at that text forever.
+      if (failures >= LSP_UNSTABLE_FAILURES || timeouts >= LSP_UNSTABLE_TIMEOUTS) {
+        // The server is up but the semantic requests do not answer. Saying
+        // "ready" here is what made the failure invisible.
+        const text = timeouts >= LSP_UNSTABLE_TIMEOUTS
+          ? interpolate(t('lsp.status.unstableTimeout'), { count: timeouts })
+          : interpolate(t('lsp.status.unstable'), { count: failures })
+        return { ...base, key: 'unstable', text, tone: 'warn', action: 'diagnostics' }
+      }
       return { ...base, key: 'ready', text: t('lsp.status.ready'), tone: 'ok' }
     case 'crashed':
       return { ...base, key: 'crashed', text: t('lsp.status.crashed'), tone: 'error', action: 'crash' }
     case 'cancelled':
-      return { ...base, key: 'cancelled', text: t('lsp.status.cancelled'), tone: 'idle' }
+      return { ...base, key: 'cancelled', text: t('lsp.status.cancelled'), tone: 'warn', action: 'diagnostics' }
     case 'degraded':
-      return { ...base, key: 'degraded', text: t('lsp.status.degraded'), tone: 'idle' }
+      // The conservative mode is not the normal state: it looks exactly like
+      // the grey dot of an idle workbench, so the user could not see that the
+      // semantic features were gone.
+      return { ...base, key: 'degraded', text: t('lsp.status.degraded'), tone: 'warn', action: 'diagnostics' }
     case 'failed':
-      return { ...base, key: 'failed', text: t('lsp.status.degraded'), tone: 'idle' }
+      return { ...base, key: 'failed', text: t('lsp.status.degraded'), tone: 'warn', action: 'diagnostics' }
     default:
       // No server runs: the workbench is in its conservative mode.
-      return { ...base, key: 'idle', text: t('lsp.status.degraded'), tone: 'idle' }
+      return { ...base, key: 'idle', text: t('lsp.status.degraded'), tone: 'warn', action: 'diagnostics' }
   }
 }
 
@@ -350,8 +416,12 @@ export function lspStatusView(store, state) {
  * The item is always visible: a missing capability has to be visible, not
  * hidden. The dot carries the state by its colour, and the label folds away
  * in a narrow pane (risk #25) — the stylesheet owns that part.
+ *
+ * The item is also the way back into the semantic features: a degraded or
+ * crashed session opens the diagnostics panel, and the panel can rebuild the
+ * index (MEM-03, MEM-04).
  */
-function LspStatus({ store, state, onOpenSettings }) {
+function LspStatus({ store, state, onOpenSettings, onOpenDiagnostics }) {
   const t = store.t
   const lsp = state.lsp ?? {}
   const view = lspStatusView(store, state)
@@ -360,12 +430,19 @@ function LspStatus({ store, state, onOpenSettings }) {
   const cancellable = lsp.cancellable === true
     || (startedAt > 0 && Date.now() - startedAt > cancelAfter)
   const showCancel = view.key === 'building' && cancellable
+  // The conservative mode has no way back on its own: the rebuild button is
+  // the difference between "the feature is gone" and "the feature is one
+  // click away". A project that never had a server keeps the clean status
+  // bar - its way in is the diagnostics panel.
+  const showRebuild = lsp.rebuilding !== true
+    && (view.key === 'degraded' || view.key === 'failed' || view.key === 'cancelled')
   const tone = view.tone === 'ok' ? ' iwb-lsp-status-ready'
     : (view.tone === 'warn' ? ' iwb-lsp-status-warn' : (view.tone === 'error' ? ' iwb-lsp-status-error' : ' iwb-lsp-status-muted'))
   const title = view.detail === '' ? view.title : `${view.title} — ${view.detail}`
   const onClick = view.action === 'settings'
     ? () => { onOpenSettings?.() }
-    : (view.action === 'crash' ? () => { store.toast('error', t('lsp.crashedToast'), view.detail) } : undefined)
+    : (view.action === 'crash' ? () => { store.toast('error', t('lsp.crashedToast'), view.detail) }
+      : (view.action === 'diagnostics' ? () => { onOpenDiagnostics?.() } : undefined))
   return React.createElement('span', {
     className: `iwb-status-item iwb-lsp-status${tone}`,
     title,
@@ -388,10 +465,24 @@ function LspStatus({ store, state, onOpenSettings }) {
           },
         }, t('lsp.cancelIndex'))
       : null,
+    showRebuild
+      ? React.createElement('button', {
+          type: 'button',
+          className: 'iwb-lsp-cancel',
+          title: t('lsp.rebuildIndex'),
+          onClick: event => {
+            event.stopPropagation()
+            void store.restartLsp()
+          },
+        }, t('lsp.rebuildIndex'))
+      : null,
+    lsp.rebuilding === true
+      ? React.createElement('span', { className: 'iwb-lsp-status-label' }, t('lsp.diagnostics.rebuilding'))
+      : null,
   )
 }
 
-function StatusBar({ store, state, onOpenSettings }) {
+function StatusBar({ store, state, onOpenSettings, onOpenDiagnostics }) {
   const t = store.t
   const summary = store.summary()
   const active = state.tabs.find(tab => tab.id === state.activeId)
@@ -423,7 +514,7 @@ function StatusBar({ store, state, onOpenSettings }) {
       : null,
     // The semantic-analysis state sits next to the other status items, before
     // the spacer: it must be visible even when the workbench is idle.
-    React.createElement(LspStatus, { store, state, onOpenSettings }),
+    React.createElement(LspStatus, { store, state, onOpenSettings, onOpenDiagnostics }),
     React.createElement('div', { className: 'iwb-spacer' }),
     cursor !== null
       ? React.createElement('span', { className: 'iwb-status-item' }, `${t('editor.line')} ${cursor.line}:${cursor.col}`)
@@ -554,11 +645,57 @@ function ProjectPicker({ store, state }) {
 }
 
 /**
+ * How long the first build of a language server takes, as a coarse estimate.
+ *
+ * The real time depends on the size of the project, so the estimate is only
+ * used to set the expectation: "about 1-2 minutes" is honest, "exactly 87
+ * seconds" is a lie.
+ * @param {number} baselineMB the estimated memory need of the server
+ * @returns {string} an i18n key
+ */
+function buildTimeKey(baselineMB) {
+  if (baselineMB <= 96) return 'index.decision.time.under1'
+  if (baselineMB <= 320) return 'index.decision.time.1to2'
+  if (baselineMB <= 768) return 'index.decision.time.2to5'
+  return 'index.decision.time.5to10'
+}
+
+/**
+ * The display name of a language id.
+ *
+ * The host speaks language ids (`typescript`), the user reads names
+ * (`TypeScript`).
+ * @param {string} languageId the language id
+ * @returns {string} the name, or the id itself when it is unknown
+ */
+export function languageLabel(languageId) {
+  const id = typeof languageId === 'string' ? languageId : ''
+  const names = {
+    typescript: 'TypeScript',
+    typescriptreact: 'TypeScript React',
+    javascript: 'JavaScript',
+    javascriptreact: 'JavaScript React',
+    python: 'Python',
+    yaml: 'YAML',
+    java: 'Java',
+    go: 'Go',
+    rust: 'Rust',
+    c: 'C',
+    cpp: 'C++',
+  }
+  return names[id] ?? id
+}
+
+/**
  * The index decision dialog (PRD-v5 §2.3).
  *
  * It is the only modal of the semantic-analysis flow: it appears before the
  * language server starts, never while a build runs (PRD-v5 §7.2). `Esc` and a
  * click on the backdrop are "cancel" — the project stays as it is.
+ *
+ * The wording does not promise an index *file*: "building an index" means
+ * starting the language server and waiting for its first program build, and
+ * the dialog says so (THEME-04).
  */
 function IndexDecisionModal({ store, state }) {
   const t = store.t
@@ -578,7 +715,18 @@ function IndexDecisionModal({ store, state }) {
   const name = typeof decision.name === 'string' ? decision.name : ''
   const isRoot = decision.isRoot === true
   const isRepo = decision.isRepo === true
+  const language = typeof decision.language === 'string' ? languageLabel(decision.language) : ''
+  // The estimate comes from the memory model of the host (MEM-01). The
+  // language is not always known: a project without a marker file has none.
+  const needMB = Number.isFinite(decision.needMB) ? decision.needMB : 0
+  const time = interpolate(t(buildTimeKey(needMB)), {})
   const title = interpolate(t('index.decision.title'), { name })
+  // One sentence: what starts, and how long it takes. The memory is in the
+  // settings page and in the memory warning - repeating it here only made
+  // the dialog talk about the same thing twice.
+  const body = language === ''
+    ? interpolate(t('index.decision.bodyUnknown'), { time })
+    : interpolate(t('index.decision.body'), { language, time })
   return React.createElement('div', {
     className: 'iwb-modal-backdrop',
     onMouseDown: event => { if (event.target === event.currentTarget) store.resolveIndexDecision('cancel') },
@@ -586,8 +734,14 @@ function IndexDecisionModal({ store, state }) {
     React.createElement('div', {
       className: 'iwb-modal iwb-index-decision', role: 'dialog', 'aria-modal': 'true', 'aria-label': title,
     },
-      React.createElement('h2', null, title),
-      React.createElement('p', null, t('index.decision.body')),
+      React.createElement('div', { className: 'iwb-modal-head' },
+        React.createElement('h2', null, title),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-iconbtn', title: t('common.close'), 'aria-label': t('common.close'),
+          onClick: () => store.resolveIndexDecision('cancel'),
+        }, React.createElement('span', { style: { fontSize: 17, lineHeight: 1 } }, '×')),
+      ),
+      React.createElement('p', { className: 'iwb-modal-hint' }, body),
       // The workspace root carries the extra warning: it usually holds
       // several independent repositories, and one program over all of them
       // costs a lot of memory and build time.
@@ -598,6 +752,9 @@ function IndexDecisionModal({ store, state }) {
           )
         : null,
       React.createElement('div', { className: 'iwb-modal-actions' },
+        // In the workspace root there is no recommended option: all three
+        // buttons have the same weight. A "not recommended" option must not
+        // be the primary button (THEME-04).
         isRoot
           ? React.createElement('button', {
               type: 'button', className: 'iwb-textbtn',
@@ -609,14 +766,168 @@ function IndexDecisionModal({ store, state }) {
             }, t('index.decision.build')),
         React.createElement('button', {
           type: 'button', className: 'iwb-textbtn',
+          title: t('index.decision.conservativeHint'),
           onClick: () => store.resolveIndexDecision('conservative'),
         }, t('index.decision.conservative')),
-        isRoot
-          ? React.createElement('button', {
-              type: 'button', className: 'iwb-textbtn',
-              onClick: () => store.resolveIndexDecision('cancel'),
-            }, t('index.decision.cancel'))
-          : null,
+        // "Cancel the switch" is the third way out. Without it the user had
+        // no choice but to switch the project.
+        React.createElement('button', {
+          type: 'button', className: 'iwb-textbtn',
+          title: t('index.decision.cancelHint'),
+          onClick: () => store.resolveIndexDecision('cancel'),
+        }, t('index.decision.cancel')),
+      ),
+    ),
+  )
+}
+
+/**
+ * The memory warning (MEM-02).
+ *
+ * The host refuses to start a language server on a tight memory budget
+ * unless the start is forced. This dialog is the place where the user
+ * decides: the machine is short on memory, and the language server is the
+ * thing that needs it.
+ */
+function MemoryDecisionModal({ store, state }) {
+  const t = store.t
+  const decision = state.memoryDecision
+  useEffect(() => {
+    if (decision === null || decision === undefined) return undefined
+    const onKey = (event) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      store.resolveMemoryDecision('conservative')
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [decision, store])
+  if (decision === null || decision === undefined) return null
+  const language = typeof decision.language === 'string' ? languageLabel(decision.language) : ''
+  // Two numbers and a question - the warning has to be short, it is read
+  // at the moment the project is switched.
+  const body = language === ''
+    ? interpolate(t('lsp.memoryWarn.bodyUnknown'), {
+        free: decision.freeMB ?? 0,
+        need: decision.needMB ?? 0,
+      })
+    : interpolate(t('lsp.memoryWarn.body'), {
+        free: decision.freeMB ?? 0,
+        need: decision.needMB ?? 0,
+        language,
+      })
+  return React.createElement('div', {
+    className: 'iwb-modal-backdrop',
+    onMouseDown: event => { if (event.target === event.currentTarget) store.resolveMemoryDecision('conservative') },
+  },
+    React.createElement('div', {
+      className: 'iwb-modal iwb-index-decision', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('lsp.memoryWarn.title'),
+    },
+      React.createElement('div', { className: 'iwb-modal-head' },
+        React.createElement('h2', null, t('lsp.memoryWarn.title')),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-iconbtn', title: t('common.close'), 'aria-label': t('common.close'),
+          onClick: () => store.resolveMemoryDecision('conservative'),
+        }, React.createElement('span', { style: { fontSize: 17, lineHeight: 1 } }, '×')),
+      ),
+      React.createElement('p', { className: 'iwb-modal-hint' }, body),
+      React.createElement('div', { className: 'iwb-modal-actions' },
+        React.createElement('button', {
+          type: 'button', className: 'iwb-textbtn iwb-primary',
+          onClick: () => store.resolveMemoryDecision('start'),
+        }, t('lsp.memoryWarn.start')),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-textbtn',
+          title: t('lsp.memoryWarn.conservativeHint'),
+          onClick: () => store.resolveMemoryDecision('conservative'),
+        }, t('lsp.memoryWarn.conservative')),
+      ),
+    ),
+  )
+}
+
+/**
+ * The diagnostics panel of the semantic analysis (MEM-03).
+ *
+ * It answers the question the status bar cannot: what does the server say,
+ * what failed last, how much memory is left, and what can be done about it.
+ */
+function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
+  const t = store.t
+  const lsp = state.lsp ?? {}
+  const resources = lsp.resources ?? null
+  const failures = Number.isFinite(lsp.consecutiveFailures) ? lsp.consecutiveFailures : 0
+  const timeouts = Number.isFinite(lsp.consecutiveTimeouts) ? lsp.consecutiveTimeouts : 0
+  const lastFailure = lsp.lastFailure ?? null
+  const view = lspStatusView(store, state)
+  const freeMB = resources === null ? null : Math.round((resources.freeBytes ?? 0) / (1024 * 1024))
+  const needMB = resources === null ? null : Math.round(resources.needMB ?? 0)
+  return React.createElement('div', {
+    className: 'iwb-modal-backdrop',
+    onMouseDown: event => { if (event.target === event.currentTarget) onClose() },
+  },
+    React.createElement('div', {
+      className: 'iwb-modal iwb-lsp-diagnostics', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('lsp.diagnostics.title'),
+    },
+      React.createElement('div', { className: 'iwb-modal-head' },
+        React.createElement('h2', null, t('lsp.diagnostics.title')),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-iconbtn', title: t('common.close'), 'aria-label': t('common.close'),
+          onClick: onClose,
+        }, React.createElement('span', { style: { fontSize: 17, lineHeight: 1 } }, '×')),
+      ),
+      React.createElement('div', { className: 'iwb-lsp-diagnostics-body' },
+        React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.state')),
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-value' }, view.text),
+        ),
+        React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.health')),
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-value' },
+            failures === 0 && timeouts === 0
+              ? t('lsp.diagnostics.healthy')
+              : `${failures} / ${timeouts}`,
+          ),
+        ),        React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.lastFailure')),
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-value' },
+            lastFailure === null
+              ? t('lsp.diagnostics.noFailure')
+              : `${lastFailure.message ?? ''} (${new Date(lastFailure.at ?? 0).toLocaleTimeString()})`,
+          ),
+        ),
+        React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.memory')),
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-value' },
+            freeMB === null ? '—' : `${freeMB} MB / ${needMB} MB`,
+          ),
+        ),
+        React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.stderr')),
+          React.createElement('pre', { className: 'iwb-lsp-diagnostics-logs' },
+            (lsp.stderrLines ?? []).length === 0
+              ? t('lsp.diagnostics.noLogs')
+              : (lsp.stderrLines ?? []).slice(-20).join('\n'),
+          ),
+        ),
+      ),
+      React.createElement('div', { className: 'iwb-modal-actions' },
+        React.createElement('button', {
+          type: 'button', className: 'iwb-textbtn iwb-primary',
+          disabled: lsp.rebuilding === true,
+          onClick: () => { void store.restartLsp() },
+        }, t('lsp.diagnostics.rebuild')),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-textbtn',
+          title: t('lsp.diagnostics.degradeHint'),
+          onClick: () => { void store.degradeLsp() },
+        }, t('lsp.diagnostics.degrade')),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-textbtn',
+          title: t('lsp.diagnostics.settingsHint'),
+          onClick: () => { onClose(); onOpenSettings?.() },
+        }, t('lsp.diagnostics.settings')),
       ),
     ),
   )
@@ -654,6 +965,7 @@ function SettingsModal({ store, state, onClose }) {
 export function Workbench({ store, visible = true, fullscreen = false }) {
   const state = useWorkbench(store)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const leftRef = useRef(null)
   const rootRef = useRef(null)
 
@@ -761,7 +1073,11 @@ export function Workbench({ store, visible = true, fullscreen = false }) {
     // The Terminal/Git dock spans the whole workbench width: it is a sibling
     // of the body, so the left dock shrinks above it instead of squeezing it.
     bottomNode,
-    React.createElement(StatusBar, { store, state, onOpenSettings: () => setSettingsOpen(true) }),
+    React.createElement(StatusBar, {
+      store, state,
+      onOpenSettings: () => setSettingsOpen(true),
+      onOpenDiagnostics: () => { setDiagnosticsOpen(true); void store.loadLspResources() },
+    }),
     state.phase === 'booting'
       ? React.createElement('div', { className: 'iwb-empty', style: { position: 'absolute', inset: 0, background: 'var(--iwb-bg)' } }, store.t('common.loading'))
       : null,
@@ -778,12 +1094,32 @@ export function Workbench({ store, visible = true, fullscreen = false }) {
       : null,
     React.createElement(ConfirmModal, { dialog: state.confirm, onClose: () => store.dismissConfirm() }),
     React.createElement(QuickOpen, { store, state }),
+    // The Find in Files popup floats above the editor: a search must not
+    // take a tab away from the code (FIND-01). The key remounts it on every
+    // open, so it starts with the query of the store and not with the one of
+    // the last session.
+    React.createElement(SearchPopup, {
+      key: `search-popup-${state.searchPopup?.generation ?? 0}`,
+      store,
+      state,
+    }),
     React.createElement(Toast, { toast: state.toast }),
     React.createElement(RootPicker, { store, state }),
     React.createElement(ProjectPicker, { store, state }),
     // The index decision is drawn above the project picker: it is the answer
     // to the choice the user just made in it.
     React.createElement(IndexDecisionModal, { store, state }),
+    // The memory warning answers the index decision, so it is drawn above it.
+    React.createElement(MemoryDecisionModal, { store, state }),
+    // The diagnostics panel answers the status bar, so it is drawn above the
+    // other dialogs too.
+    diagnosticsOpen
+      ? React.createElement(LspDiagnosticsModal, {
+          store, state,
+          onOpenSettings: () => setSettingsOpen(true),
+          onClose: () => setDiagnosticsOpen(false),
+        })
+      : null,
     settingsOpen ? React.createElement(SettingsModal, { store, state, onClose: () => setSettingsOpen(false) }) : null,
   )
 }

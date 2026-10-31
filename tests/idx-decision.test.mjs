@@ -389,30 +389,34 @@ function decisionHtml(mod, decision) {
   return renderToStaticMarkup(React.createElement(mod.Workbench, { store }))
 }
 
-/** The buttons of the decision dialog. */
+/** The action buttons of the decision dialog (the close control is not one). */
 function decisionButtons(html) {
   const start = html.indexOf('iwb-index-decision')
   assert.notEqual(start, -1, 'the decision dialog is not rendered')
   const modal = html.slice(start)
-  return modal.match(/<button[^>]*>/g) ?? []
+  return (modal.match(/<button[^>]*>/g) ?? []).filter(button => button.includes('iwb-textbtn'))
 }
 
-test('the dialog of an unindexed sub-directory offers build and basic mode', async () => {
+test('the dialog of an unindexed sub-directory offers build, basic mode and cancel', async () => {
   const mod = await loadModule()
   const html = decisionHtml(mod, { path: CHILD, name: 'api', isRoot: false, isRepo: true })
   assert.match(html, /index\.decision\.title/)
   assert.match(html, /index\.decision\.body/)
   assert.match(html, /index\.decision\.build/)
   assert.match(html, /index\.decision\.conservative/)
-  // A sub-directory needs no root warning and no cancel button.
+  // A sub-directory needs no root warning and no "index here" variant.
   assert.doesNotMatch(html, /index\.decision\.rootWarning/)
   assert.doesNotMatch(html, /index\.decision\.rootRepo/)
   assert.doesNotMatch(html, /index\.decision\.buildRoot/)
-  assert.doesNotMatch(html, /index\.decision\.cancel/)
-  // Both buttons are usable.
+  // "Cancel the switch" is the third way out: without it the user had to
+  // switch the project even when they only wanted to abort (PRD §0.4 #7).
+  assert.match(html, /index\.decision\.cancel/)
+  // All three buttons are usable.
   const buttons = decisionButtons(html)
-  assert.equal(buttons.length, 2)
+  assert.equal(buttons.length, 3)
   for (const button of buttons) assert.ok(!button.includes('disabled'))
+  // "Enable" is the only primary button.
+  assert.equal(buttons.filter(button => button.includes('iwb-primary')).length, 1)
 })
 
 test('the dialog of a workspace root that is not a repository carries the full warning', async () => {
@@ -429,6 +433,9 @@ test('the dialog of a workspace root that is not a repository carries the full w
   const buttons = decisionButtons(html)
   assert.equal(buttons.length, 3)
   for (const button of buttons) assert.ok(!button.includes('disabled'))
+  // In the workspace root there is no recommended option, so no button is
+  // the primary one (PRD §0.4 #7).
+  assert.equal(buttons.filter(button => button.includes('iwb-primary')).length, 0)
 })
 
 test('the dialog of a workspace root that is a repository uses the milder warning', async () => {
@@ -498,9 +505,11 @@ test('the status bar names the seven semantic-analysis states', async () => {
     [{ enabled: true, state: 'starting' }, 'lsp.status.starting', 'idle'],
     [{ enabled: true, state: 'building' }, 'lsp.status.building', 'warn'],
     [{ enabled: true, state: 'ready' }, 'lsp.status.ready', 'ok'],
-    [{ enabled: true, state: 'degraded' }, 'lsp.status.degraded', 'idle'],
+    // The conservative mode is not the normal state: it looks exactly like
+    // an idle workbench otherwise (MEM-03).
+    [{ enabled: true, state: 'degraded' }, 'lsp.status.degraded', 'warn'],
     [{ enabled: true, state: 'crashed' }, 'lsp.status.crashed', 'error'],
-    [{ enabled: true, state: 'cancelled' }, 'lsp.status.cancelled', 'idle'],
+    [{ enabled: true, state: 'cancelled' }, 'lsp.status.cancelled', 'warn'],
   ]
   for (const [lsp, text, tone] of cases) {
     const result = view(lsp)

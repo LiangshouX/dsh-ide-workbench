@@ -45,6 +45,11 @@ import { ApiError } from './wire.js'
  * resolves to exactly one language server command. `memoryLimitMB` is the
  * ceiling the server is asked to respect and can be overridden per language
  * through `settings.lsp.servers[languageId].memoryLimitMB`.
+ *
+ * `memoryBaselineMB` is the typical footprint of the server, not its worst
+ * case: it is the estimate the free memory is compared with, so a YAML
+ * project does not need the gigabytes a TypeScript project needs (PRD §2.2).
+ * It can be overridden the same way the memory limit is.
  */
 export const LSP_REGISTRY = {
   typescript: {
@@ -52,30 +57,35 @@ export const LSP_REGISTRY = {
     args: ['--stdio'],
     languageIds: ['typescript', 'javascript', 'javascriptreact', 'typescriptreact'],
     memoryLimitMB: 2048,
+    memoryBaselineMB: 256,
   },
   javascript: {
     command: 'typescript-language-server',
     args: ['--stdio'],
     languageIds: ['typescript', 'javascript', 'javascriptreact', 'typescriptreact'],
     memoryLimitMB: 2048,
+    memoryBaselineMB: 256,
   },
   python: {
     command: 'basedpyright-langserver',
     args: ['--stdio'],
     languageIds: ['python'],
     memoryLimitMB: 1536,
+    memoryBaselineMB: 192,
   },
   yaml: {
     command: 'yaml-language-server',
     args: ['--stdio'],
     languageIds: ['yaml'],
     memoryLimitMB: 512,
+    memoryBaselineMB: 64,
   },
   java: {
     command: 'jdtls',
     args: [],
     languageIds: ['java'],
     memoryLimitMB: 2048,
+    memoryBaselineMB: 512,
     requires: 'JDK 21+',
   },
   go: {
@@ -83,6 +93,7 @@ export const LSP_REGISTRY = {
     args: [],
     languageIds: ['go'],
     memoryLimitMB: 1536,
+    memoryBaselineMB: 256,
     requires: 'Go toolchain',
   },
   rust: {
@@ -90,6 +101,7 @@ export const LSP_REGISTRY = {
     args: [],
     languageIds: ['rust'],
     memoryLimitMB: 2048,
+    memoryBaselineMB: 512,
     requires: 'rustup component',
   },
   cpp: {
@@ -97,16 +109,56 @@ export const LSP_REGISTRY = {
     args: [],
     languageIds: ['c', 'cpp'],
     memoryLimitMB: 2048,
+    memoryBaselineMB: 384,
     requires: 'LLVM',
   },
 }
+
+/**
+ * The estimate of a language server that has no baseline of its own.
+ *
+ * The number is deliberately modest: it is only used when the language is
+ * unknown, so it must neither block a start nor hide a real shortage.
+ */
+export const DEFAULT_BASELINE_MB = 256
+
+/**
+ * The factor between the estimate of a language server and the free memory
+ * a start needs (PRD §2.2, decision #2).
+ */
+export const MEMORY_HEADROOM = 1.5
+
+/**
+ * The factor at which the free memory turns from "enough" into "tight".
+ *
+ * Below twice the estimate the user decides whether the server starts
+ * (PRD §2.3), so the host refuses to start it on its own.
+ */
+export const MEMORY_SOFT_FACTOR = 2.0
+
+/**
+ * The free memory below which no language server starts at all (MB).
+ *
+ * Below this value the process cannot run whatever it is: the machine is
+ * out of memory, and a server would only make it worse.
+ */
+export const MEMORY_HARD_FLOOR_MB = 256
 
 /** The defaults of the `lsp` settings section (PRD §6.1). */
 export const DEFAULT_LSP_SETTINGS = {
   enabled: true,
   indexOnOpen: 'ask',
   memoryLimitMB: 2048,
-  freeMemoryThresholdMB: 2048,
+  /**
+   * The conservative fallback floor: the free memory that is required when
+   * no estimate of the language is known (PRD §4.4). Once a language has a
+   * baseline, this value is not a gate any more.
+   */
+  freeMemoryThresholdMB: 512,
+  /** The factor between the estimate of a server and the free memory it needs. */
+  memoryHeadroom: MEMORY_HEADROOM,
+  /** The free memory below which no language server starts at all (MB). */
+  memoryHardFloorMB: MEMORY_HARD_FLOOR_MB,
   idleTimeoutMs: 600_000,
   requestTimeoutMs: 30_000,
   cancelAfterMs: 60_000,
@@ -114,6 +166,9 @@ export const DEFAULT_LSP_SETTINGS = {
   autoRestart: true,
   servers: {},
   indexedRoots: {},
+  /** Project roots the user has already been warned about on a tight memory
+   * budget: { [absPath]: true }. */
+  memoryWarnedRoots: {},
 }
 
 /**
@@ -315,6 +370,37 @@ export function lspSection(settings) {
     ...section,
     servers: isPlainObject(section.servers) ? section.servers : {},
     indexedRoots: isPlainObject(section.indexedRoots) ? section.indexedRoots : {},
+    memoryWarnedRoots: isPlainObject(section.memoryWarnedRoots) ? section.memoryWarnedRoots : {},
+  }
+}
+
+/**
+ * The memory estimate of one language server (PRD §2.2).
+ *
+ * The baseline is the typical footprint of the server, not its worst case:
+ * a project that needs more raises the memory limit itself. The settings
+ * may override the baseline per language, exactly like the memory limit.
+ * @param {string | null} languageId the language of the server
+ * @param {object} lsp the `lsp` section of the settings
+ * @returns {{ baselineMB: number, estimated: boolean }} the baseline and
+ *   whether it comes from the registry or the settings
+ */
+function memoryEstimateOf(languageId, lsp) {
+  const servers = isPlainObject(lsp?.servers) ? lsp.servers : {}
+  const override = isPlainObject(servers[languageId]) ? servers[languageId] : {}
+  const registryEntry = typeof languageId === 'string' ? LSP_REGISTRY[languageId] : undefined
+  // `baselineMB` is accepted as an alias of `memoryBaselineMB`: both names
+  // are in the wild, and a settings document must not be rejected because of
+  // the one it happens to use.
+  const overridden = Number.isFinite(override.memoryBaselineMB)
+    ? override.memoryBaselineMB
+    : (Number.isFinite(override.baselineMB) ? override.baselineMB : null)
+  const registered = Number.isFinite(registryEntry?.memoryBaselineMB) ? registryEntry.memoryBaselineMB : null
+  return {
+    baselineMB: overridden ?? registered ?? DEFAULT_BASELINE_MB,
+    // Without a baseline of its own the estimate is a guess, and the
+    // conservative floor of the settings takes over.
+    estimated: overridden !== null || registered !== null,
   }
 }
 
@@ -596,15 +682,18 @@ export class LspManager {
    *
    * The call is idempotent: a server that is already running is not spawned
    * a second time, the current state is returned instead.
-   * @param {{ root: string, languageId?: string }} payload
-   * @returns {Promise<{ state: string, detail: string | null }>}
+   *
+   * `force` skips the memory pre-check: the user was asked how tight the
+   * memory is and asked for the server anyway (PRD §2.3).
+   * @param {{ root: string, languageId?: string, force?: boolean }} payload
+   * @returns {Promise<{ state: string, detail: string | null, resources: object | null }>}
    */
-  async start({ root, languageId } = {}) {
+  async start({ root, languageId, force } = {}) {
     const target = this.#requireRoot(root)
     const entry = this.#entry(target)
     const wanted = typeof languageId === 'string' && languageId !== '' ? languageId : null
-    const session = await this.#ensureSession(entry, wanted)
-    return { state: session.state, detail: session.detail ?? null }
+    const session = await this.#ensureSession(entry, wanted, force === true)
+    return { state: session.state, detail: session.detail ?? null, resources: session.resources ?? null }
   }
 
   /**
@@ -715,12 +804,14 @@ export class LspManager {
       const memoryLimitMB = Number.isFinite(override.memoryLimitMB)
         ? override.memoryLimitMB
         : registryEntry.memoryLimitMB
+      const { baselineMB } = memoryEstimateOf(languageId, lsp)
       available.push({
         languageId,
         command,
         source: resolution.source,
         resolvedPath: resolution.path,
         memoryLimitMB,
+        memoryBaselineMB: baselineMB,
         memoryLimitSupported: resolution.supportsMemoryLimit,
       })
     }
@@ -729,16 +820,29 @@ export class LspManager {
 
   /**
    * The memory situation of the machine.
+   *
+   * The estimate is the one of the language the root would be started with,
+   * so the numbers the settings page shows are the numbers the start will
+   * use (PRD §2.2). A running server knows its language; a root that was
+   * never started is detected the same way the start path detects it.
    * @param {{ root?: string }} [payload]
-   * @returns {Promise<{ totalBytes: number, freeBytes: number, thresholdBytes: number, memoryLimitMB: number, canIndex: boolean }>}
+   * @returns {Promise<object>} the memory snapshot
    */
   async resources({ root } = {}) {
     const settings = await this.#settings()
     const lsp = lspSection(settings)
     const entry = this.#resolveEntry(root)
     const session = entry?.session ?? null
+    // A root that was never started has no session, but it still has a
+    // language: the same detection the start path uses.
+    const target = typeof root === 'string' && root.trim() !== ''
+      ? resolvePath(root)
+      : (entry?.root ?? null)
+    const languageId = session?.languageId ?? (target === null ? null : detectLanguage(target))
+    // The ceiling stays the one of the settings: the estimate never asks for
+    // more than the server may use.
     const memoryLimitMB = session?.memoryLimitMB ?? lsp.memoryLimitMB
-    return this.#resourcesSnapshot(memoryLimitMB, lsp.freeMemoryThresholdMB)
+    return this.#resourcesSnapshot(memoryLimitMB, languageId, lsp)
   }
 
   /**
@@ -1039,21 +1143,63 @@ export class LspManager {
   }
 
   /**
-   * The memory situation for one ceiling.
+   * The memory situation of one language server (PRD §2.2, §2.3).
+   *
+   * The decision is graded: the free memory is compared with the estimate of
+   * the language instead of one global number, so a YAML project does not
+   * need the gigabytes a TypeScript project needs. The three bands are
+   *
+   *   free >= needMB * 2   enough   - the server starts
+   *   free >= hardFloorMB  tight    - the user decides; the host refuses to
+   *                                    start the server without `force`
+   *   otherwise            too low  - the server degrades
+   *
+   * The free-memory threshold of the settings is only the conservative
+   * fallback: it speaks when no estimate of the language is known, and it
+   * never blocks a language that has one (PRD §4.4).
    * @param {number} memoryLimitMB the ceiling of the language server
-   * @param {number} freeMemoryThresholdMB the configured free-memory threshold
-   * @returns {{ totalBytes: number, freeBytes: number, thresholdBytes: number, memoryLimitMB: number, canIndex: boolean }}
+   * @param {string | null} languageId the language the estimate is based on
+   * @param {object} lsp the `lsp` section of the settings
+   * @returns {{ totalBytes: number, freeBytes: number, thresholdBytes: number, memoryLimitMB: number, canIndex: boolean, needMB: number, baselineMB: number, headroom: number, hardFloorMB: number, tight: boolean, belowHardFloor: boolean, languageId: string | null, softThresholdBytes: number }}
    */
-  #resourcesSnapshot(memoryLimitMB, freeMemoryThresholdMB) {
+  #resourcesSnapshot(memoryLimitMB, languageId, lsp) {
     const memory = this.#readMemory()
-    const needBytes = Math.max(0, memoryLimitMB) * 1024 * 1024
-    const thresholdBytes = Math.max(needBytes, Math.max(0, freeMemoryThresholdMB) * 1024 * 1024)
+    const section = isPlainObject(lsp) ? lsp : DEFAULT_LSP_SETTINGS
+    const headroom = Number.isFinite(section.memoryHeadroom) && section.memoryHeadroom > 0
+      ? section.memoryHeadroom
+      : MEMORY_HEADROOM
+    const hardFloorMB = Number.isFinite(section.memoryHardFloorMB) && section.memoryHardFloorMB >= 0
+      ? section.memoryHardFloorMB
+      : MEMORY_HARD_FLOOR_MB
+    const { baselineMB, estimated } = memoryEstimateOf(languageId, section)
+    const limit = Number.isFinite(memoryLimitMB) && memoryLimitMB > 0 ? memoryLimitMB : 0
+    // The estimate never asks for more than the ceiling allows: a server that
+    // may only use 512 MB cannot need 768 MB of free memory.
+    const needMB = Math.min(baselineMB, limit) * headroom
+    const fallbackMB = Number.isFinite(section.freeMemoryThresholdMB) && section.freeMemoryThresholdMB >= 0
+      ? section.freeMemoryThresholdMB
+      : DEFAULT_LSP_SETTINGS.freeMemoryThresholdMB
+    const floorMB = estimated ? needMB : Math.max(needMB, fallbackMB)
+    const thresholdBytes = Math.max(hardFloorMB, floorMB) * 1024 * 1024
+    const softThresholdBytes = needMB * MEMORY_SOFT_FACTOR * 1024 * 1024
+    const hardFloorBytes = hardFloorMB * 1024 * 1024
+    const freeBytes = memory.freeBytes
     return {
       totalBytes: memory.totalBytes,
-      freeBytes: memory.freeBytes,
+      freeBytes,
       thresholdBytes,
-      memoryLimitMB,
-      canIndex: memory.freeBytes >= thresholdBytes,
+      memoryLimitMB: limit,
+      canIndex: freeBytes >= thresholdBytes,
+      needMB,
+      baselineMB,
+      headroom,
+      hardFloorMB,
+      // "Tight" is the whole window between the hard floor and the soft
+      // factor: the user decides there, the host does not start on its own.
+      tight: freeBytes >= hardFloorBytes && freeBytes < softThresholdBytes,
+      belowHardFloor: freeBytes < hardFloorBytes,
+      languageId: typeof languageId === 'string' ? languageId : null,
+      softThresholdBytes,
     }
   }
 
@@ -1061,23 +1207,25 @@ export class LspManager {
    * Make sure one root has a running language server.
    * @param {object} entry the root entry
    * @param {string | null} languageId the wanted language, or null to detect it
+   * @param {boolean} [force] true skips the memory pre-check
    * @returns {Promise<object>} the session
    */
-  async #ensureSession(entry, languageId) {
+  async #ensureSession(entry, languageId, force = false) {
     const session = entry.session
     if (session !== null && ['starting', 'building', 'ready', 'restarting'].includes(session.state)) {
       return session
     }
-    return this.#startSession(entry, languageId)
+    return this.#startSession(entry, languageId, force)
   }
 
   /**
    * Start a language server for one root.
    * @param {object} entry the root entry
    * @param {string | null} languageId the wanted language, or null to detect it
+   * @param {boolean} [force] true skips the memory pre-check
    * @returns {Promise<object>} the session
    */
-  async #startSession(entry, languageId) {
+  async #startSession(entry, languageId, force = false) {
     // A session that is replaced must not leave its timers behind: the new
     // session gets its own idle timer and watchdog, and the old ones would
     // keep the host awake for nothing.
@@ -1113,6 +1261,21 @@ export class LspManager {
       args,
       memoryLimitMB,
       lsp,
+      /**
+       * The user asked for the server although the memory was tight.
+       *
+       * The decision belongs to the user, so it survives a restart: the
+       * server that was forced once is not stopped by the memory check of
+       * the next crash.
+       */
+      force: force === true,
+      /**
+       * The memory snapshot of the last pre-check.
+       *
+       * The client reads it to tell "not enough memory" from "the memory is
+       * tight", and the two need different answers from the user.
+       */
+      resources: null,
       resolution: null,
       source: null,
       resolvedPath: null,
@@ -1171,11 +1334,22 @@ export class LspManager {
     }
 
     // The memory pre-check runs before every start, not only when the
-    // settings are validated (PRD §2.2).
-    const resources = this.#resourcesSnapshot(memoryLimitMB, lsp.freeMemoryThresholdMB)
-    if (!resources.canIndex) {
-      this.#transition(session, 'degraded', `not enough free memory to start the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Close other programs, lower the memory limit in the settings, or use the conservative mode.`)
-      return session
+    // settings are validated (PRD §2.2). A forced start skips it: the user
+    // was asked how tight the memory is and asked for the server anyway.
+    if (!session.force) {
+      const resources = this.#resourcesSnapshot(memoryLimitMB, language, lsp)
+      session.resources = resources
+      // Three bands (PRD §2.3): enough memory starts the server, a tight
+      // budget is the user's decision, and a machine that is out of memory
+      // cannot run a server at all.
+      if (resources.belowHardFloor) {
+        this.#transition(session, 'degraded', `not enough free memory to start the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Close other programs, lower the memory limit in the settings, or use the conservative mode.`)
+        return session
+      }
+      if (resources.tight) {
+        this.#transition(session, 'degraded', `the free memory is tight for the ${language} language server (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it anyway to continue, or use the conservative mode.`)
+        return session
+      }
     }
 
     const resolution = this.#resolveServer(command)
@@ -1801,11 +1975,19 @@ export class LspManager {
       return
     }
     // The memory is checked again before the restart: the crash may well have
-    // been an out-of-memory kill (PRD §2.7).
-    const resources = this.#resourcesSnapshot(session.memoryLimitMB, lsp.freeMemoryThresholdMB)
-    if (!resources.canIndex) {
-      this.#transition(session, 'degraded', `The language server exited unexpectedly (${reason}) and there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
-      return
+    // been an out-of-memory kill (PRD §2.7). A server the user forced once
+    // is not stopped by the check again.
+    if (!session.force) {
+      const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
+      session.resources = resources
+      if (resources.belowHardFloor) {
+        this.#transition(session, 'degraded', `The language server exited unexpectedly (${reason}) and there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
+        return
+      }
+      if (resources.tight) {
+        this.#transition(session, 'degraded', `The language server exited unexpectedly (${reason}) and the free memory is tight for the restart (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it again to continue, or use the conservative mode.`)
+        return
+      }
     }
     session.restarts += 1
     this.#transition(session, 'restarting', 'restarting the language server')
@@ -1823,10 +2005,17 @@ export class LspManager {
     session.restartTimer = null
     if (entry.session !== session) return
     const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
-    const resources = this.#resourcesSnapshot(session.memoryLimitMB, lsp.freeMemoryThresholdMB)
-    if (!resources.canIndex) {
-      this.#transition(session, 'degraded', `there is not enough free memory to restart the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
-      return
+    if (!session.force) {
+      const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
+      session.resources = resources
+      if (resources.belowHardFloor) {
+        this.#transition(session, 'degraded', `there is not enough free memory to restart the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
+        return
+      }
+      if (resources.tight) {
+        this.#transition(session, 'degraded', `the free memory is tight for the restart of the language server (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it again to continue, or use the conservative mode.`)
+        return
+      }
     }
     try {
       await this.#spawn(entry, session, session.resolution)

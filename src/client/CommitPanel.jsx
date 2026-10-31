@@ -21,6 +21,8 @@ import { shallowEqual, useStoreSlice } from './hooks.js'
  * store getters: the panel has to re-render when the changed-file list moves.
  * `workspaceRoot` is there for the same reason — the changelists live under
  * the workspace key in the settings.
+ * `ahead` / `upstream` drive the Push button: they say whether the branch has
+ * commits that are not on its upstream yet.
  *
  * @param {object} state workbench state
  * @returns {object} the panel's slice
@@ -33,6 +35,8 @@ export function commitSlice(state) {
     branch: state.status.branch,
     detached: state.status.detached,
     oid: state.status.oid,
+    ahead: state.status.ahead,
+    upstream: state.status.upstream,
     settings: state.settings,
     workspaceRoot: state.workspaceRoot,
   }
@@ -142,6 +146,13 @@ export function CommitPanel({ store, state }) {
   }, [commit.focusTick])
 
   const canCommit = commit.committing !== true && (checkedPaths.size > 0 || commit.amend === true)
+  // The Push button is independent of the Commit button: the user pushes the
+  // commits that are already made, so it must stay usable when there is
+  // nothing left to stage (PUSH-01).
+  const ahead = typeof slice.ahead === 'number' ? slice.ahead : 0
+  const hasUpstream = typeof slice.upstream === 'string' && slice.upstream !== ''
+  const canPush = commit.pushing !== true && ahead > 0
+  const pushHint = hasUpstream ? t('commit.pushHint') : t('commit.pushNoUpstream')
   const commitSettings = slice.settings?.commit ?? {}
   const taskDefs = [
     ['tests', t('commit.taskTests'), commitSettings.testCommand],
@@ -151,6 +162,13 @@ export function CommitPanel({ store, state }) {
   const customLists = Object.keys(changelists.lists).filter(name => name !== DEFAULT_CHANGELIST)
 
   const openChange = (entry) => {
+    // A porcelain entry that ends with a slash is a DIRECTORY: the host has no
+    // diff for it and would answer with the raw English error
+    // 'path is a directory'. Say it in the user's language instead.
+    if (entry.path.endsWith('/')) {
+      store.toast('error', t('commit.entryIsDirectory'))
+      return
+    }
     if (entry.untracked === true) store.openDiff({ path: entry.path, untracked: true })
     else store.openDiff({ path: entry.path, against: 'head' })
   }
@@ -297,6 +315,13 @@ export function CommitPanel({ store, state }) {
           disabled: !canCommit,
           onClick: () => { void store.commit(commit.message, commit.amend, true) },
         }, t('commit.commitAndPush')),
+        React.createElement('button', {
+          type: 'button',
+          className: 'iwb-textbtn iwb-small',
+          disabled: !canPush,
+          title: pushHint,
+          onClick: () => { void store.push() },
+        }, commit.pushing === true ? t('commit.pushing') : t('commit.push')),
       ),
       taskDefs.length > 0
         ? React.createElement('div', { className: 'iwb-commit-tasks' },

@@ -529,7 +529,7 @@ export function apply(ctx) {
           || matchesShortcut(shortcuts.findInFilesAlt ?? 'Ctrl+Alt+F', event)) {
           event.preventDefault()
           event.stopPropagation()
-          store.openSearchTab()
+          store.openSearchPopup()
           return
         }
         if (matchesShortcut(shortcuts.quickOpen ?? 'Ctrl+Shift+N', event)) {
@@ -545,11 +545,22 @@ export function apply(ctx) {
           store.openQuickOpen()
           return
         }
-        if (store.state.activeId === 'search:in-files' && event.key === 'F8' && !event.ctrlKey && !event.altKey && !event.metaKey) {
-          event.preventDefault()
-          event.stopPropagation()
-          store.openNextSearchResult(event.shiftKey ? -1 : 1)
-          return
+        // F8 cycles the hits. Inside the search popup it moves the
+        // selection (the popup previews the hit); in the old tab it opened
+        // the file directly.
+        if (event.key === 'F8' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+          if (store.state.searchPopup?.open === true) {
+            event.preventDefault()
+            event.stopPropagation()
+            store.moveSearchSelection(event.shiftKey ? -1 : 1)
+            return
+          }
+          if (store.state.activeId === 'search:in-files') {
+            event.preventDefault()
+            event.stopPropagation()
+            store.openNextSearchResult(event.shiftKey ? -1 : 1)
+            return
+          }
         }
         if (store.state.layout.bottom === 'git'
           && matchesShortcut(shortcuts.openCommitDetail ?? 'Ctrl+Alt+D', event)) {

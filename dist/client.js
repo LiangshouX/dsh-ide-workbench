@@ -38,7 +38,7 @@ __export(index_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(index_exports);
-var import_react19 = __toESM(require("react"), 1);
+var import_react20 = __toESM(require("react"), 1);
 
 // node_modules/@xterm/xterm/css/xterm.css
 var xterm_default = `/**
@@ -373,18 +373,38 @@ var en = {
   "settings.completeShortcut": "Trigger completion",
   "settings.completeShortcutHint": "Open the completion popup by hand",
   "settings.lspGroup": "Semantic analysis",
-  "settings.lspGroupHint": "Language servers provide semantic completion, go to definition and find usages. Without one the workbench keeps its basic mode (local completion and text search).",
-  "settings.lspEnabled": "Enable semantic analysis",
-  "settings.lspEnabledHint": "With this off no language server is ever started",
+  "settings.lspGroupHint": "Language servers provide semantic completion, go to definition and find usages. Without one the workbench keeps its basic mode (local completion and text search). Once it is on, the memory a language server needs is estimated per language, and a tight budget is asked about before the server starts.",
+  "settings.lspEnabled": "Build a code index",
+  "settings.lspEnabledHint": "With this off no language server is started: hovering, semantic completion and go to definition are unavailable, and the workbench does not ask when a project is opened. Turning it off ends the running index processes immediately and releases their memory.",
   "settings.lspIndexOnOpen": "When opening an unindexed folder",
   "settings.lspIndexOnOpenHint": "The first build of a project can take one or two minutes",
   "settings.lspIndexAsk": "Ask me",
   "settings.lspIndexAlways": "Always index",
   "settings.lspIndexNever": "Never index (basic mode only)",
   "settings.lspMemoryLimit": "Language server memory limit (MB)",
-  "settings.lspMemoryLimitHint": "Handed to the server itself; a server that cannot be limited is noted in the status bar",
-  "settings.lspFreeMemory": "Free memory required to start (MB)",
-  "settings.lspFreeMemoryHint": "Below this the workbench keeps the basic mode instead of starting a server",
+  "settings.lspMemoryLimitHint": "The ceiling handed to the server itself \u2014 not the threshold that decides whether it may start. A server that cannot be limited is noted in the status bar",
+  "settings.lspFreeMemory": "Conservative fallback for free memory (MB)",
+  "settings.lspFreeMemoryHint": "Only used when no memory estimate is available. With an estimate the threshold comes from the estimate, so a large value here does not block a start",
+  "settings.lspHeadroom": "Memory headroom factor",
+  "settings.lspHeadroomHint": "The estimate is multiplied by this factor. 1.5 means the language server may use about 1.5 times its baseline",
+  "settings.lspHardFloor": "Hard memory floor (MB)",
+  "settings.lspHardFloorHint": "Below this amount of free memory no language server is started at all",
+  "settings.lspMemoryGroup": "Memory and thresholds",
+  "settings.lspMemoryLimitShort": "The ceiling for the server",
+  "settings.lspFreeMemoryShort": "The floor without an estimate",
+  "settings.lspHeadroomShort": "The factor of the estimate",
+  "settings.lspHardFloorShort": "Below this nothing starts",
+  "settings.lspTimeoutGroup": "Timeouts and exit",
+  "settings.lspIdleTimeoutShort": "Exit after this idle time",
+  "settings.lspRequestTimeoutShort": "The limit of one request",
+  "settings.lspMemoryNow": "Free memory now: {free} MB \xB7 {language} is expected to need {need} MB ({state}) \xB7 conservative floor {floor} MB",
+  "settings.lspMemoryNowNoProject": "Free memory now: {free} MB \xB7 no project is open, so there is no estimate yet",
+  "settings.lspMemoryState.ok": "can start",
+  "settings.lspMemoryState.tight": "tight",
+  "settings.lspMemoryState.low": "not enough",
+  "settings.lspServersGroup": "Language servers",
+  "settings.lspServersGroupHint": "Turn a language off to keep its language server from running",
+  "settings.lspServerRunning": "{count} language server process(es) are running; turning the switch off ends them immediately",
   "settings.lspIdleTimeout": "Idle exit (minutes)",
   "settings.lspIdleTimeoutHint": "The server exits after this much time without activity, and its memory is released",
   "settings.lspRequestTimeout": "Request timeout (ms)",
@@ -615,6 +635,15 @@ var en = {
   "commit.commitFailed": "Commit failed",
   "commit.pushed": "Pushed",
   "commit.pushFailed": "Push failed (the commit succeeded)",
+  "commit.push": "Push",
+  "commit.pushHint": "Push the commits this branch is ahead of to its upstream",
+  "commit.pushNoUpstream": "This branch has no upstream yet",
+  "commit.pushing": "Pushing\u2026",
+  "commit.entryIsDirectory": "This entry is a directory and has no diff.",
+  "git.aheadTitle": "Ahead of {upstream} by {count} commits",
+  "git.aheadPush": "Push",
+  "git.aheadHistory": "Show the commit history",
+  "git.behindTitle": "This branch is {count} commits behind its upstream. Fetching and merging is not available here \u2014 use a terminal for that.",
   "commit.noChanges": "Nothing to commit",
   "commit.sideBySide": "Side-by-side",
   "commit.unified": "Unified",
@@ -742,7 +771,9 @@ var en = {
   "editor.unsavedTitle": "Unsaved changes",
   "editor.unsavedClose": "This file has unsaved changes. Closing now discards them.",
   "editor.discardChanges": "Discard changes",
-  "editor.unsavedSwitchRoot": "Switching the workspace discards unsaved changes in the open files.",
+  "editor.unsavedSwitchRoot": "Switching to {target} discards the unsaved changes in {count} open file(s). Save them before switching, or discard the changes?",
+  "editor.saveAndSwitch": "Save and switch",
+  "editor.discardAndSwitch": "Discard and switch",
   "editor.outline": "Document outline",
   "editor.outlineEmpty": "No headings",
   "editor.htmlPreviewSidebar": "Preview in DSH sidebar",
@@ -784,6 +815,13 @@ var en = {
   "search.openResult": "Open result",
   "search.results": "Results",
   "search.searching": "Searching\u2026",
+  "search.popup.hint": "\u2191\u2193 to change the file \xB7 Enter to open \xB7 Esc to close \xB7 double click to open",
+  "search.popup.matches": "{count} matches in {files} files",
+  "search.popup.matchCount": "{count} matches",
+  "search.popup.files": "{count} files",
+  "search.popup.preview": "Preview",
+  "search.popup.binary": "This file is binary and cannot be previewed",
+  "search.popup.noPreview": "No preview for this hit",
   "quickOpen.title": "Quick Open",
   "quickOpen.placeholder": "Type a file name or path",
   "quickOpen.empty": "No matching files",
@@ -806,17 +844,49 @@ var en = {
   "lsp.status.degraded": "Semantic analysis: basic mode",
   "lsp.status.crashed": "Semantic analysis: crashed",
   "lsp.status.cancelled": "Semantic analysis: cancelled (basic mode)",
+  "lsp.status.unstable": "Semantic analysis: unstable ({count} consecutive failures)",
+  "lsp.status.unstableTimeout": "Semantic analysis: unstable ({count} consecutive timeouts)",
   "lsp.cancelIndex": "Cancel indexing",
   "lsp.statusTitle": "Semantic analysis status",
-  "index.decision.title": "Build a code index for {name}?",
-  "index.decision.body": "The first build may take 1\u20132 minutes and can be cancelled at any time. Without it you only get the basic mode (local completion and text search for usages).",
+  "lsp.rebuildIndex": "Rebuild the index",
+  "lsp.diagnostics.title": "Semantic analysis diagnostics",
+  "lsp.diagnostics.state": "State",
+  "lsp.diagnostics.health": "Failures / timeouts",
+  "lsp.diagnostics.lastFailure": "Last failure",
+  "lsp.diagnostics.noFailure": "No failure was recorded.",
+  "lsp.diagnostics.stderr": "Language server output",
+  "lsp.diagnostics.noLogs": "The language server wrote nothing to its output.",
+  "lsp.diagnostics.memory": "Memory",
+  "lsp.diagnostics.rebuild": "Rebuild the index",
+  "lsp.diagnostics.degrade": "Use the basic mode",
+  "lsp.diagnostics.degradeHint": "Stop the language server and keep the basic mode (local completion and text search)",
+  "lsp.diagnostics.settings": "Open the settings",
+  "lsp.diagnostics.settingsHint": "Open the semantic-analysis settings",
+  "lsp.diagnostics.closed": "Semantic analysis is off.",
+  "lsp.diagnostics.rebuilding": "Rebuilding the index\u2026",
+  "lsp.diagnostics.healthy": "No failures",
+  "lsp.memoryWarn.title": "Memory is tight",
+  "lsp.memoryWarn.body": "{free} MB are available, {language} needs about {need} MB.",
+  "lsp.memoryWarn.bodyUnknown": "{free} MB are available, the language server needs about {need} MB.",
+  "lsp.memoryWarn.start": "Start anyway",
+  "lsp.memoryWarn.conservative": "Use the basic mode",
+  "lsp.memoryWarn.conservativeHint": "Do not start the language server (local completion and text search)",
+  "index.decision.title": "Enable semantic analysis for {name}",
+  "index.decision.body": "Starts the {language} language server and builds the project index. It takes about {time}.",
+  "index.decision.bodyUnknown": "Starts the language server and builds the project index. It takes about {time}.",
   "index.decision.rootTitle": "This is the workspace root",
-  "index.decision.rootWarning": "The workspace root usually contains several independent repositories. Indexing here treats them as one program and raises memory usage and build time considerably. Switch to a specific subfolder first.",
-  "index.decision.rootRepo": "This folder is a repository, but it may still be large. Indexing here covers the whole repository.",
-  "index.decision.build": "Build index",
-  "index.decision.buildRoot": "Index here (not recommended)",
-  "index.decision.conservative": "Basic mode only",
-  "index.decision.cancel": "Cancel",
+  "index.decision.rootWarning": "The workspace root usually contains several independent repositories. The language server treats them as one program, which raises memory usage and build time considerably. Switch to a specific subfolder first.",
+  "index.decision.rootRepo": "This folder is a repository, but it may still be large. Enabling it here covers the whole repository.",
+  "index.decision.build": "Enable",
+  "index.decision.buildRoot": "Enable here anyway",
+  "index.decision.conservative": "Do not enable",
+  "index.decision.conservativeHint": "Switch the project, but keep the basic mode (local completion and text search)",
+  "index.decision.cancel": "Cancel the switch",
+  "index.decision.cancelHint": "Do not switch the project",
+  "index.decision.time.under1": "1 minute or less",
+  "index.decision.time.1to2": "1\u20132 minutes",
+  "index.decision.time.2to5": "2\u20135 minutes",
+  "index.decision.time.5to10": "5\u201310 minutes",
   "nav.goToDefinition": "Go to definition",
   "nav.findUsages": "Find usages (semantic)",
   "nav.findUsagesText": "Find usages (text)",
@@ -875,18 +945,38 @@ var zh = {
   "settings.completeShortcut": "\u624B\u52A8\u89E6\u53D1\u8865\u5168",
   "settings.completeShortcutHint": "\u624B\u52A8\u6253\u5F00\u8865\u5168\u5F39\u7A97",
   "settings.lspGroup": "\u8BED\u4E49\u5206\u6790",
-  "settings.lspGroupHint": "\u8BED\u8A00\u670D\u52A1\u5668\u63D0\u4F9B\u8BED\u4E49\u8865\u5168\u3001\u8DF3\u8F6C\u5B9A\u4E49\u4E0E\u67E5\u627E\u5F15\u7528\u3002\u6CA1\u6709\u8BED\u8A00\u670D\u52A1\u5668\u65F6\u5DE5\u4F5C\u53F0\u4FDD\u6301\u4FDD\u5B88\u7248\uFF08\u672C\u5730\u8865\u5168 + \u6587\u672C\u641C\u7D22\uFF09\u3002",
-  "settings.lspEnabled": "\u542F\u7528\u8BED\u4E49\u5206\u6790",
-  "settings.lspEnabledHint": "\u5173\u95ED\u540E\u4E0D\u4F1A\u542F\u52A8\u4EFB\u4F55\u8BED\u8A00\u670D\u52A1\u5668",
+  "settings.lspGroupHint": "\u8BED\u8A00\u670D\u52A1\u5668\u63D0\u4F9B\u8BED\u4E49\u8865\u5168\u3001\u8DF3\u8F6C\u5B9A\u4E49\u4E0E\u67E5\u627E\u5F15\u7528\u3002\u6CA1\u6709\u8BED\u8A00\u670D\u52A1\u5668\u65F6\u5DE5\u4F5C\u53F0\u4FDD\u6301\u4FDD\u5B88\u7248\uFF08\u672C\u5730\u8865\u5168 + \u6587\u672C\u641C\u7D22\uFF09\u3002\u5F00\u542F\u540E\u4F1A\u6309\u8BED\u8A00\u4F30\u7B97\u6240\u9700\u5185\u5B58\uFF0C\u5185\u5B58\u7D27\u5F20\u65F6\u5148\u8BE2\u95EE\u518D\u542F\u52A8\u3002",
+  "settings.lspEnabled": "\u6784\u5EFA\u4EE3\u7801\u7D22\u5F15",
+  "settings.lspEnabledHint": "\u5173\u95ED\u540E\u4E0D\u542F\u52A8\u4EFB\u4F55\u8BED\u8A00\u670D\u52A1\u5668\uFF0C\u60AC\u6D6E\u63D0\u793A\u3001\u8BED\u4E49\u8865\u5168\u4E0E\u8DF3\u8F6C\u5B9A\u4E49\u90FD\u4E0D\u53EF\u7528\uFF1B\u5207\u6362\u9879\u76EE\u65F6\u4E5F\u4E0D\u518D\u8BE2\u95EE\u3002\u5173\u95ED\u4F1A\u7ACB\u5373\u7ED3\u675F\u6B63\u5728\u8FD0\u884C\u7684\u7D22\u5F15\u8FDB\u7A0B\u5E76\u91CA\u653E\u5185\u5B58\u3002",
   "settings.lspIndexOnOpen": "\u6253\u5F00\u672A\u7D22\u5F15\u76EE\u5F55\u65F6",
   "settings.lspIndexOnOpenHint": "\u4E00\u4E2A\u9879\u76EE\u7684\u9996\u6B21\u6784\u5EFA\u53EF\u80FD\u9700\u8981\u4E00\u4E24\u5206\u949F",
   "settings.lspIndexAsk": "\u8BE2\u95EE\u6211",
   "settings.lspIndexAlways": "\u603B\u662F\u7D22\u5F15",
   "settings.lspIndexNever": "\u4ECE\u4E0D\u7D22\u5F15\uFF08\u4EC5\u4FDD\u5B88\u7248\uFF09",
   "settings.lspMemoryLimit": "\u8BED\u8A00\u670D\u52A1\u5668\u5185\u5B58\u4E0A\u9650 (MB)",
-  "settings.lspMemoryLimitHint": "\u4F1A\u4F20\u7ED9\u670D\u52A1\u5668\u81EA\u8EAB\uFF1B\u4E0D\u652F\u6301\u4E0A\u9650\u7684\u670D\u52A1\u5668\u4F1A\u5728\u72B6\u6001\u680F\u6CE8\u660E",
-  "settings.lspFreeMemory": "\u542F\u52A8\u6240\u9700\u53EF\u7528\u5185\u5B58 (MB)",
-  "settings.lspFreeMemoryHint": "\u4F4E\u4E8E\u8BE5\u503C\u65F6\u5DE5\u4F5C\u53F0\u4FDD\u6301\u4FDD\u5B88\u7248\uFF0C\u4E0D\u542F\u52A8\u670D\u52A1\u5668",
+  "settings.lspMemoryLimitHint": "\u8FD9\u662F\u8BED\u8A00\u670D\u52A1\u5668\u7684\u5185\u5B58\u4E0A\u9650\uFF0C\u4E0D\u662F\u542F\u52A8\u95E8\u69DB\u3002\u4E0D\u652F\u6301\u4E0A\u9650\u7684\u670D\u52A1\u5668\u4F1A\u5728\u72B6\u6001\u680F\u6CE8\u660E",
+  "settings.lspFreeMemory": "\u4FDD\u5B88\u515C\u5E95\u4E0B\u9650 (MB)",
+  "settings.lspFreeMemoryHint": "\u4EC5\u5728\u65E0\u6CD5\u4F30\u7B97\u5185\u5B58\u9700\u6C42\u65F6\u4F7F\u7528\u3002\u6709\u4F30\u7B97\u503C\u65F6\u542F\u52A8\u95E8\u69DB\u6765\u81EA\u4F30\u7B97\u503C\uFF0C\u56E0\u6B64\u628A\u5B83\u8C03\u5927\u4E0D\u4F1A\u963B\u6B62\u542F\u52A8",
+  "settings.lspHeadroom": "\u5185\u5B58\u4F59\u91CF\u7CFB\u6570",
+  "settings.lspHeadroomHint": "\u4F30\u7B97\u503C\u4F1A\u4E58\u4EE5\u8BE5\u7CFB\u6570\u30021.5 \u8868\u793A\u8BED\u8A00\u670D\u52A1\u5668\u53EF\u7528\u7EA6 1.5 \u500D\u57FA\u7EBF\u7684\u5185\u5B58",
+  "settings.lspHardFloor": "\u5185\u5B58\u786C\u4E0B\u9650 (MB)",
+  "settings.lspHardFloorHint": "\u53EF\u7528\u5185\u5B58\u4F4E\u4E8E\u8BE5\u503C\u65F6\uFF0C\u4EFB\u4F55\u8BED\u8A00\u670D\u52A1\u5668\u90FD\u4E0D\u4F1A\u542F\u52A8",
+  "settings.lspMemoryGroup": "\u5185\u5B58\u4E0E\u9608\u503C",
+  "settings.lspMemoryLimitShort": "\u670D\u52A1\u5668\u53EF\u7528\u5185\u5B58\u7684\u4E0A\u9650",
+  "settings.lspFreeMemoryShort": "\u65E0\u6CD5\u4F30\u7B97\u65F6\u7684\u515C\u5E95\u4E0B\u9650",
+  "settings.lspHeadroomShort": "\u4F30\u7B97\u503C\u7684\u500D\u6570",
+  "settings.lspHardFloorShort": "\u4F4E\u4E8E\u6B64\u503C\u4E00\u5F8B\u4E0D\u542F\u52A8",
+  "settings.lspTimeoutGroup": "\u8D85\u65F6\u4E0E\u9000\u51FA",
+  "settings.lspIdleTimeoutShort": "\u65E0\u6D3B\u52A8\u540E\u81EA\u52A8\u9000\u51FA",
+  "settings.lspRequestTimeoutShort": "\u5355\u6B21\u8BF7\u6C42\u7684\u4E0A\u9650",
+  "settings.lspMemoryNow": "\u5F53\u524D\u53EF\u7528\u5185\u5B58 {free} MB \xB7 {language} \u9884\u8BA1\u9700\u8981 {need} MB\uFF08{state}\uFF09\xB7 \u4FDD\u5B88\u4E0B\u9650 {floor} MB",
+  "settings.lspMemoryNowNoProject": "\u5F53\u524D\u53EF\u7528\u5185\u5B58 {free} MB \xB7 \u5C1A\u672A\u6253\u5F00\u9879\u76EE\uFF0C\u6682\u65E0\u5185\u5B58\u4F30\u7B97",
+  "settings.lspMemoryState.ok": "\u53EF\u542F\u52A8",
+  "settings.lspMemoryState.tight": "\u5185\u5B58\u7D27\u5F20",
+  "settings.lspMemoryState.low": "\u5185\u5B58\u4E0D\u8DB3",
+  "settings.lspServersGroup": "\u8BED\u8A00\u670D\u52A1\u5668",
+  "settings.lspServersGroupHint": "\u5173\u95ED\u67D0\u4E2A\u8BED\u8A00\u540E\uFF0C\u5B83\u7684\u8BED\u8A00\u670D\u52A1\u5668\u4E0D\u4F1A\u542F\u52A8",
+  "settings.lspServerRunning": "\u5F53\u524D\u6709 {count} \u4E2A\u8BED\u8A00\u670D\u52A1\u5668\u8FDB\u7A0B\u5728\u8FD0\u884C\uFF0C\u5173\u95ED\u5F00\u5173\u4F1A\u7ACB\u5373\u7ED3\u675F\u5B83\u4EEC",
   "settings.lspIdleTimeout": "\u7A7A\u95F2\u9000\u51FA (\u5206\u949F)",
   "settings.lspIdleTimeoutHint": "\u670D\u52A1\u5668\u5728\u8FD9\u4E48\u4E45\u6CA1\u6709\u6D3B\u52A8\u540E\u9000\u51FA\uFF0C\u5185\u5B58\u968F\u4E4B\u91CA\u653E",
   "settings.lspRequestTimeout": "\u8BF7\u6C42\u8D85\u65F6 (\u6BEB\u79D2)",
@@ -1117,6 +1207,15 @@ var zh = {
   "commit.commitFailed": "\u63D0\u4EA4\u5931\u8D25",
   "commit.pushed": "\u5DF2\u63A8\u9001",
   "commit.pushFailed": "\u63A8\u9001\u5931\u8D25\uFF08\u63D0\u4EA4\u5DF2\u6210\u529F\uFF09",
+  "commit.push": "\u63A8\u9001",
+  "commit.pushHint": "\u628A\u672C\u5206\u652F\u9886\u5148\u7684\u63D0\u4EA4\u63A8\u9001\u5230\u4E0A\u6E38",
+  "commit.pushNoUpstream": "\u5F53\u524D\u5206\u652F\u6CA1\u6709\u4E0A\u6E38\uFF0C\u8BF7\u5148\u8BBE\u7F6E",
+  "commit.pushing": "\u63A8\u9001\u4E2D\u2026",
+  "commit.entryIsDirectory": "\u8BE5\u6761\u76EE\u662F\u76EE\u5F55\uFF0C\u65E0\u6CD5\u663E\u793A\u5DEE\u5F02\u3002",
+  "git.aheadTitle": "\u9886\u5148 {upstream} {count} \u4E2A\u63D0\u4EA4",
+  "git.aheadPush": "\u63A8\u9001",
+  "git.aheadHistory": "\u67E5\u770B\u63D0\u4EA4\u5386\u53F2",
+  "git.behindTitle": "\u672C\u5730\u843D\u540E\u4E0A\u6E38 {count} \u4E2A\u63D0\u4EA4\u3002\u6682\u4E0D\u652F\u6301\u62C9\u53D6\u4E0E\u5408\u5E76\uFF0C\u8BF7\u4F7F\u7528\u7EC8\u7AEF\u3002",
   "commit.noChanges": "\u6CA1\u6709\u53EF\u63D0\u4EA4\u7684\u6539\u52A8",
   "commit.sideBySide": "\u5E76\u6392",
   "commit.unified": "\u7EDF\u4E00",
@@ -1244,7 +1343,9 @@ var zh = {
   "editor.unsavedTitle": "\u672A\u4FDD\u5B58\u7684\u4FEE\u6539",
   "editor.unsavedClose": "\u8BE5\u6587\u4EF6\u6709\u672A\u4FDD\u5B58\u7684\u4FEE\u6539\uFF0C\u5173\u95ED\u5C06\u4E22\u5F03\u8FD9\u4E9B\u4FEE\u6539\u3002",
   "editor.discardChanges": "\u653E\u5F03\u4FEE\u6539",
-  "editor.unsavedSwitchRoot": "\u5207\u6362\u5DE5\u4F5C\u533A\u5C06\u4E22\u5F03\u6253\u5F00\u6587\u4EF6\u4E2D\u7684\u672A\u4FDD\u5B58\u4FEE\u6539\u3002",
+  "editor.unsavedSwitchRoot": "\u5207\u6362\u5230 {target} \u5C06\u4E22\u5F03 {count} \u4E2A\u6253\u5F00\u6587\u4EF6\u4E2D\u7684\u672A\u4FDD\u5B58\u4FEE\u6539\u3002\u662F\u5148\u4FDD\u5B58\u518D\u5207\u6362\uFF0C\u8FD8\u662F\u653E\u5F03\u4FEE\u6539\uFF1F",
+  "editor.saveAndSwitch": "\u4FDD\u5B58\u5E76\u5207\u6362",
+  "editor.discardAndSwitch": "\u653E\u5F03\u4FEE\u6539\u5E76\u5207\u6362",
   "editor.outline": "\u6587\u6863\u76EE\u5F55",
   "editor.outlineEmpty": "\u6CA1\u6709\u6807\u9898",
   "editor.htmlPreviewSidebar": "\u5728 DSH \u4FA7\u680F\u4E2D\u9884\u89C8",
@@ -1286,6 +1387,13 @@ var zh = {
   "search.openResult": "\u6253\u5F00\u7ED3\u679C",
   "search.results": "\u7ED3\u679C",
   "search.searching": "\u641C\u7D22\u4E2D\u2026",
+  "search.popup.hint": "\u2191\u2193 \u5207\u6362\u6587\u4EF6 \xB7 Enter \u6253\u5F00 \xB7 Esc \u5173\u95ED \xB7 \u53CC\u51FB\u6253\u5F00",
+  "search.popup.matches": "{count} \u5904\u5339\u914D\uFF0C\u4F4D\u4E8E {files} \u4E2A\u6587\u4EF6",
+  "search.popup.matchCount": "{count} \u5904\u5339\u914D",
+  "search.popup.files": "{count} \u4E2A\u6587\u4EF6",
+  "search.popup.preview": "\u9884\u89C8",
+  "search.popup.binary": "\u8BE5\u6587\u4EF6\u662F\u4E8C\u8FDB\u5236\u6587\u4EF6\uFF0C\u65E0\u6CD5\u9884\u89C8",
+  "search.popup.noPreview": "\u8BE5\u547D\u4E2D\u6CA1\u6709\u53EF\u9884\u89C8\u7684\u5185\u5BB9",
   "quickOpen.title": "\u5FEB\u901F\u6253\u5F00",
   "quickOpen.placeholder": "\u8F93\u5165\u6587\u4EF6\u540D\u6216\u8DEF\u5F84",
   "quickOpen.empty": "\u6CA1\u6709\u5339\u914D\u7684\u6587\u4EF6",
@@ -1307,17 +1415,49 @@ var zh = {
   "lsp.status.degraded": "\u8BED\u4E49\u5206\u6790\uFF1A\u4FDD\u5B88\u7248",
   "lsp.status.crashed": "\u8BED\u4E49\u5206\u6790\uFF1A\u5DF2\u5D29\u6E83",
   "lsp.status.cancelled": "\u8BED\u4E49\u5206\u6790\uFF1A\u5DF2\u53D6\u6D88\uFF08\u4FDD\u5B88\u7248\uFF09",
+  "lsp.status.unstable": "\u8BED\u4E49\u5206\u6790\uFF1A\u4E0D\u7A33\u5B9A\uFF08\u8FDE\u7EED\u5931\u8D25 {count} \u6B21\uFF09",
+  "lsp.status.unstableTimeout": "\u8BED\u4E49\u5206\u6790\uFF1A\u4E0D\u7A33\u5B9A\uFF08\u8FDE\u7EED\u8D85\u65F6 {count} \u6B21\uFF09",
   "lsp.cancelIndex": "\u53D6\u6D88\u7D22\u5F15",
   "lsp.statusTitle": "\u8BED\u4E49\u5206\u6790\u72B6\u6001",
-  "index.decision.title": "\u4E3A {name} \u6784\u5EFA\u4EE3\u7801\u7D22\u5F15\uFF1F",
-  "index.decision.body": "\u9996\u6B21\u6784\u5EFA\u53EF\u80FD\u9700\u8981 1\u20132 \u5206\u949F\uFF0C\u671F\u95F4\u53EF\u4EE5\u968F\u65F6\u53D6\u6D88\u3002\u4E0D\u6784\u5EFA\u5219\u53EA\u63D0\u4F9B\u4FDD\u5B88\u7248\uFF08\u57FA\u7840\u8865\u5168 + \u6587\u672C\u67E5\u627E\u5F15\u7528\uFF09\u3002",
+  "lsp.rebuildIndex": "\u91CD\u65B0\u5EFA\u7ACB\u7D22\u5F15",
+  "lsp.diagnostics.title": "\u8BED\u4E49\u5206\u6790\u8BCA\u65AD",
+  "lsp.diagnostics.state": "\u5F53\u524D\u72B6\u6001",
+  "lsp.diagnostics.health": "\u5931\u8D25 / \u8D85\u65F6\u6B21\u6570",
+  "lsp.diagnostics.lastFailure": "\u6700\u8FD1\u5931\u8D25",
+  "lsp.diagnostics.noFailure": "\u6682\u65E0\u5931\u8D25\u8BB0\u5F55\u3002",
+  "lsp.diagnostics.stderr": "\u8BED\u8A00\u670D\u52A1\u5668\u8F93\u51FA",
+  "lsp.diagnostics.noLogs": "\u8BED\u8A00\u670D\u52A1\u5668\u6CA1\u6709\u8F93\u51FA\u4EFB\u4F55\u5185\u5BB9\u3002",
+  "lsp.diagnostics.memory": "\u5185\u5B58",
+  "lsp.diagnostics.rebuild": "\u91CD\u65B0\u5EFA\u7ACB\u7D22\u5F15",
+  "lsp.diagnostics.degrade": "\u4F7F\u7528\u57FA\u7840\u6A21\u5F0F",
+  "lsp.diagnostics.degradeHint": "\u505C\u6B62\u8BED\u8A00\u670D\u52A1\u5668\uFF0C\u4FDD\u6301\u57FA\u7840\u6A21\u5F0F\uFF08\u672C\u5730\u8865\u5168 + \u6587\u672C\u67E5\u627E\uFF09",
+  "lsp.diagnostics.settings": "\u6253\u5F00\u8BBE\u7F6E",
+  "lsp.diagnostics.settingsHint": "\u6253\u5F00\u8BED\u4E49\u5206\u6790\u7684\u8BBE\u7F6E",
+  "lsp.diagnostics.closed": "\u8BED\u4E49\u5206\u6790\u5DF2\u5173\u95ED\u3002",
+  "lsp.diagnostics.rebuilding": "\u6B63\u5728\u91CD\u5EFA\u7D22\u5F15\u2026",
+  "lsp.diagnostics.healthy": "\u65E0\u5931\u8D25",
+  "lsp.memoryWarn.title": "\u5185\u5B58\u7D27\u5F20",
+  "lsp.memoryWarn.body": "\u5F53\u524D\u53EF\u7528 {free} MB\uFF0C{language} \u9884\u8BA1\u9700\u8981 {need} MB\u3002",
+  "lsp.memoryWarn.bodyUnknown": "\u5F53\u524D\u53EF\u7528 {free} MB\uFF0C\u8BED\u8A00\u670D\u52A1\u5668\u9884\u8BA1\u9700\u8981 {need} MB\u3002",
+  "lsp.memoryWarn.start": "\u4ECD\u7136\u542F\u52A8",
+  "lsp.memoryWarn.conservative": "\u4F7F\u7528\u57FA\u7840\u6A21\u5F0F",
+  "lsp.memoryWarn.conservativeHint": "\u4E0D\u542F\u52A8\u8BED\u8A00\u670D\u52A1\u5668\uFF08\u672C\u5730\u8865\u5168 + \u6587\u672C\u67E5\u627E\uFF09",
+  "index.decision.title": "\u4E3A {name} \u542F\u7528\u8BED\u4E49\u5206\u6790",
+  "index.decision.body": "\u5C06\u542F\u52A8 {language} \u8BED\u8A00\u670D\u52A1\u5668\u5E76\u5EFA\u7ACB\u9879\u76EE\u7D22\u5F15\uFF0C\u9884\u8BA1 {time}\u3002",
+  "index.decision.bodyUnknown": "\u5C06\u542F\u52A8\u8BED\u8A00\u670D\u52A1\u5668\u5E76\u5EFA\u7ACB\u9879\u76EE\u7D22\u5F15\uFF0C\u9884\u8BA1 {time}\u3002",
   "index.decision.rootTitle": "\u8FD9\u662F\u5DE5\u4F5C\u533A\u6839\u76EE\u5F55",
-  "index.decision.rootWarning": "\u5DE5\u4F5C\u533A\u6839\u76EE\u5F55\u901A\u5E38\u5305\u542B\u591A\u4E2A\u72EC\u7ACB\u4ED3\u5E93\u3002\u5728\u6B64\u7D22\u5F15\u4F1A\u628A\u5B83\u4EEC\u5F53\u4F5C\u540C\u4E00\u4E2A\u7A0B\u5E8F\uFF0C\u663E\u8457\u589E\u52A0\u5185\u5B58\u5360\u7528\u4E0E\u6784\u5EFA\u65F6\u95F4\u3002\u5EFA\u8BAE\u5148\u5207\u6362\u5230\u5177\u4F53\u5B50\u76EE\u5F55\u3002",
-  "index.decision.rootRepo": "\u8BE5\u76EE\u5F55\u672C\u8EAB\u662F\u4E00\u4E2A\u4ED3\u5E93\uFF0C\u4F46\u4ECD\u53EF\u80FD\u5F88\u5927\u3002\u5728\u6B64\u7D22\u5F15\u4F1A\u8986\u76D6\u6574\u4E2A\u4ED3\u5E93\u3002",
-  "index.decision.build": "\u6784\u5EFA\u7D22\u5F15",
-  "index.decision.buildRoot": "\u5728\u6B64\u76EE\u5F55\u7D22\u5F15\uFF08\u4E0D\u63A8\u8350\uFF09",
-  "index.decision.conservative": "\u4EC5\u4FDD\u5B88\u7248",
-  "index.decision.cancel": "\u53D6\u6D88",
+  "index.decision.rootWarning": "\u5DE5\u4F5C\u533A\u6839\u76EE\u5F55\u901A\u5E38\u5305\u542B\u591A\u4E2A\u72EC\u7ACB\u4ED3\u5E93\u3002\u8BED\u8A00\u670D\u52A1\u5668\u4F1A\u628A\u5B83\u4EEC\u5F53\u4F5C\u540C\u4E00\u4E2A\u7A0B\u5E8F\u5904\u7406\uFF0C\u5185\u5B58\u5360\u7528\u4E0E\u6784\u5EFA\u65F6\u95F4\u90FD\u4F1A\u660E\u663E\u589E\u52A0\u3002\u5EFA\u8BAE\u5148\u5207\u6362\u5230\u5177\u4F53\u5B50\u76EE\u5F55\u518D\u542F\u7528\u3002",
+  "index.decision.rootRepo": "\u8BE5\u76EE\u5F55\u672C\u8EAB\u662F\u4E00\u4E2A\u4ED3\u5E93\uFF0C\u4F46\u4ECD\u53EF\u80FD\u5F88\u5927\u3002\u5728\u6B64\u542F\u7528\u4F1A\u8986\u76D6\u6574\u4E2A\u4ED3\u5E93\u3002",
+  "index.decision.build": "\u542F\u7528",
+  "index.decision.buildRoot": "\u5728\u6B64\u76EE\u5F55\u542F\u7528",
+  "index.decision.conservative": "\u4E0D\u542F\u7528",
+  "index.decision.conservativeHint": "\u5207\u6362\u9879\u76EE\uFF0C\u4F46\u4FDD\u6301\u57FA\u7840\u6A21\u5F0F\uFF08\u672C\u5730\u8865\u5168 + \u6587\u672C\u67E5\u627E\uFF09",
+  "index.decision.cancel": "\u53D6\u6D88\u5207\u6362",
+  "index.decision.cancelHint": "\u4E0D\u5207\u6362\u9879\u76EE",
+  "index.decision.time.under1": "1 \u5206\u949F\u4EE5\u5185",
+  "index.decision.time.1to2": "1\u20132 \u5206\u949F",
+  "index.decision.time.2to5": "2\u20135 \u5206\u949F",
+  "index.decision.time.5to10": "5\u201310 \u5206\u949F",
   "nav.goToDefinition": "\u8DF3\u8F6C\u5B9A\u4E49",
   "nav.findUsages": "\u67E5\u627E\u7528\u6CD5\uFF08\u8BED\u4E49\uFF09",
   "nav.findUsagesText": "\u67E5\u627E\u7528\u6CD5\uFF08\u6587\u672C\uFF09",
@@ -2072,7 +2212,49 @@ function initialState() {
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
       /** The language-server registry (`lsp.servers`), fetched once per language. */
-      servers: { available: [], missing: [], disabled: [] }
+      servers: { available: [], missing: [], disabled: [] },
+      /**
+       * The health of the semantic features on the client side.
+       *
+       * The host owns the state machine, but it cannot see a request that
+       * timed out: only the client knows that the server stopped answering.
+       * Without this counter the status bar kept saying "ready" while every
+       * semantic request failed (PRD-v5 supplement, MEM-03).
+       */
+      /** Consecutive failed semantic requests (a success resets it). */
+      consecutiveFailures: 0,
+      /** Consecutive timed-out semantic requests. */
+      consecutiveTimeouts: 0,
+      /** The last semantic failure: `{ message, at }`. */
+      lastFailure: null,
+      /** The host's memory snapshot (`lsp.resources`), when it was fetched. */
+      resources: null,
+      /** The last lines the language server wrote to stderr. */
+      stderrLines: [],
+      /** True while the workbench is rebuilding the index. */
+      rebuilding: false
+    },
+    /**
+     * The Find in Files popup (PRD-v5 supplement, FIND-01).
+     *
+     * The results live in the `search` slice - the two entries (Find in Files
+     * and the text version of Find Usages) share them and differ only in
+     * `search.textMatch`. The popup itself is a float above the editor, so
+     * a search never takes a tab away from the code.
+     */
+    searchPopup: {
+      open: false,
+      /** The index of the selected hit in the flattened hit list. */
+      index: 0,
+      /**
+       * Bumped every time the popup opens.
+       *
+       * The popup takes its query from the store when it mounts, so the
+       * generation remounts it: a popup that opens with a new query (the
+       * identifier of "find usages") never shows the query of the last
+       * session for a moment.
+       */
+      generation: 0
     },
     /**
      * The pending index decision (PRD-v5 §2.3).
@@ -2081,12 +2263,21 @@ function initialState() {
      * (the project it is about and whether it is the workspace root).
      */
     indexDecision: null,
+    /**
+     * The pending memory warning (PRD-v5 §2.3, MEM-02).
+     *
+     * `null` while no dialog is open; otherwise the numbers the dialog
+     * renders (the free memory, the estimated need and the language).
+     */
+    memoryDecision: null,
     commit: {
       message: "",
       amend: false,
       messages: [],
       messagesLoading: false,
       committing: false,
+      /** True while a push is running (it may take a minute). */
+      pushing: false,
       error: null,
       mode: "side",
       /** Explicitly checked / unchecked paths (checkbox = include in commit). */
@@ -2165,6 +2356,7 @@ var WorkbenchStore = class {
     this.lastToolGroup = "left";
     this.lspPollTimer = null;
     this.indexDecisionResolve = null;
+    this.memoryDecisionResolve = null;
     this.lspServersChecked = /* @__PURE__ */ new Set();
   }
   // ── subscription ──────────────────────────────────────────────────────
@@ -2734,6 +2926,8 @@ var WorkbenchStore = class {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The search popup belongs to the project that was left.
+      searchPopup: initialState().searchPopup,
       // The language-server status belongs to the project that was left; the
       // server registry does not, so it survives the switch.
       lsp: { ...initialState().lsp, servers: this.state.lsp.servers },
@@ -2768,13 +2962,34 @@ var WorkbenchStore = class {
       return true;
     }
     if (this.state.tabs.some((tab3) => tab3.dirty === true)) {
-      this.askConfirm(
+      const dirty = this.state.tabs.filter((tab3) => tab3.dirty === true).length;
+      const target = typeof project.name === "string" && project.name !== "" ? project.name : baseName(project.path);
+      this.askChoice(
         this.t("editor.unsavedTitle"),
-        this.t("editor.unsavedSwitchRoot"),
-        this.t("editor.discardChanges"),
-        () => {
-          void this.#switchProjectWithIndex(project, options2.askIndex !== false);
-        }
+        this.#tpl("editor.unsavedSwitchRoot", { target, count: dirty }),
+        [
+          { key: "cancel", label: this.t("common.cancel"), action: () => {
+          } },
+          {
+            key: "discard",
+            label: this.t("editor.discardAndSwitch"),
+            danger: true,
+            action: () => {
+              void this.#switchProjectWithIndex(project, options2.askIndex !== false);
+            }
+          },
+          {
+            key: "save",
+            label: this.t("editor.saveAndSwitch"),
+            primary: true,
+            action: () => {
+              void this.saveDirtyTabs().then(() => {
+                if (this.state.tabs.some((tab3) => tab3.dirty === true)) return;
+                void this.#switchProjectWithIndex(project, options2.askIndex !== false);
+              });
+            }
+          }
+        ]
       );
       return false;
     }
@@ -2794,16 +3009,19 @@ var WorkbenchStore = class {
     if (choice === "cancel") return false;
     await this.#switchProject(project.path);
     if (choice === "build") await this.#startLsp(project.path);
+    if (choice === "build-forced") await this.#startLsp(project.path, { force: true });
     return true;
   }
   /**
    * The index decision for one project root (PRD-v5 §2.3).
    *
-   * Resolves with `'build'` (start the language server), `'conservative'`
-   * (stay in the basic mode) or `'cancel'` (do not switch the project).
+   * Resolves with `'build'` (start the language server), `'build-forced'`
+   * (start it although the memory is tight - the user said so),
+   * `'conservative'` (stay in the basic mode) or `'cancel'` (do not switch
+   * the project).
    * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
    * @param {boolean} [ask] false skips the dialog and stays conservative
-   * @returns {Promise<'build'|'conservative'|'cancel'>}
+   * @returns {Promise<'build'|'build-forced'|'conservative'|'cancel'>}
    */
   async #decideIndex(project, ask = true) {
     const lsp = this.state.settings?.lsp;
@@ -2811,8 +3029,14 @@ var WorkbenchStore = class {
     if (lsp.enabled === false) return "conservative";
     if ((lsp.indexOnOpen ?? "ask") === "never") return "conservative";
     const resources = await this.#lspResources(project.path);
+    if (resources !== null && resources.tight === true && this.#memoryWarned(project.path) === false) {
+      const choice = await this.#askMemoryDecision(project, resources);
+      this.#rememberMemoryWarning(project.path);
+      if (choice === "conservative") return "conservative";
+      return "build-forced";
+    }
     if (resources !== null && resources.canIndex === false) {
-      const need = Math.round((resources.thresholdBytes ?? resources.memoryLimitBytes ?? 0) / (1024 * 1024));
+      const need = Math.round(resources.needMB ?? (resources.thresholdBytes ?? resources.memoryLimitBytes ?? 0) / (1024 * 1024));
       const free = Math.round((resources.freeBytes ?? 0) / (1024 * 1024));
       this.toast("error", this.#tpl("lsp.lowMemory", { need, free }), this.t("lsp.lowMemoryHint"));
       return "conservative";
@@ -2820,7 +3044,67 @@ var WorkbenchStore = class {
     if (this.#isIndexed(project)) return "build";
     if ((lsp.indexOnOpen ?? "ask") === "always") return "build";
     if (ask === false) return "conservative";
-    return this.#askIndexDecision(project);
+    return this.#askIndexDecision(project, resources);
+  }
+  /**
+   * Whether the user was already warned about the memory of one project.
+   * @param {string} root the project root
+   * @returns {boolean} true when the warning must not be shown again
+   */
+  #memoryWarned(root) {
+    const warned2 = this.state.settings?.lsp?.memoryWarnedRoots;
+    if (warned2 === null || warned2 === void 0 || typeof warned2 !== "object") return false;
+    return Object.keys(warned2).some((key) => sameScopePath(key, root));
+  }
+  /**
+   * Remember that the user answered the memory warning for one project.
+   *
+   * The answer is written to the settings, so it survives a restart of the
+   * workbench. A failure is not fatal: the user is asked again next time.
+   * @param {string} root the project root
+   */
+  #rememberMemoryWarning(root) {
+    const warned2 = this.state.settings?.lsp?.memoryWarnedRoots;
+    const next = { ...warned2 !== null && typeof warned2 === "object" ? warned2 : {}, [root]: true };
+    this.set({ settings: { ...this.state.settings, lsp: { ...this.state.settings.lsp, memoryWarnedRoots: next } } });
+    void call2("settings.update", { patch: { lsp: { memoryWarnedRoots: next } } }).catch(() => {
+    });
+  }
+  /**
+   * Show the memory warning and wait for the user's answer.
+   *
+   * The host refuses to start a language server on a tight budget unless the
+   * start is forced, so this dialog is the only way out of the "tight" band.
+   * @param {{path: string, name?: string}} project
+   * @param {{needMB?: number, freeBytes?: number, languageId?: string}} resources
+   * @returns {Promise<'start'|'conservative'>}
+   */
+  #askMemoryDecision(project, resources) {
+    if (this.memoryDecisionResolve !== null) this.memoryDecisionResolve("conservative");
+    const language2 = typeof resources.languageId === "string" && resources.languageId !== "" ? resources.languageId : "semantic analysis";
+    return new Promise((resolve) => {
+      this.memoryDecisionResolve = resolve;
+      this.set({
+        memoryDecision: {
+          path: project.path,
+          name: typeof project.name === "string" && project.name !== "" ? project.name : baseName(project.path),
+          language: language2,
+          needMB: Math.round(resources.needMB ?? 0),
+          freeMB: Math.round((resources.freeBytes ?? 0) / (1024 * 1024))
+        }
+      });
+    });
+  }
+  /**
+   * Answer the pending memory warning.
+   * @param {'start'|'conservative'} choice
+   */
+  resolveMemoryDecision(choice) {
+    const resolve = this.memoryDecisionResolve;
+    this.memoryDecisionResolve = null;
+    this.set({ memoryDecision: null });
+    if (resolve === null) return;
+    resolve(choice === "start" ? "start" : "conservative");
   }
   /**
    * Whether this project root completed a first program build before.
@@ -2838,9 +3122,11 @@ var WorkbenchStore = class {
   /**
    * Show the index decision and wait for the user's answer.
    * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
+   * @param {{languageId?: string, needMB?: number}} [resources] the memory
+   *   estimate of the host, so the dialog can say what the build costs.
    * @returns {Promise<'build'|'conservative'|'cancel'>}
    */
-  #askIndexDecision(project) {
+  #askIndexDecision(project, resources = null) {
     if (this.indexDecisionResolve !== null) this.indexDecisionResolve("cancel");
     return new Promise((resolve) => {
       this.indexDecisionResolve = resolve;
@@ -2849,7 +3135,9 @@ var WorkbenchStore = class {
           path: project.path,
           name: typeof project.name === "string" && project.name !== "" ? project.name : baseName(project.path),
           isRoot: project.isRoot === true,
-          isRepo: project.isRepo === true
+          isRepo: project.isRepo === true,
+          language: typeof resources?.languageId === "string" ? resources.languageId : "",
+          needMB: Number.isFinite(resources?.needMB) ? resources.needMB : 0
         }
       });
     });
@@ -2891,16 +3179,76 @@ var WorkbenchStore = class {
    * The client never sets the state itself: the host owns the transition, so
    * the two sides cannot fight over it.
    * @param {string} root
+   * @param {{force?: boolean}} [options] `force` skips the host's memory
+   *   pre-check - it is only set after the user answered the memory warning.
    * @returns {Promise<unknown>} the host's answer, or null on failure
    */
-  async #startLsp(root) {
+  async #startLsp(root, options2 = {}) {
     try {
-      const result = await call2("lsp.start", { root });
+      const result = await call2("lsp.start", { root, force: options2.force === true });
       await this.refreshLspStatus();
       return result;
     } catch {
       return null;
     }
+  }
+  /**
+   * Rebuild the index of the current project.
+   *
+   * A degraded or crashed session used to be recoverable only by switching
+   * the project away and back. The old session is shut down first: otherwise
+   * the new one would find the memory the old one still holds.
+   * @returns {Promise<void>}
+   */
+  async restartLsp() {
+    const root = this.state.root;
+    if (root === "") return;
+    this.patch("lsp", { rebuilding: true });
+    try {
+      await call2("lsp.shutdown", { root });
+    } catch {
+    }
+    try {
+      await call2("lsp.start", { root });
+    } catch {
+    }
+    await this.refreshLspStatus();
+    this.patch("lsp", { rebuilding: false });
+  }
+  /**
+   * Fall back to the conservative mode: the language server of the current
+   * project is stopped and its memory is released.
+   * @returns {Promise<void>}
+   */
+  async degradeLsp() {
+    const root = this.state.root;
+    if (root === "") return;
+    try {
+      await call2("lsp.shutdown", { root });
+    } catch {
+    }
+    await this.refreshLspStatus();
+  }
+  /**
+   * Read the host's memory snapshot and the server log for the current
+   * project.
+   *
+   * The snapshot is not polled: it is read when the diagnostics panel opens
+   * and when the settings page asks for it, because a number that changes
+   * every second would only distract.
+   * @returns {Promise<void>}
+   */
+  async loadLspResources() {
+    const root = this.state.root;
+    if (root === "") return;
+    const resources = await this.#lspResources(root);
+    let stderrLines = this.state.lsp.stderrLines ?? [];
+    try {
+      const logs = await call2("lsp.logs", { root });
+      if (logs !== null && typeof logs === "object" && Array.isArray(logs.lines)) stderrLines = logs.lines;
+    } catch {
+    }
+    this.patch("lsp", { resources, stderrLines });
   }
   /**
    * Cancel a running index build (PRD-v5 §2.4).
@@ -2973,6 +3321,8 @@ var WorkbenchStore = class {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The search popup belongs to the project that was left.
+      searchPopup: initialState().searchPopup,
       // The language-server status belongs to the project that was left; the
       // server registry does not, so it survives the switch.
       lsp: { ...initialState().lsp, servers: this.state.lsp.servers },
@@ -3223,6 +3573,16 @@ var WorkbenchStore = class {
       });
     } catch {
     }
+  }
+  /**
+   * Read the language-server registry.
+   *
+   * The status bar only needs it once per language, but the settings page
+   * lists every language, so it asks for it on its own.
+   * @returns {Promise<void>}
+   */
+  async loadLspServers() {
+    await this.#loadLspServers();
   }
   /**
    * Cheap mtime probe for the active file; never reads the whole buffer.
@@ -3520,44 +3880,96 @@ var WorkbenchStore = class {
   }
   /** Cycle through Find in Files hits with F8 / Shift+F8. */
   openNextSearchResult(delta = 1) {
-    const hits = [];
-    for (const file of this.state.search.results ?? []) {
-      for (const match of file.matches ?? []) hits.push({ path: file.path, line: match.line });
-    }
+    const hits = this.searchHits();
     if (hits.length === 0) return;
     this.searchIndex = (this.searchIndex + (delta >= 0 ? 1 : -1) + hits.length) % hits.length;
     const hit = hits[this.searchIndex];
     this.openSearchResult(hit.path, hit.line);
   }
+  /**
+   * The hits of the current search, flattened over the files.
+   *
+   * The popup shows the files on top and the hits of the selected file in
+   * the preview below; this flat list is what "F8 cycles the hits" walks.
+   * @returns {Array<{path: string, line: number, column: number, match: object, file: object}>}
+   */
+  searchHits() {
+    const hits = [];
+    for (const file of this.state.search.results ?? []) {
+      for (const match of file.matches ?? []) {
+        hits.push({
+          path: file.path,
+          line: match.line,
+          column: match.column,
+          match,
+          file
+        });
+      }
+    }
+    return hits;
+  }
+  /**
+   * The file the Find in Files popup has selected.
+   *
+   * The upper half of the popup is a list of files; the preview below shows
+   * the hits of this one.
+   * @returns {object|null} the file, or `null`
+   */
+  selectedSearchFile() {
+    const files = (this.state.search.results ?? []).filter((file) => (file.matches ?? []).length > 0);
+    if (files.length === 0) return null;
+    const index = Math.min(Math.max(this.state.searchPopup?.index ?? 0, 0), files.length - 1);
+    return files[index] ?? null;
+  }
   /** Open one Find in Files hit at its line. */
   openSearchResult(rel, line) {
     if (typeof rel !== "string" || rel === "") return;
     const absolute = this.#absoluteOf(rel);
+    this.closeSearchPopup();
     this.openFile(absolute, { rel, preview: false, line: Number.isInteger(line) ? line : 1 });
   }
-  /** Open (or focus) the Find in Files editor tab. */
-  openSearchTab(query = "") {
-    const id2 = "search:in-files";
-    const existing = this.state.tabs.find((tab3) => tab3.id === id2);
-    if (existing !== void 0) {
-      this.set({ activeId: id2 });
-    } else {
-      this.set({
-        tabs: [...this.state.tabs, {
-          id: id2,
-          kind: "search",
-          name: this.t("search.title"),
-          preview: false,
-          pinned: true,
-          loading: false,
-          error: null,
-          scrollTop: 0
-        }],
-        activeId: id2
-      });
-    }
+  /**
+   * Open the Find in Files popup.
+   *
+   * The results used to live in a tab of the editor area, which took a tab
+   * away from the code the user was working on. The popup floats above the
+   * editor instead (PRD-v5 supplement, FIND-01).
+   * @param {string} [query] the query to run right away
+   */
+  openSearchPopup(query = "") {
+    this.set({ searchPopup: { open: true, index: 0, generation: (this.state.searchPopup?.generation ?? 0) + 1 } });
     this.patch("search", { textMatch: false });
-    if (typeof query === "string" && query !== "") this.runSearch(query);
+    if (typeof query === "string" && query !== "") void this.runSearch(query);
+  }
+  /** Close the Find in Files popup. */
+  closeSearchPopup() {
+    if (this.state.searchPopup?.open !== true) return;
+    this.set({ searchPopup: { ...this.state.searchPopup, open: false, index: 0 } });
+  }
+  /**
+   * Move the selection inside the Find in Files popup.
+   *
+   * The upper half of the popup lists the files that matched, so the
+   * selection walks the files - the hits of a file are in its preview.
+   * @param {number} delta how far to move
+   */
+  moveSearchSelection(delta) {
+    const files = (this.state.search.results ?? []).filter((file) => (file.matches ?? []).length > 0);
+    if (files.length === 0) return;
+    const current = this.state.searchPopup?.index ?? 0;
+    const step = Number.isFinite(delta) ? Math.trunc(delta) : 1;
+    const index = ((current + step) % files.length + files.length) % files.length;
+    this.set({ searchPopup: { ...this.state.searchPopup, open: true, index } });
+  }
+  /**
+   * The old entry point of the Find in Files view.
+   *
+   * The results live in a popup now; the name is kept so a saved layout or
+   * an old shortcut still finds the feature.
+   * @param {string} [query] the query to run right away
+   */
+  openSearchTab(query = "") {
+    this.openSearchPopup(query);
   }
   /**
    * The text version of Find Usages (PRD-v5 §5.3).
@@ -3571,25 +3983,7 @@ var WorkbenchStore = class {
   async findUsagesText(identifier5) {
     const query = typeof identifier5 === "string" ? identifier5.trim() : "";
     if (query === "") return;
-    const id2 = "search:usages";
-    const existing = this.state.tabs.find((tab3) => tab3.id === id2);
-    if (existing === void 0) {
-      this.set({
-        tabs: [...this.state.tabs, {
-          id: id2,
-          kind: "search",
-          name: this.t("nav.usagesTitle"),
-          preview: false,
-          pinned: true,
-          loading: false,
-          error: null,
-          scrollTop: 0
-        }],
-        activeId: id2
-      });
-    } else {
-      this.set({ activeId: id2 });
-    }
+    this.set({ searchPopup: { open: true, index: 0, generation: (this.state.searchPopup?.generation ?? 0) + 1 } });
     this.patch("search", {
       query,
       wholeWord: true,
@@ -3613,6 +4007,7 @@ var WorkbenchStore = class {
     };
     const token2 = ++this.searchToken;
     this.searchIndex = -1;
+    if (this.state.searchPopup?.open === true) this.set({ searchPopup: { ...this.state.searchPopup, index: 0 } });
     this.patch("search", {
       query: value,
       ...flags,
@@ -4222,6 +4617,18 @@ ${target}`,
       resetToken: (tab3.resetToken ?? 0) + 1
     });
   }
+  /**
+   * Save every tab that has unsaved changes.
+   *
+   * The tabs are saved one after the other: a second write would race the
+   * first one over the same file.
+   * @returns {Promise<void>}
+   */
+  async saveDirtyTabs() {
+    for (const tab3 of this.state.tabs.filter((item) => item.dirty === true)) {
+      await this.saveTab(tab3.id);
+    }
+  }
   /** Persist one edited file through the host's fenced writer. */
   async saveTab(id2, options2 = {}) {
     const tab3 = this.state.tabs.find((item) => item.id === id2);
@@ -4755,15 +5162,43 @@ ${outcome.output ?? ""}`.trim();
       this.toast("error", this.t("commit.commitFailed"), messageText);
     }
   }
+  /**
+   * Push the commits the current branch is ahead of.
+   *
+   * The Commit panel has its own Push button, so a user who already committed
+   * does not have to open a terminal. The state of the push is mirrored in
+   * `commit.pushing`: a push may take a minute, and the button has to say so.
+   * @param {{afterCommit?: boolean}} [options]
+   * @returns {Promise<void>}
+   */
   async push(options2 = {}) {
+    this.patch("commit", { pushing: true });
     try {
       await call2("git.push", { root: this.gitRoot });
       this.toast("success", this.t("commit.pushed"));
       await this.refreshStatus({ initial: false });
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
-      this.toast("error", options2.afterCommit === true ? this.t("commit.pushFailed") : this.t("commit.failed"), text);
+      if (/no upstream branch|set-upstream|does not appear to be a git repository/i.test(text)) {
+        this.toast("error", this.t("commit.pushNoUpstream"), this.#pushUpstreamHint());
+      } else {
+        this.toast("error", options2.afterCommit === true ? this.t("commit.pushFailed") : this.t("commit.failed"), text);
+      }
+    } finally {
+      this.patch("commit", { pushing: false });
     }
+  }
+  /**
+   * The command that sets the upstream of the current branch.
+   *
+   * The branch name comes from the status the host reported, so the hint is
+   * the command the user would have to type.
+   * @returns {string} the command
+   */
+  #pushUpstreamHint() {
+    const branch = this.state.status.branch;
+    const name2 = typeof branch === "string" && branch !== "" ? branch : "HEAD";
+    return `git push --set-upstream origin ${name2}`;
   }
   // ── git window ────────────────────────────────────────────────────────
   setGitFilters(patch) {
@@ -5262,7 +5697,7 @@ var StoreCache = class {
 };
 
 // src/client/Workbench.jsx
-var import_react18 = __toESM(require("react"), 1);
+var import_react19 = __toESM(require("react"), 1);
 
 // src/client/hooks.js
 var import_react = require("react");
@@ -5728,7 +6163,7 @@ function ConfirmModal({ dialog, onClose, scope = null }) {
       action: () => dialog.onConfirm?.()
     }
   ];
-  const backdropClass = scope === "editor" ? "iwb-modal-backdrop iwb-editor-scoped-backdrop" : "iwb-modal-backdrop";
+  const backdropClass = scope === "editor" ? "iwb-modal-backdrop iwb-editor-scoped-backdrop" : "iwb-modal-backdrop iwb-confirm-backdrop";
   return import_react4.default.createElement(
     "div",
     { className: backdropClass, onMouseDown: (event) => {
@@ -5900,6 +6335,11 @@ function ancestorsOf(rel) {
   for (let index = 1; index < parts.length; index += 1) output.push(parts.slice(0, index).join("/"));
   return output;
 }
+function setDirStatus(dirs, conflictDirs, dir, kind) {
+  const previous = dirs.get(dir);
+  if (previous === void 0 || (RANK[previous] ?? 0) < (RANK[kind] ?? 0)) dirs.set(dir, kind);
+  if (kind === "conflict") conflictDirs.add(dir);
+}
 function aggregateStatus(entries) {
   const list2 = Array.isArray(entries) ? entries : [];
   const dirs = /* @__PURE__ */ new Map();
@@ -5914,13 +6354,14 @@ function aggregateStatus(entries) {
       ignored.add(entry.path);
       continue;
     }
-    files.set(entry.path, kind);
-    const rank = RANK[kind] ?? 0;
-    for (const dir of ancestorsOf(entry.path)) {
-      const previous = dirs.get(dir);
-      if (previous === void 0 || (RANK[previous] ?? 0) < rank) dirs.set(dir, kind);
-      if (kind === "conflict") conflictDirs.add(dir);
+    if (entry.path.endsWith("/")) {
+      const dir = entry.path.replace(/\/+$/, "");
+      setDirStatus(dirs, conflictDirs, dir, kind);
+      for (const ancestor of ancestorsOf(dir)) setDirStatus(dirs, conflictDirs, ancestor, kind);
+      continue;
     }
+    files.set(entry.path, kind);
+    for (const dir of ancestorsOf(entry.path)) setDirStatus(dirs, conflictDirs, dir, kind);
   }
   return { dirs, files, ignored, conflictDirs, entries: list2 };
 }
@@ -6921,6 +7362,8 @@ function commitSlice(state) {
     branch: state.status.branch,
     detached: state.status.detached,
     oid: state.status.oid,
+    ahead: state.status.ahead,
+    upstream: state.status.upstream,
     settings: state.settings,
     workspaceRoot: state.workspaceRoot
   };
@@ -7035,6 +7478,10 @@ function CommitPanel({ store, state }) {
     }
   }, [commit.focusTick]);
   const canCommit = commit.committing !== true && (checkedPaths.size > 0 || commit.amend === true);
+  const ahead = typeof slice.ahead === "number" ? slice.ahead : 0;
+  const hasUpstream = typeof slice.upstream === "string" && slice.upstream !== "";
+  const canPush = commit.pushing !== true && ahead > 0;
+  const pushHint = hasUpstream ? t2("commit.pushHint") : t2("commit.pushNoUpstream");
   const commitSettings = slice.settings?.commit ?? {};
   const taskDefs = [
     ["tests", t2("commit.taskTests"), commitSettings.testCommand],
@@ -7043,6 +7490,10 @@ function CommitPanel({ store, state }) {
   ].filter(([, , command2]) => typeof command2 === "string" && command2.trim() !== "");
   const customLists = Object.keys(changelists.lists).filter((name2) => name2 !== DEFAULT_CHANGELIST);
   const openChange = (entry) => {
+    if (entry.path.endsWith("/")) {
+      store.toast("error", t2("commit.entryIsDirectory"));
+      return;
+    }
     if (entry.untracked === true) store.openDiff({ path: entry.path, untracked: true });
     else store.openDiff({ path: entry.path, against: "head" });
   };
@@ -7225,7 +7676,16 @@ ${entries.length}`,
           onClick: () => {
             void store.commit(commit.message, commit.amend, true);
           }
-        }, t2("commit.commitAndPush"))
+        }, t2("commit.commitAndPush")),
+        import_react6.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-small",
+          disabled: !canPush,
+          title: pushHint,
+          onClick: () => {
+            void store.push();
+          }
+        }, commit.pushing === true ? t2("commit.pushing") : t2("commit.push"))
       ),
       taskDefs.length > 0 ? import_react6.default.createElement(
         "div",
@@ -35271,6 +35731,17 @@ function syntaxTree(state) {
   let field = state.field(Language.state, false);
   return field ? field.tree : Tree.empty;
 }
+function ensureSyntaxTree(state, upto, timeout = 50) {
+  var _a2;
+  let parse = (_a2 = state.field(Language.state, false)) === null || _a2 === void 0 ? void 0 : _a2.context;
+  if (!parse)
+    return null;
+  let oldVieport = parse.viewport;
+  parse.updateViewport({ from: 0, to: upto });
+  let result = parse.isDone(upto) || parse.work(timeout, upto) ? parse.tree : null;
+  parse.updateViewport(oldVieport);
+  return result;
+}
 var DocInput = class {
   /**
   Create an input object for the given document.
@@ -54367,6 +54838,7 @@ function createLspTransport(options2 = {}) {
 
 // src/client/lsp-workspace.js
 var VIEW_WAIT_MS = 5e3;
+var REQUEST_CACHE_LIMIT = 64;
 function splitLines(text) {
   const lines = [];
   let start = 0;
@@ -54476,6 +54948,7 @@ var WorkbenchWorkspace = class extends Workspace {
     this.options = options2;
     this.viewRegistry = options2.viewRegistry ?? null;
     this.files = [];
+    this.requestCache = /* @__PURE__ */ new Map();
   }
   /**
    * The tab of one absolute path, when the workbench has it open.
@@ -54565,6 +55038,114 @@ var WorkbenchWorkspace = class extends Workspace {
     };
     this.files.push(file);
     this.client.didOpen(file);
+  }
+  /**
+   * The file of one URI, whether or not it is open in an editor.
+   *
+   * The library's own answer only knows the files that have an editor, and
+   * `findReferences` drops every reference whose file is not in that list -
+   * which is why the usages of a symbol, which usually live in other files,
+   * were almost never shown. This method reads the missing files from the
+   * disk instead.
+   *
+   * Three rules keep the method harmless:
+   *
+   * 1. **No tab is opened.** The file is only needed to render the context
+   *    of a reference row; opening it would turn one search into a batch of
+   *    opened files.
+   * 2. **The fence holds.** A path outside the project is not read and does
+   *    not even produce a toast - one search may touch dozens of files, and
+   *    dozens of toasts would bury the panel.
+   * 3. **The file is cached.** One search reads the same file again for
+   *    every reference in it.
+   * @param {string} uri the document URI
+   * @returns {Promise<any>} the file, or `null` when it cannot be read
+   */
+  async requestFile(uri) {
+    const existing = this.getFile(uri);
+    if (existing !== null && existing !== void 0) return existing;
+    const cached = this.requestCache.get(uri);
+    if (cached !== void 0) return cached;
+    const absolute = pathOfFileUri(uri);
+    if (absolute === null) return null;
+    if (!this.insideRoot(absolute)) return null;
+    const content2 = await this.readFileContent(absolute);
+    if (content2 === null) return null;
+    const file = {
+      uri,
+      languageId: languageIdForPath(absolute),
+      version: 1,
+      doc: textOf(content2),
+      /** @returns {any} the editor - there is none, the file is only read */
+      getView() {
+        return null;
+      }
+    };
+    this.rememberRequest(file);
+    return file;
+  }
+  /**
+   * The content of one file on disk, read through the host.
+   *
+   * The host route `fs.read` resolves the path inside the project root, so
+   * the fence of the host applies a second time - the client never builds a
+   * path of its own.
+   * @param {string} absolute the absolute path
+   * @returns {Promise<string | null>} the content, or `null` when the file
+   *   cannot be read
+   */
+  async readFileContent(absolute) {
+    const root = this.store?.state?.root;
+    if (typeof root !== "string" || root === "") return null;
+    let result = null;
+    try {
+      result = await call("fs.read", { root, path: absolute });
+    } catch (error) {
+      console.warn("[lsp] the file could not be read:", absolute, error instanceof Error ? error.message : error);
+      return null;
+    }
+    if (result === null || typeof result !== "object") return null;
+    if (result.kind !== "text") return null;
+    return typeof result.content === "string" ? result.content : "";
+  }
+  /**
+   * Remember one requested file, dropping the oldest one when the cache is
+   * full.
+   * @param {any} file the file
+   */
+  rememberRequest(file) {
+    this.requestCache.set(file.uri, file);
+    while (this.requestCache.size > REQUEST_CACHE_LIMIT) {
+      const oldest = this.requestCache.keys().next();
+      if (oldest.done === true) break;
+      this.requestCache.delete(oldest.value);
+    }
+  }
+  /**
+   * Forget the files that were read for the last find cycle.
+   *
+   * The session calls this when a new reference request starts, so that
+   * every search reads the files of the project as they are *now*.
+   */
+  clearRequestCache() {
+    this.requestCache.clear();
+  }
+  /**
+   * The document of one URI, when the workspace knows it.
+   *
+   * The library maps the positions of a reference with the workspace
+   * mapping it created when the search started; that mapping only knows the
+   * documents that were open at that moment. This method gives the mapping
+   * the document of a file that was read for the panel.
+   * @param {string} uri the document URI
+   * @returns {any} the document, or `null` when the URI is unknown
+   */
+  documentFor(uri) {
+    const open = this.getFile(uri);
+    if (open !== null && open !== void 0) return open.doc ?? null;
+    const requested = this.requestCache.get(uri);
+    if (requested !== void 0) return requested.doc ?? null;
+    return null;
   }
   /**
    * Push the pending edits of every open document to the server.
@@ -54694,8 +55275,19 @@ var DEFAULT_SHORTCUTS = {
   complete: "Ctrl+Space"
 };
 var LSP_WS_PATH = "ide-workbench/ws/lsp";
+var SEMANTIC_METHODS = /* @__PURE__ */ new Set([
+  "textDocument/references",
+  "textDocument/definition",
+  "textDocument/declaration",
+  "textDocument/typeDefinition",
+  "textDocument/implementation",
+  "textDocument/hover",
+  "textDocument/completion",
+  "textDocument/signatureHelp"
+]);
 var sessionStore = null;
 var currentClient = null;
+var currentWorkspace = null;
 var currentTransport = null;
 var sessionEnabled = true;
 var sessionVersion = 0;
@@ -54703,7 +55295,10 @@ var editorViews = /* @__PURE__ */ new Map();
 var sessionListeners = /* @__PURE__ */ new Set();
 var unsubscribeStore = null;
 var sessionKey = null;
+var sessionRoot = "";
 var reportErrorRedirected = false;
+var mappingRedirected = false;
+var health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null };
 function redirectErrorsToToast() {
   if (reportErrorRedirected) return;
   reportErrorRedirected = true;
@@ -54721,6 +55316,114 @@ function redirectErrorsToToast() {
     }
     original.call(this, message, err);
   };
+}
+function resetLspHealth() {
+  health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null };
+  publishHealth();
+}
+function sameFailure(left, right) {
+  if (left === right) return true;
+  if (left === null || left === void 0 || right === null || right === void 0) return false;
+  return left.message === right.message && left.at === right.at;
+}
+function publishHealth() {
+  const store = sessionStore;
+  if (store === null || store === void 0) return;
+  if (typeof store.set !== "function") return;
+  const lsp = store.state?.lsp;
+  if (lsp === null || lsp === void 0) return;
+  const next = {
+    ...lsp,
+    consecutiveFailures: health.consecutiveFailures,
+    consecutiveTimeouts: health.consecutiveTimeouts,
+    lastFailure: health.lastFailure === null ? null : { ...health.lastFailure }
+  };
+  if (lsp.consecutiveFailures === next.consecutiveFailures && lsp.consecutiveTimeouts === next.consecutiveTimeouts && sameFailure(lsp.lastFailure, next.lastFailure)) return;
+  store.set({ lsp: next });
+}
+function failureMessage(error) {
+  if (typeof error === "string") return error;
+  if (error !== null && typeof error === "object" && typeof error.message === "string") return error.message;
+  return String(error ?? "");
+}
+function isTimeout(message) {
+  return /timed out|timeout/i.test(message);
+}
+function noteSemanticSuccess() {
+  health.consecutiveFailures = 0;
+  health.consecutiveTimeouts = 0;
+  publishHealth();
+}
+function noteSemanticFailure(error) {
+  const message = failureMessage(error);
+  health.consecutiveFailures += 1;
+  if (isTimeout(message)) health.consecutiveTimeouts += 1;
+  health.lastFailure = { message, at: Date.now() };
+  publishHealth();
+}
+function watchSemanticRequests(client) {
+  const original = client.request.bind(client);
+  client.request = function request(method, params) {
+    if (method === "textDocument/references") clearRequestCache();
+    const promise = original(method, params);
+    if (!SEMANTIC_METHODS.has(method)) return promise;
+    return promise.then(
+      (result) => {
+        noteSemanticSuccess();
+        return result;
+      },
+      (error) => {
+        noteSemanticFailure(error);
+        throw error;
+      }
+    );
+  };
+}
+function clearRequestCache() {
+  const workspace = currentWorkspace;
+  if (workspace === null || workspace === void 0) return;
+  if (typeof workspace.clearRequestCache !== "function") return;
+  try {
+    workspace.clearRequestCache();
+  } catch (error) {
+    console.warn("[lsp] the request cache could not be cleared:", error instanceof Error ? error.message : error);
+  }
+}
+function documentOf(client, uri) {
+  const workspace = client?.workspace ?? null;
+  if (workspace === null || workspace === void 0) return null;
+  if (typeof workspace.documentFor !== "function") return null;
+  try {
+    return workspace.documentFor(uri) ?? null;
+  } catch {
+    return null;
+  }
+}
+function offsetOfPosition(doc2, pos) {
+  const line = Number.isFinite(pos?.line) ? pos.line + 1 : 1;
+  const text = doc2.line(Math.min(Math.max(line, 1), doc2.lines));
+  const character = Number.isFinite(pos?.character) ? pos.character : 0;
+  return text.from + Math.min(Math.max(character, 0), text.length);
+}
+function redirectMappingPositions() {
+  if (mappingRedirected) return;
+  mappingRedirected = true;
+  const original = WorkspaceMapping.prototype.mapPosition;
+  WorkspaceMapping.prototype.mapPosition = function mapPosition(uri, pos, assoc = -1, mode) {
+    try {
+      return original.call(this, uri, pos, assoc, mode);
+    } catch (error) {
+      const doc2 = documentOf(this.client, uri);
+      if (doc2 === null) throw error;
+      return offsetOfPosition(doc2, pos);
+    }
+  };
+}
+function shutdownHostLsp(root) {
+  if (typeof root !== "string" || root === "") return;
+  void call("lsp.shutdown", { root }).catch((error) => {
+    console.warn("[lsp] the language server could not be stopped:", error instanceof Error ? error.message : error);
+  });
 }
 function bumpVersion() {
   sessionVersion += 1;
@@ -54836,16 +55539,21 @@ function startLsp() {
   const store = sessionStore;
   if (store === null || store === void 0) return;
   redirectErrorsToToast();
+  redirectMappingPositions();
   const root = typeof store.state?.root === "string" ? store.state.root : "";
   currentClient = new LSPClient({
     rootUri: fileUriOf(root),
     timeout: requestTimeoutOf(store),
     sanitizeHTML,
-    workspace: (client) => new WorkbenchWorkspace(client, store, { viewRegistry }),
+    workspace: (client) => {
+      currentWorkspace = new WorkbenchWorkspace(client, store, { viewRegistry });
+      return currentWorkspace;
+    },
     // The editor extensions are added by `lspExtensions()` instead, so that
     // the workbench can keep them out of the editors that have no client.
     extensions: []
   });
+  watchSemanticRequests(currentClient);
   currentTransport = createLspTransport({
     url: () => lspSocketUrl(root),
     onOpen: (info) => {
@@ -54867,6 +55575,7 @@ function reinitializeLsp() {
   try {
     currentClient.disconnect();
     currentClient.connect(currentTransport);
+    resetLspHealth();
   } catch (error) {
     console.warn("[lsp] the handshake could not be repeated:", error instanceof Error ? error.message : error);
   }
@@ -54885,14 +55594,18 @@ function stopLsp() {
     }
   }
   currentClient = null;
+  currentWorkspace = null;
   currentTransport = null;
+  resetLspHealth();
   bumpVersion();
 }
 function refreshLsp() {
+  publishHealth();
   const store = sessionStore;
   if (store === null || store === void 0) {
     if (sessionKey !== null) {
       sessionKey = null;
+      sessionRoot = "";
       stopLsp();
     }
     return;
@@ -54904,11 +55617,17 @@ function refreshLsp() {
   const key = `${enabled}|${root}`;
   if (key === sessionKey) return;
   const hadClient = currentClient !== null;
+  const previousRoot = sessionRoot;
   sessionKey = key;
+  sessionRoot = root;
+  if (previousRoot !== root) {
+    resetLspHealth();
+  }
   if (wanted) {
     if (hadClient) stopLsp();
     startLsp(store);
   } else if (hadClient) {
+    shutdownHostLsp(previousRoot);
     stopLsp();
   }
 }
@@ -54919,6 +55638,7 @@ function configureLsp(store) {
     unsubscribeStore = null;
   }
   sessionKey = null;
+  sessionRoot = "";
   if (typeof store?.subscribe === "function") {
     unsubscribeStore = store.subscribe(() => refreshLsp());
   }
@@ -55078,19 +55798,19 @@ function languageForPath(path2) {
   }
 }
 var HIGHLIGHT = HighlightStyle.define([
-  { tag: tags.comment, color: "#7a8596", fontStyle: "italic" },
-  { tag: [tags.string, tags.special(tags.string)], color: "#5f8f3f" },
-  { tag: [tags.keyword, tags.modifier], color: "#a15fb0" },
-  { tag: [tags.number, tags.bool, tags.null], color: "#b57a2a" },
-  { tag: [tags.typeName, tags.className, tags.namespace], color: "#2f8f83" },
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "#8a6a1f" },
-  { tag: [tags.propertyName, tags.attributeName], color: "#3f6f9f" },
-  { tag: [tags.tagName, tags.angleBracket], color: "#c05a63" },
-  { tag: tags.heading, color: "#3b7dd8", fontWeight: "bold" },
+  { tag: tags.comment, color: "var(--iwb-syn-comment)", fontStyle: "italic" },
+  { tag: [tags.string, tags.special(tags.string)], color: "var(--iwb-syn-string)" },
+  { tag: [tags.keyword, tags.modifier], color: "var(--iwb-syn-keyword)" },
+  { tag: [tags.number, tags.bool, tags.null], color: "var(--iwb-syn-number)" },
+  { tag: [tags.typeName, tags.className, tags.namespace], color: "var(--iwb-syn-type)" },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "var(--iwb-syn-function)" },
+  { tag: [tags.propertyName, tags.attributeName], color: "var(--iwb-syn-property)" },
+  { tag: [tags.tagName, tags.angleBracket], color: "var(--iwb-syn-tag)" },
+  { tag: tags.heading, color: "var(--iwb-syn-heading)", fontWeight: "bold" },
   { tag: tags.strong, fontWeight: "bold" },
   { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: tags.link, color: "#3b7dd8", textDecoration: "underline" },
-  { tag: tags.invalid, color: "#e2686f" }
+  { tag: tags.link, color: "var(--iwb-syn-heading)", textDecoration: "underline" },
+  { tag: tags.invalid, color: "var(--iwb-syn-invalid)" }
 ]);
 var THEME = EditorView.theme({
   "&": { height: "100%", backgroundColor: "var(--iwb-bg)", color: "var(--iwb-fg)" },
@@ -55108,10 +55828,19 @@ var THEME = EditorView.theme({
   ".cm-lineNumbers .cm-gutterElement": { minWidth: "34px", padding: "0 8px 0 4px" },
   ".cm-activeLine": { backgroundColor: "rgba(127,127,127,.075)" },
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--iwb-fg)" },
-  ".cm-selectionBackground, ::selection": { backgroundColor: "rgba(76,154,255,.24) !important" },
-  ".cm-matchingBracket": { backgroundColor: "rgba(76,154,255,.25)", outline: "1px solid rgba(76,154,255,.5)" },
-  ".cm-searchMatch": { backgroundColor: "rgba(215,162,74,.28)" },
-  ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "rgba(76,154,255,.45)", outline: "1px solid var(--iwb-accent)" },
+  // The selection, the matching bracket and the search hits are mixed from
+  // the theme tokens instead of fixed rgba values: a brand colour that is
+  // light in a light host theme then still reads as a selection.
+  ".cm-selectionBackground, ::selection": { backgroundColor: "color-mix(in srgb, var(--iwb-accent) 24%, transparent) !important" },
+  ".cm-matchingBracket": {
+    backgroundColor: "color-mix(in srgb, var(--iwb-accent) 25%, transparent)",
+    outline: "1px solid color-mix(in srgb, var(--iwb-accent) 50%, transparent)"
+  },
+  ".cm-searchMatch": { backgroundColor: "color-mix(in srgb, var(--iwb-warn) 28%, transparent)" },
+  ".cm-searchMatch.cm-searchMatch-selected": {
+    backgroundColor: "color-mix(in srgb, var(--iwb-accent) 45%, transparent)",
+    outline: "1px solid var(--iwb-accent)"
+  },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--iwb-accent)" },
   "&.cm-focused": { outline: "none" },
   ".cm-panels": { backgroundColor: "var(--iwb-panel)", color: "var(--iwb-fg)" }
@@ -55175,7 +55904,9 @@ function identifierRangeAt(state, pos) {
   if (!Number.isInteger(pos) || pos < 0 || pos > state.doc.length) return null;
   let node = null;
   try {
-    node = syntaxTree(state).resolveInner(pos, 1);
+    const tree = ensureSyntaxTree(state, pos, 1e3);
+    if (tree === null || tree === void 0) return null;
+    node = tree.resolveInner(pos, 1);
   } catch {
     return null;
   }
@@ -57670,7 +58401,7 @@ function createEditorKeyHandler(store, options2) {
     if (mod && (event.shiftKey && !event.altKey && key === "r" || event.altKey && !event.shiftKey && key === "f")) {
       event.preventDefault();
       event.stopPropagation();
-      store.openSearchTab();
+      store.openSearchPopup();
       return;
     }
     if (mod && !event.altKey && !event.shiftKey && key === "f" && textTab) {
@@ -57810,7 +58541,7 @@ function EditorArea({ store, state: _state }) {
     onClosePreviewFind: () => setPreviewFind(false),
     onEditorReady: setEditorApi,
     onFindRequest: () => setFindOpen(true),
-    onFindInFiles: () => store.openSearchTab()
+    onFindInFiles: () => store.openSearchPopup()
   }) : active.loading === true ? import_react15.default.createElement("div", { className: "iwb-editor-empty" }, store.t("common.loading")) : active.error !== null && active.error !== void 0 ? import_react15.default.createElement("div", { className: "iwb-editor-empty" }, import_react15.default.createElement("div", { className: "iwb-error-box" }, active.error)) : import_react15.default.createElement(DiffView, { store, tab: active });
   return import_react15.default.createElement(
     "div",
@@ -57872,11 +58603,38 @@ function Row({ label: label3, hint, children }) {
     import_react16.default.createElement("div", { className: "iwb-settings-control" }, children)
   );
 }
+function interpolate2(text, values2) {
+  let out = typeof text === "string" ? text : "";
+  for (const [name2, value] of Object.entries(values2)) {
+    out = out.replaceAll(`{${name2}}`, String(value));
+  }
+  return out;
+}
+function SubGroup({ title, children }) {
+  return import_react16.default.createElement(
+    "div",
+    { className: "iwb-settings-subgroup" },
+    import_react16.default.createElement("div", { className: "iwb-settings-subgroup-title" }, title),
+    import_react16.default.createElement("div", { className: "iwb-settings-fields" }, children)
+  );
+}
+function Field({ label: label3, hint, title, children }) {
+  return import_react16.default.createElement(
+    "div",
+    { className: "iwb-settings-field", title },
+    import_react16.default.createElement("div", { className: "iwb-settings-field-label" }, label3),
+    hint !== void 0 ? import_react16.default.createElement("div", { className: "iwb-settings-field-hint" }, hint) : null,
+    import_react16.default.createElement("div", { className: "iwb-settings-field-control" }, children)
+  );
+}
 function SettingsForm({ store, state, compact, onStatusChange }) {
   const t2 = store.t;
   const settings = state.settings ?? {};
   const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : [];
   const disabledServers = Array.isArray(state.lsp?.servers?.disabled) ? state.lsp.servers.disabled : [];
+  const availableServers = Array.isArray(state.lsp?.servers?.available) ? state.lsp.servers.available : [];
+  const lspResources = state.lsp?.resources ?? null;
+  const runningServers = ["starting", "building", "ready", "restarting"].includes(state.lsp?.state) ? 1 : 0;
   const [draft, setDraft] = (0, import_react16.useState)(settings);
   const [saved, setSaved] = (0, import_react16.useState)(false);
   const [saving, setSaving] = (0, import_react16.useState)(false);
@@ -57887,6 +58645,10 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
   const scrollRef = (0, import_react16.useRef)({ parent: null, top: 0 });
   const pendingPatch = (0, import_react16.useRef)({});
   const alive = (0, import_react16.useRef)(true);
+  (0, import_react16.useEffect)(() => {
+    void store.loadLspServers?.();
+    void store.loadLspResources?.();
+  }, []);
   const captureScroll = () => {
     let node = rootRef.current?.parentElement ?? null;
     while (node !== null) {
@@ -58253,7 +59015,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
       Group,
       { title: t2("settings.lspGroup"), description: t2("settings.lspGroupHint") },
       import_react16.default.createElement(
-        "Row",
+        Row,
         { label: t2("settings.lspEnabled"), hint: t2("settings.lspEnabledHint") },
         import_react16.default.createElement("input", {
           type: "checkbox",
@@ -58262,7 +59024,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
         })
       ),
       import_react16.default.createElement(
-        "Row",
+        Row,
         { label: t2("settings.lspIndexOnOpen"), hint: t2("settings.lspIndexOnOpenHint") },
         import_react16.default.createElement(
           "select",
@@ -58276,55 +59038,90 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           import_react16.default.createElement("option", { value: "never" }, t2("settings.lspIndexNever"))
         )
       ),
+      // The four memory numbers are one topic, so they are one block: each
+      // number keeps its own label, and the block takes a third of the
+      // height of four separate rows.
       import_react16.default.createElement(
-        "Row",
-        { label: t2("settings.lspMemoryLimit"), hint: t2("settings.lspMemoryLimitHint") },
-        import_react16.default.createElement("input", {
-          type: "number",
-          min: 256,
-          max: 32768,
-          step: 256,
-          value: draft.lsp?.memoryLimitMB ?? 2048,
-          onChange: (event) => update({ lsp: { memoryLimitMB: Number(event.target.value) || 2048 } })
-        })
+        SubGroup,
+        { title: t2("settings.lspMemoryGroup") },
+        import_react16.default.createElement(
+          Field,
+          { label: t2("settings.lspMemoryLimit"), hint: t2("settings.lspMemoryLimitShort"), title: t2("settings.lspMemoryLimitHint") },
+          import_react16.default.createElement("input", {
+            type: "number",
+            min: 256,
+            max: 32768,
+            step: 256,
+            value: draft.lsp?.memoryLimitMB ?? 2048,
+            onChange: (event) => update({ lsp: { memoryLimitMB: Number(event.target.value) || 2048 } })
+          })
+        ),
+        import_react16.default.createElement(
+          Field,
+          { label: t2("settings.lspFreeMemory"), hint: t2("settings.lspFreeMemoryShort"), title: t2("settings.lspFreeMemoryHint") },
+          import_react16.default.createElement("input", {
+            type: "number",
+            min: 256,
+            max: 32768,
+            step: 256,
+            value: draft.lsp?.freeMemoryThresholdMB ?? 512,
+            onChange: (event) => update({ lsp: { freeMemoryThresholdMB: Number(event.target.value) || 512 } })
+          })
+        ),
+        import_react16.default.createElement(
+          Field,
+          { label: t2("settings.lspHeadroom"), hint: t2("settings.lspHeadroomShort"), title: t2("settings.lspHeadroomHint") },
+          import_react16.default.createElement("input", {
+            type: "number",
+            min: 1,
+            max: 8,
+            step: 0.1,
+            value: draft.lsp?.memoryHeadroom ?? 1.5,
+            onChange: (event) => update({ lsp: { memoryHeadroom: Number(event.target.value) || 1.5 } })
+          })
+        ),
+        import_react16.default.createElement(
+          Field,
+          { label: t2("settings.lspHardFloor"), hint: t2("settings.lspHardFloorShort"), title: t2("settings.lspHardFloorHint") },
+          import_react16.default.createElement("input", {
+            type: "number",
+            min: 64,
+            max: 8192,
+            step: 64,
+            value: draft.lsp?.memoryHardFloorMB ?? 256,
+            onChange: (event) => update({ lsp: { memoryHardFloorMB: Number(event.target.value) || 256 } })
+          })
+        )
       ),
       import_react16.default.createElement(
-        "Row",
-        { label: t2("settings.lspFreeMemory"), hint: t2("settings.lspFreeMemoryHint") },
-        import_react16.default.createElement("input", {
-          type: "number",
-          min: 256,
-          max: 32768,
-          step: 256,
-          value: draft.lsp?.freeMemoryThresholdMB ?? 2048,
-          onChange: (event) => update({ lsp: { freeMemoryThresholdMB: Number(event.target.value) || 2048 } })
-        })
+        SubGroup,
+        { title: t2("settings.lspTimeoutGroup") },
+        import_react16.default.createElement(
+          Field,
+          { label: t2("settings.lspIdleTimeout"), hint: t2("settings.lspIdleTimeoutShort"), title: t2("settings.lspIdleTimeoutHint") },
+          import_react16.default.createElement("input", {
+            type: "number",
+            min: 1,
+            max: 240,
+            value: Math.round((draft.lsp?.idleTimeoutMs ?? 6e5) / 6e4),
+            onChange: (event) => update({ lsp: { idleTimeoutMs: (Number(event.target.value) || 10) * 6e4 } })
+          })
+        ),
+        import_react16.default.createElement(
+          Field,
+          { label: t2("settings.lspRequestTimeout"), hint: t2("settings.lspRequestTimeoutShort"), title: t2("settings.lspRequestTimeoutHint") },
+          import_react16.default.createElement("input", {
+            type: "number",
+            min: 3e4,
+            max: 6e5,
+            step: 1e3,
+            value: draft.lsp?.requestTimeoutMs ?? 3e4,
+            onChange: (event) => update({ lsp: { requestTimeoutMs: Math.max(3e4, Number(event.target.value) || 3e4) } })
+          })
+        )
       ),
       import_react16.default.createElement(
-        "Row",
-        { label: t2("settings.lspIdleTimeout"), hint: t2("settings.lspIdleTimeoutHint") },
-        import_react16.default.createElement("input", {
-          type: "number",
-          min: 1,
-          max: 240,
-          value: Math.round((draft.lsp?.idleTimeoutMs ?? 6e5) / 6e4),
-          onChange: (event) => update({ lsp: { idleTimeoutMs: (Number(event.target.value) || 10) * 6e4 } })
-        })
-      ),
-      import_react16.default.createElement(
-        "Row",
-        { label: t2("settings.lspRequestTimeout"), hint: t2("settings.lspRequestTimeoutHint") },
-        import_react16.default.createElement("input", {
-          type: "number",
-          min: 3e4,
-          max: 6e5,
-          step: 1e3,
-          value: draft.lsp?.requestTimeoutMs ?? 3e4,
-          onChange: (event) => update({ lsp: { requestTimeoutMs: Math.max(3e4, Number(event.target.value) || 3e4) } })
-        })
-      ),
-      import_react16.default.createElement(
-        "Row",
+        Row,
         { label: t2("settings.lspAutoExit") },
         import_react16.default.createElement("input", {
           type: "checkbox",
@@ -58333,7 +59130,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
         })
       ),
       import_react16.default.createElement(
-        "Row",
+        Row,
         { label: t2("settings.lspAutoRestart") },
         import_react16.default.createElement("input", {
           type: "checkbox",
@@ -58344,7 +59141,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
       // The missing servers are a fact of the machine, not a setting: they are
       // listed so the user knows which language stays in the basic mode.
       missingServers.length > 0 ? import_react16.default.createElement(
-        "Row",
+        Row,
         { label: t2("settings.lspServersMissing"), hint: t2("settings.lspServersMissingHint") },
         import_react16.default.createElement(
           "span",
@@ -58363,8 +59160,70 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           disabledServers.map((server) => `${server.languageId} (${server.command})`).join(", ")
         )
       ) : null,
-      import_react16.default.createElement("div", { className: "iwb-settings-hint", style: { gridColumn: "1 / -1" } }, t2("settings.lspOfflineNote"))
+      import_react16.default.createElement("div", { className: "iwb-settings-hint" }, t2("settings.lspOfflineNote")),
+      // The memory situation of the machine, as a fact the user can judge:
+      // "384 MB needed" is a number, "the machine is short on memory" is a
+      // decision. Without an open project there is no language to estimate,
+      // so only the free memory is shown.
+      lspResources !== null ? import_react16.default.createElement(
+        "div",
+        { className: "iwb-settings-hint" },
+        typeof lspResources.languageId === "string" && lspResources.languageId !== "" ? interpolate2(t2("settings.lspMemoryNow"), {
+          free: Math.round((lspResources.freeBytes ?? 0) / (1024 * 1024)),
+          need: Math.round(lspResources.needMB ?? 0),
+          floor: Math.round(lspResources.hardFloorMB ?? 256),
+          language: lspResources.languageId,
+          state: lspResources.tight === true ? t2("settings.lspMemoryState.tight") : lspResources.canIndex === false ? t2("settings.lspMemoryState.low") : t2("settings.lspMemoryState.ok")
+        }) : interpolate2(t2("settings.lspMemoryNowNoProject"), {
+          free: Math.round((lspResources.freeBytes ?? 0) / (1024 * 1024))
+        })
+      ) : null
     ),
+    // The language servers of the machine, one switch each (SET-02). The
+    // field `lsp.servers[languageId].enabled` existed but had no control.
+    availableServers.length > 0 ? import_react16.default.createElement(
+      Group,
+      { title: t2("settings.lspServersGroup"), description: t2("settings.lspServersGroupHint") },
+      // One line per language, not one settings row per language: a
+      // dozen rows of "a switch and a command" is a wall of text.
+      import_react16.default.createElement(
+        "div",
+        { className: "iwb-settings-languages" },
+        availableServers.map((server) => {
+          const servers = draft.lsp?.servers ?? {};
+          const entry = servers[server.languageId] ?? {};
+          const enabled = entry.enabled !== false;
+          return import_react16.default.createElement(
+            "label",
+            {
+              key: server.languageId,
+              className: "iwb-settings-language",
+              title: server.resolvedPath ?? server.command
+            },
+            import_react16.default.createElement("input", {
+              type: "checkbox",
+              checked: enabled,
+              onChange: (event) => {
+                const nextServers = {
+                  ...servers,
+                  [server.languageId]: { ...entry, enabled: event.target.checked }
+                };
+                update({ lsp: { servers: nextServers } });
+              }
+            }),
+            import_react16.default.createElement("span", { className: "iwb-settings-language-name" }, server.languageId),
+            import_react16.default.createElement("span", { className: "iwb-settings-language-command" }, server.command)
+          );
+        })
+      ),
+      // A language server that is running right now: the master switch
+      // ends it, and the user deserves to know that.
+      runningServers > 0 ? import_react16.default.createElement(
+        "div",
+        { className: "iwb-settings-hint" },
+        interpolate2(t2("settings.lspServerRunning"), { count: runningServers })
+      ) : null
+    ) : null,
     import_react16.default.createElement(
       Group,
       { title: t2("settings.appearanceGroup") },
@@ -58541,6 +59400,224 @@ function QuickOpen({ store, state }) {
   );
 }
 
+// src/client/SearchPopup.jsx
+var import_react18 = __toESM(require("react"), 1);
+function interpolate3(text, values2) {
+  let out = typeof text === "string" ? text : "";
+  for (const [name2, value] of Object.entries(values2)) {
+    out = out.replaceAll(`{${name2}}`, String(value));
+  }
+  return out;
+}
+function PreviewLine({ number: number2, text, hit, key }) {
+  return import_react18.default.createElement(
+    "div",
+    { key, className: `iwb-search-popup-line ${hit ? "iwb-hit" : ""}` },
+    import_react18.default.createElement("span", { className: "iwb-search-popup-number" }, String(number2)),
+    import_react18.default.createElement("span", { className: "iwb-search-popup-text" }, text)
+  );
+}
+function SearchPopup({ store, state }) {
+  const t2 = store.t;
+  const search2 = state.search ?? {};
+  const popup = state.searchPopup ?? { open: false, index: 0 };
+  const inputRef = (0, import_react18.useRef)(null);
+  const timer = (0, import_react18.useRef)(null);
+  const [query, setQuery] = (0, import_react18.useState)(search2.query ?? "");
+  const [caseSensitive, setCaseSensitive] = (0, import_react18.useState)(search2.caseSensitive === true);
+  const [wholeWord, setWholeWord] = (0, import_react18.useState)(search2.wholeWord === true);
+  const [regexp, setRegexp] = (0, import_react18.useState)(search2.regexp === true);
+  const files = (0, import_react18.useMemo)(() => (search2.results ?? []).filter((file) => (file.matches ?? []).length > 0), [search2.results]);
+  const totals = (0, import_react18.useMemo)(() => {
+    let matches = 0;
+    for (const file of files) matches += (file.matches ?? []).length;
+    return { matches, files: files.length };
+  }, [files]);
+  const selected = files.length === 0 ? null : files[Math.min(Math.max(popup.index ?? 0, 0), files.length - 1)];
+  (0, import_react18.useEffect)(() => {
+    if (popup.open !== true) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [popup.open]);
+  (0, import_react18.useEffect)(() => {
+    if (popup.open !== true) return void 0;
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      void store.runSearch(query, { caseSensitive, wholeWord, regexp });
+    }, query === "" ? 0 : 220);
+    return () => {
+      if (timer.current !== null) clearTimeout(timer.current);
+    };
+  }, [query, caseSensitive, wholeWord, regexp, popup.open]);
+  if (popup.open !== true) return null;
+  const openHit = (path2, line) => {
+    if (typeof path2 !== "string" || path2 === "") return;
+    store.openSearchResult(path2, line);
+  };
+  const onKeyDown = (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      store.moveSearchSelection(1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      store.moveSearchSelection(-1);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const first = selected?.matches?.[0];
+      if (selected !== null && first !== void 0) openHit(selected.path, first.line);
+      else void store.runSearch(query, { caseSensitive, wholeWord, regexp });
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      store.closeSearchPopup();
+    } else if (event.key === "F8") {
+      event.preventDefault();
+      store.moveSearchSelection(event.shiftKey ? -1 : 1);
+    }
+  };
+  const flag = (on2, label3, title, onClick) => import_react18.default.createElement("button", {
+    type: "button",
+    className: `iwb-find-flag ${on2 ? "iwb-on" : ""}`,
+    title,
+    "aria-pressed": on2,
+    onClick
+  }, label3);
+  return import_react18.default.createElement(
+    "div",
+    {
+      className: "iwb-quick-backdrop iwb-search-popup-backdrop",
+      onMouseDown: (event) => {
+        if (event.target === event.currentTarget) store.closeSearchPopup();
+      }
+    },
+    import_react18.default.createElement(
+      "div",
+      {
+        className: "iwb-quick iwb-search-popup",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": search2.textMatch === true ? t2("nav.usagesTitle") : t2("search.title")
+      },
+      import_react18.default.createElement(
+        "div",
+        { className: "iwb-quick-head" },
+        import_react18.default.createElement(IconSearch, { width: 14, height: 14, style: { color: "var(--iwb-muted)" } }),
+        import_react18.default.createElement("input", {
+          ref: inputRef,
+          className: "iwb-quick-input",
+          value: query,
+          placeholder: t2("search.placeholder"),
+          spellCheck: false,
+          onChange: (event) => setQuery(event.target.value),
+          onKeyDown
+        }),
+        flag(caseSensitive, "Aa", t2("search.caseSensitive"), () => setCaseSensitive((value) => !value)),
+        flag(wholeWord, "W", t2("search.wholeWord"), () => setWholeWord((value) => !value)),
+        flag(regexp, ".*", t2("search.regexp"), () => setRegexp((value) => !value)),
+        import_react18.default.createElement("button", {
+          type: "button",
+          className: "iwb-iconbtn",
+          title: t2("common.close"),
+          "aria-label": t2("common.close"),
+          onClick: () => store.closeSearchPopup()
+        }, import_react18.default.createElement("span", { style: { fontSize: 15, lineHeight: 1 } }, "\xD7"))
+      ),
+      import_react18.default.createElement(
+        "div",
+        { className: "iwb-search-popup-meta" },
+        search2.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2.error !== null ? search2.error : interpolate3(t2("search.popup.matches"), { count: totals.matches, files: totals.files }),
+        search2.truncated === true ? import_react18.default.createElement("span", { className: "iwb-search-warn" }, t2("search.truncated")) : null,
+        // The text version of Find Usages is a fallback, not a semantic
+        // result: every hit is labelled, so the user knows what the list
+        // really is (PRD-v5 §5.3).
+        search2.textMatch === true ? import_react18.default.createElement("span", { className: "iwb-search-textmatch" }, t2("nav.textMatch")) : null
+      ),
+      // The upper half: one row per file that matched. The matches of a file
+      // are not repeated here - they are the preview below.
+      import_react18.default.createElement(
+        "div",
+        { className: "iwb-search-popup-list" },
+        search2.error !== null && query !== "" ? import_react18.default.createElement("div", { className: "iwb-search-error" }, search2.error) : files.length === 0 && query !== "" && search2.loading !== true ? import_react18.default.createElement("div", { className: "iwb-quick-empty" }, t2("search.noResults")) : files.map((file, index) => import_react18.default.createElement(
+          "button",
+          {
+            key: file.path,
+            type: "button",
+            className: `iwb-search-popup-file ${index === (popup.index ?? 0) ? "iwb-selected" : ""}`,
+            title: file.path,
+            onClick: () => store.set({ searchPopup: { ...popup, index } }),
+            // A double click opens the file at its first hit.
+            onDoubleClick: () => {
+              const first = file.matches?.[0];
+              if (first !== void 0) openHit(file.path, first.line);
+            }
+          },
+          import_react18.default.createElement(FileTypeIcon, { path: file.path, size: 14 }),
+          import_react18.default.createElement("span", { className: "iwb-search-popup-file-name" }, file.path.split("/").pop()),
+          import_react18.default.createElement("span", { className: "iwb-search-popup-file-dir" }, file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""),
+          import_react18.default.createElement(
+            "span",
+            { className: "iwb-search-popup-file-count" },
+            interpolate3(t2("search.popup.matchCount"), { count: (file.matches ?? []).length })
+          )
+        ))
+      ),
+      // The lower half: the preview of the selected file - every hit with the
+      // lines around it.
+      import_react18.default.createElement(
+        "div",
+        { className: "iwb-search-popup-preview" },
+        selected === null ? import_react18.default.createElement("div", { className: "iwb-quick-empty" }, t2("search.popup.noPreview")) : import_react18.default.createElement(
+          "div",
+          { className: "iwb-search-popup-blocks" },
+          (selected.matches ?? []).map((match, index) => {
+            const before = Array.isArray(match.before) ? match.before : [];
+            const after = Array.isArray(match.after) ? match.after : [];
+            const line = match.line ?? 0;
+            const binary = match.binary === true;
+            return import_react18.default.createElement(
+              "div",
+              {
+                key: `${selected.path}:${match.line}:${match.column}:${index}`,
+                className: "iwb-search-popup-block",
+                onDoubleClick: () => openHit(selected.path, match.line)
+              },
+              import_react18.default.createElement(
+                "div",
+                { className: "iwb-search-popup-block-head" },
+                import_react18.default.createElement("span", { className: "iwb-search-popup-block-pos" }, `${selected.path}:${line}`),
+                import_react18.default.createElement("span", { className: "iwb-search-popup-block-preview" }, match.preview ?? "")
+              ),
+              binary ? import_react18.default.createElement("div", { className: "iwb-quick-empty" }, t2("search.popup.binary")) : import_react18.default.createElement(
+                "div",
+                { className: "iwb-search-popup-code" },
+                before.map((text, at2) => PreviewLine({
+                  key: `before-${at2}`,
+                  number: line - before.length + at2,
+                  text,
+                  hit: false
+                })),
+                PreviewLine({ key: "hit", number: line, text: match.preview ?? "", hit: true }),
+                after.map((text, at2) => PreviewLine({
+                  key: `after-${at2}`,
+                  number: line + at2 + 1,
+                  text,
+                  hit: false
+                }))
+              )
+            );
+          })
+        )
+      ),
+      import_react18.default.createElement(
+        "div",
+        { className: "iwb-quick-foot" },
+        `${totals.files} \xB7 ${t2("search.popup.hint")}`,
+        search2.tookMs > 0 ? ` \xB7 ${search2.tookMs} ${t2("search.took")}` : ""
+      )
+    )
+  );
+}
+
 // src/client/layout.js
 var STACK_WIDTH = 560;
 var LEFT_PANE_RATIO = 42;
@@ -58550,18 +59627,18 @@ function label2(t2, key, fallback2) {
   const value = t2(key);
   return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
 }
-function interpolate2(text, values2) {
+function interpolate4(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
   }
   return out;
 }
-var MemoEditorArea = import_react18.default.memo(EditorArea);
-var MemoProjectPanel = import_react18.default.memo(ProjectPanel);
-var MemoCommitPanel = import_react18.default.memo(CommitPanel);
-var MemoGitPanel = import_react18.default.memo(GitPanel);
-var MemoTerminalPanel = import_react18.default.memo(TerminalPanel);
+var MemoEditorArea = import_react19.default.memo(EditorArea);
+var MemoProjectPanel = import_react19.default.memo(ProjectPanel);
+var MemoCommitPanel = import_react19.default.memo(CommitPanel);
+var MemoGitPanel = import_react19.default.memo(GitPanel);
+var MemoTerminalPanel = import_react19.default.memo(TerminalPanel);
 function TopBar({ store, state, fullscreen, onOpenSettings }) {
   const t2 = store.t;
   const branch = state.status.branch;
@@ -58569,11 +59646,15 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
   const workspaceTitle = baseName(state.workspaceRoot) || t2("project.empty");
   const projectTitle = baseName(state.root);
   const showProject = state.root !== state.workspaceRoot && projectTitle !== "";
-  const [menu, setMenu] = (0, import_react18.useState)(null);
-  return import_react18.default.createElement(
+  const [menu, setMenu] = (0, import_react19.useState)(null);
+  const [pushMenu, setPushMenu] = (0, import_react19.useState)(null);
+  const ahead = typeof state.status.ahead === "number" ? state.status.ahead : 0;
+  const behind = typeof state.status.behind === "number" ? state.status.behind : 0;
+  const upstream = typeof state.status.upstream === "string" ? state.status.upstream : "";
+  return import_react19.default.createElement(
     "div",
     { className: "iwb-topbar" },
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "button",
       {
         type: "button",
@@ -58581,32 +59662,50 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
         title: state.workspaceRoot,
         onClick: (event) => setMenu({ x: event.clientX, y: event.clientY + 8 })
       },
-      import_react18.default.createElement(StripeIcon, { tool: "project", size: 16 }),
-      import_react18.default.createElement(
+      import_react19.default.createElement(StripeIcon, { tool: "project", size: 16 }),
+      import_react19.default.createElement(
         "span",
         { className: "iwb-project-name" },
         workspaceTitle,
-        showProject ? import_react18.default.createElement("span", { className: "iwb-project-current" }, ` / ${projectTitle}`) : null
+        showProject ? import_react19.default.createElement("span", { className: "iwb-project-current" }, ` / ${projectTitle}`) : null
       ),
-      import_react18.default.createElement("span", { className: "iwb-project-path" }, state.root || state.workspaceRoot)
+      import_react19.default.createElement("span", { className: "iwb-project-path" }, state.root || state.workspaceRoot)
     ),
-    state.status.isRepo === true ? import_react18.default.createElement(
+    state.status.isRepo === true ? import_react19.default.createElement(
       "span",
       { className: "iwb-branch-chip", title: state.status.upstream ?? "" },
-      import_react18.default.createElement(IconGit, { width: 12, height: 12 }),
-      import_react18.default.createElement("span", { className: "iwb-branch-name" }, detached ? (state.status.oid ?? "HEAD").slice(0, 7) : branch ?? "HEAD"),
-      detached ? import_react18.default.createElement("span", { className: "iwb-behind" }, t2("git.detached")) : null,
-      typeof state.status.ahead === "number" && state.status.ahead > 0 ? import_react18.default.createElement("span", { className: "iwb-ahead" }, `\u2191${state.status.ahead}`) : null,
-      typeof state.status.behind === "number" && state.status.behind > 0 ? import_react18.default.createElement("span", { className: "iwb-behind" }, `\u2193${state.status.behind}`) : null
+      import_react19.default.createElement(IconGit, { width: 12, height: 12 }),
+      import_react19.default.createElement("span", { className: "iwb-branch-name" }, detached ? (state.status.oid ?? "HEAD").slice(0, 7) : branch ?? "HEAD"),
+      detached ? import_react19.default.createElement("span", { className: "iwb-behind" }, t2("git.detached")) : null,
+      // The "ahead" badge is a button: it is the only place that offers
+      // the push without a terminal (PUSH-02).
+      ahead > 0 ? import_react19.default.createElement("button", {
+        type: "button",
+        className: "iwb-ahead iwb-ahead-btn",
+        title: interpolate4(t2("git.aheadTitle"), { upstream: upstream === "" ? t2("common.branch") : upstream, count: ahead }),
+        onClick: (event) => {
+          event.stopPropagation();
+          setPushMenu({ x: event.clientX, y: event.clientY + 8 });
+        }
+      }, `\u2191${ahead}`) : null,
+      behind > 0 ? import_react19.default.createElement("button", {
+        type: "button",
+        className: "iwb-behind iwb-ahead-btn",
+        title: interpolate4(t2("git.behindTitle"), { count: behind }),
+        onClick: (event) => {
+          event.stopPropagation();
+          setPushMenu({ x: event.clientX, y: event.clientY + 8 });
+        }
+      }, `\u2193${behind}`) : null
     ) : null,
-    import_react18.default.createElement("div", { className: "iwb-top-spacer" }),
-    import_react18.default.createElement("button", {
+    import_react19.default.createElement("div", { className: "iwb-top-spacer" }),
+    import_react19.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn",
       title: t2("layout.hideAll"),
       onClick: () => store.toggleHideAll()
     }, "\u229F"),
-    import_react18.default.createElement("button", {
+    import_react19.default.createElement("button", {
       type: "button",
       className: `iwb-iconbtn ${fullscreen ? "iwb-on" : ""}`,
       title: t2(fullscreen ? "layout.exitFullscreen" : "layout.fullscreen"),
@@ -58614,7 +59713,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       "aria-pressed": fullscreen,
       onClick: (event) => store.toggleFullscreen(event.currentTarget)
     }, "\u26F6"),
-    import_react18.default.createElement("button", {
+    import_react19.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn",
       title: t2("common.refresh"),
@@ -58623,14 +59722,14 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
         void store.refreshStatus({ initial: true });
         void store.loadBranches();
       }
-    }, import_react18.default.createElement(IconRefresh, { width: 15, height: 15 })),
-    import_react18.default.createElement("button", {
+    }, import_react19.default.createElement(IconRefresh, { width: 15, height: 15 })),
+    import_react19.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn",
       title: t2("common.settings"),
       onClick: onOpenSettings
-    }, import_react18.default.createElement(IconGear, { width: 15, height: 15 })),
-    menu !== null ? import_react18.default.createElement(ContextMenu, {
+    }, import_react19.default.createElement(IconGear, { width: 15, height: 15 })),
+    menu !== null ? import_react19.default.createElement(ContextMenu, {
       x: menu.x,
       y: menu.y,
       onClose: () => setMenu(null),
@@ -58639,7 +59738,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
         ...state.workspaces.length > 0 ? state.workspaces.map((workspace) => ({
           key: workspace.path,
           text: workspace.title,
-          icon: workspace.path === state.workspaceRoot ? import_react18.default.createElement("span", { style: { color: "var(--iwb-accent)" } }, "\u25CF") : null,
+          icon: workspace.path === state.workspaceRoot ? import_react19.default.createElement("span", { style: { color: "var(--iwb-accent)" } }, "\u25CF") : null,
           action: () => {
             void store.setRoot(workspace.path);
           }
@@ -58648,63 +59747,76 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
         { key: "project", text: t2("project.selectProject"), action: () => store.openProjectPicker() },
         { key: "open", text: t2("project.openWorkspace"), action: () => store.openRootPicker() }
       ]
+    }) : null,
+    pushMenu !== null ? import_react19.default.createElement(ContextMenu, {
+      x: pushMenu.x,
+      y: pushMenu.y,
+      onClose: () => setPushMenu(null),
+      items: [
+        { label: interpolate4(t2("git.aheadTitle"), { upstream: upstream === "" ? t2("common.branch") : upstream, count: ahead }) },
+        { key: "push", text: t2("git.aheadPush"), disabled: ahead === 0, action: () => {
+          void store.push();
+        } },
+        { key: "history", text: t2("git.aheadHistory"), action: () => store.showTool("git") },
+        ...behind > 0 ? [{ key: "behind", text: interpolate4(t2("git.behindTitle"), { count: behind }), disabled: true }] : []
+      ]
     }) : null
   );
 }
 function Stripe({ store, state }) {
   const t2 = store.t;
   const sessions = state.terminal.sessions.length;
-  const button = (tool, active, children) => import_react18.default.createElement("button", {
+  const button = (tool, active, children) => import_react19.default.createElement("button", {
     type: "button",
     className: `iwb-stripe-btn ${active ? "iwb-on" : ""}`,
     title: `${t2(`${tool}.title`)} (${state.settings?.shortcuts?.[tool] ?? ""})`,
     onClick: () => store.toggleTool(tool)
   }, children);
-  return import_react18.default.createElement(
+  return import_react19.default.createElement(
     "div",
     { className: "iwb-stripe" },
     button(
       "project",
       state.layout.left === "project",
-      import_react18.default.createElement(StripeIcon, { tool: "project", size: 20 })
+      import_react19.default.createElement(StripeIcon, { tool: "project", size: 20 })
     ),
     button(
       "commit",
       state.layout.left === "commit",
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "span",
         null,
-        import_react18.default.createElement(StripeIcon, { tool: "commit", size: 20 }),
-        state.changeCount > 0 ? import_react18.default.createElement("span", { className: "iwb-badge" }, state.changeCount > 99 ? "99+" : state.changeCount) : null
+        import_react19.default.createElement(StripeIcon, { tool: "commit", size: 20 }),
+        state.changeCount > 0 ? import_react19.default.createElement("span", { className: "iwb-badge" }, state.changeCount > 99 ? "99+" : state.changeCount) : null
       )
     ),
-    import_react18.default.createElement("div", { className: "iwb-stripe-spacer" }),
+    import_react19.default.createElement("div", { className: "iwb-stripe-spacer" }),
     button(
       "git",
       state.layout.bottom === "git",
-      import_react18.default.createElement(StripeIcon, { tool: "git", size: 20 })
+      import_react19.default.createElement(StripeIcon, { tool: "git", size: 20 })
     ),
     button(
       "terminal",
       state.layout.bottom === "terminal",
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "span",
         null,
-        import_react18.default.createElement(StripeIcon, { tool: "terminal", size: 20 }),
-        sessions > 0 ? import_react18.default.createElement("span", { className: "iwb-badge iwb-badge-dirty" }, sessions) : null
+        import_react19.default.createElement(StripeIcon, { tool: "terminal", size: 20 }),
+        sessions > 0 ? import_react19.default.createElement("span", { className: "iwb-badge iwb-badge-dirty" }, sessions) : null
       )
     )
   );
 }
 function RepoSwitch({ store, state }) {
   const t2 = store.t;
-  const [anchor, setAnchor] = (0, import_react18.useState)(null);
-  const [placement, setPlacement] = (0, import_react18.useState)(null);
-  const holderRef = (0, import_react18.useRef)(null);
+  const [anchor, setAnchor] = (0, import_react19.useState)(null);
+  const [placement, setPlacement] = (0, import_react19.useState)(null);
+  const holderRef = (0, import_react19.useRef)(null);
   const current = typeof state.gitRepoRoot === "string" ? state.gitRepoRoot : "";
   const enabled = state.layout.bottom === "git";
   const name2 = current === "" ? "" : baseName(current) || current;
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     if (anchor === null) return void 0;
     const onDown = (event) => {
       if (event.target instanceof Element && event.target.closest(".iwb-branch-popover, .iwb-branch-switch, .iwb-repo-switch") !== null) return;
@@ -58713,7 +59825,7 @@ function RepoSwitch({ store, state }) {
     window.addEventListener("mousedown", onDown, true);
     return () => window.removeEventListener("mousedown", onDown, true);
   }, [anchor]);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     if (anchor === null) return void 0;
     const holder = holderRef.current;
     if (holder === null) return void 0;
@@ -58726,10 +59838,10 @@ function RepoSwitch({ store, state }) {
     setPlacement({ top: top2 });
     return void 0;
   }, [anchor]);
-  return import_react18.default.createElement(
-    import_react18.default.Fragment,
+  return import_react19.default.createElement(
+    import_react19.default.Fragment,
     null,
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "button",
       {
         type: "button",
@@ -58747,17 +59859,17 @@ function RepoSwitch({ store, state }) {
           setAnchor({ left, top: rect.top, bottom: rect.bottom });
         }
       },
-      import_react18.default.createElement("span", { className: "iwb-dock-repo-dot" }),
-      import_react18.default.createElement("span", { className: "iwb-repo-name" }, name2 === "" ? label2(t2, "git.pickRepo", "Choose repository") : name2),
-      import_react18.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
+      import_react19.default.createElement("span", { className: "iwb-dock-repo-dot" }),
+      import_react19.default.createElement("span", { className: "iwb-repo-name" }, name2 === "" ? label2(t2, "git.pickRepo", "Choose repository") : name2),
+      import_react19.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
     ),
-    anchor !== null ? import_react18.default.createElement(
+    anchor !== null ? import_react19.default.createElement(
       "div",
       {
         ref: holderRef,
         style: { width: 0, height: 0, opacity: placement === null ? 0 : 1 }
       },
-      import_react18.default.createElement(RepoPopover, {
+      import_react19.default.createElement(RepoPopover, {
         store,
         x: anchor.left,
         y: placement?.top ?? anchor.bottom + 4,
@@ -58770,34 +59882,36 @@ function BottomTabs({ store, state }) {
   const t2 = store.t;
   const tool = state.layout.bottom;
   if (tool === null || tool === void 0) return null;
-  return import_react18.default.createElement(
+  return import_react19.default.createElement(
     "div",
     { className: "iwb-bottom-tabs" },
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "button",
       {
         type: "button",
         className: `iwb-bottom-tab ${tool === "terminal" ? "iwb-on" : ""}`,
         onClick: () => store.showTool("terminal")
       },
-      import_react18.default.createElement(IconTerminal, { width: 13, height: 13 }),
+      import_react19.default.createElement(IconTerminal, { width: 13, height: 13 }),
       t2("terminal.title"),
-      state.terminal.sessions.length > 0 ? import_react18.default.createElement("span", { className: "iwb-badge" }, state.terminal.sessions.length) : null
+      state.terminal.sessions.length > 0 ? import_react19.default.createElement("span", { className: "iwb-badge" }, state.terminal.sessions.length) : null
     ),
-    import_react18.default.createElement("button", {
+    import_react19.default.createElement("button", {
       type: "button",
       className: `iwb-bottom-tab ${tool === "git" ? "iwb-on" : ""}`,
       onClick: () => store.showTool("git")
-    }, import_react18.default.createElement(IconGit, { width: 13, height: 13 }), t2("git.title")),
-    import_react18.default.createElement(RepoSwitch, { store, state }),
-    import_react18.default.createElement("button", {
+    }, import_react19.default.createElement(IconGit, { width: 13, height: 13 }), t2("git.title")),
+    import_react19.default.createElement(RepoSwitch, { store, state }),
+    import_react19.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn iwb-bottom-close",
       title: t2("common.close"),
       onClick: () => store.setLayout({ bottom: null })
-    }, import_react18.default.createElement("span", { style: { fontSize: 16, lineHeight: 1 } }, "\xD7"))
+    }, import_react19.default.createElement("span", { style: { fontSize: 16, lineHeight: 1 } }, "\xD7"))
   );
 }
+var LSP_UNSTABLE_FAILURES = 3;
+var LSP_UNSTABLE_TIMEOUTS = 2;
 function lspStatusView(store, state) {
   const t2 = store.t;
   const lsp = state?.lsp ?? {};
@@ -58816,12 +59930,14 @@ function lspStatusView(store, state) {
     return {
       ...base2,
       key: "missing",
-      text: interpolate2(t2("lsp.status.missing"), { language: missingOnly.languageId }),
+      text: interpolate4(t2("lsp.status.missing"), { language: missingOnly.languageId }),
       tone: "idle",
       action: "settings",
-      title: interpolate2(t2("lsp.serverMissing"), { language: missingOnly.languageId })
+      title: interpolate4(t2("lsp.serverMissing"), { language: missingOnly.languageId })
     };
   }
+  const failures = Number.isFinite(lsp.consecutiveFailures) ? lsp.consecutiveFailures : 0;
+  const timeouts = Number.isFinite(lsp.consecutiveTimeouts) ? lsp.consecutiveTimeouts : 0;
   switch (current) {
     case "starting":
     case "restarting":
@@ -58836,20 +59952,24 @@ function lspStatusView(store, state) {
         tone: "idle"
       };
     case "ready":
+      if (failures >= LSP_UNSTABLE_FAILURES || timeouts >= LSP_UNSTABLE_TIMEOUTS) {
+        const text = timeouts >= LSP_UNSTABLE_TIMEOUTS ? interpolate4(t2("lsp.status.unstableTimeout"), { count: timeouts }) : interpolate4(t2("lsp.status.unstable"), { count: failures });
+        return { ...base2, key: "unstable", text, tone: "warn", action: "diagnostics" };
+      }
       return { ...base2, key: "ready", text: t2("lsp.status.ready"), tone: "ok" };
     case "crashed":
       return { ...base2, key: "crashed", text: t2("lsp.status.crashed"), tone: "error", action: "crash" };
     case "cancelled":
-      return { ...base2, key: "cancelled", text: t2("lsp.status.cancelled"), tone: "idle" };
+      return { ...base2, key: "cancelled", text: t2("lsp.status.cancelled"), tone: "warn", action: "diagnostics" };
     case "degraded":
-      return { ...base2, key: "degraded", text: t2("lsp.status.degraded"), tone: "idle" };
+      return { ...base2, key: "degraded", text: t2("lsp.status.degraded"), tone: "warn", action: "diagnostics" };
     case "failed":
-      return { ...base2, key: "failed", text: t2("lsp.status.degraded"), tone: "idle" };
+      return { ...base2, key: "failed", text: t2("lsp.status.degraded"), tone: "warn", action: "diagnostics" };
     default:
-      return { ...base2, key: "idle", text: t2("lsp.status.degraded"), tone: "idle" };
+      return { ...base2, key: "idle", text: t2("lsp.status.degraded"), tone: "warn", action: "diagnostics" };
   }
 }
-function LspStatus({ store, state, onOpenSettings }) {
+function LspStatus({ store, state, onOpenSettings, onOpenDiagnostics }) {
   const t2 = store.t;
   const lsp = state.lsp ?? {};
   const view = lspStatusView(store, state);
@@ -58857,14 +59977,17 @@ function LspStatus({ store, state, onOpenSettings }) {
   const startedAt = typeof lsp.startedAt === "number" ? lsp.startedAt : 0;
   const cancellable = lsp.cancellable === true || startedAt > 0 && Date.now() - startedAt > cancelAfter;
   const showCancel = view.key === "building" && cancellable;
+  const showRebuild = lsp.rebuilding !== true && (view.key === "degraded" || view.key === "failed" || view.key === "cancelled");
   const tone = view.tone === "ok" ? " iwb-lsp-status-ready" : view.tone === "warn" ? " iwb-lsp-status-warn" : view.tone === "error" ? " iwb-lsp-status-error" : " iwb-lsp-status-muted";
   const title = view.detail === "" ? view.title : `${view.title} \u2014 ${view.detail}`;
   const onClick = view.action === "settings" ? () => {
     onOpenSettings?.();
   } : view.action === "crash" ? () => {
     store.toast("error", t2("lsp.crashedToast"), view.detail);
+  } : view.action === "diagnostics" ? () => {
+    onOpenDiagnostics?.();
   } : void 0;
-  return import_react18.default.createElement(
+  return import_react19.default.createElement(
     "span",
     {
       className: `iwb-status-item iwb-lsp-status${tone}`,
@@ -58873,11 +59996,11 @@ function LspStatus({ store, state, onOpenSettings }) {
       style: onClick === void 0 ? void 0 : { cursor: "pointer" },
       onClick
     },
-    import_react18.default.createElement("span", { className: "iwb-lsp-status-dot" }),
-    import_react18.default.createElement("span", { className: "iwb-lsp-status-label" }, view.text),
+    import_react19.default.createElement("span", { className: "iwb-lsp-status-dot" }),
+    import_react19.default.createElement("span", { className: "iwb-lsp-status-label" }, view.text),
     // The cancel button only appears while a build runs longer than the
     // configured patience (PRD-v5 §2.4).
-    showCancel ? import_react18.default.createElement("button", {
+    showCancel ? import_react19.default.createElement("button", {
       type: "button",
       className: "iwb-lsp-cancel",
       title: t2("lsp.cancelIndex"),
@@ -58885,10 +60008,20 @@ function LspStatus({ store, state, onOpenSettings }) {
         event.stopPropagation();
         void store.cancelLspIndex();
       }
-    }, t2("lsp.cancelIndex")) : null
+    }, t2("lsp.cancelIndex")) : null,
+    showRebuild ? import_react19.default.createElement("button", {
+      type: "button",
+      className: "iwb-lsp-cancel",
+      title: t2("lsp.rebuildIndex"),
+      onClick: (event) => {
+        event.stopPropagation();
+        void store.restartLsp();
+      }
+    }, t2("lsp.rebuildIndex")) : null,
+    lsp.rebuilding === true ? import_react19.default.createElement("span", { className: "iwb-lsp-status-label" }, t2("lsp.diagnostics.rebuilding")) : null
   );
 }
-function StatusBar({ store, state, onOpenSettings }) {
+function StatusBar({ store, state, onOpenSettings, onOpenDiagnostics }) {
   const t2 = store.t;
   const summary = store.summary();
   const active = state.tabs.find((tab3) => tab3.id === state.activeId);
@@ -58897,58 +60030,58 @@ function StatusBar({ store, state, onOpenSettings }) {
   const encoding = text === void 0 ? void 0 : text.encoding === "utf-8-bom" ? "UTF-8 BOM" : text.encoding === "utf-16le" ? "UTF-16 LE" : text.encoding === "utf-16be" ? "UTF-16 BE" : "UTF-8";
   const eol2 = text === void 0 ? void 0 : text.eol === "\r\n" ? "CRLF" : "LF";
   const cursor = state.cursor !== null && state.cursor !== void 0 && active?.editing === true ? state.cursor : null;
-  return import_react18.default.createElement(
+  return import_react19.default.createElement(
     "div",
     { className: "iwb-statusbar" },
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "span",
       { className: "iwb-status-item" },
-      import_react18.default.createElement("span", { className: `iwb-status-dot ${state.statusError !== null ? "iwb-busy" : ""}` }),
+      import_react19.default.createElement("span", { className: `iwb-status-dot ${state.statusError !== null ? "iwb-busy" : ""}` }),
       state.status.isRepo === true ? t2("status.ready") : t2("welcome.noRepo")
     ),
-    summary.branch !== void 0 ? import_react18.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("git") }, summary.branch) : null,
-    summary.changes > 0 ? import_react18.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("commit") }, `${summary.changes} ${t2("status.changes")}`) : null,
+    summary.branch !== void 0 ? import_react19.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("git") }, summary.branch) : null,
+    summary.changes > 0 ? import_react19.default.createElement("span", { className: "iwb-status-item", style: { cursor: "pointer" }, onClick: () => store.showTool("commit") }, `${summary.changes} ${t2("status.changes")}`) : null,
     // The semantic-analysis state sits next to the other status items, before
     // the spacer: it must be visible even when the workbench is idle.
-    import_react18.default.createElement(LspStatus, { store, state, onOpenSettings }),
-    import_react18.default.createElement("div", { className: "iwb-spacer" }),
-    cursor !== null ? import_react18.default.createElement("span", { className: "iwb-status-item" }, `${t2("editor.line")} ${cursor.line}:${cursor.col}`) : null,
-    lines !== void 0 ? import_react18.default.createElement("span", { className: "iwb-status-item" }, `${lines} ${t2("editor.lines")}`) : null,
-    encoding !== void 0 ? import_react18.default.createElement("span", { className: "iwb-status-item" }, `${encoding} ${eol2}`) : null,
-    import_react18.default.createElement(
+    import_react19.default.createElement(LspStatus, { store, state, onOpenSettings, onOpenDiagnostics }),
+    import_react19.default.createElement("div", { className: "iwb-spacer" }),
+    cursor !== null ? import_react19.default.createElement("span", { className: "iwb-status-item" }, `${t2("editor.line")} ${cursor.line}:${cursor.col}`) : null,
+    lines !== void 0 ? import_react19.default.createElement("span", { className: "iwb-status-item" }, `${lines} ${t2("editor.lines")}`) : null,
+    encoding !== void 0 ? import_react19.default.createElement("span", { className: "iwb-status-item" }, `${encoding} ${eol2}`) : null,
+    import_react19.default.createElement(
       "span",
       { className: "iwb-status-item" },
-      import_react18.default.createElement(Kbd, null, state.settings?.shortcuts?.project ?? "Alt+1"),
-      import_react18.default.createElement("span", { style: { marginLeft: 4 } }, t2("project.title"))
+      import_react19.default.createElement(Kbd, null, state.settings?.shortcuts?.project ?? "Alt+1"),
+      import_react19.default.createElement("span", { style: { marginLeft: 4 } }, t2("project.title"))
     ),
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "span",
       { className: "iwb-status-item" },
-      import_react18.default.createElement(Kbd, null, state.settings?.shortcuts?.terminal ?? "Alt+F12"),
-      import_react18.default.createElement("span", { style: { marginLeft: 4 } }, t2("terminal.title"))
+      import_react19.default.createElement(Kbd, null, state.settings?.shortcuts?.terminal ?? "Alt+F12"),
+      import_react19.default.createElement("span", { style: { marginLeft: 4 } }, t2("terminal.title"))
     )
   );
 }
 function RootPicker({ store, state }) {
   const t2 = store.t;
-  const [path2, setPath] = (0, import_react18.useState)("");
+  const [path2, setPath] = (0, import_react19.useState)("");
   if (state.rootPicker !== true) return null;
-  return import_react18.default.createElement(
+  return import_react19.default.createElement(
     "div",
     { className: "iwb-modal-backdrop", onMouseDown: (event) => {
       if (event.target === event.currentTarget) store.closeRootPicker();
     } },
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "div",
       { className: "iwb-modal", role: "dialog", "aria-modal": "true" },
-      import_react18.default.createElement("h2", null, t2("project.openWorkspace")),
-      import_react18.default.createElement(
+      import_react19.default.createElement("h2", null, t2("project.openWorkspace")),
+      import_react19.default.createElement(
         "div",
         { className: "iwb-root-picker" },
-        import_react18.default.createElement(
+        import_react19.default.createElement(
           "div",
           { className: "iwb-root-list" },
-          state.workspaces.map((workspace) => import_react18.default.createElement(
+          state.workspaces.map((workspace) => import_react19.default.createElement(
             "button",
             {
               key: workspace.path,
@@ -58959,19 +60092,19 @@ function RootPicker({ store, state }) {
                 void store.setRoot(workspace.path);
               }
             },
-            import_react18.default.createElement(StripeIcon, { tool: "project", size: 16 }),
-            import_react18.default.createElement(
+            import_react19.default.createElement(StripeIcon, { tool: "project", size: 16 }),
+            import_react19.default.createElement(
               "span",
               { style: { display: "flex", flexDirection: "column", minWidth: 0 } },
-              import_react18.default.createElement("b", null, workspace.title),
-              import_react18.default.createElement("span", { className: "iwb-root-path" }, workspace.path)
+              import_react19.default.createElement("b", null, workspace.title),
+              import_react19.default.createElement("span", { className: "iwb-root-path" }, workspace.path)
             )
           ))
         ),
-        import_react18.default.createElement(
+        import_react19.default.createElement(
           "div",
           { style: { display: "flex", gap: 8, marginTop: 4 } },
-          import_react18.default.createElement("input", {
+          import_react19.default.createElement("input", {
             className: "iwb-input",
             style: { flex: 1, width: "auto" },
             placeholder: t2("project.workspacePath"),
@@ -58983,7 +60116,7 @@ function RootPicker({ store, state }) {
               }
             }
           }),
-          import_react18.default.createElement("button", {
+          import_react19.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-primary",
             disabled: path2.trim() === "",
@@ -58993,10 +60126,10 @@ function RootPicker({ store, state }) {
           }, t2("common.open"))
         )
       ),
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "div",
         { className: "iwb-modal-actions", style: { marginTop: 16 } },
-        import_react18.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => store.closeRootPicker() }, t2("common.cancel"))
+        import_react19.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => store.closeRootPicker() }, t2("common.cancel"))
       )
     )
   );
@@ -59007,7 +60140,7 @@ function ProjectPicker({ store, state }) {
   const projects = Array.isArray(state.projects) ? state.projects : [];
   const root = projects.filter((project) => project.isRoot === true);
   const children = projects.filter((project) => project.isRoot !== true);
-  const choice = (project) => import_react18.default.createElement(
+  const choice = (project) => import_react19.default.createElement(
     "button",
     {
       key: project.path,
@@ -59018,24 +60151,24 @@ function ProjectPicker({ store, state }) {
         void store.selectProject(project.path);
       }
     },
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "span",
       { className: "iwb-project-choice-icon" },
-      project.isRepo === true ? import_react18.default.createElement(IconGit, { width: 15, height: 15 }) : import_react18.default.createElement(FileTypeIcon, { kind: "folder", size: 15 })
+      project.isRepo === true ? import_react19.default.createElement(IconGit, { width: 15, height: 15 }) : import_react19.default.createElement(FileTypeIcon, { kind: "folder", size: 15 })
     ),
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "span",
       { className: "iwb-project-choice-text" },
-      import_react18.default.createElement("b", null, project.name),
-      import_react18.default.createElement("span", { className: "iwb-project-choice-path" }, project.path)
+      import_react19.default.createElement("b", null, project.name),
+      import_react19.default.createElement("span", { className: "iwb-project-choice-path" }, project.path)
     ),
-    project.isRepo === true ? import_react18.default.createElement("span", { className: "iwb-project-repo-badge" }, t2("project.gitRepo")) : null,
+    project.isRepo === true ? import_react19.default.createElement("span", { className: "iwb-project-repo-badge" }, t2("project.gitRepo")) : null,
     // The badge order is fixed: [Git] → [Indexed] → [Current]. The three can
     // coexist; none of them replaces another (PRD-v5 §2.1).
-    project.indexState === "indexed" ? import_react18.default.createElement("span", { className: "iwb-project-index-badge", title: t2("project.indexedHint") }, t2("project.indexed")) : null,
-    project.path === state.root ? import_react18.default.createElement("span", { className: "iwb-project-current-badge" }, t2("project.current")) : null
+    project.indexState === "indexed" ? import_react19.default.createElement("span", { className: "iwb-project-index-badge", title: t2("project.indexedHint") }, t2("project.indexed")) : null,
+    project.path === state.root ? import_react19.default.createElement("span", { className: "iwb-project-current-badge" }, t2("project.current")) : null
   );
-  return import_react18.default.createElement(
+  return import_react19.default.createElement(
     "div",
     {
       className: "iwb-modal-backdrop",
@@ -59043,34 +60176,34 @@ function ProjectPicker({ store, state }) {
         if (event.target === event.currentTarget) store.closeProjectPicker();
       }
     },
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "div",
       {
         className: "iwb-modal iwb-project-picker",
         role: "dialog",
         "aria-modal": "true"
       },
-      import_react18.default.createElement("h2", null, t2("project.selectProject")),
-      import_react18.default.createElement("p", { className: "iwb-modal-hint" }, t2("project.selectProjectHint")),
-      import_react18.default.createElement(
+      import_react19.default.createElement("h2", null, t2("project.selectProject")),
+      import_react19.default.createElement("p", { className: "iwb-modal-hint" }, t2("project.selectProjectHint")),
+      import_react19.default.createElement(
         "div",
         { className: "iwb-project-picker-list" },
-        import_react18.default.createElement("div", { className: "iwb-project-group" }, t2("project.workspaceRoot")),
+        import_react19.default.createElement("div", { className: "iwb-project-group" }, t2("project.workspaceRoot")),
         ...root.map(choice),
-        import_react18.default.createElement("div", { className: "iwb-project-group" }, t2("project.subdirectories")),
-        children.length === 0 ? import_react18.default.createElement("div", { className: "iwb-project-empty" }, t2("project.noSubdirectories")) : children.map(choice)
+        import_react19.default.createElement("div", { className: "iwb-project-group" }, t2("project.subdirectories")),
+        children.length === 0 ? import_react19.default.createElement("div", { className: "iwb-project-empty" }, t2("project.noSubdirectories")) : children.map(choice)
       ),
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "div",
         { className: "iwb-modal-actions" },
-        import_react18.default.createElement("button", {
+        import_react19.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn",
           onClick: () => {
             void store.loadProjects();
           }
-        }, import_react18.default.createElement(IconRefresh, { width: 12, height: 12 }), t2("project.refreshProjects")),
-        import_react18.default.createElement("button", {
+        }, import_react19.default.createElement(IconRefresh, { width: 12, height: 12 }), t2("project.refreshProjects")),
+        import_react19.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn",
           onClick: () => store.closeProjectPicker()
@@ -59079,10 +60212,33 @@ function ProjectPicker({ store, state }) {
     )
   );
 }
+function buildTimeKey(baselineMB) {
+  if (baselineMB <= 96) return "index.decision.time.under1";
+  if (baselineMB <= 320) return "index.decision.time.1to2";
+  if (baselineMB <= 768) return "index.decision.time.2to5";
+  return "index.decision.time.5to10";
+}
+function languageLabel(languageId) {
+  const id2 = typeof languageId === "string" ? languageId : "";
+  const names = {
+    typescript: "TypeScript",
+    typescriptreact: "TypeScript React",
+    javascript: "JavaScript",
+    javascriptreact: "JavaScript React",
+    python: "Python",
+    yaml: "YAML",
+    java: "Java",
+    go: "Go",
+    rust: "Rust",
+    c: "C",
+    cpp: "C++"
+  };
+  return names[id2] ?? id2;
+}
 function IndexDecisionModal({ store, state }) {
   const t2 = store.t;
   const decision = state.indexDecision;
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     if (decision === null || decision === void 0) return void 0;
     const onKey = (event) => {
       if (event.key !== "Escape") return;
@@ -59097,8 +60253,12 @@ function IndexDecisionModal({ store, state }) {
   const name2 = typeof decision.name === "string" ? decision.name : "";
   const isRoot = decision.isRoot === true;
   const isRepo = decision.isRepo === true;
-  const title = interpolate2(t2("index.decision.title"), { name: name2 });
-  return import_react18.default.createElement(
+  const language2 = typeof decision.language === "string" ? languageLabel(decision.language) : "";
+  const needMB = Number.isFinite(decision.needMB) ? decision.needMB : 0;
+  const time = interpolate4(t2(buildTimeKey(needMB)), {});
+  const title = interpolate4(t2("index.decision.title"), { name: name2 });
+  const body = language2 === "" ? interpolate4(t2("index.decision.bodyUnknown"), { time }) : interpolate4(t2("index.decision.body"), { language: language2, time });
+  return import_react19.default.createElement(
     "div",
     {
       className: "iwb-modal-backdrop",
@@ -59106,7 +60266,7 @@ function IndexDecisionModal({ store, state }) {
         if (event.target === event.currentTarget) store.resolveIndexDecision("cancel");
       }
     },
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "div",
       {
         className: "iwb-modal iwb-index-decision",
@@ -59114,95 +60274,305 @@ function IndexDecisionModal({ store, state }) {
         "aria-modal": "true",
         "aria-label": title
       },
-      import_react18.default.createElement("h2", null, title),
-      import_react18.default.createElement("p", null, t2("index.decision.body")),
+      import_react19.default.createElement(
+        "div",
+        { className: "iwb-modal-head" },
+        import_react19.default.createElement("h2", null, title),
+        import_react19.default.createElement("button", {
+          type: "button",
+          className: "iwb-iconbtn",
+          title: t2("common.close"),
+          "aria-label": t2("common.close"),
+          onClick: () => store.resolveIndexDecision("cancel")
+        }, import_react19.default.createElement("span", { style: { fontSize: 17, lineHeight: 1 } }, "\xD7"))
+      ),
+      import_react19.default.createElement("p", { className: "iwb-modal-hint" }, body),
       // The workspace root carries the extra warning: it usually holds
       // several independent repositories, and one program over all of them
       // costs a lot of memory and build time.
-      isRoot ? import_react18.default.createElement(
+      isRoot ? import_react19.default.createElement(
         "div",
         { className: "iwb-index-decision-warning" },
-        import_react18.default.createElement("div", { className: "iwb-index-decision-warning-title" }, t2("index.decision.rootTitle")),
-        import_react18.default.createElement("div", null, isRepo ? t2("index.decision.rootRepo") : t2("index.decision.rootWarning"))
+        import_react19.default.createElement("div", { className: "iwb-index-decision-warning-title" }, t2("index.decision.rootTitle")),
+        import_react19.default.createElement("div", null, isRepo ? t2("index.decision.rootRepo") : t2("index.decision.rootWarning"))
       ) : null,
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "div",
         { className: "iwb-modal-actions" },
-        isRoot ? import_react18.default.createElement("button", {
+        // In the workspace root there is no recommended option: all three
+        // buttons have the same weight. A "not recommended" option must not
+        // be the primary button (THEME-04).
+        isRoot ? import_react19.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn",
           onClick: () => store.resolveIndexDecision("build")
-        }, t2("index.decision.buildRoot")) : import_react18.default.createElement("button", {
+        }, t2("index.decision.buildRoot")) : import_react19.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn iwb-primary",
           onClick: () => store.resolveIndexDecision("build")
         }, t2("index.decision.build")),
-        import_react18.default.createElement("button", {
+        import_react19.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn",
+          title: t2("index.decision.conservativeHint"),
           onClick: () => store.resolveIndexDecision("conservative")
         }, t2("index.decision.conservative")),
-        isRoot ? import_react18.default.createElement("button", {
+        // "Cancel the switch" is the third way out. Without it the user had
+        // no choice but to switch the project.
+        import_react19.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn",
+          title: t2("index.decision.cancelHint"),
           onClick: () => store.resolveIndexDecision("cancel")
-        }, t2("index.decision.cancel")) : null
+        }, t2("index.decision.cancel"))
+      )
+    )
+  );
+}
+function MemoryDecisionModal({ store, state }) {
+  const t2 = store.t;
+  const decision = state.memoryDecision;
+  (0, import_react19.useEffect)(() => {
+    if (decision === null || decision === void 0) return void 0;
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      store.resolveMemoryDecision("conservative");
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [decision, store]);
+  if (decision === null || decision === void 0) return null;
+  const language2 = typeof decision.language === "string" ? languageLabel(decision.language) : "";
+  const body = language2 === "" ? interpolate4(t2("lsp.memoryWarn.bodyUnknown"), {
+    free: decision.freeMB ?? 0,
+    need: decision.needMB ?? 0
+  }) : interpolate4(t2("lsp.memoryWarn.body"), {
+    free: decision.freeMB ?? 0,
+    need: decision.needMB ?? 0,
+    language: language2
+  });
+  return import_react19.default.createElement(
+    "div",
+    {
+      className: "iwb-modal-backdrop",
+      onMouseDown: (event) => {
+        if (event.target === event.currentTarget) store.resolveMemoryDecision("conservative");
+      }
+    },
+    import_react19.default.createElement(
+      "div",
+      {
+        className: "iwb-modal iwb-index-decision",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": t2("lsp.memoryWarn.title")
+      },
+      import_react19.default.createElement(
+        "div",
+        { className: "iwb-modal-head" },
+        import_react19.default.createElement("h2", null, t2("lsp.memoryWarn.title")),
+        import_react19.default.createElement("button", {
+          type: "button",
+          className: "iwb-iconbtn",
+          title: t2("common.close"),
+          "aria-label": t2("common.close"),
+          onClick: () => store.resolveMemoryDecision("conservative")
+        }, import_react19.default.createElement("span", { style: { fontSize: 17, lineHeight: 1 } }, "\xD7"))
+      ),
+      import_react19.default.createElement("p", { className: "iwb-modal-hint" }, body),
+      import_react19.default.createElement(
+        "div",
+        { className: "iwb-modal-actions" },
+        import_react19.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-primary",
+          onClick: () => store.resolveMemoryDecision("start")
+        }, t2("lsp.memoryWarn.start")),
+        import_react19.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn",
+          title: t2("lsp.memoryWarn.conservativeHint"),
+          onClick: () => store.resolveMemoryDecision("conservative")
+        }, t2("lsp.memoryWarn.conservative"))
+      )
+    )
+  );
+}
+function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
+  const t2 = store.t;
+  const lsp = state.lsp ?? {};
+  const resources = lsp.resources ?? null;
+  const failures = Number.isFinite(lsp.consecutiveFailures) ? lsp.consecutiveFailures : 0;
+  const timeouts = Number.isFinite(lsp.consecutiveTimeouts) ? lsp.consecutiveTimeouts : 0;
+  const lastFailure = lsp.lastFailure ?? null;
+  const view = lspStatusView(store, state);
+  const freeMB = resources === null ? null : Math.round((resources.freeBytes ?? 0) / (1024 * 1024));
+  const needMB = resources === null ? null : Math.round(resources.needMB ?? 0);
+  return import_react19.default.createElement(
+    "div",
+    {
+      className: "iwb-modal-backdrop",
+      onMouseDown: (event) => {
+        if (event.target === event.currentTarget) onClose();
+      }
+    },
+    import_react19.default.createElement(
+      "div",
+      {
+        className: "iwb-modal iwb-lsp-diagnostics",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": t2("lsp.diagnostics.title")
+      },
+      import_react19.default.createElement(
+        "div",
+        { className: "iwb-modal-head" },
+        import_react19.default.createElement("h2", null, t2("lsp.diagnostics.title")),
+        import_react19.default.createElement("button", {
+          type: "button",
+          className: "iwb-iconbtn",
+          title: t2("common.close"),
+          "aria-label": t2("common.close"),
+          onClick: onClose
+        }, import_react19.default.createElement("span", { style: { fontSize: 17, lineHeight: 1 } }, "\xD7"))
+      ),
+      import_react19.default.createElement(
+        "div",
+        { className: "iwb-lsp-diagnostics-body" },
+        import_react19.default.createElement(
+          "div",
+          { className: "iwb-lsp-diagnostics-row" },
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-key" }, t2("lsp.diagnostics.state")),
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-value" }, view.text)
+        ),
+        import_react19.default.createElement(
+          "div",
+          { className: "iwb-lsp-diagnostics-row" },
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-key" }, t2("lsp.diagnostics.health")),
+          import_react19.default.createElement(
+            "span",
+            { className: "iwb-lsp-diagnostics-value" },
+            failures === 0 && timeouts === 0 ? t2("lsp.diagnostics.healthy") : `${failures} / ${timeouts}`
+          )
+        ),
+        import_react19.default.createElement(
+          "div",
+          { className: "iwb-lsp-diagnostics-row" },
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-key" }, t2("lsp.diagnostics.lastFailure")),
+          import_react19.default.createElement(
+            "span",
+            { className: "iwb-lsp-diagnostics-value" },
+            lastFailure === null ? t2("lsp.diagnostics.noFailure") : `${lastFailure.message ?? ""} (${new Date(lastFailure.at ?? 0).toLocaleTimeString()})`
+          )
+        ),
+        import_react19.default.createElement(
+          "div",
+          { className: "iwb-lsp-diagnostics-row" },
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-key" }, t2("lsp.diagnostics.memory")),
+          import_react19.default.createElement(
+            "span",
+            { className: "iwb-lsp-diagnostics-value" },
+            freeMB === null ? "\u2014" : `${freeMB} MB / ${needMB} MB`
+          )
+        ),
+        import_react19.default.createElement(
+          "div",
+          { className: "iwb-lsp-diagnostics-row" },
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-key" }, t2("lsp.diagnostics.stderr")),
+          import_react19.default.createElement(
+            "pre",
+            { className: "iwb-lsp-diagnostics-logs" },
+            (lsp.stderrLines ?? []).length === 0 ? t2("lsp.diagnostics.noLogs") : (lsp.stderrLines ?? []).slice(-20).join("\n")
+          )
+        )
+      ),
+      import_react19.default.createElement(
+        "div",
+        { className: "iwb-modal-actions" },
+        import_react19.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-primary",
+          disabled: lsp.rebuilding === true,
+          onClick: () => {
+            void store.restartLsp();
+          }
+        }, t2("lsp.diagnostics.rebuild")),
+        import_react19.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn",
+          title: t2("lsp.diagnostics.degradeHint"),
+          onClick: () => {
+            void store.degradeLsp();
+          }
+        }, t2("lsp.diagnostics.degrade")),
+        import_react19.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn",
+          title: t2("lsp.diagnostics.settingsHint"),
+          onClick: () => {
+            onClose();
+            onOpenSettings?.();
+          }
+        }, t2("lsp.diagnostics.settings"))
       )
     )
   );
 }
 function SettingsModal({ store, state, onClose }) {
   const t2 = store.t;
-  const [status, setStatus] = (0, import_react18.useState)({ saving: false, saved: false });
-  return import_react18.default.createElement(
+  const [status, setStatus] = (0, import_react19.useState)({ saving: false, saved: false });
+  return import_react19.default.createElement(
     "div",
     { className: "iwb-modal-backdrop", onMouseDown: (event) => {
       if (event.target === event.currentTarget) onClose();
     } },
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "div",
       { className: "iwb-modal iwb-settings-modal", role: "dialog", "aria-modal": "true" },
       // The header and the close control stay put while the long form scrolls;
       // the save feedback rides along so a toggle never disappears silently.
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "div",
         { className: "iwb-modal-head" },
-        import_react18.default.createElement("h2", null, t2("settings.title")),
-        status.saving === true ? import_react18.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : status.saved === true ? import_react18.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null,
-        import_react18.default.createElement("button", {
+        import_react19.default.createElement("h2", null, t2("settings.title")),
+        status.saving === true ? import_react19.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : status.saved === true ? import_react19.default.createElement("span", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null,
+        import_react19.default.createElement("button", {
           type: "button",
           className: "iwb-iconbtn",
           title: t2("common.close"),
           "aria-label": t2("common.close"),
           onClick: onClose
-        }, import_react18.default.createElement("span", { style: { fontSize: 17, lineHeight: 1 } }, "\xD7"))
+        }, import_react19.default.createElement("span", { style: { fontSize: 17, lineHeight: 1 } }, "\xD7"))
       ),
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "div",
         { className: "iwb-modal-body" },
-        import_react18.default.createElement(SettingsForm, { store, state, compact: true, onStatusChange: setStatus })
+        import_react19.default.createElement(SettingsForm, { store, state, compact: true, onStatusChange: setStatus })
       ),
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "div",
         { className: "iwb-modal-actions iwb-modal-foot" },
-        import_react18.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: onClose }, t2("common.close"))
+        import_react19.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: onClose }, t2("common.close"))
       )
     )
   );
 }
 function Workbench({ store, visible = true, fullscreen = false }) {
   const state = useWorkbench(store);
-  const [settingsOpen, setSettingsOpen] = (0, import_react18.useState)(false);
-  const leftRef = (0, import_react18.useRef)(null);
-  const rootRef = (0, import_react18.useRef)(null);
-  (0, import_react18.useEffect)(() => {
+  const [settingsOpen, setSettingsOpen] = (0, import_react19.useState)(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = (0, import_react19.useState)(false);
+  const leftRef = (0, import_react19.useRef)(null);
+  const rootRef = (0, import_react19.useRef)(null);
+  (0, import_react19.useEffect)(() => {
     if (!visible) return;
     store.activate();
     return () => {
       store.deactivate();
     };
   }, [store, visible]);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     const element = rootRef.current;
     if (element === null || typeof ResizeObserver !== "function") return void 0;
     let measured = false;
@@ -59245,87 +60615,114 @@ function Workbench({ store, visible = true, fullscreen = false }) {
   };
   let left = null;
   if (state.layout.left !== null && state.layout.left !== void 0) {
-    left = import_react18.default.createElement(
+    left = import_react19.default.createElement(
       "div",
       {
         className: "iwb-left",
         ref: leftRef,
         style: { "--iwb-left-width": `${state.layout.leftWidth}px` }
       },
-      state.layout.left === "project" ? import_react18.default.createElement(MemoProjectPanel, { store }) : import_react18.default.createElement(MemoCommitPanel, { store }),
-      import_react18.default.createElement("div", { className: "iwb-left-resizer", onPointerDown: startLeftResize })
+      state.layout.left === "project" ? import_react19.default.createElement(MemoProjectPanel, { store }) : import_react19.default.createElement(MemoCommitPanel, { store }),
+      import_react19.default.createElement("div", { className: "iwb-left-resizer", onPointerDown: startLeftResize })
     );
   }
   const bottom = state.layout.bottom !== null && state.layout.bottom !== void 0 ? state.layout.bottom : null;
   const terminalKeep = state.terminal.sessions.length > 0;
-  const bottomNode = bottom !== null || terminalKeep ? import_react18.default.createElement(
+  const bottomNode = bottom !== null || terminalKeep ? import_react19.default.createElement(
     "div",
     {
       className: `iwb-bottom ${bottom === null ? "iwb-bottom-hidden" : ""}`,
       style: { height: bottom === null ? 0 : state.layout.bottomHeight }
     },
-    bottom !== null ? import_react18.default.createElement(
-      import_react18.default.Fragment,
+    bottom !== null ? import_react19.default.createElement(
+      import_react19.default.Fragment,
       null,
-      import_react18.default.createElement("div", { className: "iwb-bottom-resizer", onPointerDown: startBottomResize }),
-      import_react18.default.createElement(BottomTabs, { store, state })
+      import_react19.default.createElement("div", { className: "iwb-bottom-resizer", onPointerDown: startBottomResize }),
+      import_react19.default.createElement(BottomTabs, { store, state })
     ) : null,
-    import_react18.default.createElement(
+    import_react19.default.createElement(
       "div",
       { className: "iwb-bottom-body" },
-      bottom === "git" ? import_react18.default.createElement(MemoGitPanel, { store }) : null,
-      terminalKeep ? import_react18.default.createElement("div", {
+      bottom === "git" ? import_react19.default.createElement(MemoGitPanel, { store }) : null,
+      terminalKeep ? import_react19.default.createElement("div", {
         className: bottom === "terminal" ? "iwb-bottom-content" : "iwb-term-hidden"
-      }, import_react18.default.createElement(MemoTerminalPanel, { store, visible: bottom === "terminal" })) : bottom === "terminal" ? import_react18.default.createElement(MemoTerminalPanel, { store, visible: true }) : null
+      }, import_react19.default.createElement(MemoTerminalPanel, { store, visible: bottom === "terminal" })) : bottom === "terminal" ? import_react19.default.createElement(MemoTerminalPanel, { store, visible: true }) : null
     )
   ) : null;
-  return import_react18.default.createElement(
+  return import_react19.default.createElement(
     "div",
     { className: "iwb-root", ref: rootRef },
-    import_react18.default.createElement(TopBar, { store, state, fullscreen, onOpenSettings: () => setSettingsOpen(true) }),
-    import_react18.default.createElement(
+    import_react19.default.createElement(TopBar, { store, state, fullscreen, onOpenSettings: () => setSettingsOpen(true) }),
+    import_react19.default.createElement(
       "div",
       { className: "iwb-body" },
-      import_react18.default.createElement(Stripe, { store, state }),
+      import_react19.default.createElement(Stripe, { store, state }),
       left,
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "div",
         { className: "iwb-center" },
-        import_react18.default.createElement(MemoEditorArea, { store })
+        import_react19.default.createElement(MemoEditorArea, { store })
       )
     ),
     // The Terminal/Git dock spans the whole workbench width: it is a sibling
     // of the body, so the left dock shrinks above it instead of squeezing it.
     bottomNode,
-    import_react18.default.createElement(StatusBar, { store, state, onOpenSettings: () => setSettingsOpen(true) }),
-    state.phase === "booting" ? import_react18.default.createElement("div", { className: "iwb-empty", style: { position: "absolute", inset: 0, background: "var(--iwb-bg)" } }, store.t("common.loading")) : null,
-    state.fatal !== null && state.fatal !== void 0 ? import_react18.default.createElement(
+    import_react19.default.createElement(StatusBar, {
+      store,
+      state,
+      onOpenSettings: () => setSettingsOpen(true),
+      onOpenDiagnostics: () => {
+        setDiagnosticsOpen(true);
+        void store.loadLspResources();
+      }
+    }),
+    state.phase === "booting" ? import_react19.default.createElement("div", { className: "iwb-empty", style: { position: "absolute", inset: 0, background: "var(--iwb-bg)" } }, store.t("common.loading")) : null,
+    state.fatal !== null && state.fatal !== void 0 ? import_react19.default.createElement(
       "div",
       { className: "iwb-modal-backdrop" },
-      import_react18.default.createElement(
+      import_react19.default.createElement(
         "div",
         { className: "iwb-modal" },
-        import_react18.default.createElement("h2", null, store.t("common.error")),
-        import_react18.default.createElement("p", null, state.fatal),
-        import_react18.default.createElement(
+        import_react19.default.createElement("h2", null, store.t("common.error")),
+        import_react19.default.createElement("p", null, state.fatal),
+        import_react19.default.createElement(
           "div",
           { className: "iwb-modal-actions" },
-          import_react18.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => {
+          import_react19.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => {
             store.set({ fatal: null });
             void store.init();
           } }, store.t("common.retry"))
         )
       )
     ) : null,
-    import_react18.default.createElement(ConfirmModal, { dialog: state.confirm, onClose: () => store.dismissConfirm() }),
-    import_react18.default.createElement(QuickOpen, { store, state }),
-    import_react18.default.createElement(Toast, { toast: state.toast }),
-    import_react18.default.createElement(RootPicker, { store, state }),
-    import_react18.default.createElement(ProjectPicker, { store, state }),
+    import_react19.default.createElement(ConfirmModal, { dialog: state.confirm, onClose: () => store.dismissConfirm() }),
+    import_react19.default.createElement(QuickOpen, { store, state }),
+    // The Find in Files popup floats above the editor: a search must not
+    // take a tab away from the code (FIND-01). The key remounts it on every
+    // open, so it starts with the query of the store and not with the one of
+    // the last session.
+    import_react19.default.createElement(SearchPopup, {
+      key: `search-popup-${state.searchPopup?.generation ?? 0}`,
+      store,
+      state
+    }),
+    import_react19.default.createElement(Toast, { toast: state.toast }),
+    import_react19.default.createElement(RootPicker, { store, state }),
+    import_react19.default.createElement(ProjectPicker, { store, state }),
     // The index decision is drawn above the project picker: it is the answer
     // to the choice the user just made in it.
-    import_react18.default.createElement(IndexDecisionModal, { store, state }),
-    settingsOpen ? import_react18.default.createElement(SettingsModal, { store, state, onClose: () => setSettingsOpen(false) }) : null
+    import_react19.default.createElement(IndexDecisionModal, { store, state }),
+    // The memory warning answers the index decision, so it is drawn above it.
+    import_react19.default.createElement(MemoryDecisionModal, { store, state }),
+    // The diagnostics panel answers the status bar, so it is drawn above the
+    // other dialogs too.
+    diagnosticsOpen ? import_react19.default.createElement(LspDiagnosticsModal, {
+      store,
+      state,
+      onOpenSettings: () => setSettingsOpen(true),
+      onClose: () => setDiagnosticsOpen(false)
+    }) : null,
+    settingsOpen ? import_react19.default.createElement(SettingsModal, { store, state, onClose: () => setSettingsOpen(false) }) : null
   );
 }
 
@@ -59333,18 +60730,49 @@ function Workbench({ store, visible = true, fullscreen = false }) {
 var CSS2 = `
 .iwb-root, .iwb-settings, .iwb-link-shell {
   --iwb-bg: var(--dsw-alias-bg-base, #15171c);
-  --iwb-panel: var(--dsw-alias-bg-layer-1, #1b1e24);
+  --iwb-panel: var(--dsw-alias-bg-layer-1, #191d24);
   --iwb-panel-2: var(--dsw-alias-bg-layer-2, #22262e);
   --iwb-overlay: var(--dsw-alias-bg-overlay, #262b34);
   --iwb-border: var(--dsw-alias-border-l1, #2c313a);
   --iwb-border-strong: var(--dsw-alias-border-l2, #3b424e);
   --iwb-divider: var(--dsw-alias-border-l2, #3b424e);
-  --iwb-fg: var(--dsw-alias-label-primary, #d8dce3);
+  --iwb-fg: var(--dsw-alias-label-primary, #ccd2da);
   --iwb-muted: var(--dsw-alias-label-secondary, #8a93a1);
   --iwb-accent: var(--dsw-alias-brand-primary, #4c9aff);
   --iwb-error: var(--dsw-alias-state-error-primary, #e2686f);
   --iwb-success: var(--dsw-alias-state-success-primary, #4fb477);
   --iwb-warn: var(--dsw-alias-state-warn-primary, #d7a24a);
+  /* \u2500\u2500 smart-code surfaces (THEME-01 / THEME-02 / THEME-03) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+     The completion popup, the hover card, the signature help and the
+     reference panel used to carry a fixed dark palette, so they kept a
+     black code block and white text in a light host theme. Every colour of
+     those widgets now comes from a token, and the token comes from the host
+     design system - so the widgets follow the theme instead of fighting it.
+     A code block is a *layer* of the host, not a dark hole: in a light theme
+     it is a light surface with dark text, in a dark theme a dark surface
+     with light text. */
+  --iwb-code-bg: var(--dsw-alias-bg-layer-2, #232830);
+  --iwb-code-fg: var(--dsw-alias-label-primary, #ccd2da);
+  --iwb-code-border: var(--dsw-alias-border-l1, #333a45);
+  --iwb-code-muted: var(--dsw-alias-label-secondary, #8a93a1);
+  /* The text on a solid brand surface. The host knows how bright its brand
+     colour is; the fallback is dark on purpose - a light brand colour with
+     white text is unreadable. */
+  --iwb-on-accent: var(--dsw-alias-label-on-brand, #0d1117);
+  --iwb-shadow: var(--dsw-alias-shadow-1, rgba(0, 0, 0, .32));
+  /* The syntax palette. The host has no syntax aliases yet, so the
+     fallbacks carry it: mid tones that read on a light *and* on a dark code
+     layer - never the old fixed dark palette. */
+  --iwb-syn-comment: var(--dsw-alias-label-secondary, #6b7482);
+  --iwb-syn-string: var(--dsw-alias-code-string, #2a8359);
+  --iwb-syn-keyword: var(--dsw-alias-code-keyword, #9455b5);
+  --iwb-syn-type: var(--dsw-alias-code-type, #12838d);
+  --iwb-syn-number: var(--dsw-alias-code-number, #a1651c);
+  --iwb-syn-function: var(--dsw-alias-code-function, #2a6cbd);
+  --iwb-syn-property: var(--dsw-alias-code-property, #4a63b8);
+  --iwb-syn-tag: var(--dsw-alias-code-tag, #bb404f);
+  --iwb-syn-heading: var(--dsw-alias-code-heading, #1e70e2);
+  --iwb-syn-invalid: var(--dsw-alias-code-invalid, #bb352c);
   --iwb-sidebar: var(--dsw-specific-sidebar-fill, #181b21);
   --iwb-mod: #4c9aff;
   --iwb-add: #4fb477;
@@ -59414,6 +60842,10 @@ var CSS2 = `
 .iwb-branch-chip .iwb-branch-name { color: var(--iwb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-ahead { color: var(--iwb-success); font-variant-numeric: tabular-nums; }
 .iwb-behind { color: var(--iwb-warn); font-variant-numeric: tabular-nums; }
+/* The badge is a button (PUSH-02): it keeps the colour of the badge it
+   replaces and only adds the affordance of something clickable. */
+.iwb-ahead-btn { background: transparent; border: 0; padding: 0 2px; cursor: pointer; }
+.iwb-ahead-btn:hover { text-decoration: underline; }
 .iwb-top-spacer { flex: 1; }
 .iwb-iconbtn {
   width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
@@ -59427,10 +60859,14 @@ var CSS2 = `
   border: 1px solid var(--iwb-border); color: var(--iwb-fg); background: var(--iwb-panel-2);
 }
 .iwb-textbtn:hover { border-color: var(--iwb-border-strong); }
-.iwb-textbtn.iwb-primary { background: var(--iwb-accent); border-color: transparent; color: #fff; }
+/* The primary button sits on the brand colour, so its text is the host's
+   "on brand" label - a pale brand colour would make white text unreadable. */
+.iwb-textbtn.iwb-primary { background: var(--iwb-accent); border-color: transparent; color: var(--iwb-on-accent); }
 .iwb-textbtn.iwb-primary:hover { filter: brightness(1.08); }
 .iwb-textbtn:disabled { opacity: .45; cursor: default; }
 .iwb-textbtn.iwb-danger { color: var(--iwb-error); }
+/* The solid danger button sits on the error colour, not on the brand colour,
+   so it keeps its own white text. */
 .iwb-textbtn.iwb-danger-solid { background: var(--iwb-error); color: #fff; border-color: transparent; }
 .iwb-textbtn.iwb-small { height: 22px; padding: 0 8px; font-size: 11.5px; }
 
@@ -59449,9 +60885,11 @@ var CSS2 = `
 .iwb-stripe-btn.iwb-on::before {
   content: ''; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--iwb-accent);
 }
+/* The badge counts something on the brand colour: its text is the host's
+   "on brand" label, so a pale brand colour keeps the number readable. */
 .iwb-badge {
   position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; padding: 0 4px;
-  border-radius: 999px; background: var(--iwb-accent); color: #fff; font-size: 10px; font-weight: 700;
+  border-radius: 999px; background: var(--iwb-accent); color: var(--iwb-on-accent); font-size: 10px; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center; line-height: 1;
 }
 .iwb-badge.iwb-badge-dirty { background: var(--iwb-success); }
@@ -59575,14 +61013,16 @@ var CSS2 = `
   color: var(--iwb-muted); opacity: .65; font-variant-numeric: tabular-nums; user-select: none;
 }
 .iwb-code-text { flex: 1; padding-right: 24px; tab-size: 4; }
-.iwb-tok-comment { color: #7a8596; font-style: italic; }
-.iwb-tok-string { color: #5f8f3f; }
-.iwb-tok-number { color: #b57a2a; }
-.iwb-tok-keyword { color: #a15fb0; }
-.iwb-tok-type { color: #2f8f83; }
-.iwb-tok-fn { color: #8a6a1f; }
-.iwb-tok-tag { color: #c05a63; }
-.iwb-tok-attr { color: #3f6f9f; }
+/* The read-only preview shares the syntax palette of the editor, so both
+   read the same way and the host theme reaches both of them. */
+.iwb-tok-comment { color: var(--iwb-syn-comment); font-style: italic; }
+.iwb-tok-string { color: var(--iwb-syn-string); }
+.iwb-tok-number { color: var(--iwb-syn-number); }
+.iwb-tok-keyword { color: var(--iwb-syn-keyword); }
+.iwb-tok-type { color: var(--iwb-syn-type); }
+.iwb-tok-fn { color: var(--iwb-syn-function); }
+.iwb-tok-tag { color: var(--iwb-syn-tag); }
+.iwb-tok-attr { color: var(--iwb-syn-property); }
 .iwb-editor-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--iwb-muted); padding: 24px; text-align: center; }
 
 .iwb-codemirror { flex: 1; min-height: 0; min-width: 0; display: flex; }
@@ -60037,24 +61477,57 @@ var CSS2 = `
   flex: 0 0 auto; margin-left: auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
 }
 .iwb-settings-control input[type="text"], .iwb-settings-control input[type="number"],
-.iwb-settings-control select {
+.iwb-settings-control select,
+.iwb-settings-field-control input[type="text"], .iwb-settings-field-control input[type="number"],
+.iwb-settings-field-control select {
   height: 32px; min-width: 0; padding: 0 10px; color: var(--iwb-fg);
   border: 1px solid var(--iwb-border-strong); border-radius: 6px; background: var(--iwb-bg);
   font-size: 13px; outline: none; transition: border-color .12s ease, box-shadow .12s ease;
 }
-.iwb-settings-control input[type="text"] { width: 300px; }
-.iwb-settings-control select { width: 220px; padding-right: 26px; }
-.iwb-settings-control input[type="number"] {
+.iwb-settings-control input[type="text"], .iwb-settings-field-control input[type="text"] { width: 300px; }
+.iwb-settings-control select, .iwb-settings-field-control select { width: 220px; padding-right: 26px; }
+.iwb-settings-control input[type="number"], .iwb-settings-field-control input[type="number"] {
   width: 96px; padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;
 }
-.iwb-settings-control :is(input[type="text"], input[type="number"], select):hover { border-color: var(--iwb-muted); }
-.iwb-settings-control :is(input[type="text"], input[type="number"], select):focus {
+.iwb-settings-control :is(input[type="text"], input[type="number"], select):hover,
+.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):hover { border-color: var(--iwb-muted); }
+.iwb-settings-control :is(input[type="text"], input[type="number"], select):focus,
+.iwb-settings-field-control :is(input[type="text"], input[type="number"], select):focus {
   border-color: var(--iwb-accent); box-shadow: 0 0 0 1px var(--iwb-accent);
 }
 .iwb-settings-control input[type="checkbox"] {
   width: 16px; height: 16px; margin: 0; accent-color: var(--iwb-accent); cursor: pointer;
 }
 .iwb-settings-value { color: var(--iwb-muted); font-size: 13px; }
+/* A block of related fields: the numbers keep their own label above them
+   and the block takes a third of the height of one row per number. */
+.iwb-settings-subgroup { padding: 10px 0 4px; }
+.iwb-settings-subgroup-title {
+  margin-bottom: 8px; color: var(--iwb-muted); font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.iwb-settings-fields {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 20px;
+}
+.iwb-settings-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.iwb-settings-field-label { color: var(--iwb-fg); font-size: 12.5px; line-height: 18px; }
+.iwb-settings-field-hint { color: var(--iwb-muted); font-size: 11px; line-height: 16px; }
+.iwb-settings-field-control { display: flex; }
+/* The language servers: one compact line per language. */
+.iwb-settings-languages { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.iwb-settings-language {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  font-size: 12.5px; color: var(--iwb-fg);
+}
+.iwb-settings-language input[type="checkbox"] {
+  width: 16px; height: 16px; margin: 0; accent-color: var(--iwb-accent); cursor: pointer;
+}
+.iwb-settings-language-name { white-space: nowrap; }
+.iwb-settings-language-command {
+  color: var(--iwb-muted); font-size: 11px; font-family: var(--iwb-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .iwb-settings-shortcut {
   display: inline-flex; align-items: center; justify-content: center; min-width: 150px; height: 32px; padding: 0 12px;
   border: 1px solid var(--iwb-border-strong); border-radius: 7px; background: var(--iwb-panel-2);
@@ -60089,6 +61562,12 @@ var CSS2 = `
 .iwb-modal-backdrop {
   position: absolute; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: center; justify-content: center; z-index: 50;
 }
+/* A blocking confirmation has to be above the dialog it answers: the
+   "unsaved changes" warning is raised while the project picker is still
+   open, and both backdrops share the same z-index and the same containing
+   block - so the later one in the DOM would cover the warning. The deeper
+   dim also keeps the two layers from stacking into a black screen. */
+.iwb-modal-backdrop.iwb-confirm-backdrop { z-index: 55; background: rgba(0, 0, 0, .6); }
 .iwb-modal {
   width: min(440px, calc(100% - 40px)); border-radius: 10px; border: 1px solid var(--iwb-border-strong);
   background: var(--iwb-overlay); box-shadow: 0 24px 60px rgba(0, 0, 0, .45); padding: 16px 18px;
@@ -60109,7 +61588,29 @@ var CSS2 = `
 .iwb-modal-head h2 { margin: 0; flex: 1; }
 .iwb-modal-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 18px; }
 .iwb-modal-foot { flex: 0 0 auto; padding: 10px 18px 13px; border-top: 1px solid var(--iwb-border); background: var(--iwb-overlay); }
-.iwb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.iwb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+/* The buttons of a dialog have to read as buttons. The plain border of a
+   text button is one hairline on the dialog surface - invisible in practice
+   - so a dialog gets a stronger border, a little more room and a background
+   that is one layer away from the surface it sits on. */
+.iwb-modal-actions .iwb-textbtn {
+  height: 30px; padding: 0 14px; font-size: 12.5px;
+  border-color: var(--iwb-border-strong); background: var(--iwb-panel-2);
+}
+.iwb-modal-actions .iwb-textbtn:hover {
+  border-color: var(--iwb-muted); background: var(--iwb-panel);
+}
+/* The primary and the solid danger button carry their own colour and must
+   keep it - the rule above would otherwise repaint them like a plain one. */
+.iwb-modal-actions .iwb-textbtn.iwb-primary {
+  background: var(--iwb-accent); border-color: transparent; color: var(--iwb-on-accent);
+}
+.iwb-modal-actions .iwb-textbtn.iwb-primary:hover {
+  background: var(--iwb-accent); border-color: transparent; filter: brightness(1.08);
+}
+.iwb-modal-actions .iwb-textbtn.iwb-danger-solid {
+  background: var(--iwb-error); border-color: transparent; color: #fff;
+}
 .iwb-toast {
   position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: 8px;
   border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay); box-shadow: 0 10px 30px rgba(0,0,0,.4);
@@ -60248,6 +61749,58 @@ var CSS2 = `
 .iwb-quick-empty { padding: 18px; text-align: center; color: var(--iwb-muted); font-size: 12px; }
 .iwb-quick-foot { padding: 6px 10px; border-top: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 10.5px; }
 
+/* \u2500\u2500 Find in Files popup (FIND-01 / FIND-02) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* The popup reuses the Quick Open skeleton: the same backdrop (z-index 70,
+   above every modal), the same panel, the same head and foot. Only the body
+   differs - the hits on top (40%), the context of the selected hit below
+   (60%), so a click never takes the code away from the user. */
+.iwb-search-popup-backdrop { padding-top: 4vh; }
+.iwb-search-popup {
+  width: min(900px, 92vw); height: min(640px, 80vh); max-height: none;
+  display: flex; flex-direction: column;
+}
+.iwb-search-popup-meta {
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+  border-bottom: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 10.5px;
+}
+.iwb-search-popup-list { flex: 0 0 40%; min-height: 0; overflow: auto; padding: 4px; }
+/* The upper half is a plain list of the files that matched - one row per
+   file, with its match count. The matches themselves are the preview below:
+   repeating them under the file row made the list a wall of text and left
+   the preview empty. */
+.iwb-search-popup-file {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 9px;
+  border-radius: 5px; text-align: left; font-size: 12px; color: var(--iwb-fg);
+}
+.iwb-search-popup-file:hover { background: rgba(127, 127, 127, .1); }
+.iwb-search-popup-file.iwb-selected { background: color-mix(in srgb, var(--iwb-accent) 20%, transparent); }
+.iwb-search-popup-file-name { flex: 0 0 auto; white-space: nowrap; }
+.iwb-search-popup-file-dir { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--iwb-muted); font-size: 10.5px; }
+.iwb-search-popup-file-count {
+  flex: 0 0 auto; margin-left: auto; color: var(--iwb-muted); font-size: 10.5px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.iwb-search-popup-preview { flex: 1 1 60%; min-height: 0; overflow: auto; border-top: 1px solid var(--iwb-border); }
+.iwb-search-popup-blocks { padding: 6px 0 12px; }
+/* One hit of the selected file with the lines around it. */
+.iwb-search-popup-block { padding-bottom: 8px; }
+.iwb-search-popup-block-head {
+  display: flex; align-items: baseline; gap: 10px; padding: 2px 10px;
+  color: var(--iwb-muted); font-size: 10.5px;
+}
+.iwb-search-popup-block-pos { flex: 0 0 auto; font-family: var(--iwb-mono); }
+.iwb-search-popup-block-preview {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.iwb-search-popup-code { padding: 2px 0; font-family: var(--iwb-mono); font-size: 11.5px; line-height: 1.6; }
+.iwb-search-popup-line { display: flex; gap: 10px; padding: 0 10px; color: var(--iwb-muted); opacity: .75; }
+.iwb-search-popup-line.iwb-hit { background: color-mix(in srgb, var(--iwb-accent) 16%, transparent); color: var(--iwb-fg); opacity: 1; }
+.iwb-search-popup-number {
+  flex: 0 0 44px; width: 44px; text-align: right; color: var(--iwb-muted);
+  font-variant-numeric: tabular-nums; user-select: none;
+}
+.iwb-search-popup-text { flex: 1 1 auto; min-width: 0; white-space: pre; }
+
 /* \u2500\u2500 Project filter modes / opened-vs-selected \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .iwb-filter-mode { display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 4px; overflow: hidden; flex: 0 0 auto; }
 .iwb-filter-mode button { height: 20px; padding: 0 6px; color: var(--iwb-muted); font-size: 10.5px; }
@@ -60358,9 +61911,12 @@ var CSS2 = `
   color: var(--iwb-fg) !important;
   border: 1px solid var(--iwb-border-strong) !important;
   border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
+  box-shadow: 0 8px 24px var(--iwb-shadow);
 }
-.iwb-codemirror .cm-tooltip * { color: inherit; }
+/* The library paints some of its own elements (the completion list, the
+   documentation blocks) with a background of its own. Clearing it keeps a
+   white block out of a dark card and a black block out of a light one. */
+.iwb-codemirror .cm-tooltip * { color: inherit; background: transparent; }
 
 /* \u2500\u2500 completion popup (COMP-01 / COMP-02) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .iwb-codemirror .cm-tooltip.cm-tooltip-autocomplete {
@@ -60368,7 +61924,7 @@ var CSS2 = `
   border: 1px solid var(--iwb-border-strong) !important;
   border-radius: 6px;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
+  box-shadow: 0 8px 24px var(--iwb-shadow);
 }
 .iwb-codemirror .cm-tooltip-autocomplete > ul {
   font-family: var(--iwb-mono);
@@ -60384,13 +61940,14 @@ var CSS2 = `
   border-radius: 4px;
   margin: 1px 3px;
 }
-/* The selected row is a solid accent bar with white text: readable on both a
-   light and a dark workbench, and impossible to confuse with the others. */
+/* The selected row is a solid accent bar: the text colour is the host's "on
+   brand" label, so it stays readable on a light brand colour instead of
+   forcing white text onto it. */
 .iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] {
   background: var(--iwb-accent) !important;
-  color: #fff !important;
+  color: var(--iwb-on-accent) !important;
 }
-.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] * { color: #fff !important; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] * { color: var(--iwb-on-accent) !important; }
 .iwb-codemirror .cm-tooltip-autocomplete-disabled > ul > li[aria-selected] {
   background: var(--iwb-muted) !important;
   color: var(--iwb-bg) !important;
@@ -60399,7 +61956,7 @@ var CSS2 = `
 .iwb-codemirror .cm-completionIcon::after { content: '\\25CF'; }
 .iwb-codemirror .cm-completionLabel { color: inherit !important; }
 .iwb-codemirror .cm-completionDetail { color: var(--iwb-muted) !important; font-style: italic; margin-left: 6px; }
-.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail { color: rgba(255, 255, 255, .82) !important; }
+.iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail { color: color-mix(in srgb, var(--iwb-on-accent) 82%, transparent) !important; }
 .iwb-codemirror .cm-completionMatchedText { color: inherit !important; text-decoration: none; font-weight: 700; }
 .iwb-codemirror .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionMatchedText { text-decoration: underline; }
 .iwb-codemirror .cm-tooltip.cm-completionInfo {
@@ -60428,7 +61985,7 @@ var CSS2 = `
   max-width: 34em;
   font-size: 12px;
   line-height: 1.55;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
+  box-shadow: 0 8px 24px var(--iwb-shadow);
 }
 .iwb-codemirror .cm-lsp-documentation { color: inherit; padding: 0; }
 .iwb-codemirror .cm-lsp-documentation p,
@@ -60441,15 +61998,16 @@ var CSS2 = `
 .iwb-codemirror .cm-lsp-documentation h2,
 .iwb-codemirror .cm-lsp-documentation h3,
 .iwb-codemirror .cm-lsp-documentation h4 { color: var(--iwb-fg) !important; font-size: 12.5px; margin: 6px 0 3px; }
-/* JSDoc and signatures are rendered as highlighted code. The token colours
-   are made for a dark surface, so the block gets one in both modes: readable
-   everywhere, and it reads as "this is code". */
+/* JSDoc and signatures are rendered as highlighted code. The block is a
+   layer of the host theme - a light surface with dark text in a light theme,
+   a dark surface with light text in a dark one - so the card never carries
+   a foreign black rectangle. */
 .iwb-codemirror .cm-lsp-documentation pre,
 .iwb-codemirror .cm-lsp-documentation code,
 .iwb-codemirror .cm-lsp-signature {
   font-family: var(--iwb-mono);
-  background: #1b1e24 !important;
-  color: #d8dce3 !important;
+  background: var(--iwb-code-bg) !important;
+  color: var(--iwb-code-fg) !important;
   border-radius: 4px;
 }
 .iwb-codemirror .cm-lsp-documentation pre {
@@ -60458,11 +62016,14 @@ var CSS2 = `
   overflow: auto;
   max-height: 18em;
   white-space: pre-wrap;
+  border: 1px solid var(--iwb-code-border);
 }
 .iwb-codemirror .cm-lsp-documentation code { padding: 0 4px; }
 .iwb-codemirror .cm-lsp-signature { padding: 4px 7px; }
-.iwb-codemirror .cm-lsp-active-parameter { color: #7fb8ff !important; font-weight: 700; }
-.iwb-codemirror .cm-lsp-signature-num { color: var(--iwb-muted) !important; }
+/* The parameter the call is currently on: the brand colour is enough to
+   find it, and it is bold, so it does not need a second hue. */
+.iwb-codemirror .cm-lsp-active-parameter { color: var(--iwb-accent) !important; font-weight: 700; }
+.iwb-codemirror .cm-lsp-signature-num { color: var(--iwb-code-muted) !important; }
 
 /* \u2500\u2500 reference panel (NAV-02) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .iwb-codemirror .cm-lsp-references-panel {
@@ -60476,11 +62037,11 @@ var CSS2 = `
 }
 .iwb-codemirror .cm-lsp-references-panel ul { list-style: none; margin: 0; padding: 0; }
 .iwb-codemirror .cm-lsp-references-panel li { padding: 2px 8px; cursor: pointer; color: var(--iwb-fg) !important; }
-.iwb-codemirror .cm-lsp-references-panel li[aria-selected] { background: var(--iwb-accent) !important; color: #fff !important; }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] { background: var(--iwb-accent) !important; color: var(--iwb-on-accent) !important; }
 .iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-name { color: var(--iwb-accent) !important; }
-.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-name { color: #fff !important; }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-name { color: var(--iwb-on-accent) !important; }
 .iwb-codemirror .cm-lsp-references-panel .cm-lsp-ref-file { color: var(--iwb-muted) !important; }
-.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-file { color: rgba(255, 255, 255, .82) !important; }
+.iwb-codemirror .cm-lsp-references-panel li[aria-selected] .cm-lsp-ref-file { color: color-mix(in srgb, var(--iwb-on-accent) 82%, transparent) !important; }
 .iwb-codemirror .cm-lsp-diagnostic-error { border-left: 3px solid var(--iwb-error); }
 .iwb-codemirror .cm-lsp-diagnostic-warning { border-left: 3px solid var(--iwb-warn); }
 .iwb-codemirror .cm-lsp-diagnostic-info { border-left: 3px solid var(--iwb-accent); }
@@ -60513,7 +62074,7 @@ var CSS2 = `
 }
 
 /* \u2500\u2500 index decision dialog (PRD-v5 \xA72.3) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-.iwb-index-decision { max-width: 520px; }
+.iwb-index-decision { width: min(520px, calc(100% - 40px)); }
 .iwb-index-decision-warning {
   display: block; margin-top: 10px; padding: 9px 11px;
   border-left: 3px solid var(--iwb-warn); border-radius: 0 6px 6px 0;
@@ -60522,6 +62083,24 @@ var CSS2 = `
 .iwb-index-decision-warning-title {
   display: block; margin-bottom: 3px; color: var(--iwb-warn);
   font-size: 11px; font-weight: 700; letter-spacing: .02em;
+}
+
+/* \u2500\u2500 semantic diagnostics panel (MEM-03) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* The panel answers "what is the language server doing": the state, the
+   failure counter, the memory estimate and the tail of its stderr. The body
+   scrolls, so a long log never pushes the actions out of the dialog. */
+.iwb-lsp-diagnostics {
+  width: min(520px, calc(100% - 40px)); max-height: 82%;
+  display: flex; flex-direction: column;
+}
+.iwb-lsp-diagnostics-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.iwb-lsp-diagnostics-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--iwb-border); }
+.iwb-lsp-diagnostics-key { flex: 0 0 130px; color: var(--iwb-muted); font-size: 11.5px; }
+.iwb-lsp-diagnostics-value { flex: 1 1 auto; min-width: 0; word-break: break-word; font-size: 12px; }
+.iwb-lsp-diagnostics-logs {
+  font-family: var(--iwb-mono); font-size: 10.5px; color: var(--iwb-muted);
+  max-height: 160px; overflow: auto; white-space: pre-wrap; user-select: text;
+  background: var(--iwb-panel); border: 1px solid var(--iwb-border); border-radius: 6px; padding: 6px 8px;
 }
 
 @container ide-workbench (max-width: 760px) {
@@ -60563,7 +62142,7 @@ var CSS2 = `
 var inject = ["slots", "locale", "sidebarRight", "sidebarRightTabs", "sessions"];
 var PANEL_ID = "ide-workbench";
 function PanelIcon({ size = 20 }) {
-  return import_react19.default.createElement(
+  return import_react20.default.createElement(
     "svg",
     {
       viewBox: "0 0 20 20",
@@ -60575,15 +62154,15 @@ function PanelIcon({ size = 20 }) {
       strokeLinejoin: "round",
       "aria-hidden": true
     },
-    import_react19.default.createElement("rect", { x: 2, y: 2.5, width: 16, height: 15, rx: 2 }),
-    import_react19.default.createElement("line", { x1: 7.4, y1: 2.5, x2: 7.4, y2: 17.5 }),
-    import_react19.default.createElement("line", { x1: 7.4, y1: 11.5, x2: 18, y2: 11.5 }),
-    import_react19.default.createElement("polyline", { points: "9.6 14.2 11 15.4 13.6 13.6" })
+    import_react20.default.createElement("rect", { x: 2, y: 2.5, width: 16, height: 15, rx: 2 }),
+    import_react20.default.createElement("line", { x1: 7.4, y1: 2.5, x2: 7.4, y2: 17.5 }),
+    import_react20.default.createElement("line", { x1: 7.4, y1: 11.5, x2: 18, y2: 11.5 }),
+    import_react20.default.createElement("polyline", { points: "9.6 14.2 11 15.4 13.6 13.6" })
   );
 }
 function useMountedSession(ctx) {
   const mounted = ctx.sidebarRight?.mounted;
-  return (0, import_react19.useSyncExternalStore)(
+  return (0, import_react20.useSyncExternalStore)(
     (callback) => typeof mounted?.subscribe === "function" ? mounted.subscribe(callback) : () => {
     },
     () => typeof mounted?.getSnapshot === "function" ? mounted.getSnapshot() : void 0,
@@ -60593,8 +62172,8 @@ function useMountedSession(ctx) {
 function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
   const address = typeof tab3.contentId === "string" ? tab3.contentId : "";
   const line = tab3.navigation?.params?.line;
-  const [view, setView] = import_react19.default.useState({ phase: "opening", absolute: "" });
-  const replaceWithIde = import_react19.default.useCallback(() => {
+  const [view, setView] = import_react20.default.useState({ phase: "opening", absolute: "" });
+  const replaceWithIde = import_react20.default.useCallback(() => {
     try {
       ctx.sidebarRight.openTab(PANEL_ID, { replaceTab: tab3.id });
       return true;
@@ -60602,19 +62181,19 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
       return false;
     }
   }, [ctx, tab3.id]);
-  const openDefault = import_react19.default.useCallback(() => openInDefaultSidebar(ctx, address, {
+  const openDefault = import_react20.default.useCallback(() => openInDefaultSidebar(ctx, address, {
     ownKind: PANEL_ID,
     line,
     replaceTab: tab3.id,
     suppressSelf
   }), [ctx, address, line, tab3.id, suppressSelf]);
-  const close = import_react19.default.useCallback(() => {
+  const close = import_react20.default.useCallback(() => {
     try {
       ctx.sidebarRight.close(tab3.id);
     } catch {
     }
   }, [ctx, tab3.id]);
-  const begin = import_react19.default.useCallback(async (switchProject) => {
+  const begin = import_react20.default.useCallback(async (switchProject) => {
     setView((current) => ({ ...current, phase: "opening" }));
     let result;
     try {
@@ -60632,33 +62211,33 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
     const phase = result.status === "needs-project-switch" ? "prompt" : result.status === "dirty" ? "dirty" : "failed";
     setView({ phase, absolute: result.absolute ?? "" });
   }, [store, address, line, replaceWithIde, openDefault]);
-  (0, import_react19.useLayoutEffect)(() => {
+  (0, import_react20.useLayoutEffect)(() => {
     void begin(false);
   }, [begin]);
   const path2 = view.absolute !== "" ? view.absolute : address;
-  const button = (key, label3, extra, onClick) => import_react19.default.createElement("button", {
+  const button = (key, label3, extra, onClick) => import_react20.default.createElement("button", {
     key,
     type: "button",
     className: `iwb-textbtn ${extra}`.trim(),
     onClick
   }, store.t(label3));
-  const card = (title, body, actions) => import_react19.default.createElement(
+  const card = (title, body, actions) => import_react20.default.createElement(
     "div",
     { className: "iwb-empty iwb-link-prompt" },
-    import_react19.default.createElement("div", { className: "iwb-empty-title" }, store.t(title)),
-    body === "" ? null : import_react19.default.createElement("div", { className: "iwb-link-body" }, store.t(body)),
-    path2 === "" ? null : import_react19.default.createElement("div", { className: "iwb-link-path" }, path2),
-    import_react19.default.createElement("div", { className: "iwb-link-actions" }, actions)
+    import_react20.default.createElement("div", { className: "iwb-empty-title" }, store.t(title)),
+    body === "" ? null : import_react20.default.createElement("div", { className: "iwb-link-body" }, store.t(body)),
+    path2 === "" ? null : import_react20.default.createElement("div", { className: "iwb-link-path" }, path2),
+    import_react20.default.createElement("div", { className: "iwb-link-actions" }, actions)
   );
   const defaultButton = () => button("default", "links.openInDefaultSidebar", "", () => {
     if (!openDefault()) setView({ phase: "failed", absolute: path2 });
   });
   let content2;
   if (view.phase === "opening") {
-    content2 = import_react19.default.createElement(
+    content2 = import_react20.default.createElement(
       "div",
       { className: "iwb-empty" },
-      import_react19.default.createElement("div", { className: "iwb-empty-title" }, store.t("common.loading"))
+      import_react20.default.createElement("div", { className: "iwb-empty-title" }, store.t("common.loading"))
     );
   } else if (view.phase === "prompt") {
     content2 = card("links.switchProjectTitle", "links.switchProjectBody", [
@@ -60684,7 +62263,7 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
       button("close", "common.close", "", close)
     ]);
   }
-  return import_react19.default.createElement("div", { className: "iwb-link-shell" }, content2);
+  return import_react20.default.createElement("div", { className: "iwb-link-shell" }, content2);
 }
 function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, suppressSelf }) {
   const { tab: tab3, sidebar } = useTabInfo();
@@ -60693,35 +62272,35 @@ function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, s
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === "function";
   const isMounted = !hasMounted || mountedId === void 0 || mountedId === sessionId;
   const fileLink = isFileAddress(tab3.contentId);
-  (0, import_react19.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (isMounted) void store.init();
   }, [store, isMounted]);
-  (0, import_react19.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (fileLink) return void 0;
     reportVisible(sessionId, isMounted && tab3.visible === true);
     return () => reportVisible(sessionId, false);
   }, [sessionId, isMounted, tab3.visible, fileLink, reportVisible]);
   if (fileLink) {
-    return import_react19.default.createElement(FileLinkBridge, { store, tab: tab3, ctx, suppressSelf });
+    return import_react20.default.createElement(FileLinkBridge, { store, tab: tab3, ctx, suppressSelf });
   }
   if (!isMounted) return null;
-  return import_react19.default.createElement(Workbench, { store, visible: tab3.visible, fullscreen: sidebar.fullscreen });
+  return import_react20.default.createElement(Workbench, { store, visible: tab3.visible, fullscreen: sidebar.fullscreen });
 }
 function BoundSettings({ store }) {
   const state = useWorkbench(store);
-  return import_react19.default.createElement(SettingsSection, { store, state });
+  return import_react20.default.createElement(SettingsSection, { store, state });
 }
 function OpenButton({ open, t: t2 }) {
-  return import_react19.default.createElement("button", {
+  return import_react20.default.createElement("button", {
     type: "button",
     title: t2("panelLabel"),
     "aria-label": t2("panelLabel"),
     className: "iwb-sidebar-open",
     onClick: open
-  }, import_react19.default.createElement(PanelIcon, { size: 18 }));
+  }, import_react20.default.createElement(PanelIcon, { size: 18 }));
 }
 function ChatInputBridge({ sessionId, inputActions }) {
-  (0, import_react19.useLayoutEffect)(() => {
+  (0, import_react20.useLayoutEffect)(() => {
     if (typeof sessionId !== "string" || sessionId === "") return void 0;
     return registerChatInput(sessionId, inputActions);
   }, [sessionId, inputActions]);
@@ -60746,7 +62325,7 @@ function apply(ctx) {
       suppressFileLinkClaim = false;
     };
   };
-  const Styles = () => import_react19.default.createElement("style", { "data-dsh-ide-workbench": "" }, `${xterm_default}
+  const Styles = () => import_react20.default.createElement("style", { "data-dsh-ide-workbench": "" }, `${xterm_default}
 ${CSS2}`);
   let sessionSnapshot = null;
   let sessionSnapshotValid = false;
@@ -60913,11 +62492,11 @@ ${CSS2}`);
   ctx.effect(() => ctx.slots.inject("sidebar.right.pane.tab", () => ctx.slots.register({
     name: "sidebar.right.pane.tab",
     key: "dsh-ide-workbench"
-  }, (props) => import_react19.default.createElement(
-    import_react19.default.Fragment,
+  }, (props) => import_react20.default.createElement(
+    import_react20.default.Fragment,
     null,
-    import_react19.default.createElement(Styles),
-    import_react19.default.createElement(BoundWorkbench, {
+    import_react20.default.createElement(Styles),
+    import_react20.default.createElement(BoundWorkbench, {
       ...props,
       getStore,
       ctx,
@@ -60930,39 +62509,39 @@ ${CSS2}`);
     id: PANEL_ID,
     order: 30,
     label: () => t2("panelLabel")
-  }, () => import_react19.default.createElement(
-    import_react19.default.Fragment,
+  }, () => import_react20.default.createElement(
+    import_react20.default.Fragment,
     null,
-    import_react19.default.createElement(Styles),
-    import_react19.default.createElement(OpenButton, { open: toggle, t: t2 })
+    import_react20.default.createElement(Styles),
+    import_react20.default.createElement(OpenButton, { open: toggle, t: t2 })
   ))), "dsh-ide-workbench: sidebar entry");
   ctx.effect(() => ctx.slots.inject("conversation.hero.options", () => ctx.slots.register({
     name: "conversation.hero.options",
     id: PANEL_ID,
     order: 40,
     label: () => t2("panelLabel")
-  }, () => import_react19.default.createElement(
-    import_react19.default.Fragment,
+  }, () => import_react20.default.createElement(
+    import_react20.default.Fragment,
     null,
-    import_react19.default.createElement(Styles),
-    import_react19.default.createElement(OpenButton, { open, t: t2 })
+    import_react20.default.createElement(Styles),
+    import_react20.default.createElement(OpenButton, { open, t: t2 })
   ))), "dsh-ide-workbench: new-session entry");
   ctx.effect(() => ctx.slots.inject("conversation.input.dock", () => ctx.slots.register({
     name: "conversation.input.dock",
     id: "ide-workbench-chat-input",
     order: 80,
     label: () => t2("chat.sendToChat")
-  }, (props) => import_react19.default.createElement(ChatInputBridge, props))), "dsh-ide-workbench: composer chat bridge");
+  }, (props) => import_react20.default.createElement(ChatInputBridge, props))), "dsh-ide-workbench: composer chat bridge");
   ctx.effect(() => ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
     name: "sidebar.footer.action",
     id: PANEL_ID,
     order: 20,
     label: () => t2("panelLabel")
-  }, () => import_react19.default.createElement(
-    import_react19.default.Fragment,
+  }, () => import_react20.default.createElement(
+    import_react20.default.Fragment,
     null,
-    import_react19.default.createElement(Styles),
-    import_react19.default.createElement(OpenButton, { open, t: t2 })
+    import_react20.default.createElement(Styles),
+    import_react20.default.createElement(OpenButton, { open, t: t2 })
   ))), "dsh-ide-workbench: sidebar footer entry");
   ctx.effect(() => {
     const mounted = ctx.sidebarRight?.mounted;
@@ -61002,11 +62581,11 @@ ${CSS2}`);
     id: PANEL_ID,
     order: 60,
     label: () => t2("settings.nav")
-  }, () => import_react19.default.createElement(
-    import_react19.default.Fragment,
+  }, () => import_react20.default.createElement(
+    import_react20.default.Fragment,
     null,
-    import_react19.default.createElement(Styles),
-    import_react19.default.createElement(BoundSettings, { store: settingsStore })
+    import_react20.default.createElement(Styles),
+    import_react20.default.createElement(BoundSettings, { store: settingsStore })
   ))), "dsh-ide-workbench: settings section");
   ctx.effect(() => {
     const onKeyDown = (event) => {
@@ -61021,7 +62600,7 @@ ${CSS2}`);
         if (matchesShortcut(shortcuts.findInFiles ?? "Ctrl+Shift+R", event) || matchesShortcut(shortcuts.findInFilesAlt ?? "Ctrl+Alt+F", event)) {
           event.preventDefault();
           event.stopPropagation();
-          store.openSearchTab();
+          store.openSearchPopup();
           return;
         }
         if (matchesShortcut(shortcuts.quickOpen ?? "Ctrl+Shift+N", event)) {
@@ -61036,11 +62615,19 @@ ${CSS2}`);
           store.openQuickOpen();
           return;
         }
-        if (store.state.activeId === "search:in-files" && event.key === "F8" && !event.ctrlKey && !event.altKey && !event.metaKey) {
-          event.preventDefault();
-          event.stopPropagation();
-          store.openNextSearchResult(event.shiftKey ? -1 : 1);
-          return;
+        if (event.key === "F8" && !event.ctrlKey && !event.altKey && !event.metaKey) {
+          if (store.state.searchPopup?.open === true) {
+            event.preventDefault();
+            event.stopPropagation();
+            store.moveSearchSelection(event.shiftKey ? -1 : 1);
+            return;
+          }
+          if (store.state.activeId === "search:in-files") {
+            event.preventDefault();
+            event.stopPropagation();
+            store.openNextSearchResult(event.shiftKey ? -1 : 1);
+            return;
+          }
         }
         if (store.state.layout.bottom === "git" && matchesShortcut(shortcuts.openCommitDetail ?? "Ctrl+Alt+D", event)) {
           event.preventDefault();

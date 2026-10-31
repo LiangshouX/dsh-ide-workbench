@@ -765,6 +765,10 @@ workers[0].emit('message', { type: 'message', text: JSON.stringify({ jsonrpc: '2
 
 ### 7.4 一处健壮性备注（不单列为缺陷）
 
+> ⚠️ **本节的触发条件写错了 —— 见 §8.6 第二条。** JSON 字符串里的引号一定被转义（`\"method\"`），
+> 所以「`didChange` 的**文本内容里**含有 `"method": "initialize"`」**不会**命中旧正则；
+> 真正会命中的是**载荷里嵌着一个带 `method` 键的对象**。下面的原文保留检视当时的说法，结论以 §8.6 为准。
+
 `#holdFor()` 用正则 `/"method"\s*:\s*"initialize"/` 在**未解析**的文本上判断是不是握手（主线程不解析载荷，这是刻意的取舍）。若某个 `didChange` 的**文本内容里**恰好含有 `"method": "initialize"`，且它比真正的握手更早到达（客户端首次连接时 `initialize` 总是第一个发出，所以现实里几乎不可能），它会被误放进 `entry.handshake` 槽位，导致服务器收不到真正的握手。
 
 影响面极小（需要用户先在文件里敲出那段文本、再在服务器启动前发通知），worker 那侧的 `isInitialize()` 用的是真正的 JSON 解析，不受影响。若要彻底消除，可在 `#holdFor` 里对 initialize 候选做一次轻量结构校验。
@@ -904,3 +908,85 @@ node docs\bench\repro-order.mjs → the scenario worked: the handshake was held,
   所以「文本内容里含有 `"method": "initialize"`」其实**不会**命中旧正则；
   真正会命中的是**载荷里嵌着一个带 `method` 键的对象**。
   修复按后者做的（看第一个 `"method"`），两种情形都覆盖。
+
+---
+
+## 9. 第五轮：M1 / M2 / M3 修复后的独立复核（2026-10-31）
+
+> 这一轮的任务：**独立复核 §8 的修复**，并核实 §8.6 对第四轮的两点订正。
+> 结论：**§8 的修复全部成立**（M1 / M2 / M3 / §7.4 四项，探针 + 变异测试双重确认），
+> **第四轮的两点订正成立**，本轮**没有发现新问题**。
+
+### 9.1 对第四轮两点订正的核实
+
+| 第四轮的说法 | 第五轮实测 | 判定 |
+|---|---|---|
+| §7.4：「`didChange` 的**文本内容里**含 `"method": "initialize"` 会被旧正则命中」 | 旧正则 `/"method"\s*:\s*"initialize"/` 对该载荷 → **不命中**（引号被转义成 `\"method\"`）；对「`didChange` 里嵌套一个 `method: "initialize"` 对象」→ **命中** | ✅ **第四轮写错了**，订正成立 |
+| M2：「复位被移除 → 状态=building」 | 复位被移除 → **状态=ready，服务器进程数=2** | ✅ **判据应是进程数**，状态字段会骗人 |
+
+M2 的实测（探针：三轮「慢请求 + 服务器应答」，判据为 `spawned.length`）：
+
+```
+有复位（当前实现）  : spawned=1  state=ready
+复位被移除          : spawned=2  state=ready      ← 服务器确实被打死并重启了
+```
+
+> 第四轮用「状态」当判据，恰好撞上了自动重启的过渡窗口，才测出 `building`；
+> 用**进程数**当判据才是稳的 —— 这一点订正得对。
+
+### 9.2 §8 修复的独立复核
+
+| 项 | 探针实测 | 结论 |
+|---|---|---|
+| **M1** 降级会话取消 | `before=degraded  cancel={"state":"cancelled"}  spawned=0`（无抛错、无进程可杀） | ✅ |
+| **M1** 并发两次取消 | `first=ok  second=ok  terminateCalls=1  exited=true`（第二次**等进程真的死了**才回答） | ✅ |
+| **M1** 连续五次取消 | `ok \| ok \| ok \| ok \| ok   terminateCalls=1`（只杀一次） | ✅ |
+| **M2** 计数器复位 | 三轮「慢请求 + 应答」→ `spawned=1`（服务器没被打死） | ✅ |
+| **M3** 启动期取消不留残留 | `cancel={"state":"cancelled"}  spawned=1  terminateCalls=1  state=cancelled`（进程起来了又被立刻停掉） | ✅ |
+| **§7.4** 握手识别 | 新的 `isInitializeRequest` 看**第一个** `"method"`：真握手 ✓、text 里含 initialize ✓ 不命中、嵌套 method 键 ✓ 不命中 | ✅ |
+
+**额外的竞态探测**（本轮新做，未发现问题）：
+
+```
+C1 取消进行中 + 同时 shutdown  : cancel=ok  shutdown=ok  terminateCalls=2   （无抛错）
+C2 取消进行中 + 再次 start     : cancel=ok  start=ok(building) spawned=2    （新会话正常起来）
+C3 连续五次取消                 : 全部 ok，terminateCalls=1
+```
+
+### 9.3 变异测试（把本轮修复单独回退，新用例必须失败）
+
+我独立跑了 5 个变异，**全部被杀**：
+
+```
+KILLED   M1  取消守卫恢复为只放行 cancelled/idle   → cancelling a degraded session answers instead of failing
+KILLED   M1  cancelPromise 等待被去掉              → two concurrent cancels kill the process once and both answer
+KILLED   M1  启动期残留进程的守卫被去掉            → a cancel that arrives while the server starts leaves no process behind
+KILLED   M2  计数器复位被去掉                      → the timeout counter is reset when the server answers again
+KILLED   §7.4 isInitializeRequest 恢复旧正则       → a notification whose text contains a handshake is not a handshake
+```
+
+> 与 §8.4 的表互相印证：两份独立做的变异表，结论一致。
+
+### 9.4 一处残留边界（不构成缺陷，记录备查）
+
+新的 `isInitializeRequest` 取**第一个** `"method"` 的值。载荷里若有一个**排在顶层 `method` 之前**的嵌套 `method: "initialize"` 对象，仍会被误判为握手：
+
+```
+嵌套 method 在前 → 判定=true   ← 误判
+```
+
+现实可达性：客户端自己生成的载荷一律是 `{jsonrpc, id, method, params}`，顶层 `method` 在前；用户粘贴进文件的 JSON 会被转义、不会命中；worker 侧的 `isInitialize()` 用的是真解析，不受影响。要命中需要第三方构造出键顺序异常的载荷 —— 现实不可达，故不单列为缺陷。若将来要彻底消除，可在宿主侧对 initialize 候选做一次轻量结构校验（注意主线程刻意不解析载荷这个取舍）。
+
+### 9.5 第五轮结论
+
+| 维度 | 结论 |
+|---|---|
+| §8 的修复（M1 / M2 / M3 / §7.4） | **全部成立**，探针 + 变异测试双重确认 |
+| 第四轮的两点订正 | **均成立**，§7.4 的原文已在 §7.4 开头加了订正指引 |
+| 本轮新发现 | **无** |
+| 回归测试有效性 | 549/549 全绿；本轮 5 个变异全部被杀，修复都有用例守着 |
+| 文档一致性 | ✅ `实施进展.md` / `缺陷跟踪.md` 的数字与磁盘吻合（549 项 / 2,772,340 字节 / +301 KB） |
+
+**收尾判断**：从 `4b2b7dc` 到当前 HEAD，规格符合性问题已经清零；剩下的是**界面与交互层面的人工走查**（`docs/PRD-v5-实施进展.md` §5.3 的清单）与 **§11 的实机性能数值**，这两项自动化覆盖不到，需要人在真机上点一遍。
+
+代码层面我没有再发现需要返工的地方 —— 本轮同样**未修改任何源码**。

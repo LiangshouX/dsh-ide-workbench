@@ -155,9 +155,14 @@ export function ConfirmModal({ dialog, onClose, scope = null }) {
           action: () => dialog.onConfirm?.(),
         },
       ]
+  // A blocking confirmation is raised while another dialog may still be
+  // open (the "unsaved changes" warning above the project picker), so it
+  // gets its own layer - otherwise the later backdrop covers it. The
+  // editor-scoped variant is the save conflict box of the document pane and
+  // keeps its own class.
   const backdropClass = scope === 'editor'
     ? 'iwb-modal-backdrop iwb-editor-scoped-backdrop'
-    : 'iwb-modal-backdrop'
+    : 'iwb-modal-backdrop iwb-confirm-backdrop'
   return React.createElement('div', { className: backdropClass, onMouseDown: event => { if (event.target === event.currentTarget) onClose() } },
     React.createElement('div', { className: 'iwb-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': dialog.title },
       React.createElement('h2', null, dialog.title),

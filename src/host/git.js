@@ -4,7 +4,7 @@
  * Every call is an argv array (never a shell string) executed with the
  * repository root as cwd, so quoting, spaces and CJK paths need no escaping.
  * Output is parsed from machine-friendly formats:
- *   - `status --porcelain=v2 -z` (NUL separated, no quoting)
+ *   - `status --porcelain=v2 -z --untracked-files=all` (NUL separated, no quoting)
  *   - `log -z` custom field separators
  *   - `diff --numstat -z`
  */
@@ -56,6 +56,10 @@ export function runGit(env, args, options = {}) {
     '-c', 'core.quotepath=false',
     '-c', 'color.ui=false',
     '-c', 'advice.detachedHead=false',
+    // A global `status.showUntrackedFiles=normal` folds every untracked
+    // directory into a single `? dir/` record; the file tree needs the files
+    // themselves, so the configuration must not win here (GIT-01).
+    '-c', 'status.showUntrackedFiles=all',
     ...args,
   ]
   return new Promise((resolve, reject) => {
@@ -266,7 +270,10 @@ export async function status(env, options = {}) {
     return { isRepo: false, entries: [], root: null, subprocesses }
   }
   const repo = { ...env, root }
-  const args = ['status', '--porcelain=v2', '--branch', '-z']
+  // `--untracked-files=all` lists every untracked file on its own; the default
+  // ('normal') reports a whole untracked directory as one `? dir/` record, and
+  // the file tree can then only colour the directory, never the files in it.
+  const args = ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all']
   if (options.ignored === true) args.push('--ignored=matching')
   const statusResult = await run(repo, args)
   const parsed = parseStatusV2(statusResult.stdout)

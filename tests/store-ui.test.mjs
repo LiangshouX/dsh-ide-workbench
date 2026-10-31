@@ -113,14 +113,18 @@ test('openInDefaultBrowser sends a file URL to the host', async () => {
   }
 })
 
-test('openSearchTab creates one search tab and focuses it', () => {
+test('the search opens a popup and never takes a tab away', () => {
   const store = fakeStore()
+  store.openSearchPopup()
+  assert.equal(store.state.tabs.length, 0)
+  assert.equal(store.state.searchPopup.open, true)
+  assert.equal(store.state.searchPopup.index, 0)
+  // The old entry point still opens the popup.
   store.openSearchTab()
-  assert.equal(store.state.tabs.length, 1)
-  assert.equal(store.state.tabs[0].kind, 'search')
-  assert.equal(store.state.activeId, 'search:in-files')
-  store.openSearchTab()
-  assert.equal(store.state.tabs.length, 1)
+  assert.equal(store.state.tabs.length, 0)
+  assert.equal(store.state.searchPopup.open, true)
+  store.closeSearchPopup()
+  assert.equal(store.state.searchPopup.open, false)
 })
 
 test('single-click commit selection does not open the drawer', () => {

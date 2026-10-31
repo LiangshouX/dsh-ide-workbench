@@ -200,8 +200,10 @@ test('the commit slice returns exactly the fields the panel reads', async () => 
   const mod = await loadModule()
   const state = baseState()
   const slice = mod.commitSlice(state)
+  // `ahead` and `upstream` came with the Push button: the panel needs to know
+  // whether there is anything to push at all.
   assert.deepEqual(Object.keys(slice).sort(), [
-    'branch', 'commit', 'detached', 'entries', 'isRepo', 'oid', 'settings', 'workspaceRoot',
+    'ahead', 'branch', 'commit', 'detached', 'entries', 'isRepo', 'oid', 'settings', 'upstream', 'workspaceRoot',
   ])
   assert.equal(slice.commit, state.commit)
   assert.equal(slice.entries, state.status.entries)
@@ -209,6 +211,8 @@ test('the commit slice returns exactly the fields the panel reads', async () => 
   assert.equal(slice.branch, state.status.branch)
   assert.equal(slice.detached, state.status.detached)
   assert.equal(slice.oid, state.status.oid)
+  assert.equal(slice.ahead, state.status.ahead)
+  assert.equal(slice.upstream, state.status.upstream)
   assert.equal(slice.settings, state.settings)
   assert.equal(slice.workspaceRoot, state.workspaceRoot)
 })

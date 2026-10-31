@@ -35,7 +35,7 @@ import {
   autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap, startCompletion,
 } from '@codemirror/autocomplete'
 import { SearchQuery, setSearchQuery, search } from '@codemirror/search'
-import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle, syntaxTree } from '@codemirror/language'
+import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle, ensureSyntaxTree } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
@@ -123,20 +123,28 @@ export function languageForPath(path) {
   }
 }
 
+/**
+ * The syntax palette of the editor.
+ *
+ * Every colour is a token of the workbench stylesheet, and every token ends
+ * in a `--dsw-alias-*` of the host design system - so the palette follows the
+ * host theme instead of a fixed dark one. `prefers-color-scheme` is
+ * deliberately not used: the host theme is not the system theme.
+ */
 const HIGHLIGHT = HighlightStyle.define([
-  { tag: tags.comment, color: '#7a8596', fontStyle: 'italic' },
-  { tag: [tags.string, tags.special(tags.string)], color: '#5f8f3f' },
-  { tag: [tags.keyword, tags.modifier], color: '#a15fb0' },
-  { tag: [tags.number, tags.bool, tags.null], color: '#b57a2a' },
-  { tag: [tags.typeName, tags.className, tags.namespace], color: '#2f8f83' },
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#8a6a1f' },
-  { tag: [tags.propertyName, tags.attributeName], color: '#3f6f9f' },
-  { tag: [tags.tagName, tags.angleBracket], color: '#c05a63' },
-  { tag: tags.heading, color: '#3b7dd8', fontWeight: 'bold' },
+  { tag: tags.comment, color: 'var(--iwb-syn-comment)', fontStyle: 'italic' },
+  { tag: [tags.string, tags.special(tags.string)], color: 'var(--iwb-syn-string)' },
+  { tag: [tags.keyword, tags.modifier], color: 'var(--iwb-syn-keyword)' },
+  { tag: [tags.number, tags.bool, tags.null], color: 'var(--iwb-syn-number)' },
+  { tag: [tags.typeName, tags.className, tags.namespace], color: 'var(--iwb-syn-type)' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: 'var(--iwb-syn-function)' },
+  { tag: [tags.propertyName, tags.attributeName], color: 'var(--iwb-syn-property)' },
+  { tag: [tags.tagName, tags.angleBracket], color: 'var(--iwb-syn-tag)' },
+  { tag: tags.heading, color: 'var(--iwb-syn-heading)', fontWeight: 'bold' },
   { tag: tags.strong, fontWeight: 'bold' },
   { tag: tags.emphasis, fontStyle: 'italic' },
-  { tag: tags.link, color: '#3b7dd8', textDecoration: 'underline' },
-  { tag: tags.invalid, color: '#e2686f' },
+  { tag: tags.link, color: 'var(--iwb-syn-heading)', textDecoration: 'underline' },
+  { tag: tags.invalid, color: 'var(--iwb-syn-invalid)' },
 ])
 
 const THEME = EditorView.theme({
@@ -155,10 +163,19 @@ const THEME = EditorView.theme({
   '.cm-lineNumbers .cm-gutterElement': { minWidth: '34px', padding: '0 8px 0 4px' },
   '.cm-activeLine': { backgroundColor: 'rgba(127,127,127,.075)' },
   '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--iwb-fg)' },
-  '.cm-selectionBackground, ::selection': { backgroundColor: 'rgba(76,154,255,.24) !important' },
-  '.cm-matchingBracket': { backgroundColor: 'rgba(76,154,255,.25)', outline: '1px solid rgba(76,154,255,.5)' },
-  '.cm-searchMatch': { backgroundColor: 'rgba(215,162,74,.28)' },
-  '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'rgba(76,154,255,.45)', outline: '1px solid var(--iwb-accent)' },
+  // The selection, the matching bracket and the search hits are mixed from
+  // the theme tokens instead of fixed rgba values: a brand colour that is
+  // light in a light host theme then still reads as a selection.
+  '.cm-selectionBackground, ::selection': { backgroundColor: 'color-mix(in srgb, var(--iwb-accent) 24%, transparent) !important' },
+  '.cm-matchingBracket': {
+    backgroundColor: 'color-mix(in srgb, var(--iwb-accent) 25%, transparent)',
+    outline: '1px solid color-mix(in srgb, var(--iwb-accent) 50%, transparent)',
+  },
+  '.cm-searchMatch': { backgroundColor: 'color-mix(in srgb, var(--iwb-warn) 28%, transparent)' },
+  '.cm-searchMatch.cm-searchMatch-selected': {
+    backgroundColor: 'color-mix(in srgb, var(--iwb-accent) 45%, transparent)',
+    outline: '1px solid var(--iwb-accent)',
+  },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--iwb-accent)' },
   '&.cm-focused': { outline: 'none' },
   '.cm-panels': { backgroundColor: 'var(--iwb-panel)', color: 'var(--iwb-fg)' },
@@ -278,7 +295,14 @@ export function identifierRangeAt(state, pos) {
   if (!Number.isInteger(pos) || pos < 0 || pos > state.doc.length) return null
   let node = null
   try {
-    node = syntaxTree(state).resolveInner(pos, 1)
+    // `ensureSyntaxTree` and not `syntaxTree`: the background parser works
+    // on a time budget, so on a busy machine the tree around the cursor can
+    // still be incomplete - and then the identifier is not found at all, so
+    // a Ctrl+click would silently do nothing. Asking for the tree that
+    // reaches the position makes the answer independent of the load.
+    const tree = ensureSyntaxTree(state, pos, 1000)
+    if (tree === null || tree === undefined) return null
+    node = tree.resolveInner(pos, 1)
   } catch {
     return null
   }

@@ -74,6 +74,24 @@ function ancestorsOf(rel) {
 }
 
 /**
+ * Remember the status of one directory, keeping the strongest one.
+ *
+ * The precedence is the IDEA one (conflict > modified > added > untracked),
+ * so a folder that holds a modified file is not downgraded by an untracked
+ * sibling.
+ *
+ * @param {Map<string, string>} dirs directory → status kind
+ * @param {Set<string>} conflictDirs the directories that hold a conflict
+ * @param {string} dir the directory rel-path
+ * @param {string} kind the status kind
+ */
+function setDirStatus(dirs, conflictDirs, dir, kind) {
+  const previous = dirs.get(dir)
+  if (previous === undefined || (RANK[previous] ?? 0) < (RANK[kind] ?? 0)) dirs.set(dir, kind)
+  if (kind === 'conflict') conflictDirs.add(dir)
+}
+
+/**
  * Build the recursive status map.
  *
  * @param {Array<{ path: string, xy?: string, untracked?: boolean, conflict?: boolean, ignored?: boolean }>} entries
@@ -97,13 +115,18 @@ export function aggregateStatus(entries) {
       ignored.add(entry.path)
       continue
     }
-    files.set(entry.path, kind)
-    const rank = RANK[kind] ?? 0
-    for (const dir of ancestorsOf(entry.path)) {
-      const previous = dirs.get(dir)
-      if (previous === undefined || (RANK[previous] ?? 0) < rank) dirs.set(dir, kind)
-      if (kind === 'conflict') conflictDirs.add(dir)
+    // A porcelain entry that ends with a slash describes a DIRECTORY
+    // (`? dir/`), not a file. The tree looks directories up in `dirs` and
+    // files in `files`, so such an entry must never reach the file table —
+    // the files inside the directory would stay uncoloured (GIT-01).
+    if (entry.path.endsWith('/')) {
+      const dir = entry.path.replace(/\/+$/, '')
+      setDirStatus(dirs, conflictDirs, dir, kind)
+      for (const ancestor of ancestorsOf(dir)) setDirStatus(dirs, conflictDirs, ancestor, kind)
+      continue
     }
+    files.set(entry.path, kind)
+    for (const dir of ancestorsOf(entry.path)) setDirStatus(dirs, conflictDirs, dir, kind)
   }
   return { dirs, files, ignored, conflictDirs, entries: list }
 }
