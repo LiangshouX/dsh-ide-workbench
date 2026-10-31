@@ -79,14 +79,17 @@ function ancestorsOf(rel) {
  * @param {Array<{ path: string, xy?: string, untracked?: boolean, conflict?: boolean, ignored?: boolean }>} entries
  *   entries carry workspace-relative `path` values
  * @returns {{ dirs: Map<string, string>, files: Map<string, string>,
- *   ignored: Set<string>, conflictDirs: Set<string> }}
+ *   ignored: Set<string>, conflictDirs: Set<string>, entries: Array<object> }}
+ *   `entries` is the list this aggregate was built from, so a caller can tell
+ *   whether a later list still describes the same status.
  */
 export function aggregateStatus(entries) {
+  const list = Array.isArray(entries) ? entries : []
   const dirs = new Map()
   const files = new Map()
   const ignored = new Set()
   const conflictDirs = new Set()
-  for (const entry of Array.isArray(entries) ? entries : []) {
+  for (const entry of list) {
     if (entry === null || typeof entry !== 'object' || typeof entry.path !== 'string') continue
     const kind = fileStatusKind(entry)
     if (kind === null) continue
@@ -102,5 +105,50 @@ export function aggregateStatus(entries) {
       if (kind === 'conflict') conflictDirs.add(dir)
     }
   }
-  return { dirs, files, ignored, conflictDirs }
+  return { dirs, files, ignored, conflictDirs, entries: list }
+}
+
+/**
+ * Whether two entry lists describe the same status.
+ *
+ * The aggregate depends on a file only through its path and its kind, so two
+ * lists that agree on those agree on the aggregate — whatever else the host
+ * sends alongside an entry does not matter here.
+ *
+ * @param {Array<object>} left the earlier entry list
+ * @param {Array<object>} right the later entry list
+ * @returns {boolean} true when both describe the same status
+ */
+export function sameStatusEntries(left, right) {
+  const first = Array.isArray(left) ? left : []
+  const second = Array.isArray(right) ? right : []
+  if (first.length !== second.length) return false
+  for (let index = 0; index < first.length; index += 1) {
+    const one = first[index]
+    const other = second[index]
+    if (one === other) continue
+    if (one === null || other === null || typeof one !== 'object' || typeof other !== 'object') return false
+    if (one.path !== other.path) return false
+    if (fileStatusKind(one) !== fileStatusKind(other)) return false
+  }
+  return true
+}
+
+/**
+ * The aggregate for these entries, keeping the previous one while the entries
+ * still describe the same status.
+ *
+ * The store polls the git status every two seconds and hands over a fresh
+ * entry list every time. Rebuilding the aggregate from it produced fresh Map
+ * and Set instances on every poll, and every memo keyed on them rebuilt the
+ * whole file tree — even though nothing had changed.
+ *
+ * @param {object|undefined} previous the last aggregate, when there is one
+ * @param {Array<object>} entries the entry list to aggregate
+ * @returns {object} the aggregate; the previous one when nothing changed
+ */
+export function stableAggregateStatus(previous, entries) {
+  const list = Array.isArray(entries) ? entries : []
+  if (previous !== undefined && sameStatusEntries(previous.entries, list)) return previous
+  return aggregateStatus(list)
 }

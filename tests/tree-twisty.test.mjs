@@ -20,6 +20,7 @@ import { join, resolve, dirname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { stableAggregateStatus } from '../src/client/git-colors.js'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -325,6 +326,22 @@ test('the flatten memo depends on every input the tree reads', async () => {
   assert.equal(inputs[5], false, 'showIgnored')
   assert.equal(inputs[6], ignored, 'status.ignored')
   assert.equal(inputs[7], 'tree', 'filterMode')
+})
+
+test('a status poll that reports the same status leaves the tree inputs alone', async () => {
+  const mod = await loadModule()
+  const entries = [{ path: 'a.ts', xy: '.M' }]
+  const first = stableAggregateStatus(undefined, entries)
+  // The poll hands over a fresh list with the same content: the aggregate, and
+  // with it every memo input the tree reads, must keep its identity — or the
+  // whole tree is rebuilt every two seconds.
+  const second = stableAggregateStatus(first, entries.map(entry => ({ ...entry })))
+  const state = baseState()
+  const before = mod.flattenInputs(state, false, first.ignored, 'tree')
+  const after = mod.flattenInputs(state, false, second.ignored, 'tree')
+  for (let index = 0; index < before.length; index += 1) {
+    assert.equal(after[index], before[index], `memo input ${index} keeps its identity`)
+  }
 })
 
 test('every tree mutation changes the rows and its memo input', async () => {

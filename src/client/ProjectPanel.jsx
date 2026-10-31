@@ -15,7 +15,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ContextMenu } from './ui.jsx'
 import { FileTypeIcon, IconChat, IconExternal, IconGlobe, IconRefresh, IconSearch } from './icons.jsx'
 import { openInIdeMenu } from './ide-menu.js'
-import { aggregateStatus, statusClass } from './git-colors.js'
+import { statusClass, stableAggregateStatus } from './git-colors.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 import { relativePathWithin } from './workspace-scope.js'
 import { baseName, matchesShortcut } from './util.js'
@@ -246,6 +246,24 @@ export function revealRow(element, index) {
   }
 }
 
+/**
+ * The status aggregate for the polled git status.
+ *
+ * The poll hands over a fresh entry list every two seconds, and an aggregate
+ * built from it is a fresh object every time. The tree keys its row list on
+ * the aggregate's `ignored` set, so a new aggregate meant the whole tree was
+ * rebuilt on every poll. Keeping the previous aggregate while the entries
+ * still describe the same status leaves those inputs alone.
+ *
+ * @param {Array<object>} entries the polled status entries
+ * @returns {object} the aggregate, stable while the status is unchanged
+ */
+function useStableStatus(entries) {
+  const ref = useRef(undefined)
+  ref.current = stableAggregateStatus(ref.current, entries)
+  return ref.current
+}
+
 /** Starter content for the New File templates. */
 function templateContent(templateId, name) {
   const stem = name.replace(/\.[^.]+$/, '') || name
@@ -439,7 +457,7 @@ export function ProjectPanel({ store, state: _state }) {
   const shortcutFor = key => shortcuts[key] ?? SHORTCUT_FALLBACK[key] ?? ''
   const showIgnored = slice.settings?.project?.showIgnored === true
   const singleClickOpen = slice.settings?.project?.singleClickOpen === true
-  const status = useMemo(() => aggregateStatus(slice.status.entries ?? []), [slice.status])
+  const status = useStableStatus(slice.status.entries)
   const filterMode = slice.filterMode === 'tree' ? 'tree' : 'files'
   const quickRows = useMemo(() => {
     const query = slice.filter.trim().toLowerCase()

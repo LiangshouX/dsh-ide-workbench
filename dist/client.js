@@ -5349,11 +5349,12 @@ function ancestorsOf(rel) {
   return output;
 }
 function aggregateStatus(entries) {
+  const list = Array.isArray(entries) ? entries : [];
   const dirs = /* @__PURE__ */ new Map();
   const files = /* @__PURE__ */ new Map();
   const ignored = /* @__PURE__ */ new Set();
   const conflictDirs = /* @__PURE__ */ new Set();
-  for (const entry of Array.isArray(entries) ? entries : []) {
+  for (const entry of list) {
     if (entry === null || typeof entry !== "object" || typeof entry.path !== "string") continue;
     const kind = fileStatusKind(entry);
     if (kind === null) continue;
@@ -5369,7 +5370,26 @@ function aggregateStatus(entries) {
       if (kind === "conflict") conflictDirs.add(dir);
     }
   }
-  return { dirs, files, ignored, conflictDirs };
+  return { dirs, files, ignored, conflictDirs, entries: list };
+}
+function sameStatusEntries(left, right) {
+  const first = Array.isArray(left) ? left : [];
+  const second = Array.isArray(right) ? right : [];
+  if (first.length !== second.length) return false;
+  for (let index = 0; index < first.length; index += 1) {
+    const one = first[index];
+    const other = second[index];
+    if (one === other) continue;
+    if (one === null || other === null || typeof one !== "object" || typeof other !== "object") return false;
+    if (one.path !== other.path) return false;
+    if (fileStatusKind(one) !== fileStatusKind(other)) return false;
+  }
+  return true;
+}
+function stableAggregateStatus(previous, entries) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (previous !== void 0 && sameStatusEntries(previous.entries, list)) return previous;
+  return aggregateStatus(list);
 }
 
 // src/client/ProjectPanel.jsx
@@ -5497,6 +5517,11 @@ function revealRow(element, index) {
   else if (bottom + ROW_HEIGHT > viewBottom) {
     element.scrollTop = Math.max(0, bottom + ROW_HEIGHT - element.clientHeight);
   }
+}
+function useStableStatus(entries) {
+  const ref = (0, import_react5.useRef)(void 0);
+  ref.current = stableAggregateStatus(ref.current, entries);
+  return ref.current;
 }
 function templateContent(templateId, name2) {
   const stem = name2.replace(/\.[^.]+$/, "") || name2;
@@ -5680,7 +5705,7 @@ function ProjectPanel({ store, state: _state }) {
   const shortcutFor = (key) => shortcuts[key] ?? SHORTCUT_FALLBACK[key] ?? "";
   const showIgnored = slice.settings?.project?.showIgnored === true;
   const singleClickOpen = slice.settings?.project?.singleClickOpen === true;
-  const status = (0, import_react5.useMemo)(() => aggregateStatus(slice.status.entries ?? []), [slice.status]);
+  const status = useStableStatus(slice.status.entries);
   const filterMode = slice.filterMode === "tree" ? "tree" : "files";
   const quickRows = (0, import_react5.useMemo)(() => {
     const query = slice.filter.trim().toLowerCase();
