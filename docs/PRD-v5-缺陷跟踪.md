@@ -279,7 +279,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 
 ## 9. 交接清单
 
-#### 9.1 已完成
+### 9.1 已完成
 
 - [x] D1 崩溃（结构性的三层修复 + 复现脚本）
 - [x] D2 索引中卡死（握手缓冲 + 握手缓存 + worker 去重）
@@ -289,7 +289,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 - [x] D6 测试抖动
 - [x] D7 重启后静默死亡
 
-#### 9.2 接手者要做
+### 9.2 接手者要做
 
 1. **重装并实测**：插件是 `link:` 安装（profile 的 `package.json` 里指向工作目录），
    改完代码后 `plugin_manager set_bundle dsh-ide-workbench enabled=false` 再 `true`，
@@ -303,7 +303,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
    - 空闲 10 分钟 → 进程退出、内存回落。
 3. **跑全量**：`npm test`（512 项）+ `npm run build`。
 
-#### 9.3 复现脚本（在 `docs/bench/`，不进 npm 包）
+### 9.3 复现脚本（在 `docs/bench/`，不进 npm 包）
 
 | 脚本 | 作用 |
 |---|---|
@@ -311,7 +311,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 | `node docs\bench\repro-order.mjs` | 复现并验证 D2（浏览器真实顺序：先连 socket、后启动服务器） |
 | `node docs\bench\crash-recovery.mjs` | 复现并验证 D1（语言服务器崩溃 → 宿主必须活着） |
 
-#### 9.4 新增的回归测试
+### 9.4 新增的回归测试
 
 | 文件 | 用例 | 覆盖 |
 |---|---|---|
@@ -319,7 +319,7 @@ node --test tests/lsp-status-progress.test.mjs     # 4 个用例
 | `tests/lsp-error-toast.test.mjs` | 6 | 错误走 toast 而不是库的面板、toast 文案带 message+detail、store 没有 toast / toast 抛错时回落到库、只重定向一次 |
 | `tests/plugin-mount.test.mjs` | 4 | 插件能挂上路由与 WS、每个 effect 都交回 Cordis 接受的 disposer |
 
-#### 9.5 交接时容易踩的坑
+### 9.5 交接时容易踩的坑
 
 - **`ctx.subprocess.spawn()` 是同步的**，返回句柄而不是 Promise。写假件时别写成 `async`，
   否则 `handle.done` 变成 undefined，会被误判成「进程以 code null 退出」。
