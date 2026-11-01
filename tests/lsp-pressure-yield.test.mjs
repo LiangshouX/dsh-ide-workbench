@@ -95,7 +95,7 @@ test('the pressure valve is on with the default policy', async () => {
   fixture.squeeze()
   assert.ok(await waitFor(() => manager.stateOf(root).state === 'suspended', 4000), 'the server was released')
   assert.equal(handle().terminateCalls, 1, 'the process is gone')
-  assert.match(manager.stateOf(root).detail, /ran out of free memory/i, 'the valve did it, not the idle timer')
+  assert.match(manager.stateOf(root).detail, /less memory left than the language servers may still take/i, 'the valve did it, not the idle timer')
 })
 
 test('the policy never does not exempt the pressure valve', async () => {
@@ -143,7 +143,7 @@ test('the yield ends in suspended and not in degraded', async () => {
   const status = await manager.status({ root })
   assert.equal(status.state, 'suspended')
   assert.notEqual(status.state, 'degraded')
-  assert.match(status.detail, /ran out of/i, 'the message names the reason')
+  assert.match(status.detail, /less memory left than/i, 'the message names the reason')
 })
 
 test('the least used language server is released first', async () => {

@@ -226,8 +226,15 @@ export const MEASURE_INTERVAL_MS = 60000
  * The machine needs the memory more than the projects need their indexes,
  * and the server that was released is the one that was used the least. It
  * is not a failure: the first request starts the server again (IDLE-02).
+ *
+ * The message says what actually happened and NOT "the machine ran out of
+ * memory": what ran out is the MARGIN of the machine - the free memory
+ * minus what the running servers may still take - and that margin can be
+ * gone while the machine still has gigabytes of free memory (review R4,
+ * N4). A message that claims more than the truth is the kind of message
+ * that teaches the user to ignore the line.
  */
-export const PRESSURE_YIELD_DETAIL = 'the machine ran out of memory, so the least used language server was released to reclaim it (this is not a failure)'
+export const PRESSURE_YIELD_DETAIL = 'the machine had less memory left than the language servers may still take, so the least used one was released to reclaim it (this is not a failure)'
 
 /**
  * The defaults of the `lsp` settings section (PRD §6.1).
@@ -324,9 +331,10 @@ const IDLE_EXIT_DETAIL = 'the language server was released to reclaim memory aft
  * The message of a release under memory pressure.
  *
  * The same as the idle release, but the reason is the machine: it needs the
- * memory more than the project needs the index.
+ * memory more than the project needs the index. What ran out is the margin
+ * of the machine, not its free memory - see `PRESSURE_YIELD_DETAIL`.
  */
-const PRESSURE_EXIT_DETAIL = 'the machine ran out of free memory, so the language server was released to reclaim it (this is not a failure)'
+const PRESSURE_EXIT_DETAIL = 'the machine had less memory left than the language servers may still take, so this one was released to reclaim it (this is not a failure)'
 
 /**
  * The shortest interval of the memory pressure check (ms).
@@ -1573,6 +1581,16 @@ export class LspManager {
    */
   #lastMeasureAt = null
   /**
+   * Whether the current memory pressure episode was already reported.
+   *
+   * The check of the pressure runs every second, and every session of the
+   * machine runs it. A report that repeats every second is noise that hides
+   * the one line that matters, so the episode is reported once - and the
+   * flag is cleared when the machine is out of the pressure again.
+   * @type {boolean}
+   */
+  #pressureReported = false
+  /**
    * The sessions this manager owns.
    *
    * The memory gate counts the servers that are already running (MEM-02),
@@ -2643,6 +2661,12 @@ export class LspManager {
   #safeReservedBytes() {
     let total = 0
     for (const session of this.#sessions) {
+      // A session that holds no reservation holds no memory either: it is
+      // on its way out, and the machine has it back (or gets it back in a
+      // moment). Its ceiling must not be charged here - a server that is
+      // already dying may not take a server that is still alive with it
+      // (review R4, N2).
+      if (session.reservedBytes <= 0) continue
       const room = Math.max(0, session.ceilingBytes - session.confirmedBytes)
       total += room
     }
@@ -3680,21 +3704,32 @@ export class LspManager {
     // is void, or every later round would be void for ever.
     this.#lastGlobalFreeBytes = freeAfter
     const capacity = this.#capacityOf(session)
+    const { baselineMB } = memoryEstimateOf(session.languageId, session.lsp ?? DEFAULT_LSP_SETTINGS)
+    const baselineBytes = Math.max(0, baselineMB) * 1024 * 1024
     if (delta > MEASURE_NOISE_MAX_MB * 1024 * 1024 && delta <= capacity) {
       // The difference fits the room the server has left: it is its growth.
       // No clamp is needed - the bound is the capacity.
       session.measuredBytes = delta
-      // The spawn window is the ONE measurement the pressure valve may
-      // trust: the server itself is the main cause of the change, and the
-      // window lasts seconds instead of a minute (review R1).
-      session.confirmedBytes = delta
+      // The CONFIRMED footprint: the drop of the spawn window, but never
+      // more than the typical footprint of the language.
+      //
+      // The spawn window is the only window in which the server itself was
+      // the main cause of the change - and it is still a window of the
+      // MACHINE, not a measurement OF the server: another program may
+      // allocate in it as well. A drop that is bigger than the typical
+      // footprint of the language is more likely another program's than the
+      // server's, so the confirmed number refuses to believe it.
+      //
+      // That buys a BOUND: the confirmed footprint is never more than one
+      // baseline above the real one, while the measured value of the
+      // account is not bounded at all (review R4, N1).
+      session.confirmedBytes = Math.min(delta, baselineBytes)
       return
     }
-    const { baselineMB } = memoryEstimateOf(session.languageId, session.lsp ?? DEFAULT_LSP_SETTINGS)
-    session.measuredBytes = Math.max(0, baselineMB) * 1024 * 1024
+    session.measuredBytes = baselineBytes
     // The estimate is not a measurement, but it is the only number there is:
     // the valve books it as well (review R1).
-    session.confirmedBytes = session.measuredBytes
+    session.confirmedBytes = baselineBytes
     let reason
     if (delta <= MEASURE_NOISE_MAX_MB * 1024 * 1024) {
       reason = delta < MEASURE_NOISE_MIN_MB * 1024 * 1024
@@ -4375,16 +4410,13 @@ export class LspManager {
       // optimistic number is a valve that does not fire (review R1). The
       // confirmed margin is never bigger than the available memory of the
       // account, so this trigger also covers the trigger of the account.
-      if (resources.safeAvailableBytes >= hardFloorBytes) return
-      // The two numbers are logged together: the account may still say that
-      // there is room, and the operator has to see WHY the machine gave the
-      // memory back (review R1: the account used to be inflated silently).
-      this.#ctx?.logger?.warn?.(
-        'lsp: the machine is below the hard floor: the confirmed margin is %d MB, the account says %d MB - the least used language server is released',
-        Math.round(resources.safeAvailableBytes / (1024 * 1024)),
-        Math.round(resources.availableBytes / (1024 * 1024)),
-      )
-      this.#safely(this.#yieldUnderPressure(session), 'the memory pressure release')
+      if (resources.safeAvailableBytes >= hardFloorBytes) {
+        // The machine is out of the pressure again: the next episode may be
+        // reported again (the check runs every second).
+        this.#pressureReported = false
+        return
+      }
+      this.#safely(this.#yieldUnderPressure(session, resources), 'the memory pressure release')
     } catch (error) {
       // The check runs in an interval: a throw here is an uncaught
       // exception and would end the DSH host process.
@@ -4421,17 +4453,38 @@ export class LspManager {
    * the most idle one - and it is the one that must not be touched.
    *
    * @param {object} trigger the session whose check found the pressure
+   * @param {object} [resources] the memory snapshot that found it
    */
-  async #yieldUnderPressure(trigger) {
+  async #yieldUnderPressure(trigger, resources = null) {
     const victim = this.#lruVictim()
-    if (victim === null) return
+    if (victim === null) {
+      // Nobody may go: every session builds its program, and CONC-03 says
+      // that a building project is never touched. The machine is short of
+      // memory and nothing can be done about it - that is worth saying, but
+      // ONCE: the check of the pressure runs every second (review R4, N3).
+      if (!this.#pressureReported) {
+        this.#pressureReported = true
+        this.#ctx?.logger?.warn?.('lsp: the machine is below the hard floor, but no language server may be released: every session builds its program')
+      }
+      return
+    }
     const entry = victim.entry
     if (entry === undefined || entry === null) return
-    // The message says why the server was released: the machine ran out of
-    // memory (this server was the one that had to go), or the host gave
-    // the room to a server that was used less (the LRU rule).
+    // The message says why the server was released: the machine had less
+    // memory left than the running servers may still take (this server was
+    // the one that had to go), or the host gave the room to a server that
+    // was used less (the LRU rule).
     const detail = victim === trigger ? PRESSURE_EXIT_DETAIL : PRESSURE_YIELD_DETAIL
     await this.#exitIdle(entry, victim, detail)
+    // The two numbers are logged together: the account may still say that
+    // there is room, and the operator has to see WHY the machine gave the
+    // memory back (review R1: the account used to be inflated silently).
+    this.#pressureReported = true
+    this.#ctx?.logger?.warn?.(
+      'lsp: the machine is below the hard floor: the confirmed margin is %d MB, the account says %d MB - the least used language server was released',
+      Math.round((resources?.safeAvailableBytes ?? 0) / (1024 * 1024)),
+      Math.round((resources?.availableBytes ?? 0) / (1024 * 1024)),
+    )
   }
 
   /**

@@ -104,8 +104,12 @@ tight = (decision === 'tight')        ← 与 decision 恒等，不允许有第�
 | `availableBytes` | **账目**：`free − Σ max(0, ceiling_i − measured_i)` | 闸门、判定档位、诊断面板、弹窗、宿主文案（MEM-05/MEM-09） | 偏乐观（真实值的**上界**） |
 | `safeAvailableBytes` | **确认口径**：`free − Σ max(0, ceiling_i − confirmed_i)` | **只有压力阀**（MEM-12） | 偏保守（真实值的**下界**） |
 
-- `measured_i` = 差值法**累计**的占用（MEM-06）；`confirmed_i` = **起服窗口**实测到的占用。
-  差值法分不清「谁长的」：每分钟一次复测会把别的程序长的那一段也记到服务器头上 ⇒ **账目偏乐观**。
+- `measured_i` = 差值法**累计**的占用（MEM-06）；`confirmed_i` = **起服窗口**实测到的占用，
+  **按该语言的典型占用（baseline）封顶**：`confirmed_i = min(起服窗口的下降量, baseline)`。
+  差值法分不清「谁长的」：每分钟一次复测会把别的程序长的那一段也记到服务器头上 ⇒ **账目偏乐观**；
+  起服窗口也可能被别的程序灌水 ⇒ 封顶让确认口径的误差**有界**（≤ 一个 baseline）。
+- 计入余量的**只有还持有预留额的会话**：预留额一还回去（进程一起步走），它的额度也不再计账
+  —— 否则一台正在死去的服务器会按满额上限把一台健康的服务器带下去（第四轮 N2）。
 - **不变式**：`safeAvailableBytes ≤ availableBytes` **恒成立**（`confirmed_i ≤ measured_i`）⇒
   压力阀改看确认口径之后，**触发只会更早，不会更晚**（账目已经低于硬地板时，确认口径一定也低于）。
 - 压力阀的触发条件因此是 `safeAvailableBytes < hardFloorBytes`。

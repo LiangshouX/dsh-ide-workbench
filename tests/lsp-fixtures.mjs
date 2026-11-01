@@ -280,6 +280,11 @@ export function decodeChunks(chunks) {
  *   to die after `terminate()`
  * @param {boolean} [options.failStdin] when true the stdin of the fake
  *   process is a broken pipe: every write fails asynchronously
+ * @param {(spec: object, handle: object) => void} [options.onSpawn] called
+ *   when the fake process starts: the test uses it to take the footprint of
+ *   the server from the machine (the difference method of MEM-06 measures
+ *   exactly that drop) - or to let another program allocate in the same
+ *   window
  * @returns {object} the manager and the recorded calls
  */
 export function makeManager(options = {}) {
@@ -308,6 +313,9 @@ export function makeManager(options = {}) {
         failStdin: options.failStdin,
       })
       spawned.push({ spec, handle })
+      // The machine may lose the footprint of the server while it starts:
+      // the difference method of MEM-06 measures exactly that drop.
+      if (typeof options.onSpawn === 'function') options.onSpawn(spec, handle)
       return handle
     },
     createWorker: (workerData) => {
