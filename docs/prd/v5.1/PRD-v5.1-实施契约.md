@@ -65,13 +65,23 @@ floor   = memoryHardFloorMB                                (默认 256 MB)
 最坏档：available − ceiling_j
 
 decision:
-  available < floor          → 'low'    （机器给不起，硬地板）
-  available < soft_j         → 'tight'  （问用户）
-  available − ceiling_j < floor → 'tight'（额外标注 worstCase = true）
-  否则                        → 'ok'
+  available < floor   → 'low'    （机器给不起，硬地板）
+  available < soft_j  → 'tight'  （问用户）
+  否则                 → 'ok'
+
+tight = (decision === 'tight')        ← 与 decision 恒等，不允许有第二个口径
 ```
 
-**`worstCase` 的处置**：**不因为最坏档而硬拒**。只**如实报出来**（`worstCaseBytes` 字段 + 诊断面板显示）。真正拦住 swap 的是 MEM-08 总预算与 MEM-12 压力阀。
+> ⚠️ **2026-11-01 22:50 修订（第一轮检视 A2）**：本节原来的判定表里，
+> 最坏档也把 `decision` 压成 `'tight'`，而宿主自己的闸门读的是另一个字段 `tight` ——
+> **同一个快照，两个相反的答案**：客户端弹窗问用户，宿主自己却直接启动
+> （实测 `available = 2000 MB`： `decision = 'tight'`、`tight = false`）。
+>
+> ⇒ **最坏档只报不拦**（`worstCase` / `worstCaseBytes`），判定**只由典型档决定**。
+> 理由与 PRD §3.3 的正文一致：按 2 GB 上限算几乎任何机器都会命中最坏档，
+> 把它变成「问用户」等于让闸门名存实亡；真正拦住 swap 的是 **MEM-08 总预算**
+> 与 **MEM-12 压力阀**。PRD §3.3 的**表格**与它自己的**正文**在这点上打架，
+> 实施以来跟的是正文（见实施进展 §6 S2 与 §7.3）。
 
 **新增的快照字段**（供客户端显示，客户端只读这些字段，不自己算）：
 

@@ -16,7 +16,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Handshake } from '../src/host/lsp-worker.js'
-import { makeManager, makeSink, sleep } from './lsp-fixtures.mjs'
+import { decodeChunks, makeManager, makeSink, sleep } from './lsp-fixtures.mjs'
 
 /** A project root that no other test uses. */
 function rootOf(name) {
@@ -224,4 +224,52 @@ test('the worker answers no handshake when there was no duplicate', () => {
 
   handshake.noteServerPayload(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { capabilities: {} } }))
   assert.deepEqual(handshake.takePendingAnswers(), [], 'there is nothing to answer without a duplicate')
+})
+
+test('a handshake that arrives while the process starts reaches the server', async () => {
+  // B1: the worker of the frame channel is created BEFORE the process is
+  // spawned, and a payload that arrived in that window used to be handed to
+  // the worker - which forwarded it to a stdin that did not exist yet. The
+  // payload was dropped silently, and the worker had already marked the
+  // handshake as "forwarded": the initialize that the host posted after the
+  // spawn was absorbed as the second one, and the server never heard of it.
+  //
+  // The client retried, the retry was absorbed as well, and the status bar
+  // said "connecting" for 4 x 30 s + 3 x 2 s = 126 s.
+  const { manager, workers, spawned } = makeManager({ spawnDelayMs: 300 })
+  const root = rootOf('handshake-window')
+  manager.attachSink(root, makeSink())
+
+  const starting = manager.start({ root })
+  // The worker exists by now, the process does not: this is the window.
+  await sleep(80)
+  const init = initializeText()
+  assert.equal(manager.relayToServer(root, init), false, 'the process is not there yet')
+
+  await starting
+
+  const payloads = decodeChunks(spawned[0].handle.stdinChunks)
+  const handshakes = payloads.filter(text => text.includes('"initialize"'))
+  assert.equal(handshakes.length, 1, 'the server was initialized exactly once')
+  assert.match(handshakes[0], /rootUri/, 'the handshake of the browser reached the server')
+  assert.equal(workers.length, 1, 'the worker of the new process is the one that got it')
+})
+
+test('a payload that arrives while the process starts is not delivered twice', async () => {
+  // The payload waits in the queue of the root and is replayed when the
+  // process exists - exactly once.
+  const { manager, spawned } = makeManager({ spawnDelayMs: 300 })
+  const root = rootOf('window-once')
+  manager.attachSink(root, makeSink())
+
+  const starting = manager.start({ root })
+  await sleep(80)
+  const open = didOpenText()
+  assert.equal(manager.relayToServer(root, open), false, 'the process is not there yet')
+
+  await starting
+
+  const payloads = decodeChunks(spawned[0].handle.stdinChunks)
+  const opens = payloads.filter(text => text.includes('textDocument/didOpen'))
+  assert.equal(opens.length, 1, 'the document was announced once')
 })

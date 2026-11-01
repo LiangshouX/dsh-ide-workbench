@@ -7,6 +7,63 @@ import React, { useEffect, useRef, useState } from 'react'
 import { ShortcutCapture } from './ui.jsx'
 import { IDE_OPTIONS } from './ide-menu.js'
 import { DEFAULT_LSP_SETTINGS } from '../host/settings-defaults.js'
+import { memoryDecisionOf } from './store.js'
+
+/**
+ * The word of the memory snapshot, in the wording of the settings page.
+ *
+ * The page and the memory popup show the SAME snapshot, so they have to use
+ * the same word for it: the page read the flag `tight` while the popup read
+ * the field `decision`, and the two fields answered differently for a whole
+ * round - the page said "may start" while the dialog asked the user to
+ * decide (review A2). The decision itself comes from the store, which reads
+ * ONE field (`decision`).
+ * @param {any} resources the memory snapshot of the host
+ * @param {(key: string) => string} t the translator
+ * @returns {string} the localized state
+ */
+function memoryStateOf(resources, t) {
+  const decision = memoryDecisionOf(resources)
+  if (decision === 'tight') return t('settings.lspMemoryState.tight')
+  if (decision === 'low') return t('settings.lspMemoryState.low')
+  return t('settings.lspMemoryState.ok')
+}
+
+/**
+ * The default share of the memory the language servers may use together.
+ *
+ * It is the default of the host (`lsp.budgetRatio`), so the page and the
+ * document agree on what an untouched field means.
+ */
+const DEFAULT_BUDGET_RATIO = 0.25
+
+/**
+ * The smallest share the page accepts.
+ *
+ * The host only takes a ratio greater than zero and falls back to the
+ * default for anything else, so a zero in the field would show a budget the
+ * machine does not use (review A5). Five per cent is the smallest share
+ * that still means something: it is a budget, not a rounding error.
+ */
+const MIN_BUDGET_RATIO = 0.05
+
+/**
+ * The budget share the page writes for one field value.
+ *
+ * An empty field falls back to the default of the host, a typed zero is
+ * raised to the smallest share the host accepts, and a share above one is
+ * capped: the field may not write a value the host would silently replace
+ * with its default (review A5).
+ * @param {unknown} raw the value of the field
+ * @returns {number} the share to write
+ */
+export function clampBudgetRatio(raw) {
+  const text = String(raw ?? '').trim()
+  if (text === '') return DEFAULT_BUDGET_RATIO
+  const parsed = Number(text)
+  if (!Number.isFinite(parsed)) return DEFAULT_BUDGET_RATIO
+  return Math.min(1, Math.max(MIN_BUDGET_RATIO, parsed))
+}
 
 const SHORTCUT_FIELDS = [
   ['project', 'projectShortcut'],
@@ -642,13 +699,15 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
       React.createElement(SubGroup, { title: t('settings.lspBudgetGroup') },
         React.createElement(Field, { label: t('settings.lspBudgetRatio'), hint: t('settings.lspBudgetRatioShort'), title: t('settings.lspBudgetRatioHint') },
           React.createElement('input', {
-            type: 'number', min: 0, max: 1, step: 0.05,
-            value: Number.isFinite(draft.lsp?.budgetRatio) ? draft.lsp.budgetRatio : 0.25,
-            onChange: event => {
-              const raw = String(event.target.value ?? '').trim()
-              const parsed = Number(raw)
-              update({ lsp: { budgetRatio: raw === '' ? 0.25 : (Number.isFinite(parsed) ? parsed : 0.25) } })
-            },
+            // The share may not be zero: the host only accepts a ratio
+            // greater than zero and falls back to 0.25 for anything else, so
+            // a 0 in the field would be a lie - the page would show "no
+            // budget" while the machine keeps a quarter of its memory for the
+            // language servers. The smallest share that still means
+            // something is 5 %.
+            type: 'number', min: MIN_BUDGET_RATIO, max: 1, step: 0.05,
+            value: Number.isFinite(draft.lsp?.budgetRatio) ? draft.lsp.budgetRatio : DEFAULT_BUDGET_RATIO,
+            onChange: event => update({ lsp: { budgetRatio: clampBudgetRatio(event.target.value) } }),
           }),
         ),
         React.createElement(Field, { label: t('settings.lspBudgetCap'), hint: t('settings.lspBudgetCapShort'), title: t('settings.lspBudgetCapHint') },
@@ -775,9 +834,11 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
                     threshold: Math.round((lspResources.thresholdBytes ?? 0) / (1024 * 1024)),
                     floor: Math.round(lspResources.hardFloorMB ?? 256),
                     language: lspResources.languageId,
-                    state: lspResources.tight === true
-                      ? t('settings.lspMemoryState.tight')
-                      : (lspResources.canIndex === false ? t('settings.lspMemoryState.low') : t('settings.lspMemoryState.ok')),
+                    // The word of the snapshot comes from the SAME field the
+                    // popup reads (`decision`), so the settings page and the
+                    // dialog cannot answer the same question two ways
+                    // (review A2).
+                    state: memoryStateOf(lspResources, t),
                   })
                 : interpolate(t('settings.lspMemoryNowNoProject'), {
                     available: Math.round((lspResources.availableBytes ?? lspResources.freeBytes ?? 0) / (1024 * 1024)),
@@ -790,6 +851,19 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
               ? React.createElement('div', { className: 'iwb-settings-hint' },
                   interpolate(t('settings.lspMemoryReserved'), {
                     reserved: Math.round((lspResources.reservedBytes ?? 0) / (1024 * 1024)),
+                  }))
+              : null,
+            // The worst case belongs where the user already looks at the live
+            // snapshot. It is INFORMATION, not a verdict: the host reports it
+            // and never blocks on it (MEM-07), so it must not turn into a
+            // question the user has to answer - it is a line that says what
+            // the machine would be left with if the next server grew into the
+            // ceiling it was granted.
+            Number.isFinite(lspResources.worstCaseBytes) && Number.isFinite(lspResources.ceilingMB)
+              ? React.createElement('div', { className: 'iwb-settings-hint' },
+                  interpolate(t('lsp.diagnostics.memoryWorstText'), {
+                    ceiling: lspResources.ceilingMB,
+                    left: Math.round(lspResources.worstCaseBytes / (1024 * 1024)),
                   }))
               : null,
           )

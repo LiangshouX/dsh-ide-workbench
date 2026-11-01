@@ -375,8 +375,8 @@ budgetUsed = Σ ceiling_i
 
 | 项 | 基线（`238668e`） | 本轮 | 变化 |
 |---|---|---|---|
-| `npm test` | **911 / 911** | **1010 / 1010** | **+99** |
-| `dist/client.js` | 2,960.8 KiB | **2,999.0 KiB** | +38.2 KiB |
+| `npm test` | **911 / 911** | **1042 / 1042** | **+131** |
+| `dist/client.js` | 2,960.8 KiB | **3,003.0 KiB** | +42.2 KiB |
 
 ### 7.1 新增的测试文件
 
@@ -465,6 +465,66 @@ if (memoryChanged) next.resources = resources
 
 ---
 
+## 7.3 第一轮代码检视（MiniMax）—— 6 条新发现，全部复核并修复
+
+检视报告：`docs/prd/v5.1/PRD-v5.1-代码检视报告-第一轮.md`（364 行，六个探针实跑复验）。
+lead **逐条复核了代码**，确认 6 条**全部属实**；本轮全部修复。
+
+### 7.3.1 本轮引入的 4 条
+
+| 编号 | 严重度 | 缺陷 | 修法 | 落点 |
+|---|---|---|---|---|
+| **A1** | **高** | 多会话并发时，差值法把**同一段**机器内存下降**按会话各算一次** ⇒ `measuredBytes` 虚高 2.2 倍、`reservedBytes` 虚低、`availableBytes` **虚高约 1.9 GB** | 测量改成**manager 级的一轮**：基线、读数、间隔都是 manager 的；差值**只算一次**，记给「还没到上限、还能长」的会话并**在它们之间分摊** ⇒ **总和精确**（每会话的分摊是近似，闸门与面板用的都是总和） | `src/host/lsp.js` `#lastGlobalFreeBytes` / `#remeasure()` |
+| **A2** | **高** | `decision` 与 `tight` 对**同一快照**给出相反答案（`available = 2000 MB` ⇒ 客户端弹窗问用户、宿主自己却直接启动） | **一个权威**：`decision` 只由**典型档**决定，`tight` 就是 `decision`；**最坏档只报不拦**（`worstCase` / `worstCaseBytes`） | `src/host/lsp.js` `#resourcesSnapshot()`；客户端统一走 `memoryDecisionOf(resources)` |
+| **A3** | 中 | 客户端快照的刷新条件漏掉本轮新增字段 ⇒ 面板的「已预留 / 最坏情况」**冻结**（服务器长大时 `free` 降 Δ、`reserved` 也降 Δ ⇒ `available` **恰好不变**） | 刷新条件改为比较**面板显示的每一个字段**（`availableBytes` / `reservedBytes` / `measuredBytes` / `worstCaseBytes` / `budgetUsedBytes` 按 MB 比，其余直接比） | `src/client/store.js` `refreshLspStatus()` |
+| **A4** | 中 | 宿主与客户端用**两个标记且优先级相反** ⇒ 点过【重新建立索引】后，服务器**再也醒不过来**（空闲退出 / 压力释放之后） | 宿主改读**同一个权威**（`workspaceDefaults` 优先，两个方向都算）；客户端的「要索引」**同时**把「不要再问」的旧拒答带走 | `src/host/lsp.js` `#isConservative()`；`src/client/store.js` `#rememberWorkspaceDecision()` |
+
+> **A2 与 §6 S1 的关系**：修完之后，`available = 1206 MB` 的**用户场景**仍然是 `'tight'`
+> （典型档：1206 < 1302）—— 这与 §6 S1 记的是同一件事，不是新问题。
+> 变的是**另一个区间**：`available ∈ [1302, 2304)` 以前会被最坏档压成 `'tight'`（弹窗问一个
+> 用户根本没法回答的假设），现在回到 `'ok'`，最坏档只作为**提示**出现在设置页与诊断面板。
+
+### 7.3.2 检视挖出的既有缺陷（不是本轮引入，但本轮放大了暴露面）
+
+| 编号 | 严重度 | 缺陷 | 修法 |
+|---|---|---|---|
+| **B1** | **高** | 握手在「起服窗口」内被**永久丢弃**，客户端重试也救不回来 ⇒ 状态栏最长 **126 秒**「正在连接」 | `relayToServer` 的就绪条件从「有 worker」改成「**有进程**」⇒ 窗口内的 payload 进等待队列，进程存在后回放；握手**只发一次**（`#holdFor` 把第一个握手单独存着，不进队列） |
+| **B2** | 中 | 一次工作区切换发**两遍** `lsp.shutdown` | `shutdownHostLspAwaited` 按 root **去重**（在途的 promise 共享，同一个 root 只问宿主一次） |
+
+**B1 的机理**（检视报告 §2.2 有完整轨迹）：`#spawn` **先建 worker、后起进程**；
+窗口内的 payload 被交给 worker → worker 转回主线程 → `#writeToServer` 发现
+`session.handle` 还是空 ⇒ **静默丢弃**；而 worker 已经把这个 initialize 记成
+「已转发」，于是宿主事后补发的握手被当成**第二个**握手**吸收**了 ⇒ 服务器永远收不到
+`initialize` ⇒ 客户端的重试同样被吸收 ⇒ 30 s 超时 × 4 + 2 s 间隔 × 3 = **126 秒**。
+
+### 7.3.3 文档层面的不同步（D1–D3）
+
+| 编号 | 问题 | 处理 |
+|---|---|---|
+| **D1** | PRD §3.3 的判定**表格**与它自己的**正文**互相打架（正文说「最坏档不硬拒」，表格说「最坏档 → tight」） | **正文为准**：判定只由典型档决定。PRD §3.3 加了修订说明，实施契约 §2 改了判定表，实施进展 §6 S2 指向这里 |
+| **D2** | `docs/prd/README.md` 的用例数停在 1003 | 改成实跑的数 |
+| **D3** | web 变体的 `docs/prd/v5.1/PRD-v5.1.md` 是**另一份**（625 行 vs 810 行） | 记录在案（L3）：web 变体尚未同步，MEM-10 / WS-04 在它上面无法验收 |
+
+### 7.3.4 顺带修的
+
+| 项 | 问题 | 修法 |
+|---|---|---|
+| **PERF-02** | 性能用例的绝对墙钟界限（`plain < 100 ms`，实测 ≈ 50 ms）在**机器繁忙**时约三次里挂一次 —— 整套用例是**按文件并行**跑的，排序要和其它十几个文件抢 CPU | 界限放宽到 400 ms（仍是实测值的 8 倍、远低于排序法的 ≈ 330 ms，所以「比较器退回了 localeCompare」这种真回归仍然会被抓住）；**真正的断言是比值**（`plain × 3 < collated`），它对负载不敏感 |
+| **A5** | 设置页允许把「内存占比」填 0，宿主当非法值回退成 0.25，用户看到的与实际生效的不是一回事 | 输入钳位到 `[0.05, 1]`（空值回 0.25），提示写明最小比例 |
+| **A6** | 三处注释与实现相反 | 逐条改正（`memoryFacts` 的预留额语义、`releaseLspForStore` 的 root、`idlePolicyOf` 的返回类型） |
+
+### 7.3.5 这一轮新增的测试
+
+| 文件 | 条数 | 锁住什么 |
+|---|---|---|
+| `tests/lsp-review-round1.test.mjs` | 13 | A2 的「只读一个字段」、弹窗问与不问、设置页说同一个词、最坏档上页面、快照在服务器长大时被替换、几 KB 抖动**不**替换、【重新建立索引】把拒答带走、索引对话框把拒答带走、'conservative' 保留拒答、预算比例的钳位、`min="0.05"`、注释 |
+| `tests/lsp-decision-and-basic-mode.test.mjs` | 9 | A2 的判定表（`decision` 与 `tight` 恒等、最坏档只报不拦）、A4 的四层顺序（`enabled` → `workspaceDefaults` → `indexOnOpen` → `memoryWarnedRoots`）、唤醒在【重新建立索引】之后恢复 |
+| `tests/lsp-memory-measure.test.mjs`（扩写） | +2 | A1：两会话下差值**只算一次**；没有会话能承担的差值不动账 |
+| `tests/lsp-handshake.test.mjs`（扩写） | +2 | B1：窗口内的握手**恰好一次**到达服务器的 stdin；窗口内的文档**恰好一次**被宣布 |
+| `tests/lsp-workspace-switch.test.mjs`（扩写） | +6 | B2：同一个 root 的两次等待式停止**只问宿主一次**；两种拼写共享一次请求；后来的停止仍然到达宿主；失败的停止不污染下一次 |
+
+---
+
 ## 8. 回归红线（规格 §6.2）—— 全部保持
 
 | 项 | 结果 |
@@ -487,6 +547,8 @@ if (memoryChanged) next.resources = resources
 | **L4** | 焦点上报目前是**项目级**的 | 客户端在切换 tab 与切换项目时上报 `state.root`。多客户端（CONC-02）落地后需要改成**文件 → root 的归属判定**（规格 §4.3 要求 2） |
 | **L5** | 差值法有噪声 | 噪声区间内退回基线估算（保守方向），且每 60 秒复测。真实机器上的精度取决于同期是否有别的进程在抢内存 |
 | **L6** | 分档可能猜错 | 代价是一个大项目建不起索引（OOM）。缓解：分档**只降不升**、规模未知时保持 2048、按语言的手动覆盖优先 |
+| **L7** | **差值法分不清「谁长的」** | 机器的空闲内存是**一个**数，两次读数的差也是**一个**差 —— 它分不出是语言服务器长的还是别的程序长的。修完 A1 之后差值**只算一次**、记给「还能长」的会话并**在它们之间分摊**：**总和精确**，**每会话的分摊是近似**。闸门与面板用的都是总和 ⇒ 结论可靠；面板上单个会话的「实测」是估计值 |
+| **L8** | 最坏档**不拦**启动 | 按 A2 的决定，最坏档只是提示。拦住 swap 的是**整机预算**（MEM-08）与**压力阀**（MEM-12）—— 它们默认开着，但**用户可以关掉压力阀**（`pressureYield: false`），那时最坏档就是用户唯一的提醒 |
 
 ---
 
@@ -494,14 +556,15 @@ if (memoryChanged) next.resources = resources
 
 | 文件 | 内容 |
 |---|---|
-| `docs/prd/v5.1/PRD-v5.1.md` | **本轮的规格**（只读） |
-| `docs/prd/v5.1/PRD-v5.1-实施契约.md` | 跨模块的接口约定（并行实施时的事实来源） |
+| `docs/prd/v5.1/PRD-v5.1.md` | **本轮的规格**（判定表按第一轮检视修订，见 §3.3 的修订说明） |
+| `docs/prd/v5.1/PRD-v5.1-实施契约.md` | 跨模块的接口约定（并行实施时的事实来源；判定表按第一轮检视修订） |
 | `docs/prd/v5.1/PRD-v5.1-实施进展.md` | **本文件** |
+| `docs/prd/v5.1/PRD-v5.1-代码检视报告-第一轮.md` | **第一轮代码检视**（MiniMax，六个探针实跑复验） |
 | `docs/prd/v5/代码索引内存配置.md` | **已更新**：新的记账口径、上限分档、整机预算、压力阀、新设置项 |
 | `artifacts/perf-probe-2026-11-01/p8-memory-accounting.mjs` | **新增**：实施后的探针（P7 的对照版） |
 | `artifacts/perf-probe-2026-11-01/p7-reservation-accounting.mjs` | 实施前的探针（保留为对照） |
-| `src/host/lsp.js` | 闸门、预算、压力阀、LRU、program 去重、上限分档 |
+| `src/host/lsp.js` | 闸门、预算、压力阀、LRU、program 去重、上限分档、**manager 级测量** |
 | `src/host/settings-defaults.js` / `settings-store.js` | `lsp` 段的默认值与迁移 |
 | `src/client/lsp-session.js` / `store.js` / `Workbench.jsx` / `SettingsPanel.jsx` | 工作区生命周期、工作区级默认态、界面口径 |
-| `src/client/i18n.js` | 25 个新文案（EN + 中文）与 3 处措辞修正 |
+| `src/client/i18n.js` | 25 个新文案（EN + 中文）与 4 处措辞修正 |
 | `src/index.js` | `lsp.focus` 路由 |

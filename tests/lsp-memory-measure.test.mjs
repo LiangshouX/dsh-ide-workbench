@@ -24,7 +24,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { makeManager } from './lsp-fixtures.mjs'
+import { makeManager, sleep } from './lsp-fixtures.mjs'
 
 const MB = 1024 * 1024
 
@@ -141,4 +141,67 @@ test('the reservation is given back when the server is released', async () => {
   const after = await manager.resources({ root: rootOf('other') })
   assert.equal(after.reservedBytes, 0, 'the memory is free again')
   assert.equal(after.measuredBytes, 0, 'the measurement belongs to the process')
+})
+
+test('the difference of the machine is counted once, not once per session', async () => {
+  // A1: the free memory of the machine is ONE number, and the difference
+  // of two readings of it is ONE difference. Two sessions that keep a
+  // baseline each would count the same drop twice, the sum of the
+  // measurements would be twice the real footprint, and the gate would let
+  // the machine run into the swap.
+  let freeBytes = 8000 * MB
+  let clock = 0
+  const { manager } = makeManager({
+    lsp: { memoryLimitMB: 2048, requestTimeoutMs: 100 },
+    now: () => Date.now() + clock,
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes }),
+  })
+  const first = rootOf('two-first')
+  const second = rootOf('two-second')
+  await manager.start({ root: first })
+  await manager.start({ root: second })
+  await sleep(120)
+
+  // Both measurements were void (the probe does not change while the
+  // process starts), so both sessions stand at the estimate of the
+  // registry: 434 MB each.
+  const before = await manager.resources({ root: rootOf('two-other') })
+  assert.equal(before.measuredMB, 868, 'two sessions of 434 MB')
+
+  // The machine loses 1500 MB - the servers grow while they build the
+  // program of their projects.
+  freeBytes = 6500 * MB
+  clock += 61000
+  await sleep(120)
+
+  const after = await manager.resources({ root: rootOf('two-other') })
+  assert.equal(after.measuredMB, 868 + 1500, 'the difference is counted ONCE')
+  assert.equal(after.reservedBytes, (2048 - 1184) * 2 * MB, 'the reservations follow')
+  assert.equal(after.availableBytes, 6500 * MB - after.reservedBytes)
+})
+
+test('a difference that no server can take is left to the machine', async () => {
+  // The server stands at its ceiling: it cannot grow any more, so it is
+  // not a candidate. The difference of the machine was not its - another
+  // program took it - and the last value stays.
+  let freeBytes = 8000 * MB
+  let clock = 0
+  const { manager } = makeManager({
+    lsp: { memoryLimitMB: 2048, requestTimeoutMs: 100 },
+    now: () => Date.now() + clock,
+    // The spawn window measures 2048 MB - the whole ceiling of the server.
+    readMemory: scriptedProbe([8000, 8000, 5952, 8000]),
+  })
+  const root = rootOf('no-grower')
+  await manager.start({ root })
+  await sleep(120)
+  const before = await manager.resources({ root: rootOf('no-grower-other') })
+  assert.equal(before.measuredMB, 2048, 'the server stands at its ceiling')
+
+  freeBytes = 6500 * MB
+  clock += 61000
+  await sleep(120)
+  const after = await manager.resources({ root: rootOf('no-grower-other') })
+  assert.equal(after.measuredMB, 2048, 'the value of the server did not change')
+  assert.equal(after.reservedBytes, 0, 'the server cannot grow any more')
 })

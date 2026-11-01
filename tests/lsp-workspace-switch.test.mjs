@@ -122,12 +122,14 @@ function fakeStore(root) {
  * The host of the client, as a double.
  *
  * The calls of the client are recorded, and the answer of the host can be
- * withheld: that is how the order of the switch is checked.
+ * withheld: that is how the order of the switch is checked. The host can also
+ * fail - that is how the failure of a shutdown is exercised.
  * @returns {any} the double of the host
  */
 function makeHost() {
   const calls = []
   const gates = new Map()
+  const failures = new Set()
   const original = globalThis.fetch
   globalThis.fetch = async (url, options = {}) => {
     const method = String(url).split('/').pop()
@@ -139,6 +141,7 @@ function makeHost() {
     }
     calls.push({ method, body })
     events.push(`call:${method}:${body.root ?? ''}`)
+    if (failures.has(method)) throw new Error('the host is gone')
     const gate = gates.get(method)
     if (gate !== undefined) {
       await gate.promise
@@ -168,6 +171,16 @@ function makeHost() {
         resolve()
       }
     },
+    /**
+     * Make the host fail one method.
+     * @param {string} method the method of the host
+     */
+    fail(method) { failures.add(method) },
+    /**
+     * Let the host answer one method again.
+     * @param {string} method the method of the host
+     */
+    repair(method) { failures.delete(method) },
     restore() { globalThis.fetch = original },
   }
 }
@@ -341,5 +354,97 @@ test('the awaited stop of a server never rejects', async () => {
     } finally {
       globalThis.fetch = original
     }
+  })
+})
+
+// ── the duplicate shutdown of one workspace switch (review round 1, B2) ──
+//
+// One workspace switch asks the host to stop the server of the root that was
+// left TWICE: the store stops it on its restore path, and the switch of the
+// session stops it as well. The second call is nearly free - the server is
+// already gone - but it IS a duplicate call, and the host answers
+// `lsp.shutdown` only after the process really died (measured: 56 ms for a
+// server that dies after 50 ms, 1207 ms for one that dies after 1200 ms), so
+// the duplicate is not free in time either.
+
+test('two awaited stops of the same root ask the host once', async () => {
+  await withHost(async (host) => {
+    const release = host.hold('lsp.shutdown')
+    try {
+      const first = shutdownHostLspAwaited(ROOT_ONE)
+      const second = shutdownHostLspAwaited(ROOT_ONE)
+      release()
+      // Both callers get an answer - the second one waits for the answer of
+      // the first one instead of asking again.
+      await Promise.all([first, second])
+      assert.deepEqual(host.shutdowns(), [ROOT_ONE], 'the host is asked once')
+      assert.ok(
+        events.some(event => event.startsWith('answered:lsp.shutdown')),
+        'the host answered the stop',
+      )
+    } finally {
+      release()
+    }
+  })
+})
+
+test('two awaited stops of different roots ask the host twice', async () => {
+  await withHost(async (host) => {
+    await Promise.all([shutdownHostLspAwaited(ROOT_ONE), shutdownHostLspAwaited(ROOT_TWO)])
+    assert.deepEqual(host.shutdowns(), [ROOT_ONE, ROOT_TWO], 'both roots are stopped')
+  })
+})
+
+test('two spellings of the same root share one request', async () => {
+  await withHost(async (host) => {
+    // The same path, spelled differently: a drive letter in another case and
+    // a forward slash instead of a backslash. The host would answer both of
+    // them the same way, so it must not be asked twice.
+    await Promise.all([
+      shutdownHostLspAwaited('C:\\work\\demo'),
+      shutdownHostLspAwaited('c:/work/demo/'),
+    ])
+    assert.deepEqual(host.shutdowns(), ['C:\\work\\demo'], 'the host is asked once')
+  })
+})
+
+test('a later stop of the same root reaches the host again', async () => {
+  await withHost(async (host) => {
+    await shutdownHostLspAwaited(ROOT_ONE)
+    await shutdownHostLspAwaited(ROOT_ONE)
+    assert.deepEqual(
+      host.shutdowns(),
+      [ROOT_ONE, ROOT_ONE],
+      'the second stop is a real request - the server may be running again',
+    )
+  })
+})
+
+test('a failed stop does not poison the next one', async () => {
+  await withHost(async (host) => {
+    host.fail('lsp.shutdown')
+    // The host is gone: the call fails, but the promise does not reject.
+    await shutdownHostLspAwaited(ROOT_ONE)
+    host.repair('lsp.shutdown')
+    await shutdownHostLspAwaited(ROOT_ONE)
+    assert.equal(
+      host.shutdowns().length,
+      2,
+      'the failed stop does not swallow the next one',
+    )
+  })
+})
+
+test('a project that only differs in spelling is not stopped', async () => {
+  await withHost(async (host) => {
+    configureLsp(fakeStore('C:\\work\\demo'))
+    await tick()
+    // The same project, spelled differently: the drive letter in another
+    // case, a forward slash instead of a backslash. The server of the
+    // project belongs to the project, so it stays.
+    configureLsp(fakeStore('c:/work/demo'))
+    await tick()
+    assert.deepEqual(host.shutdowns(), [], 'the server of the project is not stopped')
+    assert.notEqual(lspClient(), null, 'the session is running')
   })
 })

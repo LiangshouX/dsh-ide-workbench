@@ -46,6 +46,7 @@ import { sanitizeHTML } from './lsp-sanitize.js'
 import { createLspTransport } from './lsp-transport.js'
 import { fileUriOf, languageIdForPath } from './lsp-uri.js'
 import { WorkbenchWorkspace } from './lsp-workspace.js'
+import { normalizeScopePath } from './workspace-scope.js'
 import { BUILD_REQUEST_TIMEOUT_MS } from '../host/settings-defaults.js'
 /**
  * The requests whose failures say something about the semantic features.
@@ -764,11 +765,85 @@ const SHUTDOWN_TIMEOUT_MS = 10000
  *
  * The promise never rejects: a host that does not answer must not break the
  * switch. The failure is in the log and the new session starts anyway.
+ *
+ * Two callers that ask for the SAME root at the same time share ONE request:
+ * the host is asked once, and both of them wait for that one answer (review
+ * round 1, B2).
  * @param {string} root the project root
  * @returns {Promise<void>} resolves when the host answered (or failed)
  */
 export async function shutdownHostLspAwaited(root) {
   if (typeof root !== 'string' || root === '') return
+  const key = shutdownKeyOf(root)
+  const running = pendingShutdowns.get(key)
+  if (running !== undefined) {
+    // The host is already stopping this server: wait for the SAME answer
+    // instead of asking again. A second `lsp.shutdown` would be a duplicate
+    // call for a server that is already on its way out - and the host only
+    // answers after the process really died, so the duplicate is not free in
+    // time either (review round 1, B2).
+    await running
+    return
+  }
+  const promise = stopHostLspAwaited(root)
+  pendingShutdowns.set(key, promise)
+  try {
+    await promise
+  } finally {
+    // The entry goes when the shutdown is done: the map must not grow, and a
+    // later shutdown of the same root has to reach the host again - the
+    // server may be running again by then. The identity check keeps a newer
+    // promise of the same root alive: it belongs to a later shutdown.
+    if (pendingShutdowns.get(key) === promise) pendingShutdowns.delete(key)
+  }
+}
+
+/**
+ * The shutdowns that are on their way to the host.
+ *
+ * One workspace switch asks the host to stop the server of the root that was
+ * left TWICE: the store stops it on its restore path (`#switchWorkspace`),
+ * and the switch of the session stops it as well. The second call is nearly
+ * free - the server is already gone - but it IS a duplicate call, and the
+ * host answers `lsp.shutdown` only after the process really died (measured:
+ * 56 ms for a server that dies after 50 ms, 351 ms after 300 ms, 1207 ms
+ * after 1200 ms), so the duplicate is not free in time either.
+ *
+ * The map holds the promise of every shutdown that is on its way, keyed by
+ * the normalised root: a second request for the same root joins the promise
+ * that is already there instead of sending a second `lsp.shutdown` to the
+ * host. The entry goes when the promise settles.
+ * @type {Map<string, Promise<void>>}
+ */
+const pendingShutdowns = new Map()
+
+/**
+ * The key of one root in the map of the pending shutdowns.
+ *
+ * The normalised root is the key: two spellings of one path are one path
+ * (`C:\Work\Demo` and `c:/work/demo` are the same project on Windows, and a
+ * trailing separator does not make a new one), and the host would answer
+ * both of them the same way. A root that does not normalise to anything keeps
+ * its own spelling as the key - it cannot be compared with anything else.
+ * @param {string} root the project root
+ * @returns {string} the key of the root
+ */
+function shutdownKeyOf(root) {
+  const normalized = normalizeScopePath(root)
+  return normalized === '' ? root : normalized
+}
+
+/**
+ * Ask the host to stop the language server of one root.
+ *
+ * The promise never rejects: a host that does not answer must not break the
+ * switch - and a failure must not poison the map of the pending shutdowns
+ * either, or the next shutdown of the same root would join a promise that
+ * already failed (review round 1, B2).
+ * @param {string} root the project root
+ * @returns {Promise<void>} resolves when the host answered (or failed)
+ */
+async function stopHostLspAwaited(root) {
   const controller = new AbortController()
   const timer = setTimeout(() => { controller.abort() }, SHUTDOWN_TIMEOUT_MS)
   // A pending timeout must not keep a Node process alive (the tests import
@@ -1106,6 +1181,28 @@ export async function scopeRootFor(root) {
 function indexScopePolicy(lsp) {
   const section = lsp !== null && typeof lsp === 'object' && !Array.isArray(lsp) ? lsp : {}
   return typeof section.indexScope === 'string' ? section.indexScope : ''
+}
+
+/**
+ * Whether two roots name the same project.
+ *
+ * The roots reach the session from different places: the store knows the
+ * project root as it was spelled there, the host knows the path it resolved.
+ * Two spellings of one path are one path - `C:\Work\Demo` and `c:/work/demo`
+ * are the same project on Windows, and a trailing separator does not make a
+ * new one.
+ *
+ * The comparison therefore goes through the normalisation of
+ * `workspace-scope.js`, the rule the store uses for the very same question
+ * (`sameScopePath`): the two sides of the client must not disagree about
+ * which project they are on, or the session would shut down the server of the
+ * project it is still on.
+ * @param {unknown} left the first root
+ * @param {unknown} right the second root
+ * @returns {boolean} whether both name the same project
+ */
+function sameRoot(left, right) {
+  return normalizeScopePath(left) === normalizeScopePath(right)
 }
 
 /**
@@ -1720,8 +1817,10 @@ function refreshLsp() {
   const wanted = sessionWanted(store, root)
   const policy = indexScopePolicy(lspSettings)
   // The scope root belongs to the project: another project has another scope,
-  // and the host is asked for it again.
-  if (sessionRoot !== root) sessionScopeRoot = ''
+  // and the host is asked for it again. Two spellings of one project are one
+  // project - the scope root of `C:\Work\Demo` is the scope root of
+  // `c:/work/demo` as well.
+  if (!sameRoot(sessionRoot, root)) sessionScopeRoot = ''
   // The scope root is part of the key: the program of the language server is
   // built for the scope, and a different scope needs a different client
   // (PRD-v5 §4.2). The policy belongs to the key as well - it is what
@@ -1738,7 +1837,7 @@ function refreshLsp() {
   // of the store would build a new client.
   sessionKey = key
   sessionRoot = root
-  if (previousRoot !== root) {
+  if (!sameRoot(previousRoot, root)) {
     // Another project: the failures of the old language server say nothing
     // about the new one.
     resetLspHealth()
@@ -1755,10 +1854,10 @@ function refreshLsp() {
     // host, and it has to die BEFORE the new one starts (WS-01, WS-02).
     //
     // The root is empty when the session never had a project - there is no
-    // server to stop then. It is the root of the new project when the
-    // session stayed in the same project (only the scope moved): that
-    // server belongs to the project and stays.
-    const shutdownRoot = previousRoot !== '' && previousRoot !== root ? previousRoot : ''
+    // server to stop then. It is empty as well when the session stayed in the
+    // same project (only the scope moved, or only the spelling of the path
+    // changed): that server belongs to the project and stays.
+    const shutdownRoot = previousRoot !== '' && !sameRoot(previousRoot, root) ? previousRoot : ''
     if (shutdownRoot === '' && pendingSwitches === 0) {
       // There is nothing to wait for: the client is connected right away.
       startLsp()
@@ -1889,9 +1988,12 @@ const releasedStores = new WeakSet()
  *     server of the root. Without that the server keeps running (and keeps
  *     its reservation) until the idle timeout of the host takes it away.
  *
- * The root of the running session is not touched: the session that is
- * running owns its root, and a store that is dropped for good may well be
- * the one of the workspace the user is looking at right now.
+ * The server of the RELEASED store always goes - also when the store is the
+ * one the session belongs to: that session ends with the store, and a server
+ * whose client is gone would keep running (and keep its reservation) for
+ * nothing. The root of a DIFFERENT store is only stopped when the running
+ * session is not on it: the session that is running owns its root, and it is
+ * the one that has to keep the server.
  *
  * The release is idempotent, and the store may have its own part of it: a
  * store that knows how to release itself (`releaseLsp`) is asked to do so.
@@ -1911,11 +2013,15 @@ export function releaseLspForStore(store) {
     }
     stopLsp()
     sessionKey = null
+    // The session owns no project any more - so the root of the store is not
+    // the root of the running session any more either, and the server of the
+    // store has to go with the store (see the note above).
     sessionRoot = ''
   }
   // The language server of the project has to go on the host as well. The
-  // session that is running owns its root - that one is not touched.
-  if (root !== '' && root !== sessionRoot) shutdownHostLsp(root)
+  // root of the running session is the one exception: the session that is
+  // running owns its server.
+  if (root !== '' && !sameRoot(root, sessionRoot)) shutdownHostLsp(root)
   // The store may have a part of the release of its own (its poll timer).
   // The method is optional: the release of the session must work with or
   // without it.

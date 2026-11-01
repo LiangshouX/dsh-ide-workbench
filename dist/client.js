@@ -31399,7 +31399,7 @@ var en = {
   "settings.lspBudgetGroup": "Machine budget",
   "settings.lspBudgetRatio": "Share of the memory",
   "settings.lspBudgetRatioShort": "The share of the total memory the language servers may use together",
-  "settings.lspBudgetRatioHint": "The budget of the machine is a share of its total memory (0.25 = a quarter) and the absolute cap below. The smaller of the two wins.",
+  "settings.lspBudgetRatioHint": "The budget of the machine is a share of its total memory (0.25 = a quarter) and the absolute cap below. The smaller of the two wins. The smallest share is 5 %.",
   "settings.lspBudgetCap": "Budget limit",
   "settings.lspBudgetCapShort": "The absolute limit of the budget, in MB",
   "settings.lspBudgetCapHint": "No matter how much memory the machine has, the language servers may not claim more than this together. 4096 MB holds about four TypeScript indexes.",
@@ -32064,7 +32064,7 @@ var zh = {
   "settings.lspBudgetGroup": "\u6574\u673A\u9884\u7B97",
   "settings.lspBudgetRatio": "\u5185\u5B58\u5360\u6BD4",
   "settings.lspBudgetRatioShort": "\u8BED\u8A00\u670D\u52A1\u5668\u5408\u8BA1\u53EF\u5360\u7528\u7684\u5185\u5B58\u6BD4\u4F8B",
-  "settings.lspBudgetRatioHint": "\u6574\u673A\u9884\u7B97 = \u603B\u5185\u5B58\u7684\u8BE5\u6BD4\u4F8B\uFF080.25 = \u56DB\u5206\u4E4B\u4E00\uFF09\u4E0E\u4E0B\u9762\u7684\u7EDD\u5BF9\u4E0A\u9650\uFF0C\u4E24\u8005\u53D6\u66F4\u4E25\u8005\u3002",
+  "settings.lspBudgetRatioHint": "\u6574\u673A\u9884\u7B97 = \u603B\u5185\u5B58\u7684\u8BE5\u6BD4\u4F8B\uFF080.25 = \u56DB\u5206\u4E4B\u4E00\uFF09\u4E0E\u4E0B\u9762\u7684\u7EDD\u5BF9\u4E0A\u9650\uFF0C\u4E24\u8005\u53D6\u66F4\u4E25\u8005\u3002\u6700\u5C0F\u6BD4\u4F8B\u4E3A 5%\u3002",
   "settings.lspBudgetCap": "\u9884\u7B97\u4E0A\u9650",
   "settings.lspBudgetCapShort": "\u9884\u7B97\u7684\u7EDD\u5BF9\u4E0A\u9650\uFF08MB\uFF09",
   "settings.lspBudgetCapHint": "\u65E0\u8BBA\u673A\u5668\u6709\u591A\u5C11\u5185\u5B58\uFF0C\u8BED\u8A00\u670D\u52A1\u5668\u5408\u8BA1\u4E0D\u5F97\u8D85\u8FC7\u8FD9\u4E2A\u989D\u5EA6\u30024096 MB \u5927\u7EA6\u5BB9\u7EB3\u56DB\u4E2A TypeScript \u7D22\u5F15\u3002",
@@ -38118,6 +38118,26 @@ function reportLspFocus(root) {
 var SHUTDOWN_TIMEOUT_MS = 1e4;
 async function shutdownHostLspAwaited(root) {
   if (typeof root !== "string" || root === "") return;
+  const key = shutdownKeyOf(root);
+  const running = pendingShutdowns.get(key);
+  if (running !== void 0) {
+    await running;
+    return;
+  }
+  const promise = stopHostLspAwaited(root);
+  pendingShutdowns.set(key, promise);
+  try {
+    await promise;
+  } finally {
+    if (pendingShutdowns.get(key) === promise) pendingShutdowns.delete(key);
+  }
+}
+var pendingShutdowns = /* @__PURE__ */ new Map();
+function shutdownKeyOf(root) {
+  const normalized = normalizeScopePath(root);
+  return normalized === "" ? root : normalized;
+}
+async function stopHostLspAwaited(root) {
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort();
@@ -38283,6 +38303,9 @@ async function scopeRootFor(root) {
 function indexScopePolicy(lsp) {
   const section = lsp !== null && typeof lsp === "object" && !Array.isArray(lsp) ? lsp : {};
   return typeof section.indexScope === "string" ? section.indexScope : "";
+}
+function sameRoot(left, right) {
+  return normalizeScopePath(left) === normalizeScopePath(right);
 }
 function sessionKeyOf(enabled, root, policy, scopeRoot, wanted = true) {
   return `${enabled}|${root}|${policy}|${scopeRoot}|${wanted ? "1" : "0"}`;
@@ -38546,20 +38569,20 @@ function refreshLsp() {
   const enabled = sessionEnabled && lspSettings?.enabled !== false;
   const wanted = sessionWanted(store, root);
   const policy = indexScopePolicy(lspSettings);
-  if (sessionRoot !== root) sessionScopeRoot = "";
+  if (!sameRoot(sessionRoot, root)) sessionScopeRoot = "";
   const key = sessionKeyOf(enabled, root, policy, sessionScopeRoot, wanted);
   if (key === sessionKey) return;
   const hadClient = currentClient !== null;
   const previousRoot = sessionRoot;
   sessionKey = key;
   sessionRoot = root;
-  if (previousRoot !== root) {
+  if (!sameRoot(previousRoot, root)) {
     resetLspHealth();
     reportLspFocus(root);
   }
   if (wanted) {
     if (hadClient) stopLsp();
-    const shutdownRoot = previousRoot !== "" && previousRoot !== root ? previousRoot : "";
+    const shutdownRoot = previousRoot !== "" && !sameRoot(previousRoot, root) ? previousRoot : "";
     if (shutdownRoot === "" && pendingSwitches === 0) {
       startLsp();
     } else {
@@ -38604,7 +38627,7 @@ function releaseLspForStore(store) {
     sessionKey = null;
     sessionRoot = "";
   }
-  if (root !== "" && root !== sessionRoot) shutdownHostLsp(root);
+  if (root !== "" && !sameRoot(root, sessionRoot)) shutdownHostLsp(root);
   if (typeof store?.releaseLsp === "function") {
     try {
       store.releaseLsp();
@@ -39020,6 +39043,17 @@ function crashAdviceFor(detail, t2) {
 var LSP_FAULT_STATES = ["crashed", "degraded"];
 var LSP_RECOVERED_STATES = ["starting", "building", "ready", "idle", "suspended"];
 var LSP_INDEX_STATES = ["starting", "building", "restarting"];
+function memoryDecisionOf(resources) {
+  if (resources === null || resources === void 0) return "ok";
+  const published = typeof resources.decision === "string" ? resources.decision : "";
+  if (published !== "") return published;
+  if (resources.tight === true) return "tight";
+  if (resources.canIndex === false) return "low";
+  return "ok";
+}
+function megabytesOf(bytes) {
+  return Math.round((Number.isFinite(bytes) ? bytes : 0) / (1024 * 1024));
+}
 var WorkbenchStore = class {
   /**
    * @param {any} ctx client cordis context
@@ -39807,7 +39841,7 @@ var WorkbenchStore = class {
     let resources = null;
     if (ask) {
       resources = await this.#lspResources(project.path);
-      const decision = resources === null ? "ok" : resources.decision ?? (resources.tight === true ? "tight" : resources.canIndex === false ? "low" : "ok");
+      const decision = memoryDecisionOf(resources);
       if (decision === "low") {
         const need = Math.round((resources.thresholdBytes ?? 0) / (1024 * 1024));
         const free = Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024));
@@ -39890,15 +39924,30 @@ var WorkbenchStore = class {
    * derived (the automatic start of the 'always' policy) stays in the memory
    * of the store: written here it would take the choice away from the user,
    * who could never switch the index of that project off again.
+   *
+   * The two maps that remember the user are written in ONE patch, and a
+   * decision of 'build' clears the memory answer of that root. The reason is
+   * the state the two sides had (review A4): the client read the
+   * workspace-scoped default first, the host read the memory answer, and the
+   * two said opposite things about the same project. The client said "index
+   * it", the host said "basic mode" - so the server was started and then
+   * never woken again after the next idle exit, and the semantic features
+   * were dead for good. The user asked for a server, so the refusal has to
+   * go with it.
    * @param {string} root the project root
    * @param {'build'|'build-forced'|'conservative'} choice the answer of the user
    */
   #rememberWorkspaceDecision(root, choice) {
     const decision = choice === "build" || choice === "build-forced" ? "build" : "conservative";
-    const defaults3 = this.state.settings?.lsp?.workspaceDefaults;
-    const next = { ...defaults3 !== null && typeof defaults3 === "object" ? defaults3 : {}, [root]: decision };
-    this.set({ settings: { ...this.state.settings, lsp: { ...this.state.settings.lsp, workspaceDefaults: next } } });
-    void call2("settings.update", { patch: { lsp: { workspaceDefaults: next } } }).catch(() => {
+    const lsp = this.state.settings?.lsp ?? {};
+    const defaults3 = { ...lsp.workspaceDefaults !== null && typeof lsp.workspaceDefaults === "object" ? lsp.workspaceDefaults : {}, [root]: decision };
+    const warned2 = { ...lsp.memoryWarnedRoots !== null && typeof lsp.memoryWarnedRoots === "object" ? lsp.memoryWarnedRoots : {} };
+    if (decision === "build") {
+      const key = Object.keys(warned2).find((entry) => sameScopePath(entry, root));
+      if (key !== void 0) warned2[key] = null;
+    }
+    this.set({ settings: { ...this.state.settings, lsp: { ...lsp, workspaceDefaults: defaults3, memoryWarnedRoots: warned2 } } });
+    void call2("settings.update", { patch: { lsp: { workspaceDefaults: defaults3, memoryWarnedRoots: warned2 } } }).catch(() => {
     });
   }
   /**
@@ -40280,7 +40329,7 @@ var WorkbenchStore = class {
       await call2("lsp.shutdown", { root });
     } catch {
     }
-    const force = this.state.lsp.resources?.tight === true;
+    const force = memoryDecisionOf(this.state.lsp.resources) === "tight";
     try {
       await call2("lsp.start", { root, force });
     } catch {
@@ -40758,7 +40807,7 @@ var WorkbenchStore = class {
     };
     const resources = status.resources ?? null;
     const known = this.state.lsp.resources ?? null;
-    const memoryChanged = resources === null ? false : known === null || Math.round((known.availableBytes ?? known.freeBytes ?? 0) / (1024 * 1024)) !== Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024)) || known.needMB !== resources.needMB || known.canIndex !== resources.canIndex || known.tight !== resources.tight;
+    const memoryChanged = resources === null ? false : known === null || megabytesOf(known.availableBytes) !== megabytesOf(resources.availableBytes) || megabytesOf(known.reservedBytes) !== megabytesOf(resources.reservedBytes) || megabytesOf(known.measuredBytes) !== megabytesOf(resources.measuredBytes) || megabytesOf(known.worstCaseBytes) !== megabytesOf(resources.worstCaseBytes) || megabytesOf(known.budgetUsedBytes) !== megabytesOf(resources.budgetUsedBytes) || known.needMB !== resources.needMB || known.canIndex !== resources.canIndex || known.tight !== resources.tight;
     if (memoryChanged) next.resources = resources;
     if (LSP_INDEX_STATES.includes(next.state)) {
       const index = await this.#lspIndex(root);
@@ -60710,6 +60759,21 @@ function EditorArea({ store, state: _state }) {
 
 // src/client/SettingsPanel.jsx
 var import_react16 = __toESM(require("react"), 1);
+function memoryStateOf(resources, t2) {
+  const decision = memoryDecisionOf(resources);
+  if (decision === "tight") return t2("settings.lspMemoryState.tight");
+  if (decision === "low") return t2("settings.lspMemoryState.low");
+  return t2("settings.lspMemoryState.ok");
+}
+var DEFAULT_BUDGET_RATIO = 0.25;
+var MIN_BUDGET_RATIO = 0.05;
+function clampBudgetRatio(raw) {
+  const text = String(raw ?? "").trim();
+  if (text === "") return DEFAULT_BUDGET_RATIO;
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed)) return DEFAULT_BUDGET_RATIO;
+  return Math.min(1, Math.max(MIN_BUDGET_RATIO, parsed));
+}
 var SHORTCUT_FIELDS = [
   ["project", "projectShortcut"],
   ["commit", "commitShortcut"],
@@ -61309,16 +61373,18 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           Field,
           { label: t2("settings.lspBudgetRatio"), hint: t2("settings.lspBudgetRatioShort"), title: t2("settings.lspBudgetRatioHint") },
           import_react16.default.createElement("input", {
+            // The share may not be zero: the host only accepts a ratio
+            // greater than zero and falls back to 0.25 for anything else, so
+            // a 0 in the field would be a lie - the page would show "no
+            // budget" while the machine keeps a quarter of its memory for the
+            // language servers. The smallest share that still means
+            // something is 5 %.
             type: "number",
-            min: 0,
+            min: MIN_BUDGET_RATIO,
             max: 1,
             step: 0.05,
-            value: Number.isFinite(draft.lsp?.budgetRatio) ? draft.lsp.budgetRatio : 0.25,
-            onChange: (event) => {
-              const raw = String(event.target.value ?? "").trim();
-              const parsed = Number(raw);
-              update({ lsp: { budgetRatio: raw === "" ? 0.25 : Number.isFinite(parsed) ? parsed : 0.25 } });
-            }
+            value: Number.isFinite(draft.lsp?.budgetRatio) ? draft.lsp.budgetRatio : DEFAULT_BUDGET_RATIO,
+            onChange: (event) => update({ lsp: { budgetRatio: clampBudgetRatio(event.target.value) } })
           })
         ),
         import_react16.default.createElement(
@@ -61480,7 +61546,11 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
             threshold: Math.round((lspResources.thresholdBytes ?? 0) / (1024 * 1024)),
             floor: Math.round(lspResources.hardFloorMB ?? 256),
             language: lspResources.languageId,
-            state: lspResources.tight === true ? t2("settings.lspMemoryState.tight") : lspResources.canIndex === false ? t2("settings.lspMemoryState.low") : t2("settings.lspMemoryState.ok")
+            // The word of the snapshot comes from the SAME field the
+            // popup reads (`decision`), so the settings page and the
+            // dialog cannot answer the same question two ways
+            // (review A2).
+            state: memoryStateOf(lspResources, t2)
           }) : interpolate3(t2("settings.lspMemoryNowNoProject"), {
             available: Math.round((lspResources.availableBytes ?? lspResources.freeBytes ?? 0) / (1024 * 1024))
           })
@@ -61493,6 +61563,20 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           { className: "iwb-settings-hint" },
           interpolate3(t2("settings.lspMemoryReserved"), {
             reserved: Math.round((lspResources.reservedBytes ?? 0) / (1024 * 1024))
+          })
+        ) : null,
+        // The worst case belongs where the user already looks at the live
+        // snapshot. It is INFORMATION, not a verdict: the host reports it
+        // and never blocks on it (MEM-07), so it must not turn into a
+        // question the user has to answer - it is a line that says what
+        // the machine would be left with if the next server grew into the
+        // ceiling it was granted.
+        Number.isFinite(lspResources.worstCaseBytes) && Number.isFinite(lspResources.ceilingMB) ? import_react16.default.createElement(
+          "div",
+          { className: "iwb-settings-hint" },
+          interpolate3(t2("lsp.diagnostics.memoryWorstText"), {
+            ceiling: lspResources.ceilingMB,
+            left: Math.round(lspResources.worstCaseBytes / (1024 * 1024))
           })
         ) : null
       ) : null

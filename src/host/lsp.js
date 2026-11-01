@@ -557,13 +557,18 @@ export function lspSection(settings) {
 }
 
 /**
- * The idle policy of the `lsp` section (PRD-v5 §3.2).
+ * The idle policy of the `lsp` section (PRD-v5 §3.2, PRD-v5.1 §5).
  *
  * `autoExit: false` is the switch of the documents that were written before
  * schema 5, and it still means "never exit": the older switch overrides the
  * newer policy, so a document that has it keeps its meaning.
+ *
+ * The four policies are 'never', 'after', 'onMemoryPressure' and 'always'
+ * (the last one is the explicit spelling of 'after' - the idle release AND
+ * the pressure yield). The list itself lives in `settings-defaults.js`,
+ * because the settings page offers the same choices.
  * @param {object} lsp the `lsp` section of the settings
- * @returns {'never' | 'after' | 'onMemoryPressure'}
+ * @returns {'never' | 'after' | 'onMemoryPressure' | 'always'}
  */
 function idlePolicyOf(lsp) {
   const section = isPlainObject(lsp) ? lsp : {}
@@ -1548,6 +1553,26 @@ export class LspManager {
    */
   #focusRoot = null
   /**
+   * The free memory of the machine at the last reading (bytes).
+   *
+   * The baseline of the measurement of MEM-06 is a number of the MANAGER
+   * and not of a session: the free memory of the machine is ONE number, and
+   * a difference of two readings of it is ONE difference. Two sessions that
+   * kept a baseline each would count the same drop of the machine twice,
+   * and the sum of the measurements would be twice the real footprint
+   * (PRD-v5.1 §3.1).
+   * @type {number | null}
+   */
+  #lastGlobalFreeBytes = null
+  /**
+   * The moment of the last measurement round (ms).
+   *
+   * The round belongs to the manager: two sessions whose watchdog ticks at
+   * the same time must not run two rounds.
+   * @type {number | null}
+   */
+  #lastMeasureAt = null
+  /**
    * The sessions this manager owns.
    *
    * The memory gate counts the servers that are already running (MEM-02),
@@ -2112,6 +2137,21 @@ export class LspManager {
    * arrives while the server runs would therefore never reach the host, and
    * the next server process would be initialized with the OLD `rootUri`:
    * the index scope would silently revert.
+   *
+   * A SERVER IS NOT THERE UNTIL THE PROCESS IS (B1): the worker of the
+   * frame channel is created BEFORE the process is spawned, and a payload
+   * that arrives in that window used to be handed to the worker - which
+   * forwarded it to a stdin that did not exist yet. The payload was
+   * dropped silently, the handshake among it, and the worker had already
+   * marked it as "forwarded": the initialize that the host posts after the
+   * spawn was absorbed as the second one, and the server never heard of it.
+   * The client retried, the retry was absorbed as well, and the status bar
+   * said "connecting" for 4 x 30 s + 3 x 2 s = 126 s.
+   *
+   * So the guard below asks for the PROCESS, not only for the worker. A
+   * payload that arrives in the window waits in the queue of the root and
+   * is replayed when the process exists - and the handshake is forwarded
+   * to the server for the first time.
    * @param {string} root the absolute project root
    * @param {string} text one bare JSON-RPC payload
    * @returns {boolean} false when no language server is running
@@ -2122,8 +2162,15 @@ export class LspManager {
     // is held instead of dropped.
     const entry = this.#entry(this.#requireRoot(root))
     const session = entry.session ?? null
-    if (session === null || session.worker === null) {
+    // The process has to be there: the worker alone is not enough (B1).
+    if (session === null || session.worker === null || session.handle === null) {
       this.#holdFor(entry, text)
+      // The client is talking: the session counts as used, and the idle
+      // timer has to be armed even while the process is still starting
+      // (IDLE-05). Before the fix of B1 this was the path of the payload
+      // that was handed to the worker and dropped there - and the session
+      // was touched all the same.
+      if (session !== null && session !== undefined && session.worker !== null) this.#touch(entry, session)
       // The server may have been released on purpose: the first payload
       // wakes it up again.
       this.#requestWake(entry, session, text)
@@ -2257,15 +2304,46 @@ export class LspManager {
   /**
    * Whether the user put one project into the basic mode on purpose.
    *
-   * The answer is remembered in the settings (`lsp.memoryWarnedRoots`), so
-   * the host does not wake a project the user has switched off (PRD-v5
-   * §3.3, risk table).
+   * The host and the client have to answer the SAME question with the SAME
+   * rules, or the project behaves in two ways at once: the client says
+   * "index this project", the host says "do not touch it" - and the
+   * semantic features of the project are dead for ever, because the wake
+   * after an idle exit or a pressure release is refused.
+   *
+   * The order is the one of the client (`workspace-scope.js` / the store):
+   *
+   *   1. the master switch: the feature is off;
+   *   2. the workspace-scoped default of the user: 'conservative' is the
+   *      basic mode, 'build' is the decision to index - and it outranks
+   *      everything that follows;
+   *   3. the global policy `indexOnOpen: 'never'`;
+   *   4. the memory answer of the user (`memoryWarnedRoots`): it says "do
+   *      not ask me again", and it is the marker of the documents that were
+   *      written before the workspace-scoped default existed.
+   *
+   * The keys of the maps are absolute paths, and `rootKey` normalises them
+   * (the separators and, on Windows, the case) - the same key space the
+   * client writes.
+   *
    * @param {object} lsp the `lsp` section of the settings
    * @param {object} entry the root entry
    * @returns {boolean}
    */
   #isConservative(lsp, entry) {
-    const warned = isPlainObject(lsp.memoryWarnedRoots) ? lsp.memoryWarnedRoots : {}
+    const section = isPlainObject(lsp) ? lsp : {}
+    // 1. The master switch: the feature is off.
+    if (section.enabled === false) return true
+    // 2. The workspace-scoped default of the user.
+    const defaults = isPlainObject(section.workspaceDefaults) ? section.workspaceDefaults : {}
+    for (const [key, value] of Object.entries(defaults)) {
+      if (rootKey(key) !== entry.key) continue
+      if (value === 'conservative') return true
+      if (value === 'build') return false
+    }
+    // 3. The global policy.
+    if (section.indexOnOpen === 'never') return true
+    // 4. The memory answer of the older documents.
+    const warned = isPlainObject(section.memoryWarnedRoots) ? section.memoryWarnedRoots : {}
     for (const [key, answer] of Object.entries(warned)) {
       if (answer !== 'conservative') continue
       if (rootKey(key) === entry.key) return true
@@ -2691,12 +2769,19 @@ export class LspManager {
     // two sides that judge the same snapshot differently give the user two
     // different answers.
     //
-    // The worst band NEVER lowers the decision to 'low': a hard reject on
-    // the worst case would seal the gate shut (MEM-07). It says 'tight' and
-    // carries the flag, and the client reports it.
+    // ONE AUTHORITY: the decision is the TYPICAL band and nothing else, and
+    // the flag `tight` is the decision itself. The host gate and the client
+    // read the same two fields, and they can never contradict each other.
+    //
+    // The worst band is INFORMATIONAL: it says what the machine would have
+    // left if the new server grew to the permission it was given. With a
+    // 2 GB ceiling almost every machine hits it, and enforcing it would ask
+    // the user about a hypothetical that nobody can act on. What keeps the
+    // machine out of the swap is the machine-level budget (MEM-08) and the
+    // pressure valve (MEM-12) - not this hint (PRD-v5.1 §3.3).
     const decision = availableBytes < hardFloorBytes
       ? 'low'
-      : (availableBytes < softThresholdBytes ? 'tight' : (worstCase ? 'tight' : 'ok'))
+      : (availableBytes < softThresholdBytes ? 'tight' : 'ok')
     return {
       totalBytes: memory.totalBytes,
       freeBytes,
@@ -2716,10 +2801,11 @@ export class LspManager {
       baselineMB,
       headroom,
       hardFloorMB,
-      // "Tight" is the whole window between the hard floor and the soft
-      // factor: the user decides there, the host does not start on its own.
-      // The worst band is NOT part of it - it is reported, not enforced.
-      tight: availableBytes >= hardFloorBytes && availableBytes < softThresholdBytes,
+      // "Tight" is the decision itself: the host gate and the client read
+      // the same field, so they can never give the user two different
+      // answers about the same snapshot. The worst band is reported
+      // separately and is not part of it.
+      tight: decision === 'tight',
       belowHardFloor: availableBytes < hardFloorBytes,
       // 'ok' = the server may start, 'tight' = the user has to decide,
       // 'low' = the machine cannot afford it.
@@ -2890,28 +2976,6 @@ export class LspManager {
        * of the whole ceiling.
        */
       measuredBytes: 0,
-      /**
-       * Whether the last measurement was a real one.
-       *
-       * A measurement in the noise band is void: the estimate of the
-       * registry is used instead, and the host keeps the last value that
-       * was real.
-       */
-      measurementValid: false,
-      /**
-       * The free memory at the last reading (bytes).
-       *
-       * The next reading is compared with this one, so the difference is
-       * the growth of the server since the last measurement.
-       */
-      lastFreeBytes: null,
-      /**
-       * The moment of the last measurement of the footprint (ms).
-       *
-       * The measurement runs at most once per minute, and the watchdog of
-       * the session carries it.
-       */
-      lastMeasureAt: null,
       /**
        * The moment of the last check of the memory pressure (ms).
        *
@@ -3332,8 +3396,8 @@ export class LspManager {
     session.reservedBytes = Math.max(0, session.ceilingBytes - session.measuredBytes)
     // The measurement is repeated while the session lives: the program of
     // the project is not built yet, so the server grows afterwards. The
-    // watchdog of the session carries it (see `#tick`).
-    session.lastMeasureAt = null
+    // watchdog of the session carries it (see `#tick`), and the round
+    // itself belongs to the manager.
     // The new process starts at zero. The requests of the old one will
     // never be answered, and the program of the project is built again -
     // so the first semantic request after a restart is a long one too.
@@ -3498,21 +3562,28 @@ export class LspManager {
    * A void measurement is not a wrong one: it is a missing one, and the
    * conservative direction is the estimate of a real measurement.
    *
+   * THE SPAWN WINDOW IS PER SESSION, AND IT IS ATTRIBUTABLE: the spawns
+   * are sequential, so the drop between the two readings belongs to the
+   * one server that was started. The window also moves the baseline of the
+   * manager: the later round must not count the drop of this spawn a
+   * second time.
+   *
    * @param {object} session the session
    * @param {number} freeBefore the free memory before the process started
    * @param {number} freeAfter the free memory after the process existed
    */
   #measureFootprint(session, freeBefore, freeAfter) {
     const delta = freeBefore - freeAfter
-    session.lastFreeBytes = freeAfter
+    // The baseline of the machine moves with the spawn: the round that
+    // follows compares against this reading and not against the one of
+    // before the spawn.
+    this.#lastGlobalFreeBytes = freeAfter
     if (delta > MEASURE_NOISE_MAX_MB * 1024 * 1024) {
       session.measuredBytes = delta
-      session.measurementValid = true
       return
     }
     const { baselineMB } = memoryEstimateOf(session.languageId, session.lsp ?? DEFAULT_LSP_SETTINGS)
     session.measuredBytes = Math.max(0, baselineMB) * 1024 * 1024
-    session.measurementValid = false
     const reason = delta < MEASURE_NOISE_MIN_MB * 1024 * 1024
       ? 'the machine gave memory away while the server was started'
       : 'the difference of the free memory was inside the noise band'
@@ -3520,44 +3591,70 @@ export class LspManager {
   }
 
   /**
-   * Measure the footprint of one server again (MEM-06).
+   * Measure the footprint of the running language servers again (MEM-06).
    *
    * The first measurement happens while the process starts: the program of
    * the project is not built yet, so the server is still small. It grows
    * while the program is built, and the gate has to know that - a server
    * that grew to 900 MB has 900 MB less headroom.
    *
-   * The new reading is compared with the last one, and only a growth that
-   * is bigger than the noise band is counted. A reading that is inside the
-   * noise band (or a machine that gave memory away) keeps the last valid
-   * value: the machine may have freed memory that the server did not, and
-   * a smaller charge would be the dangerous direction.
+   * THE ROUND IS A ROUND OF THE MANAGER, NOT OF A SESSION. The free memory
+   * of the machine is ONE number, and a difference of two readings of it
+   * is ONE difference: two sessions that measure it in overlapping windows
+   * would each count the same drop, and the sum of the measurements would
+   * be twice the real footprint of the machine. The measured footprint
+   * would be far too large, the reservations far too small, and the gate
+   * would let the machine run into the swap (PRD-v5.1 §3.1).
    *
-   * The measurement runs at most once per minute: the watchdog of the
-   * session ticks far more often, and the reading of the free memory is
-   * cheap but not free.
+   * So the manager keeps ONE baseline and ONE reading per round, and the
+   * difference is credited to the sessions that can still grow - split
+   * among them. The split is an APPROXIMATION (the machine does not say
+   * which server grew), but the SUM is exact: the difference is counted
+   * once, and the gate and the diagnostics panel work with the sum.
    *
-   * @param {object} session the session
+   * A session that is at its ceiling cannot grow any more, so it is not a
+   * candidate: the difference that it cannot take is left to the others
+   * (and to the next round).
    */
-  #remeasure(session) {
+  #remeasure() {
     try {
       const now = this.#now()
-      if (session.lastMeasureAt !== null && session.lastMeasureAt !== undefined) {
-        if (now - session.lastMeasureAt < MEASURE_INTERVAL_MS) return
+      // The interval belongs to the manager: two sessions that tick at the
+      // same time must not run two rounds.
+      if (this.#lastMeasureAt !== null && this.#lastMeasureAt !== undefined) {
+        if (now - this.#lastMeasureAt < MEASURE_INTERVAL_MS) return
       }
-      session.lastMeasureAt = now
+      this.#lastMeasureAt = now
       const free = this.#freeBytes()
-      const previous = session.lastFreeBytes
-      session.lastFreeBytes = free
+      const previous = this.#lastGlobalFreeBytes
+      this.#lastGlobalFreeBytes = free
       if (previous === null || previous === undefined) return
       const delta = previous - free
       if (delta <= MEASURE_NOISE_MAX_MB * 1024 * 1024) {
-        this.#ctx?.logger?.warn?.('lsp: the re-measurement of the %s language server was not conclusive (%d MB) - the last valid value (%d MB) is kept', session.languageId, Math.round(delta / (1024 * 1024)), Math.round(session.measuredBytes / (1024 * 1024)))
+        // The machine gave memory away, or something else on it allocated
+        // and freed memory at the same time: the difference cannot be
+        // attributed to the servers, and the last valid values stay.
+        this.#ctx?.logger?.warn?.('lsp: the re-measurement of the language servers was not conclusive (%d MB) - the last valid values are kept', Math.round(delta / (1024 * 1024)))
         return
       }
-      session.measuredBytes += delta
-      session.measurementValid = true
-      session.reservedBytes = Math.max(0, session.ceilingBytes - session.measuredBytes)
+      // The candidates: the sessions that may still grow.
+      const growers = []
+      for (const candidate of this.#sessions) {
+        if (candidate.ceilingBytes <= 0) continue
+        if (candidate.measuredBytes >= candidate.ceilingBytes) continue
+        growers.push(candidate)
+      }
+      if (growers.length === 0) {
+        // Nobody can take the difference: it was not theirs - another
+        // program of the machine took it. The last values stay.
+        this.#ctx?.logger?.warn?.('lsp: the machine lost %d MB and no language server can take it - the last valid values are kept', Math.round(delta / (1024 * 1024)))
+        return
+      }
+      const share = delta / growers.length
+      for (const grower of growers) {
+        grower.measuredBytes = Math.min(grower.ceilingBytes, grower.measuredBytes + share)
+        grower.reservedBytes = Math.max(0, grower.ceilingBytes - grower.measuredBytes)
+      }
     } catch (error) {
       // The measurement runs in an interval: a throw here is an uncaught
       // exception and would end the DSH host process.
@@ -3582,7 +3679,7 @@ export class LspManager {
    * @param {number} timeout the request timeout
    */
   #tick(entry, session, timeout) {
-    this.#remeasure(session)
+    this.#remeasure()
     this.#checkMemoryPressure(entry, session)
     this.#checkTimeouts(entry, session, timeout)
   }
@@ -3704,12 +3801,21 @@ export class LspManager {
 
   /**
    * Write bytes to the language server's stdin.
+   *
+   * The process is gone - or not there yet: the bytes cannot be written
+   * anywhere, and a payload that disappears without a trace is the hardest
+   * kind of defect to find (the handshake of B1 disappeared exactly like
+   * this, and the status bar said "connecting" for two minutes). So the
+   * host log says it.
    * @param {object} session the session
    * @param {Buffer | Uint8Array} data
    */
   #writeToServer(session, data) {
     const stdin = session.handle?.stdin
-    if (stdin === undefined || stdin === null) return
+    if (stdin === undefined || stdin === null) {
+      this.#ctx?.logger?.warn?.('lsp: a payload of the language server could not be written: the process is not there')
+      return
+    }
     try {
       stdin.write(data)
     } catch { /* the pipe is already gone */ }

@@ -490,6 +490,56 @@ const LSP_RECOVERED_STATES = ['starting', 'building', 'ready', 'idle', 'suspende
  */
 const LSP_INDEX_STATES = ['starting', 'building', 'restarting']
 
+/**
+ * The answer of the host about one memory snapshot.
+ *
+ * The host publishes TWO fields about the same question: `decision` ('ok' |
+ * 'tight' | 'low') is the authority, and `tight` is a flag that says the same
+ * thing in the older shape. They answered differently for a whole round: the
+ * `decision` carried the worst band while `tight` did not, so for a machine
+ * with 2000 MB available the host said "tight" (the client asks the user)
+ * and "not tight" (the host starts the server anyway). Two screens, one
+ * snapshot, two answers - and the user was asked about a start that was
+ * never in doubt.
+ *
+ * The rule is therefore: **read ONE field**. The `decision` of the host is
+ * that field, and the flag is only the fallback for a host that does not
+ * publish it yet. The order of the fallback is fixed, so a snapshot that has
+ * both fields can never be read two ways.
+ *
+ * The helper is exported because the settings page shows the same snapshot:
+ * it has to say the same word as the popup does for the same numbers.
+ *
+ * @param {object | null} resources the memory snapshot of the host
+ * @returns {'ok'|'tight'|'low'} the answer of the host
+ */
+export function memoryDecisionOf(resources) {
+  if (resources === null || resources === undefined) return 'ok'
+  // The authority of the host. It is present in every snapshot of this
+  // build, and it is the field the gate of the host uses as well.
+  const published = typeof resources.decision === 'string' ? resources.decision : ''
+  if (published !== '') return published
+  // An older host: the flag says the same thing in the older shape, and
+  // `canIndex` is the last resort.
+  if (resources.tight === true) return 'tight'
+  if (resources.canIndex === false) return 'low'
+  return 'ok'
+}
+
+/**
+ * One memory number in megabytes.
+ *
+ * The numbers of the snapshot are bytes, the numbers of the interface are
+ * megabytes, and the comparison between two snapshots happens in megabytes:
+ * the free memory of the machine jitters by a few kilobytes on every poll,
+ * and a byte-level comparison would replace the snapshot on every poll.
+ * @param {unknown} bytes the number of bytes
+ * @returns {number} the number of megabytes, 0 when the number is unknown
+ */
+function megabytesOf(bytes) {
+  return Math.round((Number.isFinite(bytes) ? bytes : 0) / (1024 * 1024))
+}
+
 export class WorkbenchStore {
   /**
    * @param {any} ctx client cordis context
@@ -1458,9 +1508,12 @@ export class WorkbenchStore {
       // renders that answer instead of judging the numbers a second time - two
       // sides that judge the same snapshot differently give the user two
       // different answers.
-      const decision = resources === null
-        ? 'ok'
-        : (resources.decision ?? (resources.tight === true ? 'tight' : (resources.canIndex === false ? 'low' : 'ok')))
+      //
+      // The answer is read from ONE field (`decision`), with the older flag
+      // only as the fallback for a host that does not publish it yet: the two
+      // fields answered differently for a round, and the popup asked the user
+      // about a start the host was going to make anyway (review A2).
+      const decision = memoryDecisionOf(resources)
       if (decision === 'low') {
         // The threshold is the number the machine has to reach, not the
         // estimate of the language: "needs 96 MB, 200 MB available" reads
@@ -1573,15 +1626,35 @@ export class WorkbenchStore {
    * derived (the automatic start of the 'always' policy) stays in the memory
    * of the store: written here it would take the choice away from the user,
    * who could never switch the index of that project off again.
+   *
+   * The two maps that remember the user are written in ONE patch, and a
+   * decision of 'build' clears the memory answer of that root. The reason is
+   * the state the two sides had (review A4): the client read the
+   * workspace-scoped default first, the host read the memory answer, and the
+   * two said opposite things about the same project. The client said "index
+   * it", the host said "basic mode" - so the server was started and then
+   * never woken again after the next idle exit, and the semantic features
+   * were dead for good. The user asked for a server, so the refusal has to
+   * go with it.
    * @param {string} root the project root
    * @param {'build'|'build-forced'|'conservative'} choice the answer of the user
    */
   #rememberWorkspaceDecision(root, choice) {
     const decision = choice === 'build' || choice === 'build-forced' ? 'build' : 'conservative'
-    const defaults = this.state.settings?.lsp?.workspaceDefaults
-    const next = { ...(defaults !== null && typeof defaults === 'object' ? defaults : {}), [root]: decision }
-    this.set({ settings: { ...this.state.settings, lsp: { ...this.state.settings.lsp, workspaceDefaults: next } } })
-    void call('settings.update', { patch: { lsp: { workspaceDefaults: next } } }).catch(() => {})
+    const lsp = this.state.settings?.lsp ?? {}
+    const defaults = { ...(lsp.workspaceDefaults !== null && typeof lsp.workspaceDefaults === 'object' ? lsp.workspaceDefaults : {}), [root]: decision }
+    const warned = { ...(lsp.memoryWarnedRoots !== null && typeof lsp.memoryWarnedRoots === 'object' ? lsp.memoryWarnedRoots : {}) }
+    if (decision === 'build') {
+      // The refusal of the user is overruled. The entry cannot be removed -
+      // the host merges a patch into the document, and a map is merged key by
+      // key - so it is overwritten with `null`, which both sides read as
+      // "never asked" (the host skips every answer that is not
+      // 'conservative', the client reads it as no answer at all).
+      const key = Object.keys(warned).find(entry => sameScopePath(entry, root))
+      if (key !== undefined) warned[key] = null
+    }
+    this.set({ settings: { ...this.state.settings, lsp: { ...lsp, workspaceDefaults: defaults, memoryWarnedRoots: warned } } })
+    void call('settings.update', { patch: { lsp: { workspaceDefaults: defaults, memoryWarnedRoots: warned } } }).catch(() => {})
   }
 
   /**
@@ -2000,7 +2073,12 @@ export class WorkbenchStore {
     const root = this.state.root
     if (root === '') return
     // The user asked for a language server: the decision is theirs, so it is
-    // remembered in the settings document.
+    // remembered in the settings document - and the old refusal of the user
+    // goes with it. The two maps are two words about the same project, and
+    // the host and the client read them in one order: a project that says
+    // "index it" here and "basic mode" there is a project whose server is
+    // started once and then never woken again after the next idle exit
+    // (review A4).
     this.#rememberWorkspaceDecision(root, 'build')
     this.#rememberIndexDecision(root, 'build')
     this.patch('lsp', { rebuilding: true })
@@ -2012,7 +2090,13 @@ export class WorkbenchStore {
     // The snapshot the client holds is the one of the last poll - the
     // shutdown above does not change it, and it is the memory situation the
     // user ran into.
-    const force = this.state.lsp.resources?.tight === true
+    //
+    // The band is read from the SAME field the popup reads (`decision`): the
+    // two fields of the host answered differently for a round, and a rebuild
+    // that forces the start because of one of them while the popup asked
+    // about the other is the same split brain in a different place (review
+    // A2).
+    const force = memoryDecisionOf(this.state.lsp.resources) === 'tight'
     try {
       await call('lsp.start', { root, force })
     } catch {
@@ -2602,15 +2686,24 @@ export class WorkbenchStore {
         : this.state.lsp.liveRoots,
     }
     // The memory snapshot travels with the status (the host reads it in the
-    // same call), so the numbers are live without a second request. It is
-    // compared in megabytes: the free memory changes in bytes every time,
-    // and a new object on every poll would wake the whole workbench every
-    // two seconds for a number that did not move.
+    // same call), so the numbers are live without a second request.
     //
-    // The comparison watches the AVAILABLE memory - the number the gate of
-    // the host judges the start by (PRD-v5.1 MEM-09). The free memory of the
-    // machine can stay the same while the available memory drops, and that
-    // is the change the user has to see.
+    // The comparison watches EVERY field the panel shows, and it compares the
+    // byte fields in MEGABYTES. Two reasons:
+    //
+    //   - the free memory of the machine jitters by a few kilobytes on every
+    //     poll. A byte-level comparison would replace the snapshot on every
+    //     poll and wake the whole workbench every two seconds for a number
+    //     that did not move.
+    //   - the fields are DISPLAYED in megabytes, so a change of less than a
+    //     megabyte is not a change the user can see.
+    //
+    // The comparison has to watch the reservation and the measured footprint
+    // as well: when a server GROWS, the free memory drops by Δ and the
+    // reservation (= ceiling − measured) drops by Δ too - so the AVAILABLE
+    // memory stays exactly the same, and a comparison of the available
+    // memory alone froze the panel on the numbers of the first poll (review
+    // A3). The worst case and the budget move with them.
     const resources = status.resources ?? null
     const known = this.state.lsp.resources ?? null
     // The host carries the snapshot only when there IS a server: the estimate
@@ -2630,8 +2723,11 @@ export class WorkbenchStore {
     const memoryChanged = resources === null
       ? false
       : (known === null
-        || Math.round((known.availableBytes ?? known.freeBytes ?? 0) / (1024 * 1024))
-          !== Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024))
+        || megabytesOf(known.availableBytes) !== megabytesOf(resources.availableBytes)
+        || megabytesOf(known.reservedBytes) !== megabytesOf(resources.reservedBytes)
+        || megabytesOf(known.measuredBytes) !== megabytesOf(resources.measuredBytes)
+        || megabytesOf(known.worstCaseBytes) !== megabytesOf(resources.worstCaseBytes)
+        || megabytesOf(known.budgetUsedBytes) !== megabytesOf(resources.budgetUsedBytes)
         || known.needMB !== resources.needMB
         || known.canIndex !== resources.canIndex
         || known.tight !== resources.tight)
