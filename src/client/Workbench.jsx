@@ -376,6 +376,22 @@ export function showRebuildButton(viewKey, lsp = {}) {
 }
 
 /**
+ * Whether the status bar offers the reconnect button.
+ *
+ * The rebuild button is the way out of a server that is not there - but the
+ * dead CLIENT session is another fault: the host is perfectly healthy, and
+ * rebuilding its index would not repair the link between the browser and the
+ * server. The two buttons are exclusive: the rebuild button belongs to the
+ * states of the host, the reconnect button to the dead session.
+ *
+ * @param {string} viewKey the key of the status view
+ * @returns {boolean} true when the button is shown
+ */
+export function showReconnectButton(viewKey) {
+  return viewKey === 'sessionFailed'
+}
+
+/**
  * Whether the status bar offers the cancel button.
  *
  * The host can cancel a build that is still starting or restarting, so the
@@ -436,6 +452,15 @@ export function memoryFacts(store, resources) {
  * client measured. A server that says "ready" while every semantic request
  * fails is not ready - that mismatch is exactly what the user reported.
  *
+ * A third source is the state of the CLIENT session: the host says that the
+ * language server process is up, the client says whether the link between
+ * the browser and the server works. The two never check each other, and the
+ * status bar believed the host: it said "ready" while the semantic features
+ * were completely dead (the menu was greyed out and the hovering did
+ * nothing). The state of the client therefore wins over the host's "ready" -
+ * and over every other host state, because the features do not work whatever
+ * the host says.
+ *
  * The mapping is exported so the tests can assert the seven states without
  * mounting the whole workbench.
  *
@@ -461,6 +486,11 @@ export function lspStatusView(store, state) {
   if (settingsLsp.enabled === false || lsp.enabled === false || current === 'disabled') {
     return { ...base, key: 'disabled', text: t('lsp.status.disabled'), tone: 'idle' }
   }
+  // The state of the client session. It is checked after the stale flag and
+  // after the "switched off" state - a feature that is off is not "not
+  // connected", and a stale snapshot is not "not connected" either.
+  const clientState = typeof lsp.clientState === 'string' ? lsp.clientState : ''
+  const clientDetail = typeof lsp.clientDetail === 'string' ? lsp.clientDetail : ''
   // A language without a server is a different state than a failing server:
   // the user has to install something, so the item points at the settings.
   const missing = (lsp.servers?.missing ?? []).filter(entry => typeof entry?.languageId === 'string')
@@ -478,6 +508,27 @@ export function lspStatusView(store, state) {
       action: 'settings',
       title: interpolate(t('lsp.serverMissing'), { language: missingOnly.languageId }),
     }
+  }
+  // The state of the client session wins over every state of the host: a
+  // dead session means that the semantic features do not work, whatever the
+  // host says about its process. The language that is not installed is the
+  // one exception above - that message tells the user what to do, and a
+  // reconnect cannot install a server.
+  if (clientState === 'failed') {
+    return {
+      ...base,
+      key: 'sessionFailed',
+      text: t('lsp.status.sessionFailed'),
+      tone: 'error',
+      action: 'diagnostics',
+      // The reason of the failure is the one thing the user cannot guess.
+      detail: clientDetail === '' ? base.detail : clientDetail,
+    }
+  }
+  if (clientState === 'starting' && current === 'ready') {
+    // The host says the process is up, but the handshake is not resolved
+    // yet: the features are not usable, so "ready" would be a lie.
+    return { ...base, key: 'sessionConnecting', text: t('lsp.status.sessionConnecting'), tone: 'idle' }
   }
   // The health the client measured. It only matters while the server claims
   // to be ready.
@@ -601,6 +652,10 @@ function LspStatus({ store, state, onOpenSettings, onOpenDiagnostics }) {
   // click away". A released server (idle, suspended) is recoverable, so it
   // gets the same button (PRD-v5 §1.4).
   const showRebuild = showRebuildButton(view.key, lsp)
+  // The dead client session has a way out of its own: rebuilding the index
+  // of a healthy server would not repair the link between the browser and
+  // the server. The two buttons are exclusive.
+  const showReconnect = showReconnectButton(view.key)
   const tone = view.tone === 'ok' ? ' iwb-lsp-status-ready'
     : (view.tone === 'warn' ? ' iwb-lsp-status-warn' : (view.tone === 'error' ? ' iwb-lsp-status-error' : ' iwb-lsp-status-muted'))
   const title = view.detail === '' ? view.title : `${view.title} — ${view.detail}`
@@ -640,6 +695,17 @@ function LspStatus({ store, state, onOpenSettings, onOpenDiagnostics }) {
             void store.restartLsp()
           },
         }, t('lsp.rebuildIndex'))
+      : null,
+    showReconnect
+      ? React.createElement('button', {
+          type: 'button',
+          className: 'iwb-lsp-cancel',
+          title: t('lsp.reconnect'),
+          onClick: event => {
+            event.stopPropagation()
+            void store.reconnectLsp()
+          },
+        }, t('lsp.reconnect'))
       : null,
     lsp.rebuilding === true
       ? React.createElement('span', { className: 'iwb-lsp-status-label' }, t('lsp.diagnostics.rebuilding'))

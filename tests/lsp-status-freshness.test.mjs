@@ -12,10 +12,25 @@
  *              is not a fault.
  *   PERF-01  — the status object keeps its identity while the repository
  *              does not change, so the panels do not re-render every 2s.
+ *
+ * The last section is about the CLIENT session: the link between the browser
+ * and the language server. The host says that the server process is up, the
+ * client says whether that link works, and the two never check each other -
+ * so the status bar believed the host and said "ready" while the semantic
+ * features were completely dead.
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WorkbenchStore } from '../src/client/store.js'
+import {
+  configureLsp,
+  lspClient,
+  navLabels,
+  reconnectLsp,
+  setLspEnabled,
+  shutdownLsp,
+} from '../src/client/lsp-session.js'
+import { BUILD_REQUEST_TIMEOUT_MS } from '../src/host/settings-defaults.js'
 
 const ROOT = 'C:\\work\\demo'
 const OTHER_ROOT = 'C:\\work\\other'
@@ -756,4 +771,237 @@ test('a changed scope root updates the mirrored status', async (t) => {
   await store.refreshLspStatus()
   assert.notEqual(store.state.lsp, first, 'a new scope is a new snapshot')
   assert.equal(store.state.lsp.scopeRoot, 'C:\\work\\demo\\packages\\app')
+})
+
+// ── the client session (the link to the language server) ───────────────────
+//
+// The host says that the language server PROCESS is up; the client says
+// whether the link between the browser and the server works. The two never
+// check each other, and the status bar believed the host: it said "ready"
+// while the semantic features were completely dead.
+
+/**
+ * One fake WebSocket for the client session.
+ *
+ * It answers every request, so no request ever runs into its timeout - a
+ * timeout would be an unhandled rejection at the end of the test run, and
+ * the budget of ten minutes would keep the process alive for ten minutes.
+ */
+class FakeSocket {
+  constructor(url) {
+    this.url = url
+    this.readyState = 1
+    this.sent = []
+    this.handlers = new Map()
+    FakeSocket.instances.push(this)
+    queueMicrotask(() => this.emit('open', {}))
+  }
+
+  addEventListener(type, handler) {
+    if (!this.handlers.has(type)) this.handlers.set(type, new Set())
+    this.handlers.get(type).add(handler)
+  }
+
+  emit(type, event) {
+    for (const handler of this.handlers.get(type) ?? []) handler(event)
+  }
+
+  send(text) {
+    this.sent.push(text)
+    let parsed = null
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      return
+    }
+    if (parsed?.id === undefined) return
+    const result = parsed.method === 'initialize' ? { capabilities: {} } : null
+    this.emit('message', {
+      data: JSON.stringify({ jsonrpc: '2.0', id: parsed.id, result }),
+    })
+  }
+
+  close() { this.readyState = 3 }
+}
+FakeSocket.instances = []
+
+/**
+ * Run one piece of code with a fake WebSocket and a client session.
+ *
+ * The session is a module of its own, so the socket and the session are
+ * installed for the case and removed again afterwards.
+ * @param {(store: any) => Promise<void>} run the code of the case
+ * @returns {Promise<void>}
+ */
+async function withSession(run) {
+  const originalWebSocket = globalThis.WebSocket
+  globalThis.WebSocket = FakeSocket
+  try {
+    await run()
+  } finally {
+    // The store is unbound and the client is stopped, and the feature is
+    // switched on again: `shutdownLsp()` alone would leave the session off
+    // for good, and the next case would find no client at all.
+    configureLsp(null)
+    shutdownLsp()
+    setLspEnabled(true)
+    globalThis.WebSocket = originalWebSocket
+  }
+}
+
+/**
+ * The store of a session: the settings carry a language server that is on.
+ * @returns {any} the store
+ */
+function sessionStore() {
+  const store = fakeStore()
+  store.state = {
+    ...store.state,
+    settings: {
+      editor: { openMode: 'auto', editableMaxBytes: 1 << 20 },
+      shortcuts: {},
+      lsp: { enabled: true, requestTimeoutMs: 45000 },
+    },
+  }
+  return store
+}
+
+test('the state of the client session is mirrored into the store', async (t) => {
+  const { store, toasts } = recordingStore()
+  t.after(() => {
+    if (store.toastTimer !== null) clearTimeout(store.toastTimer)
+    store.dispose()
+  })
+  assert.equal(store.state.lsp.clientState, 'starting', 'the session starts')
+  assert.equal(store.state.lsp.clientDetail, '')
+  store.lspSessionState('ready')
+  assert.equal(store.state.lsp.clientState, 'ready')
+  store.lspSessionState('failed', 'the handshake timed out')
+  assert.equal(store.state.lsp.clientState, 'failed')
+  assert.equal(store.state.lsp.clientDetail, 'the handshake timed out', 'the reason is mirrored')
+  assert.equal(toasts.length, 1, 'the failure is announced')
+})
+
+test('a dead client session is announced with one toast per episode', async (t) => {
+  const { store, toasts } = recordingStore()
+  t.after(() => {
+    if (store.toastTimer !== null) clearTimeout(store.toastTimer)
+    store.dispose()
+  })
+  store.lspSessionState('failed', 'the handshake timed out')
+  assert.equal(toasts.length, 1, 'the failure is announced')
+  assert.equal(toasts[0].kind, 'error')
+  assert.equal(toasts[0].text, 'lsp.sessionFailedToast', 'the toast is localized')
+  store.lspSessionState('failed', 'the handshake timed out')
+  assert.equal(toasts.length, 1, 'the same episode does not toast again')
+  // The session works again: the next failure is a new episode.
+  store.lspSessionState('ready')
+  assert.equal(toasts.length, 1, 'the recovery shows no toast')
+  store.lspSessionState('failed', 'the handshake timed out')
+  assert.equal(toasts.length, 2, 'the new failure is announced again')
+})
+
+test('the handshake gets a short budget and the semantic requests the long one', async () => {
+  await withSession(async () => {
+    const store = sessionStore()
+    configureLsp(store)
+    const client = lspClient()
+    assert.ok(client !== null, 'the session started a client')
+    // The budget that was in effect when the request was CREATED: the
+    // library reads `client.timeout` exactly there.
+    const budgets = []
+    const original = client.requestInner.bind(client)
+    client.requestInner = (method, params, mapped) => {
+      budgets.push({ method, timeout: client.timeout })
+      return original(method, params, mapped)
+    }
+    // A new handshake: the reconnect repeats it.
+    reconnectLsp()
+    const handshake = budgets.find(entry => entry.method === 'initialize')
+    assert.ok(handshake, 'the handshake was repeated')
+    assert.equal(
+      handshake.timeout,
+      30000,
+      'the handshake must not wait for the budget of the program build',
+    )
+    // The semantic request is the one that builds the program: it needs the
+    // long budget.
+    await client.request('textDocument/hover', {
+      textDocument: { uri: 'file:///C:/work/demo/a.ts' },
+      position: { line: 0, character: 0 },
+    })
+    const hover = budgets.find(entry => entry.method === 'textDocument/hover')
+    assert.equal(
+      hover.timeout,
+      BUILD_REQUEST_TIMEOUT_MS,
+      'the program build may take ten minutes',
+    )
+  })
+})
+
+test('the session reports its state to the store', async () => {
+  await withSession(async () => {
+    const store = sessionStore()
+    configureLsp(store)
+    // The handshake is not resolved yet: the session is starting.
+    assert.equal(store.state.lsp.clientState, 'starting', 'the session is starting')
+    await tick(20)
+    assert.equal(store.state.lsp.clientState, 'ready', 'the handshake resolved')
+  })
+})
+
+test('the menu says why the semantic entries are greyed out', async () => {
+  await withSession(async () => {
+    const store = sessionStore()
+    configureLsp(store)
+    assert.equal(
+      navLabels().semanticUnavailable,
+      'nav.semanticSessionUnavailable',
+      'the session is not ready: the reason is the session, not the server',
+    )
+    await tick(20)
+    assert.equal(
+      navLabels().semanticUnavailable,
+      'nav.semanticUnavailable',
+      'the session is ready: the old reason is the right one again',
+    )
+  })
+})
+
+test('the reconnect repeats the handshake and restarts the server of the host', async (t) => {
+  await withSession(async () => {
+    const store = recordingStore().store
+    const calls = []
+    const restore = mockFetch(lspRoutes('ready'), calls)
+    t.after(() => {
+      if (store.toastTimer !== null) clearTimeout(store.toastTimer)
+      store.dispose()
+      restore()
+    })
+    configureLsp(store)
+    await tick(20)
+    const socket = FakeSocket.instances[FakeSocket.instances.length - 1]
+    const handshakesBefore = socket.sent.filter(text => String(text).includes('"initialize"')).length
+    // The states of the session are recorded: the reconnect has to start the
+    // session again, and the handshake has to resolve again.
+    const states = []
+    const report = store.lspSessionState.bind(store)
+    store.lspSessionState = (state, detail) => {
+      states.push(state)
+      report(state, detail)
+    }
+    await store.reconnectLsp()
+    const handshakes = socket.sent.filter(text => String(text).includes('"initialize"')).length
+    assert.ok(handshakes > handshakesBefore, 'the client sends a new handshake')
+    assert.ok(states.includes('starting'), 'the session is connecting again')
+    assert.ok(states.includes('ready'), 'the new handshake resolved')
+    assert.equal(store.state.lsp.clientState, 'ready', 'the session works again')
+    const methods = calls.map(call => call.method)
+    assert.ok(methods.includes('lsp.shutdown'), 'the old server is stopped')
+    assert.ok(methods.includes('lsp.start'), 'a new server is started')
+    assert.ok(
+      methods.indexOf('lsp.shutdown') < methods.indexOf('lsp.start'),
+      'the old server is stopped before the new one starts',
+    )
+  })
 })

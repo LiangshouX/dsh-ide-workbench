@@ -85,6 +85,52 @@ const LSP_WS_PATH = 'ide-workbench/ws/lsp'
  */
 const SCOPE_TIMEOUT_MS = 3000
 
+/**
+ * How long the client waits for the answer of the `initialize` request.
+ *
+ * The handshake is answered in milliseconds: the server only has to say
+ * which capabilities it has. The long budget of the session belongs to the
+ * FIRST SEMANTIC request, which makes the language server build the program
+ * of the whole project and takes minutes (PRD-v5 §0.2 #3). With the long
+ * budget on the handshake, a broken handshake took up to ten minutes to
+ * surface - and the user could do nothing in the meantime.
+ */
+const HANDSHAKE_TIMEOUT_MS = 30000
+
+/**
+ * The state of the CLIENT session.
+ *
+ * The host's status says that the language server PROCESS is up; it says
+ * nothing about the link between the browser and the server - that is the
+ * client's own truth, and the two never check each other. The status bar
+ * believed the host: it said "ready" while the semantic features were dead
+ * (the menu was greyed out and the hovering did nothing).
+ *
+ *   'starting' — the client is connecting or re-initializing;
+ *   'ready'    — the handshake resolved, so the capabilities are known;
+ *   'failed'   — the handshake retries are exhausted, the session is dead.
+ * @type {'starting' | 'ready' | 'failed'}
+ */
+let clientSessionState = 'starting'
+
+/**
+ * The reason of the last failure of the client session.
+ *
+ * It is the only thing that tells the user whether the server is missing or
+ * the link is broken.
+ * @type {string}
+ */
+let clientSessionDetail = ''
+
+/**
+ * The error of the last failed handshake.
+ *
+ * The retries of the handshake end with the reason of the LAST failure: it
+ * is the one that describes the session the user is stuck in.
+ * @type {string}
+ */
+let lastHandshakeError = ''
+
 /** The store the session belongs to. */
 let sessionStore = null
 /** The one LSP client of the session. */
@@ -145,6 +191,39 @@ let mappingRedirected = false
  * @type {{consecutiveFailures: number, consecutiveTimeouts: number, lastFailure: {message: string, at: number} | null}}
  */
 let health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null }
+
+/**
+ * Report the state of the client session to the store.
+ *
+ * The store may be gone and the method may not exist (the session is used
+ * without a store in the tests), so the call never throws: a broken report
+ * must not break the session it reports about.
+ * @param {'starting' | 'ready' | 'failed'} state the state of the session
+ * @param {string} [detail] the reason of the failure
+ */
+function reportClientState(state, detail = '') {
+  clientSessionState = state
+  clientSessionDetail = typeof detail === 'string' ? detail : ''
+  const store = sessionStore
+  if (store === null || store === undefined) return
+  if (typeof store.lspSessionState !== 'function') return
+  try {
+    store.lspSessionState(state, clientSessionDetail)
+  } catch (error) {
+    console.warn('[lsp] the state of the session could not be reported:', error instanceof Error ? error.message : error)
+  }
+}
+
+/**
+ * The state of the client session.
+ *
+ * It is exported so that the state can be observed without a store - the
+ * tests of the handshake have no store at all.
+ * @returns {{state: string, detail: string}} the state of the session
+ */
+export function lspClientSessionState() {
+  return { state: clientSessionState, detail: clientSessionDetail }
+}
 /**
  * How many semantic requests of the session have been answered.
  *
@@ -931,7 +1010,19 @@ function connectClient(client, config, root, scopeRoot) {
     indexScopePolicy(lspSettings),
     scopeRoot,
   )
+  // The handshake gets a SHORT budget: the server answers it in
+  // milliseconds, and the long budget of the session belongs to the first
+  // semantic request (the program build). The library reads `client.timeout`
+  // when it CREATES a request, so the short window has to be in effect
+  // before `connect()` - and the only request that is created in there is
+  // the `initialize`.
+  client.timeout = HANDSHAKE_TIMEOUT_MS
   client.connect(currentTransport)
+  // The budget of the session is restored right away: every request that is
+  // created from now on gets it. The semantic requests are created only
+  // after `initializing` resolved (the library waits for it), so the short
+  // window of the handshake cannot shorten one of them.
+  applyRequestBudget(client)
   watchHandshake(client)
   // The client is connected now: the editors pick it up.
   bumpVersion()
@@ -984,6 +1075,9 @@ function startLsp() {
   if (currentClient !== null) return
   const store = sessionStore
   if (store === null || store === undefined) return
+  // The link is being built: the status bar says so, and it says "ready"
+  // only when the handshake resolved.
+  reportClientState('starting')
   redirectErrorsToToast()
   redirectMappingPositions()
   const root = typeof store.state?.root === 'string' ? store.state.root : ''
@@ -1072,9 +1166,27 @@ function watchHandshake(client) {
   const handshake = client?.initializing
   if (handshake === null || handshake === undefined || typeof handshake.then !== 'function') return
   handshake.then(
-    () => { handshakeRetries = 0 },
+    () => {
+      // A handshake of a session that has moved on does not count any more:
+      // `disconnect()` replaces the promise, and the answer of the old
+      // request belongs to a session that is already gone.
+      if (client?.initializing !== handshake) return
+      handshakeRetries = 0
+      lastHandshakeError = ''
+      // The budget of the session is back: the handshake is over, and every
+      // request that is created from now on is a semantic one.
+      applyRequestBudget(client)
+      // The link works: the server answered, so its capabilities are known
+      // and the semantic features may be used.
+      reportClientState('ready')
+    },
     (error) => {
-      console.warn('[lsp] the handshake failed:', error instanceof Error ? error.message : error)
+      // The same rule for the failure: the timeout of the request of a
+      // session that was replaced must not schedule a retry for it.
+      if (client?.initializing !== handshake) return
+      const message = failureMessage(error)
+      lastHandshakeError = message
+      console.warn('[lsp] the handshake failed:', message)
       scheduleHandshakeRetry()
     },
   )
@@ -1090,7 +1202,11 @@ function watchHandshake(client) {
 function scheduleHandshakeRetry() {
   if (handshakeTimer !== null) return
   if (handshakeRetries >= MAX_HANDSHAKE_RETRIES) {
-    console.warn('[lsp] the handshake keeps failing; reload the page to try again')
+    console.warn('[lsp] the handshake keeps failing; the session is dead - reconnect it from the status bar')
+    // The session is dead, and the user has to know it: the status bar
+    // believed the host and said "ready" while every semantic request was
+    // dead. The console line alone left the user with no way out.
+    reportClientState('failed', lastHandshakeError)
     return
   }
   handshakeRetries += 1
@@ -1116,17 +1232,49 @@ function reinitializeLsp() {
     // The socket opened again, so the language server was restarted (the
     // user asked for a new index, or the server died). The failures of the
     // old server say nothing about the new one - and the new server has to
-    // build its program again, so its handshake needs the long budget as
-    // well. Both have to happen before the handshake is sent: the library
-    // reads the budget of the client when it creates the request.
+    // build its program again, so its first semantic request needs the long
+    // budget again. The budget itself is written into the client when the
+    // NEXT request is created (the library reads `client.timeout` exactly
+    // there).
     resetLspHealth()
-    applyRequestBudget(currentClient)
+    // The handshake gets the short budget again: the answer of the server
+    // comes in milliseconds, and the long budget belongs to the semantic
+    // requests (the program build).
+    currentClient.timeout = HANDSHAKE_TIMEOUT_MS
     currentClient.connect(currentTransport)
+    // The budget of the session is restored right away (see `connectClient`).
+    applyRequestBudget(currentClient)
     // The new handshake has to be watched as well: a session whose handshake
     // failed has to be able to try again.
     watchHandshake(currentClient)
+    // The link is built again: the status bar says so while it lasts.
+    reportClientState('starting')
   } catch (error) {
     console.warn('[lsp] the handshake could not be repeated:', error instanceof Error ? error.message : error)
+  }
+}
+
+/**
+ * Reconnect the client session - the way out of a dead one.
+ *
+ * The handshake is repeated, so the client gets the capabilities of the
+ * server again. The retry budget starts over: the user asked for a new
+ * attempt, and the failures of the old one must not end this one at once.
+ * @returns {void}
+ */
+export function reconnectLsp() {
+  handshakeRetries = 0
+  lastHandshakeError = ''
+  reportClientState('starting')
+  try {
+    if (currentClient === null) {
+      // There is no client yet: the session has to be built first.
+      startLsp()
+      return
+    }
+    reinitializeLsp()
+  } catch (error) {
+    console.warn('[lsp] the session could not be reconnected:', error instanceof Error ? error.message : error)
   }
 }
 
@@ -1254,6 +1402,10 @@ function stopLsp() {
   // requests go with it - the next session starts with a server that has to
   // build its program again.
   resetLspHealth()
+  // The session is over: there is no link any more, so the status bar must
+  // not keep saying that the session is ready. The next session reports
+  // "starting" again when it is built.
+  reportClientState('starting')
   bumpVersion()
 }
 
@@ -1496,14 +1648,23 @@ export function keymapKeyFor(name) {
  *
  * The workbench keeps the i18n table in one place, so the texts come from
  * the store's translator.
+ *
+ * The reason why the semantic entries are greyed out belongs to the state of
+ * the client session: while the session is not ready, the feature is missing
+ * for a different reason than a server that does not support it - and the
+ * old text was a lie in that case (it said that the server does not support
+ * the feature while the session was dead).
  * @returns {{goToDefinition: string, findUsages: string, findUsagesText: string, semanticUnavailable: string}} the labels
  */
 export function navLabels() {
+  const unavailable = clientSessionState === 'ready'
+    ? translate('nav.semanticUnavailable')
+    : translate('nav.semanticSessionUnavailable')
   return {
     goToDefinition: translate('nav.goToDefinition'),
     findUsages: translate('nav.findUsages'),
     findUsagesText: translate('nav.findUsagesText'),
-    semanticUnavailable: translate('nav.semanticUnavailable'),
+    semanticUnavailable: unavailable,
   }
 }
 

@@ -85,7 +85,7 @@ async function loadModule() {
       absWorkingDir: root,
       stdin: {
         contents: [
-          "export { lspStatusView, formatWaited, waitedFor, showRebuildButton, showCancelButton, memoryFacts, LspDiagnosticsModal } from './src/client/Workbench.jsx'",
+          "export { lspStatusView, formatWaited, waitedFor, showRebuildButton, showReconnectButton, showCancelButton, memoryFacts, LspDiagnosticsModal } from './src/client/Workbench.jsx'",
           "export { SettingsForm } from './src/client/SettingsPanel.jsx'",
         ].join('\n'),
         resolveDir: root,
@@ -271,6 +271,65 @@ test('the cancel button belongs to a session that is coming up', async () => {
   assert.equal(showCancelButton('starting', false), false, 'the host says no')
   assert.equal(showCancelButton('ready', true), false, 'a ready server has nothing to cancel')
   assert.equal(showCancelButton('suspended', true), false, 'a released server has nothing to cancel')
+})
+
+// ── the client session (the link to the language server) ───────────────────
+//
+// The host says that the language server PROCESS is up, the client says
+// whether the link between the browser and the server works. The two never
+// check each other, and the status bar believed the host: it said "ready"
+// while the semantic features were completely dead - the menu was greyed out
+// and the hovering did nothing.
+
+test('the dead client session wins over the ready server of the host', async () => {
+  const { lspStatusView } = await loadModule()
+  const store = { t: translator(en) }
+
+  const view = lspStatusView(store, snapshot({
+    state: 'ready',
+    clientState: 'failed',
+    clientDetail: 'the handshake timed out',
+  }))
+  assert.equal(view.key, 'sessionFailed', 'the dead session is not "ready"')
+  assert.equal(view.text, en['lsp.status.sessionFailed'])
+  assert.equal(view.tone, 'error', 'a dead session is red')
+  assert.equal(view.action, 'diagnostics')
+  assert.equal(view.detail, 'the handshake timed out', 'the reason is in the tooltip')
+
+  // It wins over every other state of the host too: the features do not
+  // work whatever the host says about its process.
+  for (const state of ['degraded', 'failed', 'crashed', 'cancelled', 'idle', 'suspended', 'building']) {
+    const other = lspStatusView(store, snapshot({ state, clientState: 'failed' }))
+    assert.equal(other.key, 'sessionFailed', `the dead session wins over ${state}`)
+  }
+})
+
+test('the connecting client session is not shown as ready', async () => {
+  const { lspStatusView } = await loadModule()
+  const store = { t: translator(en) }
+
+  const view = lspStatusView(store, snapshot({ state: 'ready', clientState: 'starting' }))
+  assert.equal(view.key, 'sessionConnecting', 'the handshake is not resolved yet')
+  assert.equal(view.text, en['lsp.status.sessionConnecting'])
+  assert.equal(view.tone, 'idle', 'connecting is grey, not green')
+
+  // A server that is not ready yet keeps its own text: the host knows more
+  // about the build than the client does.
+  const building = lspStatusView(store, snapshot({ state: 'building', clientState: 'starting' }))
+  assert.equal(building.key, 'building', 'the state of the host is kept')
+})
+
+test('the reconnect button belongs to the dead session alone', async () => {
+  const { showReconnectButton, showRebuildButton } = await loadModule()
+
+  assert.equal(showReconnectButton('sessionFailed'), true, 'the dead session offers the reconnect')
+  assert.equal(showReconnectButton('ready'), false)
+  assert.equal(showReconnectButton('degraded'), false)
+  assert.equal(showReconnectButton('sessionConnecting'), false, 'a connecting session needs no reconnect')
+  // The two buttons are exclusive: rebuilding the index of a healthy server
+  // would not repair the link between the browser and the server.
+  assert.equal(showRebuildButton('sessionFailed', {}), false, 'the dead session offers no rebuild')
+  assert.equal(showRebuildButton('degraded', {}), true, 'the rebuild still belongs to the host')
 })
 
 test('the status of a starting session says how long the user waits', async () => {
@@ -892,6 +951,12 @@ test('both dictionaries carry the new keys of the retrofit', () => {
     'settings.lspCancelAfter',
     'settings.lspCancelAfterShort',
     'settings.lspCancelAfterHint',
+    // The client session: the link between the browser and the server.
+    'lsp.status.sessionFailed',
+    'lsp.status.sessionConnecting',
+    'lsp.reconnect',
+    'lsp.sessionFailedToast',
+    'nav.semanticSessionUnavailable',
   ]
   for (const key of keys) {
     assert.equal(typeof en[key], 'string', `the English text of ${key} is missing`)

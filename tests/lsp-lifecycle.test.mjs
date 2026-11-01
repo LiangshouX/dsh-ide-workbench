@@ -227,3 +227,26 @@ test('a restart may be cancelled as well', async () => {
   assert.equal(snapshot.state, 'restarting')
   assert.equal(snapshot.cancellable, true, 'the restart builds the program again')
 })
+
+test('the host log says when the frame worker drops a payload', async () => {
+  // A dropped HANDSHAKE is the one moment where the client waits for an
+  // answer that will never come: the server was asked twice and has not
+  // answered the first time yet, so the second one cannot be forwarded (a
+  // protocol violation) and cannot be answered (there are no capabilities
+  // yet). The status bar keeps saying "ready" in that state, because the
+  // server process is up - the host log is the only place where it shows.
+  const { manager, workers, warnings } = makeManager()
+  const root = rootOf('dropped')
+  await manager.start({ root })
+
+  workers[0].emit('message', {
+    type: 'dropped',
+    reason: 'a second handshake before the language server answered the first one',
+  })
+  await sleep(30)
+
+  assert.ok(
+    warnings.some(line => line.includes('dropped') && line.includes('handshake')),
+    'the host log names the dropped handshake',
+  )
+})

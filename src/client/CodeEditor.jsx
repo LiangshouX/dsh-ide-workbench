@@ -866,10 +866,20 @@ export function CodeEditor({
     onSendToChatRef.current?.({ text: current.text, fromLine: current.fromLine, toLine: current.toLine })
   }
 
-  const labels = { ...navLabels(), ...(navLabelsProp ?? {}) }
+  // The labels of the menu. The prop carries the texts of the workbench,
+  // but the reason why the semantic entries are greyed out comes from the
+  // session: it depends on the state of the client session (the link between
+  // the browser and the language server), and only the session knows it. The
+  // prop would overwrite it with the generic text - and that text is a lie
+  // while the session is dead: it says that the server does not support the
+  // feature.
+  const sessionLabels = navLabels()
+  const labels = { ...sessionLabels, ...(navLabelsProp ?? {}) }
   const usageAvailable = semanticUsagesAvailable()
   const definitionAvailable = semanticDefinitionAvailable()
-  const semanticNote = labels.semanticUnavailable ?? 'The language server does not support finding usages.'
+  const semanticNote = sessionLabels.semanticUnavailable !== ''
+    ? sessionLabels.semanticUnavailable
+    : (labels.semanticUnavailable ?? 'The language server does not support finding usages.')
   // A greyed-out entry has to say *why* it is greyed out (PRD §7.1). The
   // reason is a tooltip: the label itself is narrow and gets ellipsized.
   const noteFor = (available) => (available ? undefined : semanticNote)

@@ -2454,6 +2454,20 @@ export class LspManager {
    */
   #onWorkerMessage(entry, session, message) {
     if (message === null || typeof message !== 'object') return
+    if (message.type === 'dropped') {
+      // The frame worker dropped a payload. A payload that is not JSON is
+      // dropped by design, but a dropped HANDSHAKE is the one moment where
+      // the client waits for an answer that will never come: the server was
+      // asked twice and has not answered the first time yet, so the second
+      // one cannot be forwarded (a protocol violation) and cannot be
+      // answered (there are no capabilities yet).
+      //
+      // The host log is the only place where this shows up - the client
+      // waits for a handshake that will never arrive, and the status bar
+      // keeps saying "ready" because the server process is up.
+      this.#ctx?.logger?.warn?.('lsp: the frame worker dropped a payload: %s', messageOf(message.reason ?? message))
+      return
+    }
     if (message.type === 'message') {
       // The server speaks again. The requests that ran into their deadline
       // are history as soon as it answers one of them - the counter is the

@@ -445,6 +445,18 @@ function run(options) {
           // but `jdtls`, `gopls` or `rust-analyzer` may not - so the
           // request is absorbed and answered from the cached capabilities
           // as soon as the server has replied.
+          //
+          // When the server has NOT replied yet there is no answer to give:
+          // the client waits for a handshake that will never come, and its
+          // session stays dead until the server is started again. That is
+          // the one moment where the "ready" of the status bar becomes a
+          // lie, so it gets a line in the host log.
+          if (handshake.result === null) {
+            parentPort.postMessage({
+              type: 'dropped',
+              reason: 'a second handshake before the language server answered the first one',
+            })
+          }
           return
         }
         // The host keeps the handshake: a language server that is restarted

@@ -20,6 +20,11 @@ import {
   composeCodeReference, formatFileMention, insertChatText,
 } from './chat-bridge.js'
 import { isPathWithin, relativePathWithin, sameScopePath, sessionCwdOf } from './workspace-scope.js'
+// The client session is the other half of the truth about the semantic
+// analysis: the host knows whether the language server PROCESS is up, the
+// client knows whether the link to it works. The import graph is acyclic -
+// `lsp-session.js` imports the workspace and the API, not the store.
+import { reconnectLsp as reconnectLspSession } from './lsp-session.js'
 
 let sequence = 0
 
@@ -270,6 +275,17 @@ function initialState() {
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
       /**
+       * The state of the CLIENT session: 'starting' | 'ready' | 'failed'.
+       *
+       * The host's status says that the language server PROCESS is up; it
+       * says nothing about the link between the browser and the server. The
+       * two never check each other, and the status bar believed the host: it
+       * said "ready" while the semantic features were completely dead.
+       */
+      clientState: 'starting',
+      /** The reason of the last failure of the client session. */
+      clientDetail: '',
+      /**
        * The root the program of the project is built for.
        *
        * The host reports it: it is the project root itself most of the time,
@@ -502,6 +518,16 @@ export class WorkbenchStore {
      * episode, one toast.
      */
     this.lspFaultNotified = false
+    /**
+     * Whether the current failure episode of the CLIENT session was already
+     * announced.
+     *
+     * The session of the client is a fault of its own: the host may be
+     * perfectly healthy while the link between the browser and the server is
+     * dead. The flag is separate from `lspFaultNotified`, so the two kinds of
+     * fault do not swallow each other's toast.
+     */
+    this.lspSessionFaultNotified = false
     /** Resolver of the pending index decision, if a dialog is open. */
     this.indexDecisionResolve = null
     /** Resolver of the pending memory warning, if a dialog is open. */
@@ -1551,6 +1577,70 @@ export class WorkbenchStore {
     }
     await this.refreshLspStatus()
     this.patch('lsp', { rebuilding: false })
+  }
+
+  /**
+   * The state of the CLIENT session - the link to the language server.
+   *
+   * The host's status says that the language server PROCESS is up; it says
+   * nothing about the link between the browser and the server. The two never
+   * check each other, and the status bar believed the host: it said "ready"
+   * while the semantic features were completely dead - the menu was greyed
+   * out, the hovering did nothing, and the rebuild button did not appear
+   * either (the host was ready, so there was nothing to rebuild).
+   *
+   * The state is mirrored into the `lsp` slice, and a failure is announced
+   * with ONE toast - once per episode. The flag of the episode is a flag of
+   * its own, so the fault episodes of the host and the ones of the client
+   * session do not swallow each other's toast.
+   * @param {string} state 'starting' | 'ready' | 'failed'
+   * @param {string} [detail] the reason of the failure
+   * @returns {void}
+   */
+  lspSessionState(state, detail = '') {
+    const next = typeof state === 'string' && state !== '' ? state : 'starting'
+    const reason = typeof detail === 'string' ? detail : ''
+    const lsp = this.state.lsp ?? {}
+    if (lsp.clientState === next && lsp.clientDetail === reason) return
+    this.patch('lsp', { clientState: next, clientDetail: reason })
+    if (next !== 'failed') {
+      // The session works again: the next failure is a new episode.
+      this.lspSessionFaultNotified = false
+      return
+    }
+    if (this.lspSessionFaultNotified) return
+    this.lspSessionFaultNotified = true
+    // The toast carries the localized text. The technical reason stays in
+    // the mirrored state, where the status bar shows it in its tooltip.
+    this.toast('error', this.t('lsp.sessionFailedToast'))
+  }
+
+  /**
+   * Reconnect the semantic analysis - the way out of a dead session.
+   *
+   * The handshake of the client goes first: the host keeps the NEWEST
+   * handshake and replays it to the next language server process, so a fresh
+   * `initialize` is what the new process is initialized with. The restart of
+   * the host comes second: a new process means a new frame worker with an
+   * empty handshake cache, so the `initialize` really reaches the server
+   * again - and the server that answers it is a healthy one.
+   *
+   * The method never throws: it is called from a button, and a failure of
+   * one half must not keep the other half from running.
+   * @returns {Promise<void>}
+   */
+  async reconnectLsp() {
+    try {
+      reconnectLspSession()
+    } catch {
+      // The client session is optional: the restart of the host below is the
+      // way out in any case.
+    }
+    try {
+      await this.restartLsp()
+    } catch {
+      // The status bar shows the failure.
+    }
   }
 
   /**

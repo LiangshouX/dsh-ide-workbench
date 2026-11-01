@@ -201,7 +201,9 @@ test('a finished build leaves the status bar at "ready"', async () => {
   } finally {
     restore2()
   }
-  const view = mod.lspStatusView({ t: key => key }, { lsp: store.state.lsp, settings: store.state.settings })
+  // The client session is ready: the case is about the progress of the
+  // build, not about the link to the language server.
+  const view = mod.lspStatusView({ t: key => key }, { lsp: { ...store.state.lsp, clientState: 'ready' }, settings: store.state.settings })
   assert.equal(view.key, 'ready', 'the status bar left the build')
   assert.equal(view.text, 'lsp.status.ready')
 })

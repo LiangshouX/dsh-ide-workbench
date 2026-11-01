@@ -633,7 +633,10 @@ test('a folder that was never indexed carries no badge', async () => {
 test('the status bar names the seven semantic-analysis states', async () => {
   const mod = await loadModule()
   const store = fakeStore()
-  const view = state => mod.lspStatusView(store, { ...store.state, lsp: { ...store.state.lsp, ...state } })
+  // The client session is ready: this case is about the states of the HOST.
+  // A session that is not ready has a text of its own - the status bar must
+  // not say "ready" while the link to the server is dead.
+  const view = state => mod.lspStatusView(store, { ...store.state, lsp: { ...store.state.lsp, clientState: 'ready', ...state } })
   const cases = [
     [{ enabled: false, state: 'disabled' }, 'lsp.status.disabled', 'idle'],
     [{ enabled: true, state: 'starting' }, 'lsp.status.starting', 'idle'],

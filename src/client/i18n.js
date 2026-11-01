@@ -563,9 +563,16 @@ export const en = {
   'lsp.status.cancelled': 'Semantic analysis: cancelled (basic mode)',
   'lsp.status.unstable': 'Semantic analysis: unstable ({count} consecutive failures)',
   'lsp.status.unstableTimeout': 'Semantic analysis: unstable ({count} consecutive timeouts)',
+  // The state of the CLIENT session: the link between the browser and the
+  // language server. The host's status says that the server PROCESS is up -
+  // it says nothing about that link, and the two never check each other.
+  'lsp.status.sessionFailed': 'Semantic analysis: the session is not ready',
+  'lsp.status.sessionConnecting': 'Semantic analysis: connecting…',
   'lsp.cancelIndex': 'Cancel indexing',
   'lsp.statusTitle': 'Semantic analysis status',
   'lsp.rebuildIndex': 'Rebuild the index',
+  'lsp.reconnect': 'Reconnect',
+  'lsp.sessionFailedToast': 'The semantic analysis session could not be established.',
 
   'lsp.diagnostics.title': 'Semantic analysis diagnostics',
   'lsp.diagnostics.state': 'State',
@@ -626,6 +633,9 @@ export const en = {
   'nav.usagesCount': '{count} usages',
   'nav.noUsages': 'No usages found',
   'nav.semanticUnavailable': 'The language server does not support finding usages.',
+  // The reason while the CLIENT session is not ready: the feature is missing
+  // for another reason than a server that does not support it.
+  'nav.semanticSessionUnavailable': 'The semantic analysis session is not ready. Reconnect it from the status bar.',
 
   'lsp.lowMemory': 'Not enough free memory (needs {need} MB, {free} MB available)',
   'lsp.lowMemoryHint': 'Close the other programs, or use the basic mode for this language.',
@@ -1195,9 +1205,15 @@ export const zh = {
   'lsp.status.cancelled': '语义分析：已取消（保守版）',
   'lsp.status.unstable': '语义分析：不稳定（连续失败 {count} 次）',
   'lsp.status.unstableTimeout': '语义分析：不稳定（连续超时 {count} 次）',
+  // 客户端会话的状态：浏览器与语言服务器之间的链路。宿主的状态只说明
+  // 服务器进程还在，并不说明这条链路是否可用，两者从不互相校验。
+  'lsp.status.sessionFailed': '语义分析：会话未就绪',
+  'lsp.status.sessionConnecting': '语义分析：正在连接…',
   'lsp.cancelIndex': '取消索引',
   'lsp.statusTitle': '语义分析状态',
   'lsp.rebuildIndex': '重新建立索引',
+  'lsp.reconnect': '重新连接',
+  'lsp.sessionFailedToast': '语义分析会话未能建立。',
 
   'lsp.diagnostics.title': '语义分析诊断',
   'lsp.diagnostics.state': '当前状态',
@@ -1253,6 +1269,8 @@ export const zh = {
   'nav.usagesCount': '{count} 处引用',
   'nav.noUsages': '未找到引用',
   'nav.semanticUnavailable': '该语言服务器不支持查找引用。',
+  // 客户端会话未就绪时的原因：功能不可用的原因与「服务器不支持」不同。
+  'nav.semanticSessionUnavailable': '语义分析会话尚未就绪，可在状态栏重新连接。',
 
   'lsp.lowMemory': '系统可用内存不足（需要 {need} MB，可用 {free} MB）',
   'lsp.lowMemoryHint': '请关闭其它程序，或对该语言改用保守版。',
