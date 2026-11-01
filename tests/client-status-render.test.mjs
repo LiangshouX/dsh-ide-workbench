@@ -423,7 +423,10 @@ test('the reconnect button belongs to the dead session alone', async () => {
   assert.equal(showReconnectButton('sessionFailed'), true, 'the dead session offers the reconnect')
   assert.equal(showReconnectButton('ready'), false)
   assert.equal(showReconnectButton('degraded'), false)
-  assert.equal(showReconnectButton('sessionConnecting'), false, 'a connecting session needs no reconnect')
+  // The connecting cell IS a way out: the handshake may never be answered,
+  // and the bar said "connecting…" for 126 seconds without a button
+  // (专项 F2).
+  assert.equal(showReconnectButton('sessionConnecting'), true, 'a connecting session offers the reconnect')
   // The two buttons are exclusive: rebuilding the index of a healthy server
   // would not repair the link between the browser and the server.
   assert.equal(showRebuildButton('sessionFailed', {}), false, 'the dead session offers no rebuild')
@@ -449,7 +452,10 @@ test('the reconnect button follows the dead session, not the display winner', as
   // A living session needs no exit - and the rebuild button stays with the
   // host.
   assert.equal(showReconnectButton('idle', 'ready'), false, 'a living session needs no reconnect')
-  assert.equal(showReconnectButton('idle', 'starting'), false, 'a connecting session needs no reconnect')
+  // A session that is still connecting is a problem the user has to be able
+  // to walk away from: the handshake may never be answered, and the bar said
+  // "connecting…" for 126 seconds with no button at all (专项 F2).
+  assert.equal(showReconnectButton('idle', 'starting'), true, 'a connecting session offers the reconnect')
   assert.equal(showRebuildButton('idle', { clientState: 'ready' }), true, 'the rebuild still belongs to the host')
 
   // The view of the status bar is the one of the host - the button is the

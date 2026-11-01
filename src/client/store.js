@@ -289,14 +289,21 @@ function initialState() {
        */
       liveRoots: [],
       /**
-       * The state of the CLIENT session: 'starting' | 'ready' | 'failed'.
+       * The state of the CLIENT session: 'idle' | 'starting' | 'ready' |
+       * 'failed'.
        *
        * The host's status says that the language server PROCESS is up; it
        * says nothing about the link between the browser and the server. The
        * two never check each other, and the status bar believed the host: it
        * said "ready" while the semantic features were completely dead.
+       *
+       * 'idle' means THERE IS NO SESSION - and that is the state a fresh
+       * store starts in: the workbench has not connected to anything yet, so
+       * "starting" would be a lie (the bar said "connecting…" while nothing
+       * was connecting, 专项 F1). The session reports its own state as soon
+       * as it exists.
        */
-      clientState: 'starting',
+      clientState: 'idle',
       /** The reason of the last failure of the client session. */
       clientDetail: '',
       /**
@@ -2196,16 +2203,24 @@ export class WorkbenchStore {
    * The toast is only shown when the host has a language server that could
    * fail: in every other state the host's own explanation is the truth, and
    * a dead client session on top of it is a false alarm (review P1-2).
-   * @param {string} state 'starting' | 'ready' | 'failed'
+   *
+   * The client also reports WHEN it started waiting (`since`, a timestamp in
+   * milliseconds). The status bar shows that waiting time, not the age of the
+   * host's session: the two are different things, and the user wants to know
+   * how long THEY have been waiting. A `since` of 0 means "I do not know" -
+   * the bar falls back to the age of the host's session then.
+   * @param {string} state 'starting' | 'ready' | 'failed' | 'idle'
    * @param {string} [detail] the reason of the failure
+   * @param {number} [since] when the client started waiting (ms), 0 = unknown
    * @returns {void}
    */
-  lspSessionState(state, detail = '') {
+  lspSessionState(state, detail = '', since = 0) {
     const next = typeof state === 'string' && state !== '' ? state : 'starting'
     const reason = typeof detail === 'string' ? detail : ''
+    const started = Number.isFinite(since) && since > 0 ? since : 0
     const lsp = this.state.lsp ?? {}
-    if (lsp.clientState === next && lsp.clientDetail === reason) return
-    this.patch('lsp', { clientState: next, clientDetail: reason })
+    if (lsp.clientState === next && lsp.clientDetail === reason && lsp.clientSince === started) return
+    this.patch('lsp', { clientState: next, clientDetail: reason, clientSince: started })
     if (next !== 'failed') {
       // The session works again: the next failure is a new episode.
       this.lspSessionFaultNotified = false
@@ -2628,7 +2643,10 @@ export class WorkbenchStore {
       this.lspPollTimer = null
     }
     // The mirrored status of a store that is not looked at any more would
-    // keep the last state of a server that is gone.
+    // keep the last state of a server that is gone. The slice goes back to
+    // its initial state, and the client session of that slice starts at
+    // 'idle' - THERE IS NO SESSION any more, so "starting" would be a lie
+    // (专项 F1).
     this.patch('lsp', { ...initialState().lsp, servers: this.state.lsp?.servers ?? { available: [], missing: [] } })
     // The fault episodes belong to the session that is gone: a new one must
     // not inherit the flag and stay silent about its first failure.

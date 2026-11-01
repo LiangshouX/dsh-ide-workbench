@@ -360,6 +360,20 @@ function isChineseText(text) {
 }
 
 /**
+ * The client states that say the problem is on the CLIENT side.
+ *
+ * 'failed' = the session is dead, 'starting' = the session is still being
+ * established (it may never arrive: the handshake is not always answered),
+ * 'idle' = there is NO session at all - the user switched the feature off,
+ * the store was evicted, or the server was stopped.
+ *
+ * The list is the single place that says "the problem is in the browser":
+ * the two buttons of the status bar are exclusive, and this list decides
+ * which one of them the user gets (review F1 of the专项 review).
+ */
+const CLIENT_SESSION_PROBLEMS = ['failed', 'starting', 'idle']
+
+/**
  * Whether the status bar offers the rebuild button.
  *
  * The conservative mode has no way back on its own: the rebuild button is
@@ -367,10 +381,12 @@ function isChineseText(text) {
  * click away". A server that was released (`idle`, `suspended`) is
  * recoverable, so the button belongs to those states too (PRD-v5 §1.4).
  *
- * The button is NOT offered to a dead client session: the reconnect button
- * does everything the rebuild button does (the host stops and starts its
- * server) PLUS the client handshake, so showing both would offer two
- * buttons for one problem - and the weaker one first (review R6-1).
+ * The button is NOT offered when the problem is on the client side: the
+ * reconnect button does everything the rebuild button does (the host stops
+ * and starts its server) PLUS the client handshake, so showing both would
+ * offer two buttons for one problem - and the weaker one first (review R6-1,
+ * 专项 F1). A session that is dead, still connecting or simply missing is
+ * exactly that case.
  *
  * @param {string} viewKey the key of the status view
  * @param {object} [lsp] the `lsp` slice of the state
@@ -378,7 +394,7 @@ function isChineseText(text) {
  */
 export function showRebuildButton(viewKey, lsp = {}) {
   if (lsp.rebuilding === true) return false
-  if (lsp.clientState === 'failed') return false
+  if (CLIENT_SESSION_PROBLEMS.includes(lsp.clientState)) return false
   return ['degraded', 'failed', 'cancelled', 'idle', 'suspended'].includes(viewKey)
 }
 
@@ -389,7 +405,7 @@ export function showRebuildButton(viewKey, lsp = {}) {
  * dead CLIENT session is another fault: the host is perfectly healthy, and
  * rebuilding its index would not repair the link between the browser and the
  * server. The two buttons are exclusive: the rebuild button belongs to the
- * states of the host, the reconnect button to the dead session.
+ * states of the host, the reconnect button to the states of the client.
  *
  * The button follows the PROBLEM and not the display winner: the red "the
  * session is dead" only wins while the host claims to be fine (the host
@@ -403,12 +419,24 @@ export function showRebuildButton(viewKey, lsp = {}) {
  * exactly the right one: it repeats the handshake AND starts the server, in
  * one click.
  *
+ * It is also the way out of the two states that used to offer NOTHING at
+ * all: a session that is still connecting (the handshake may never be
+ * answered - the bar said "connecting…" for 126 seconds without a button)
+ * and a session that does not exist (专项 F1 and F2). A reconnect is cheap:
+ * it is a disconnect and a connect, and the host holds the payload until
+ * the server exists.
+ *
+ * The two cells that exist because of the client session - `sessionConnecting`
+ * and `sessionIdle` - offer it on their own, so the rule does not depend on
+ * the client state being read twice.
+ *
  * @param {string} viewKey the key of the status view
  * @param {string} [clientState] the state of the client session
  * @returns {boolean} true when the button is shown
  */
 export function showReconnectButton(viewKey, clientState = '') {
-  return viewKey === 'sessionFailed' || clientState === 'failed'
+  if (viewKey === 'sessionFailed' || viewKey === 'sessionConnecting' || viewKey === 'sessionIdle') return true
+  return CLIENT_SESSION_PROBLEMS.includes(clientState)
 }
 
 /**
@@ -538,6 +566,29 @@ function waitedSince(lsp) {
 }
 
 /**
+ * How long the CLIENT has been waiting for its session.
+ *
+ * The client reports when it started waiting (`clientSince`), and that is
+ * the time the user cares about: the age of the host's session says how long
+ * the SERVER has been up, which is a different question - the server may
+ * have been up for minutes while the browser has been waiting for the
+ * handshake the whole time (专项 F2).
+ *
+ * A client that does not know when it started waiting (`clientSince` of 0)
+ * falls back to the age of the host's session - the old behaviour, and the
+ * best that can be said without the client's number.
+ *
+ * @param {object} lsp the `lsp` slice of the state
+ * @returns {{minutes: number, seconds: number}|null} the two numbers, or
+ *   `null` when neither side knows a start
+ */
+function waitedSinceClient(lsp) {
+  const since = typeof lsp?.clientSince === 'number' && lsp.clientSince > 0 ? lsp.clientSince : 0
+  if (since > 0) return waitedFor(Date.now() - since)
+  return waitedSince(lsp)
+}
+
+/**
  * The semantic-analysis status of the workbench (PRD-v5 §4.3).
  *
  * The host owns the state machine; this only maps it to a label, a tone and
@@ -647,7 +698,11 @@ export function lspStatusView(store, state) {
     // The states "starting" and "restarting" keep the label of the host: it
     // carries the elapsed time (PRD-v5 §2.4), and the client session cannot
     // be ready during them anyway.
-    const waited = waitedSince(lsp)
+    //
+    // The time is the CLIENT's waiting time: the handshake may never be
+    // answered, and the user wants to know how long THEY have been waiting,
+    // not how long the server has been up (专项 F2).
+    const waited = waitedSinceClient(lsp)
     const waitedText = waited === null
       ? ''
       : formatWaited(waited.minutes, waited.seconds, isChineseText(t('lsp.status.sessionConnecting')) ? 'zh' : 'en')
@@ -658,6 +713,28 @@ export function lspStatusView(store, state) {
       text: t('lsp.status.sessionConnecting'),
       tone: 'idle',
       detail: base.detail === '' ? (waitedText !== '' ? waitedText : hostText) : base.detail,
+    }
+  }
+  if (clientState === 'idle' && LSP_HOST_HEALTHY_STATES.includes(current)) {
+    // There is NO client session, and the host still says the server is
+    // alive: the user switched the feature off, the store was evicted, or
+    // the server could not be stopped.
+    //
+    // The bar must say so. "Connecting…" was a lie (nothing is connecting),
+    // and "ready" is a lie too - the host has a server, the browser has no
+    // session, so the semantic features do not work here. The tone is a
+    // warning and not an error: a feature the user switched off is not a
+    // fault (专项 F1).
+    //
+    // When the host has NO server, its own word wins - it knows the reason
+    // (idle, degraded, crashed, suspended), and that is more useful than
+    // "the session is missing".
+    return {
+      ...base,
+      key: 'sessionIdle',
+      text: t('lsp.status.sessionIdle'),
+      tone: 'warn',
+      action: 'diagnostics',
     }
   }
   // The health the client measured. It only matters while the server claims

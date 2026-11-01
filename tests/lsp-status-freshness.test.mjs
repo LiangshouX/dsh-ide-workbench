@@ -876,7 +876,7 @@ test('the state of the client session is mirrored into the store', async (t) => 
   // The host claims to be fine: there is a language server that could fail,
   // so the failure of the client session is a real fault.
   store.state.lsp = { ...store.state.lsp, state: 'ready' }
-  assert.equal(store.state.lsp.clientState, 'starting', 'the session starts')
+  assert.equal(store.state.lsp.clientState, 'idle', 'there is no session before the first one')
   assert.equal(store.state.lsp.clientDetail, '')
   store.lspSessionState('ready')
   assert.equal(store.state.lsp.clientState, 'ready')

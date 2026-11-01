@@ -597,6 +597,10 @@ export const en = {
   // it says nothing about that link, and the two never check each other.
   'lsp.status.sessionFailed': 'Semantic analysis: the session is not ready',
   'lsp.status.sessionConnecting': 'Semantic analysis: connecting…',
+  // The client has NO session while the host still says the server is alive:
+  // the feature does not work in the browser, and "connecting…" would be a lie
+  // (nothing is connecting).
+  'lsp.status.sessionIdle': 'Semantic analysis: the session is not connected',
   'lsp.cancelIndex': 'Cancel indexing',
   'lsp.statusTitle': 'Semantic analysis status',
   'lsp.rebuildIndex': 'Rebuild the index',
@@ -685,6 +689,11 @@ export const en = {
   // The session is still connecting: there is nothing to reconnect yet, and
   // the text must not promise a button that does not exist.
   'nav.semanticSessionConnecting': 'The semantic analysis session is still connecting.',
+  // There is NO session: the feature is off, the project was put into the
+  // basic mode, or the store was dropped. Saying "connecting" would be a lie
+  // (there is nothing to connect), and the reason of a dead session would
+  // promise a reconnect that does not exist either.
+  'nav.semanticSessionIdle': 'There is no semantic analysis session. The index can be built again from the status bar.',
 
   'lsp.lowMemory': 'Not enough available memory (needs {need} MB, {free} MB available)',
   'lsp.lowMemoryHint': 'Close the other programs, or use the basic mode for this language.',
@@ -1285,6 +1294,9 @@ export const zh = {
   // 服务器进程还在，并不说明这条链路是否可用，两者从不互相校验。
   'lsp.status.sessionFailed': '语义分析：会话未就绪',
   'lsp.status.sessionConnecting': '语义分析：正在连接…',
+  // 客户端根本没有会话，而宿主还说服务器活着：浏览器里的语义功能用不了，
+  // 说「正在连接…」是谎话（什么都没有在连）。
+  'lsp.status.sessionIdle': '语义分析：会话没有连接',
   'lsp.cancelIndex': '取消索引',
   'lsp.statusTitle': '语义分析状态',
   'lsp.rebuildIndex': '重新建立索引',
@@ -1359,6 +1371,10 @@ export const zh = {
   'nav.semanticSessionUnavailable': '语义分析会话尚未就绪，可在状态栏重新连接。',
   // 会话仍在连接中：此时还没有可重连的东西，文案不能承诺一个不存在的按钮。
   'nav.semanticSessionConnecting': '语义分析会话正在连接…',
+  // 根本没有会话：功能被关掉了、项目被放进了基础模式，或者 store 被回收了。
+  // 说「正在连接」是谎话（没有东西可连），而「会话已死」的理由又承诺了一个
+  // 并不存在的重连。
+  'nav.semanticSessionIdle': '没有语义分析的会话。可以在状态栏里重新建立索引。',
 
   'lsp.lowMemory': '系统可用内存不足（需要 {need} MB，可用 {free} MB）',
   'lsp.lowMemoryHint': '请关闭其它程序，或对该语言改用保守版。',

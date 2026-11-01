@@ -152,10 +152,34 @@ function indexDecisionOf(store, root) {
  *
  *   'starting' — the client is connecting or re-initializing;
  *   'ready'    — the handshake resolved, so the capabilities are known;
- *   'failed'   — the handshake retries are exhausted, the session is dead.
- * @type {'starting' | 'ready' | 'failed'}
+ *   'failed'   — the handshake retries are exhausted, the session is dead;
+ *   'idle'     — there is NO session at all: the feature is off, the project
+ *                was put into the basic mode, or the store was dropped.
+ *
+ * The fourth value is the one the machine had to learn: without it, "the
+ * session is over" had to be reported as "the session is starting" - and the
+ * status bar said "connecting" while there was nothing to connect, offering
+ * neither the rebuild nor the reconnect button (the connection-state review,
+ * F1).
+ * @type {'starting' | 'ready' | 'failed' | 'idle'}
  */
-let clientSessionState = 'starting'
+let clientSessionState = 'idle'
+
+/**
+ * The moment the client started waiting for the handshake of the session.
+ *
+ * The client knows how long it waited; the host only knows how old its own
+ * session is (`startedAt`), and that is a different clock - the session of
+ * the host may have been born long before the client asked for it. The
+ * status bar shows the waiting time of the client (the connection-state
+ * review, F2).
+ *
+ * The value is 0 when the client is not waiting: the wait is over (the
+ * handshake resolved, the session failed, there is no session) and the bar
+ * falls back to the age of the host's session then.
+ * @type {number} the timestamp in milliseconds, 0 when there is none
+ */
+let clientSessionSince = 0
 
 /**
  * The reason of the last failure of the client session.
@@ -253,17 +277,31 @@ let health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null
  * The store may be gone and the method may not exist (the session is used
  * without a store in the tests), so the call never throws: a broken report
  * must not break the session it reports about.
- * @param {'starting' | 'ready' | 'failed'} state the state of the session
+ *
+ * The report carries the moment the client started waiting (`since`): the
+ * status bar shows how long the USER has been waiting, not how old the
+ * session of the host is - the two are different clocks (the connection-state
+ * review, F2). A `since` of 0 means "I do not know".
+ * @param {'starting' | 'ready' | 'failed' | 'idle'} state the state of the session
  * @param {string} [detail] the reason of the failure
  */
 function reportClientState(state, detail = '') {
   clientSessionState = state
   clientSessionDetail = typeof detail === 'string' ? detail : ''
+  // The wait for the handshake starts with the first report of "starting".
+  // A retry reports "starting" again - but the user is still waiting for the
+  // same thing, so the moment must not move. Every other state ends the
+  // wait: the handshake resolved, the session failed, or there is no session.
+  if (state === 'starting') {
+    if (clientSessionSince === 0) clientSessionSince = Date.now()
+  } else {
+    clientSessionSince = 0
+  }
   const store = sessionStore
   if (store === null || store === undefined) return
   if (typeof store.lspSessionState !== 'function') return
   try {
-    store.lspSessionState(state, clientSessionDetail)
+    store.lspSessionState(state, clientSessionDetail, clientSessionSince)
   } catch (error) {
     console.warn('[lsp] the state of the session could not be reported:', error instanceof Error ? error.message : error)
   }
@@ -274,10 +312,12 @@ function reportClientState(state, detail = '') {
  *
  * It is exported so that the state can be observed without a store - the
  * tests of the handshake have no store at all.
- * @returns {{state: string, detail: string}} the state of the session
+ * @returns {{state: string, detail: string, since: number}} the state of the
+ *   session, the reason of the last failure and the moment the client
+ *   started waiting (0 when it is not waiting)
  */
 export function lspClientSessionState() {
-  return { state: clientSessionState, detail: clientSessionDetail }
+  return { state: clientSessionState, detail: clientSessionDetail, since: clientSessionSince }
 }
 /**
  * How many semantic requests of the session have been answered.
@@ -1499,14 +1539,115 @@ function watchHandshake(client) {
 }
 
 /**
+ * How long the client waits between two handshake attempts.
+ *
+ * The server may need a moment to come up, and a retry is cheap: the host
+ * answers the second handshake from its cache, and the socket is the same
+ * one.
+ */
+const HANDSHAKE_RETRY_DELAY_MS = 2000
+
+/**
+ * The host states in which the language server PROCESS is alive.
+ *
+ * The host is starting it, it is building the program of the project, it is
+ * coming back after a crash, or it is ready. In all four cases the process
+ * is there, and the handshake WILL be answered as soon as the host forwards
+ * it - the host holds the handshake until the server exists.
+ *
+ * The client must not give up on a server that is on its way (the
+ * connection-state review, F2): it used to count its own budget and nothing
+ * else, so a host that said "building" - or even "ready", with the server
+ * plainly alive - was answered with "the session is dead" after 126 seconds.
+ *
+ * The price of waiting: a host that is alive while the LINK between the
+ * browser and the host is broken keeps the client waiting. The status bar
+ * offers the [reconnect] button for that case, so the user has a way out.
+ */
+const HOST_SERVER_ALIVE_STATES = ['starting', 'building', 'restarting', 'ready']
+
+/**
+ * The host states in which there is NO language server at all.
+ *
+ * Nothing can answer a handshake, so waiting for one is pointless: the
+ * client says at once that the session cannot come. The host has its own
+ * wording for every one of these states and the status bar shows it - the
+ * client only has to say that the session is not coming (the connection-state
+ * review, F2).
+ */
+const HOST_SERVER_ABSENT_STATES = ['idle', 'suspended', 'degraded', 'cancelled', 'failed']
+
+/**
+ * The state of the language server on the host, as the client last saw it.
+ *
+ * The store polls the host every two seconds and mirrors the state into its
+ * `lsp` slice, so this is the host's own truth - as fresh as the last poll.
+ *
+ * An empty string means "the client has not seen a state yet": the store may
+ * not have polled the host yet. That is NOT the same as "there is no language
+ * server", and the two must not be confused - a session must not be declared
+ * dead before the first poll.
+ * @returns {string} the state of the language server on the host
+ */
+function hostLanguageServerState() {
+  const state = sessionStore?.state?.lsp?.state
+  return typeof state === 'string' ? state : ''
+}
+
+/**
+ * Arm the timer of the next handshake attempt.
+ * @returns {void}
+ */
+function armHandshakeRetry() {
+  handshakeTimer = setTimeout(() => {
+    handshakeTimer = null
+    if (currentClient === null) return
+    reinitializeLsp()
+  }, HANDSHAKE_RETRY_DELAY_MS)
+  handshakeTimer.unref?.()
+}
+
+/**
  * Try the handshake again after it failed.
  *
  * The language server may need a moment (the host starts it when the
  * project is opened), and a session that is broken for good is worse than
  * a few retries.
+ *
+ * The state of the HOST decides what the client does (the connection-state
+ * review, F2). The client used to count its own budget and nothing else:
+ * the host said "building" - the server is alive and building the program
+ * of the project - and the client declared the session dead after 126
+ * seconds. The other way round, the host said "idle" - there is no language
+ * server at all - and the client waited those 126 seconds for a handshake
+ * that cannot be answered.
  */
 function scheduleHandshakeRetry() {
   if (handshakeTimer !== null) return
+  const hostState = hostLanguageServerState()
+  if (HOST_SERVER_ALIVE_STATES.includes(hostState)) {
+    // The host says the language server is alive. The client did not get an
+    // answer, but the server IS there - the host holds the handshake until the
+    // server exists, so the answer is on its way.
+    //
+    // Counting a retry here would declare the session dead although the
+    // server is doing its work, so the budget is reset instead: the client
+    // waits for a server that is on its way.
+    handshakeRetries = 0
+    armHandshakeRetry()
+    return
+  }
+  if (HOST_SERVER_ABSENT_STATES.includes(hostState)) {
+    // There is no language server at all: no handshake can be answered, so
+    // there is nothing to wait for. The status bar shows the host's own
+    // wording for the state; the client says that the session is not coming.
+    console.warn('[lsp] the host has no language server; the session cannot be established')
+    reportClientState('failed', `the host has no language server for this project (state: ${hostState})`)
+    return
+  }
+  // The host did not say anything (the store may not have polled it yet), or
+  // it says something the client cannot read: the client cannot tell whether
+  // there is a server, so it counts its own budget as it always did.
   if (handshakeRetries >= MAX_HANDSHAKE_RETRIES) {
     console.warn('[lsp] the handshake keeps failing; the session is dead - reconnect it from the status bar')
     // The session is dead, and the user has to know it: the status bar
@@ -1520,12 +1661,7 @@ function scheduleHandshakeRetry() {
     return
   }
   handshakeRetries += 1
-  handshakeTimer = setTimeout(() => {
-    handshakeTimer = null
-    if (currentClient === null) return
-    reinitializeLsp()
-  }, 2000)
-  handshakeTimer.unref?.()
+  armHandshakeRetry()
 }
 
 /**
@@ -1732,9 +1868,15 @@ function stopLsp() {
   // build its program again.
   resetLspHealth()
   // The session is over: there is no link any more, so the status bar must
-  // not keep saying that the session is ready. The next session reports
-  // "starting" again when it is built.
-  reportClientState('starting')
+  // not keep saying that the session is ready. And it must not say
+  // "connecting" either: there is nothing to connect - the client object is
+  // gone. "idle" is the state of a session that does not exist (the
+  // connection-state review, F1).
+  //
+  // Three paths end a session and all of them come here: the project was put
+  // into the basic mode, the store was dropped from the cache of the
+  // workspaces, and the semantic features were switched off.
+  reportClientState('idle')
   bumpVersion()
 }
 
@@ -2005,6 +2147,21 @@ export function releaseLspForStore(store) {
   if (releasedStores.has(store)) return
   releasedStores.add(store)
   const root = typeof store?.state?.root === 'string' ? store.state.root : ''
+  // The store may have a part of the release of its own (its poll timer and
+  // the mirrored status). The method is optional: the release of the session
+  // must work with or without it.
+  //
+  // It runs FIRST: it resets the mirrored status of the store, and the
+  // session reports "idle" afterwards - so the last word about the state of
+  // the session is the truth ("there is no session"), not the default of a
+  // fresh slice.
+  if (typeof store?.releaseLsp === 'function') {
+    try {
+      store.releaseLsp()
+    } catch (error) {
+      console.warn('[lsp] the store could not release its session:', error instanceof Error ? error.message : error)
+    }
+  }
   // The session belongs to this store: it goes with it.
   if (store === sessionStore) {
     if (unsubscribeStore !== null) {
@@ -2022,16 +2179,6 @@ export function releaseLspForStore(store) {
   // root of the running session is the one exception: the session that is
   // running owns its server.
   if (root !== '' && !sameRoot(root, sessionRoot)) shutdownHostLsp(root)
-  // The store may have a part of the release of its own (its poll timer).
-  // The method is optional: the release of the session must work with or
-  // without it.
-  if (typeof store?.releaseLsp === 'function') {
-    try {
-      store.releaseLsp()
-    } catch (error) {
-      console.warn('[lsp] the store could not release its session:', error instanceof Error ? error.message : error)
-    }
-  }
 }
 
 /**
@@ -2169,7 +2316,7 @@ export function keymapKeyFor(name) {
  * The reason why the semantic entries are greyed out, for one state of the
  * client session.
  *
- * Three states, three reasons (review R6-1):
+ * Four states, four reasons (review R6-1):
  *
  *   'ready'    - the server answered and does not offer the feature;
  *   'failed'   - the session is dead. The way out is the [reconnect] button
@@ -2177,7 +2324,12 @@ export function keymapKeyFor(name) {
  *                dead session, not the state that won the status bar;
  *   'starting' - the session is still connecting. There is nothing to
  *                reconnect yet, and promising a button that does not exist
- *                is exactly the mistake this round fixed.
+ *                is exactly the mistake this round fixed;
+ *   'idle'     - there is NO session: the feature is off, the project was
+ *                put into the basic mode, or the store was dropped. The
+ *                reason of its own - "connecting" was the lie of the
+ *                connection-state review (F1), and the reason of a dead
+ *                session promises a reconnect that does not exist either.
  *
  * The helper is exported so the mapping can be asserted without driving a
  * session into every state.
@@ -2187,6 +2339,7 @@ export function keymapKeyFor(name) {
 export function semanticUnavailableFor(state) {
   if (state === 'ready') return 'nav.semanticUnavailable'
   if (state === 'failed') return 'nav.semanticSessionUnavailable'
+  if (state === 'idle') return 'nav.semanticSessionIdle'
   return 'nav.semanticSessionConnecting'
 }
 

@@ -601,7 +601,7 @@ test('the release of a store stops its poll and clears the mirrored status', () 
   store.releaseLsp()
   assert.equal(store.lspPollTimer, null, 'the poll of the status stops')
   assert.equal(store.state.lsp.state, 'idle', 'the mirrored status is cleared')
-  assert.equal(store.state.lsp.clientState, 'starting', 'the client session is gone as well')
+  assert.equal(store.state.lsp.clientState, 'idle', 'the client session is gone as well')
   // The release may come twice: the second call must not throw.
   store.releaseLsp()
   assert.equal(store.state.lsp.state, 'idle')

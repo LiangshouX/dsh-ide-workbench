@@ -31873,6 +31873,10 @@ var en = {
   // it says nothing about that link, and the two never check each other.
   "lsp.status.sessionFailed": "Semantic analysis: the session is not ready",
   "lsp.status.sessionConnecting": "Semantic analysis: connecting\u2026",
+  // The client has NO session while the host still says the server is alive:
+  // the feature does not work in the browser, and "connecting…" would be a lie
+  // (nothing is connecting).
+  "lsp.status.sessionIdle": "Semantic analysis: the session is not connected",
   "lsp.cancelIndex": "Cancel indexing",
   "lsp.statusTitle": "Semantic analysis status",
   "lsp.rebuildIndex": "Rebuild the index",
@@ -31957,6 +31961,11 @@ var en = {
   // The session is still connecting: there is nothing to reconnect yet, and
   // the text must not promise a button that does not exist.
   "nav.semanticSessionConnecting": "The semantic analysis session is still connecting.",
+  // There is NO session: the feature is off, the project was put into the
+  // basic mode, or the store was dropped. Saying "connecting" would be a lie
+  // (there is nothing to connect), and the reason of a dead session would
+  // promise a reconnect that does not exist either.
+  "nav.semanticSessionIdle": "There is no semantic analysis session. The index can be built again from the status bar.",
   "lsp.lowMemory": "Not enough available memory (needs {need} MB, {free} MB available)",
   "lsp.lowMemoryHint": "Close the other programs, or use the basic mode for this language.",
   "lsp.crashedToast": "The language server exited.",
@@ -32543,6 +32552,9 @@ var zh = {
   // 服务器进程还在，并不说明这条链路是否可用，两者从不互相校验。
   "lsp.status.sessionFailed": "\u8BED\u4E49\u5206\u6790\uFF1A\u4F1A\u8BDD\u672A\u5C31\u7EEA",
   "lsp.status.sessionConnecting": "\u8BED\u4E49\u5206\u6790\uFF1A\u6B63\u5728\u8FDE\u63A5\u2026",
+  // 客户端根本没有会话，而宿主还说服务器活着：浏览器里的语义功能用不了，
+  // 说「正在连接…」是谎话（什么都没有在连）。
+  "lsp.status.sessionIdle": "\u8BED\u4E49\u5206\u6790\uFF1A\u4F1A\u8BDD\u6CA1\u6709\u8FDE\u63A5",
   "lsp.cancelIndex": "\u53D6\u6D88\u7D22\u5F15",
   "lsp.statusTitle": "\u8BED\u4E49\u5206\u6790\u72B6\u6001",
   "lsp.rebuildIndex": "\u91CD\u65B0\u5EFA\u7ACB\u7D22\u5F15",
@@ -32613,6 +32625,10 @@ var zh = {
   "nav.semanticSessionUnavailable": "\u8BED\u4E49\u5206\u6790\u4F1A\u8BDD\u5C1A\u672A\u5C31\u7EEA\uFF0C\u53EF\u5728\u72B6\u6001\u680F\u91CD\u65B0\u8FDE\u63A5\u3002",
   // 会话仍在连接中：此时还没有可重连的东西，文案不能承诺一个不存在的按钮。
   "nav.semanticSessionConnecting": "\u8BED\u4E49\u5206\u6790\u4F1A\u8BDD\u6B63\u5728\u8FDE\u63A5\u2026",
+  // 根本没有会话：功能被关掉了、项目被放进了基础模式，或者 store 被回收了。
+  // 说「正在连接」是谎话（没有东西可连），而「会话已死」的理由又承诺了一个
+  // 并不存在的重连。
+  "nav.semanticSessionIdle": "\u6CA1\u6709\u8BED\u4E49\u5206\u6790\u7684\u4F1A\u8BDD\u3002\u53EF\u4EE5\u5728\u72B6\u6001\u680F\u91CC\u91CD\u65B0\u5EFA\u7ACB\u7D22\u5F15\u3002",
   "lsp.lowMemory": "\u7CFB\u7EDF\u53EF\u7528\u5185\u5B58\u4E0D\u8DB3\uFF08\u9700\u8981 {need} MB\uFF0C\u53EF\u7528 {free} MB\uFF09",
   "lsp.lowMemoryHint": "\u8BF7\u5173\u95ED\u5176\u5B83\u7A0B\u5E8F\uFF0C\u6216\u5BF9\u8BE5\u8BED\u8A00\u6539\u7528\u4FDD\u5B88\u7248\u3002",
   "lsp.crashedToast": "\u8BED\u8A00\u670D\u52A1\u5668\u5DF2\u9000\u51FA\u3002",
@@ -37935,7 +37951,8 @@ function indexDecisionOf(store, root) {
     return "build";
   }
 }
-var clientSessionState = "starting";
+var clientSessionState = "idle";
+var clientSessionSince = 0;
 var clientSessionDetail = "";
 var lastHandshakeError = "";
 var sessionStore = null;
@@ -37960,11 +37977,16 @@ var health = { consecutiveFailures: 0, consecutiveTimeouts: 0, lastFailure: null
 function reportClientState(state, detail = "") {
   clientSessionState = state;
   clientSessionDetail = typeof detail === "string" ? detail : "";
+  if (state === "starting") {
+    if (clientSessionSince === 0) clientSessionSince = Date.now();
+  } else {
+    clientSessionSince = 0;
+  }
   const store = sessionStore;
   if (store === null || store === void 0) return;
   if (typeof store.lspSessionState !== "function") return;
   try {
-    store.lspSessionState(state, clientSessionDetail);
+    store.lspSessionState(state, clientSessionDetail, clientSessionSince);
   } catch (error) {
     console.warn("[lsp] the state of the session could not be reported:", error instanceof Error ? error.message : error);
   }
@@ -38449,20 +38471,41 @@ function watchHandshake(client) {
     }
   );
 }
+var HANDSHAKE_RETRY_DELAY_MS = 2e3;
+var HOST_SERVER_ALIVE_STATES = ["starting", "building", "restarting", "ready"];
+var HOST_SERVER_ABSENT_STATES = ["idle", "suspended", "degraded", "cancelled", "failed"];
+function hostLanguageServerState() {
+  const state = sessionStore?.state?.lsp?.state;
+  return typeof state === "string" ? state : "";
+}
+function armHandshakeRetry() {
+  handshakeTimer = setTimeout(() => {
+    handshakeTimer = null;
+    if (currentClient === null) return;
+    reinitializeLsp();
+  }, HANDSHAKE_RETRY_DELAY_MS);
+  handshakeTimer.unref?.();
+}
 function scheduleHandshakeRetry() {
   if (handshakeTimer !== null) return;
+  const hostState = hostLanguageServerState();
+  if (HOST_SERVER_ALIVE_STATES.includes(hostState)) {
+    handshakeRetries = 0;
+    armHandshakeRetry();
+    return;
+  }
+  if (HOST_SERVER_ABSENT_STATES.includes(hostState)) {
+    console.warn("[lsp] the host has no language server; the session cannot be established");
+    reportClientState("failed", `the host has no language server for this project (state: ${hostState})`);
+    return;
+  }
   if (handshakeRetries >= MAX_HANDSHAKE_RETRIES) {
     console.warn("[lsp] the handshake keeps failing; the session is dead - reconnect it from the status bar");
     reportClientState("failed", lastHandshakeError);
     return;
   }
   handshakeRetries += 1;
-  handshakeTimer = setTimeout(() => {
-    handshakeTimer = null;
-    if (currentClient === null) return;
-    reinitializeLsp();
-  }, 2e3);
-  handshakeTimer.unref?.();
+  armHandshakeRetry();
 }
 function reinitializeLsp() {
   if (currentClient === null || currentTransport === null) return;
@@ -38550,7 +38593,7 @@ function stopLsp() {
     pendingConnection = null;
   }
   resetLspHealth();
-  reportClientState("starting");
+  reportClientState("idle");
   bumpVersion();
 }
 var switchChain = Promise.resolve();
@@ -38632,6 +38675,13 @@ function releaseLspForStore(store) {
   if (releasedStores.has(store)) return;
   releasedStores.add(store);
   const root = typeof store?.state?.root === "string" ? store.state.root : "";
+  if (typeof store?.releaseLsp === "function") {
+    try {
+      store.releaseLsp();
+    } catch (error) {
+      console.warn("[lsp] the store could not release its session:", error instanceof Error ? error.message : error);
+    }
+  }
   if (store === sessionStore) {
     if (unsubscribeStore !== null) {
       unsubscribeStore();
@@ -38642,13 +38692,6 @@ function releaseLspForStore(store) {
     sessionRoot = "";
   }
   if (root !== "" && !sameRoot(root, sessionRoot)) shutdownHostLsp(root);
-  if (typeof store?.releaseLsp === "function") {
-    try {
-      store.releaseLsp();
-    } catch (error) {
-      console.warn("[lsp] the store could not release its session:", error instanceof Error ? error.message : error);
-    }
-  }
 }
 function lspClient() {
   return currentClient;
@@ -38692,6 +38735,7 @@ function keymapKeyFor(name2) {
 function semanticUnavailableFor(state) {
   if (state === "ready") return "nav.semanticUnavailable";
   if (state === "failed") return "nav.semanticSessionUnavailable";
+  if (state === "idle") return "nav.semanticSessionIdle";
   return "nav.semanticSessionConnecting";
 }
 function navLabels() {
@@ -38897,14 +38941,21 @@ function initialState() {
        */
       liveRoots: [],
       /**
-       * The state of the CLIENT session: 'starting' | 'ready' | 'failed'.
+       * The state of the CLIENT session: 'idle' | 'starting' | 'ready' |
+       * 'failed'.
        *
        * The host's status says that the language server PROCESS is up; it
        * says nothing about the link between the browser and the server. The
        * two never check each other, and the status bar believed the host: it
        * said "ready" while the semantic features were completely dead.
+       *
+       * 'idle' means THERE IS NO SESSION - and that is the state a fresh
+       * store starts in: the workbench has not connected to anything yet, so
+       * "starting" would be a lie (the bar said "connecting…" while nothing
+       * was connecting, 专项 F1). The session reports its own state as soon
+       * as it exists.
        */
-      clientState: "starting",
+      clientState: "idle",
       /** The reason of the last failure of the client session. */
       clientDetail: "",
       /**
@@ -40420,16 +40471,24 @@ var WorkbenchStore = class {
    * The toast is only shown when the host has a language server that could
    * fail: in every other state the host's own explanation is the truth, and
    * a dead client session on top of it is a false alarm (review P1-2).
-   * @param {string} state 'starting' | 'ready' | 'failed'
+   *
+   * The client also reports WHEN it started waiting (`since`, a timestamp in
+   * milliseconds). The status bar shows that waiting time, not the age of the
+   * host's session: the two are different things, and the user wants to know
+   * how long THEY have been waiting. A `since` of 0 means "I do not know" -
+   * the bar falls back to the age of the host's session then.
+   * @param {string} state 'starting' | 'ready' | 'failed' | 'idle'
    * @param {string} [detail] the reason of the failure
+   * @param {number} [since] when the client started waiting (ms), 0 = unknown
    * @returns {void}
    */
-  lspSessionState(state, detail = "") {
+  lspSessionState(state, detail = "", since = 0) {
     const next = typeof state === "string" && state !== "" ? state : "starting";
     const reason = typeof detail === "string" ? detail : "";
+    const started = Number.isFinite(since) && since > 0 ? since : 0;
     const lsp = this.state.lsp ?? {};
-    if (lsp.clientState === next && lsp.clientDetail === reason) return;
-    this.patch("lsp", { clientState: next, clientDetail: reason });
+    if (lsp.clientState === next && lsp.clientDetail === reason && lsp.clientSince === started) return;
+    this.patch("lsp", { clientState: next, clientDetail: reason, clientSince: started });
     if (next !== "failed") {
       this.lspSessionFaultNotified = false;
       return;
@@ -62453,13 +62512,15 @@ function formatWaited(minutes, seconds, locale = "en") {
 function isChineseText(text) {
   return /[\u3400-\u9fff]/.test(typeof text === "string" ? text : "");
 }
+var CLIENT_SESSION_PROBLEMS = ["failed", "starting", "idle"];
 function showRebuildButton(viewKey, lsp = {}) {
   if (lsp.rebuilding === true) return false;
-  if (lsp.clientState === "failed") return false;
+  if (CLIENT_SESSION_PROBLEMS.includes(lsp.clientState)) return false;
   return ["degraded", "failed", "cancelled", "idle", "suspended"].includes(viewKey);
 }
 function showReconnectButton(viewKey, clientState = "") {
-  return viewKey === "sessionFailed" || clientState === "failed";
+  if (viewKey === "sessionFailed" || viewKey === "sessionConnecting" || viewKey === "sessionIdle") return true;
+  return CLIENT_SESSION_PROBLEMS.includes(clientState);
 }
 function showCancelButton(hostState, cancellable) {
   return cancellable === true && ["building", "starting", "restarting"].includes(hostState);
@@ -62488,6 +62549,11 @@ function waitedSince(lsp) {
   const startedAt = typeof lsp?.startedAt === "number" && lsp.startedAt > 0 ? lsp.startedAt : 0;
   if (startedAt === 0) return null;
   return waitedFor(Date.now() - startedAt);
+}
+function waitedSinceClient(lsp) {
+  const since = typeof lsp?.clientSince === "number" && lsp.clientSince > 0 ? lsp.clientSince : 0;
+  if (since > 0) return waitedFor(Date.now() - since);
+  return waitedSince(lsp);
 }
 function lspStatusView(store, state) {
   const t2 = store.t;
@@ -62530,7 +62596,7 @@ function lspStatusView(store, state) {
     };
   }
   if (clientState === "starting" && HOST_CONNECTING_STATES.includes(current)) {
-    const waited = waitedSince(lsp);
+    const waited = waitedSinceClient(lsp);
     const waitedText = waited === null ? "" : formatWaited(waited.minutes, waited.seconds, isChineseText(t2("lsp.status.sessionConnecting")) ? "zh" : "en");
     const hostText = current === "building" ? t2("lsp.status.building") : "";
     return {
@@ -62539,6 +62605,15 @@ function lspStatusView(store, state) {
       text: t2("lsp.status.sessionConnecting"),
       tone: "idle",
       detail: base2.detail === "" ? waitedText !== "" ? waitedText : hostText : base2.detail
+    };
+  }
+  if (clientState === "idle" && LSP_HOST_HEALTHY_STATES.includes(current)) {
+    return {
+      ...base2,
+      key: "sessionIdle",
+      text: t2("lsp.status.sessionIdle"),
+      tone: "warn",
+      action: "diagnostics"
     };
   }
   const failures = Number.isFinite(lsp.consecutiveFailures) ? lsp.consecutiveFailures : 0;

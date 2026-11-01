@@ -700,12 +700,16 @@ test('the status bar offers the cancel button only for a long build', async () =
     fresh.state.lsp = { ...fresh.state.lsp, ...state }
     return renderToStaticMarkup(React.createElement(mod.Workbench, { store: fresh }))
   }
+  // The cancel button is found by its TITLE: the status bar gives the
+  // cancel, the rebuild and the reconnect button the same CSS class, and the
+  // reconnect button is there whenever the client session is not settled
+  // (专项 F2).
   // A build that just started: no button yet.
-  assert.doesNotMatch(html({ state: 'building', startedAt: Date.now() }), /iwb-lsp-cancel/)
+  assert.doesNotMatch(html({ state: 'building', startedAt: Date.now() }), /title="lsp\.cancelIndex"/)
   // A build that runs longer than the patience: the button is there.
-  assert.match(html({ state: 'building', startedAt: Date.now() - 120000 }), /iwb-lsp-cancel/)
+  assert.match(html({ state: 'building', startedAt: Date.now() - 120000 }), /title="lsp\.cancelIndex"/)
   // No build at all: no button.
-  assert.doesNotMatch(html({ state: 'ready', startedAt: Date.now() - 120000 }), /iwb-lsp-cancel/)
+  assert.doesNotMatch(html({ state: 'ready', startedAt: Date.now() - 120000 }), /title="lsp\.cancelIndex"/)
 })
 
 test('a crash is announced once, not on every poll', async () => {
