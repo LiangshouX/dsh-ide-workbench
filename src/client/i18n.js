@@ -696,6 +696,10 @@ export const en = {
   'lsp.degradedToast': 'Semantic analysis paused.',
   'lsp.crashedTimeout': 'A request took too long. The limit of a single request can be raised in the settings.',
   'lsp.crashedMemory': 'The machine ran out of memory. Close other programs, or use the basic mode for this language.',
+  // The budget of MEM-08 is the share of the ceilings the running servers
+  // hold - not the free memory of the machine. Closing other programs does
+  // not give it back (review R6, N3).
+  'lsp.crashedBudget': 'The budget of the language servers is used up. Release a language server, or raise the budget in the settings - closing other programs does not help here.',
   'lsp.crashedGeneric': 'The details are in the diagnostics panel.',
   'lsp.outsideProject': 'That file is outside the workspace and cannot be opened.',
   'lsp.serverMissing': 'No language server was found for {language}. Install it and make sure it is on PATH.',
@@ -1362,6 +1366,9 @@ export const zh = {
   'lsp.degradedToast': '语义分析已暂停。',
   'lsp.crashedTimeout': '某个请求耗时过长。可在设置里调高「单次请求的上限」。',
   'lsp.crashedMemory': '机器可用内存不足。请关闭其它程序，或对该语言改用保守版。',
+  // MEM-08 的预算是运行中的语言服务器占住的上限份额，不是机器的空闲内存 ——
+  // 关闭其它程序腾不出它（第六轮 N3）。
+  'lsp.crashedBudget': '语言服务器的内存预算已用完。请释放一台语言服务器，或在设置里调高预算 —— 关闭其它程序在这里帮不上忙。',
   'lsp.crashedGeneric': '详情见诊断面板。',
   'lsp.outsideProject': '该文件在工作区之外，无法打开。',
   'lsp.serverMissing': '未找到 {language} 的语言服务器。请安装它并确保它在 PATH 中。',

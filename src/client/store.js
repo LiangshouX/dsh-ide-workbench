@@ -456,6 +456,15 @@ function initialState() {
 export function crashAdviceFor(detail, t) {
   const text = typeof detail === 'string' ? detail.toLowerCase() : ''
   if (text.includes('timeout')) return t('lsp.crashedTimeout')
+  // The BUDGET of MEM-08 is not the free memory of the machine: it is the
+  // share of the ceilings that the running servers hold. Closing other
+  // programs does not give it back - releasing a server or raising the
+  // budget does. The detail of the budget refusal contains the word
+  // "memory", and the memory advice was sent for it (review R6, N3).
+  //
+  // The keyword is the MEMORY budget: the restart budget of the crash chain
+  // is a different thing, and its detail keeps the generic advice.
+  if (text.includes('memory budget')) return t('lsp.crashedBudget')
   if (text.includes('memory') || text.includes('out of memory')) return t('lsp.crashedMemory')
   return t('lsp.crashedGeneric')
 }

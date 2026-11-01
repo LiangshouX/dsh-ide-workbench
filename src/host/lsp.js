@@ -246,13 +246,22 @@ export const PRESSURE_YIELD_DETAIL = 'the machine had {margin} MB of memory left
  * less memory left than the servers may still take") is true only when the
  * margin is NEGATIVE - and the valve fires the whole band below the floor,
  * where that sentence is false (review R5, M2).
+ *
+ * THE TWO NUMBERS MUST NOT LOSE THE COMPARISON. The trigger is decided in
+ * BYTES, and the message prints megabytes: a margin of 255.6 MB printed as
+ * "256 MB" next to a floor of "256 MB" says "equal", not "below" - and the
+ * sentence would be false in a band of half a megabyte (review R6, N1).
+ * ⇒ The margin is printed DOWN (never more than the real one) and the floor
+ * is printed UP (never less than the real one): the printed margin is then
+ * always strictly below the printed floor, and the sentence is true in every
+ * band.
  * @param {string} template the message with its placeholders
  * @param {object | null} resources the memory snapshot that found the pressure
  * @returns {string} the message with the numbers of the snapshot
  */
 export function pressureDetailOf(template, resources) {
-  const margin = Math.round((resources?.safeAvailableBytes ?? 0) / (1024 * 1024))
-  const floor = Math.round(Number(resources?.hardFloorMB ?? 0))
+  const margin = Math.floor((resources?.safeAvailableBytes ?? 0) / (1024 * 1024))
+  const floor = Math.ceil(Number(resources?.hardFloorMB ?? 0))
   return template.replace('{margin}', String(margin)).replace('{floor}', String(floor))
 }
 
@@ -4504,16 +4513,25 @@ export class LspManager {
     // true in every band (review R5, M2).
     const template = victim === trigger ? PRESSURE_EXIT_DETAIL : PRESSURE_YIELD_DETAIL
     const detail = pressureDetailOf(template, resources)
-    await this.#exitIdle(entry, victim, detail)
-    // The release may NOT have happened: the idle exit returns early when
-    // the session was replaced in the meantime or when it is already being
-    // released. The log may only say that a server was released when it
-    // really was (review R5, H1).
-    if (victim.state !== 'suspended') return
+    const outcome = await this.#exitIdle(entry, victim, detail)
+    this.#pressureReported = true
+    if (outcome.released === false) {
+      // The valve triggered, chose a victim and did NOT release it: the
+      // machine is still tight and nothing happened. That is the FIRST sign
+      // that the valve of MEM-12 does not work, and it has to leave a trace
+      // - a silent no-op is exactly what the valve must never be
+      // (review R6, N2).
+      this.#ctx?.logger?.warn?.(
+        'lsp: the machine is below the hard floor: the confirmed margin is %d MB, the account says %d MB - but no language server was released (%s)',
+        Math.round((resources?.safeAvailableBytes ?? 0) / (1024 * 1024)),
+        Math.round((resources?.availableBytes ?? 0) / (1024 * 1024)),
+        outcome.reason,
+      )
+      return
+    }
     // The two numbers are logged together: the account may still say that
     // there is room, and the operator has to see WHY the machine gave the
     // memory back (review R1: the account used to be inflated silently).
-    this.#pressureReported = true
     this.#ctx?.logger?.warn?.(
       'lsp: the machine is below the hard floor: the confirmed margin is %d MB, the account says %d MB - the least used language server was released',
       Math.round((resources?.safeAvailableBytes ?? 0) / (1024 * 1024)),
@@ -4628,22 +4646,28 @@ export class LspManager {
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {string} [detail] the message shown to the user
+   * @returns {Promise<{released: boolean, reason: string}>} whether the server
+   *   was really released, and why it was not when it was not
    */
   async #exitIdle(entry, session, detail = IDLE_EXIT_DETAIL) {
-    if (entry.session !== session) return
+    // The three early returns below release NOTHING. The caller has to be
+    // able to tell: the pressure valve triggered, chose a victim and did
+    // not release it - the machine is still tight, and that is the first
+    // sign that the valve of MEM-12 does not work (review R6, N2).
+    if (entry.session !== session) return { released: false, reason: 'the session was replaced' }
     if (session.state !== 'ready' && session.state !== 'building') {
       // The timer must not be lost (IDLE-05): the session is in a state
       // that cannot be released right now, so the timer is armed again and
       // the release happens later. A session that does not run any more
       // (it is suspended or gone) gets no timer.
       this.#rearmAfterEarlyExit(entry, session)
-      return
+      return { released: false, reason: 'the session is not in a state that can be released' }
     }
     // Two releases of the same session must not happen: the idle timer and
     // the pressure valve may fire at the same time, and the second release
     // would try to leave the state `suspended` twice - a transition the
     // state machine refuses.
-    if (session.releasing === true) return
+    if (session.releasing === true) return { released: false, reason: 'the session is being released already' }
     session.releasing = true
     session.intentionalExit = true
     this.#writeDidClose(entry, session)
@@ -4659,6 +4683,7 @@ export class LspManager {
       this.#notify(entry, { type: 'didClose', uri })
     }
     this.#notify(entry, { type: 'suspended', root: entry.root, detail })
+    return { released: true, reason: 'the server was released' }
   }
 
   /**

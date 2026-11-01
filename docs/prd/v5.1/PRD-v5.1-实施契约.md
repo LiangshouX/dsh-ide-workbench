@@ -119,6 +119,7 @@ tight = (decision === 'tight')        ← 与 decision 恒等，不允许有第�
 - **压力释放的文案由快照的数字生成**（`pressureDetailOf`）：「the machine had {margin} MB of memory
   left for the running language servers - below the {floor} MB floor - …」。
   句子里的两个数**必须**是快照里的那两个 ⇒ 它在**每个区间**都为真（第五轮 M2）。
+  ⇒ **余量向下取整、地板向上取整**（第六轮 N1）：触发判在字节上，印出来的两个数必须保住那个比较。
 - 客户端**可以**显示 `safeAvailableMB`（诊断面板在它小于账目的可用时多一行「压力余量」），
   但**不得**用它做任何判定 —— 判定只有一个口径（MEM-09）。
 

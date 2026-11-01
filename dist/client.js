@@ -31967,6 +31967,10 @@ var en = {
   "lsp.degradedToast": "Semantic analysis paused.",
   "lsp.crashedTimeout": "A request took too long. The limit of a single request can be raised in the settings.",
   "lsp.crashedMemory": "The machine ran out of memory. Close other programs, or use the basic mode for this language.",
+  // The budget of MEM-08 is the share of the ceilings the running servers
+  // hold - not the free memory of the machine. Closing other programs does
+  // not give it back (review R6, N3).
+  "lsp.crashedBudget": "The budget of the language servers is used up. Release a language server, or raise the budget in the settings - closing other programs does not help here.",
   "lsp.crashedGeneric": "The details are in the diagnostics panel.",
   "lsp.outsideProject": "That file is outside the workspace and cannot be opened.",
   "lsp.serverMissing": "No language server was found for {language}. Install it and make sure it is on PATH.",
@@ -32615,6 +32619,9 @@ var zh = {
   "lsp.degradedToast": "\u8BED\u4E49\u5206\u6790\u5DF2\u6682\u505C\u3002",
   "lsp.crashedTimeout": "\u67D0\u4E2A\u8BF7\u6C42\u8017\u65F6\u8FC7\u957F\u3002\u53EF\u5728\u8BBE\u7F6E\u91CC\u8C03\u9AD8\u300C\u5355\u6B21\u8BF7\u6C42\u7684\u4E0A\u9650\u300D\u3002",
   "lsp.crashedMemory": "\u673A\u5668\u53EF\u7528\u5185\u5B58\u4E0D\u8DB3\u3002\u8BF7\u5173\u95ED\u5176\u5B83\u7A0B\u5E8F\uFF0C\u6216\u5BF9\u8BE5\u8BED\u8A00\u6539\u7528\u4FDD\u5B88\u7248\u3002",
+  // MEM-08 的预算是运行中的语言服务器占住的上限份额，不是机器的空闲内存 ——
+  // 关闭其它程序腾不出它（第六轮 N3）。
+  "lsp.crashedBudget": "\u8BED\u8A00\u670D\u52A1\u5668\u7684\u5185\u5B58\u9884\u7B97\u5DF2\u7528\u5B8C\u3002\u8BF7\u91CA\u653E\u4E00\u53F0\u8BED\u8A00\u670D\u52A1\u5668\uFF0C\u6216\u5728\u8BBE\u7F6E\u91CC\u8C03\u9AD8\u9884\u7B97 \u2014\u2014 \u5173\u95ED\u5176\u5B83\u7A0B\u5E8F\u5728\u8FD9\u91CC\u5E2E\u4E0D\u4E0A\u5FD9\u3002",
   "lsp.crashedGeneric": "\u8BE6\u60C5\u89C1\u8BCA\u65AD\u9762\u677F\u3002",
   "lsp.outsideProject": "\u8BE5\u6587\u4EF6\u5728\u5DE5\u4F5C\u533A\u4E4B\u5916\uFF0C\u65E0\u6CD5\u6253\u5F00\u3002",
   "lsp.serverMissing": "\u672A\u627E\u5230 {language} \u7684\u8BED\u8A00\u670D\u52A1\u5668\u3002\u8BF7\u5B89\u88C5\u5B83\u5E76\u786E\u4FDD\u5B83\u5728 PATH \u4E2D\u3002",
@@ -39044,6 +39051,7 @@ function initialState() {
 function crashAdviceFor(detail, t2) {
   const text = typeof detail === "string" ? detail.toLowerCase() : "";
   if (text.includes("timeout")) return t2("lsp.crashedTimeout");
+  if (text.includes("memory budget")) return t2("lsp.crashedBudget");
   if (text.includes("memory") || text.includes("out of memory")) return t2("lsp.crashedMemory");
   return t2("lsp.crashedGeneric");
 }
