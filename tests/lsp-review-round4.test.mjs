@@ -192,11 +192,15 @@ test('the reason of a pressure release does not claim that the machine ran out o
   // What ran out is the MARGIN of the machine - the free memory minus what
   // the running servers may still take - and that margin can be gone while
   // the machine still has gigabytes of free memory (review R4, N4).
+  //
+  // The sentence that replaced it was false in the normal band, so the
+  // message carries the NUMBERS now (review R5, M2) - the truth of the
+  // sentence is checked in `tests/lsp-review-round5.test.mjs`.
   const source = await readFile(join(root, 'src', 'host', 'lsp.js'), 'utf8')
   assert.ok(!source.includes('the machine ran out of memory'), 'the message does not claim more than the truth')
   assert.ok(!source.includes('the machine ran out of free memory'), 'and it does not say it twice')
   assert.ok(
-    source.includes('less memory left than the language servers may still take'),
+    source.includes('MB of memory left for the running language servers'),
     'it says what actually happened',
   )
 })

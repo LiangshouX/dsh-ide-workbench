@@ -231,10 +231,30 @@ export const MEASURE_INTERVAL_MS = 60000
  * memory": what ran out is the MARGIN of the machine - the free memory
  * minus what the running servers may still take - and that margin can be
  * gone while the machine still has gigabytes of free memory (review R4,
- * N4). A message that claims more than the truth is the kind of message
- * that teaches the user to ignore the line.
+ * N4). The margin and the floor are IN the message, so the sentence cannot
+ * be true in one range of the numbers and false in the next one (review R5,
+ * M2): the two numbers are filled in by `pressureDetailOf`.
  */
-export const PRESSURE_YIELD_DETAIL = 'the machine had less memory left than the language servers may still take, so the least used one was released to reclaim it (this is not a failure)'
+export const PRESSURE_YIELD_DETAIL = 'the machine had {margin} MB of memory left for the running language servers - below the {floor} MB floor - so the least used one was released to reclaim it (this is not a failure)'
+
+/**
+ * Fill the numbers of the message of a release under memory pressure.
+ *
+ * The message must be true in every range of the numbers, and the only way
+ * to get that is to put the numbers INTO it: the margin of the machine and
+ * the floor it fell below. A sentence about the condition ("the machine had
+ * less memory left than the servers may still take") is true only when the
+ * margin is NEGATIVE - and the valve fires the whole band below the floor,
+ * where that sentence is false (review R5, M2).
+ * @param {string} template the message with its placeholders
+ * @param {object | null} resources the memory snapshot that found the pressure
+ * @returns {string} the message with the numbers of the snapshot
+ */
+export function pressureDetailOf(template, resources) {
+  const margin = Math.round((resources?.safeAvailableBytes ?? 0) / (1024 * 1024))
+  const floor = Math.round(Number(resources?.hardFloorMB ?? 0))
+  return template.replace('{margin}', String(margin)).replace('{floor}', String(floor))
+}
 
 /**
  * The defaults of the `lsp` settings section (PRD §6.1).
@@ -334,7 +354,7 @@ const IDLE_EXIT_DETAIL = 'the language server was released to reclaim memory aft
  * memory more than the project needs the index. What ran out is the margin
  * of the machine, not its free memory - see `PRESSURE_YIELD_DETAIL`.
  */
-const PRESSURE_EXIT_DETAIL = 'the machine had less memory left than the language servers may still take, so this one was released to reclaim it (this is not a failure)'
+const PRESSURE_EXIT_DETAIL = 'the machine had {margin} MB of memory left for the running language servers - below the {floor} MB floor - so this one was released to reclaim it (this is not a failure)'
 
 /**
  * The shortest interval of the memory pressure check (ms).
@@ -2661,12 +2681,19 @@ export class LspManager {
   #safeReservedBytes() {
     let total = 0
     for (const session of this.#sessions) {
-      // A session that holds no reservation holds no memory either: it is
-      // on its way out, and the machine has it back (or gets it back in a
-      // moment). Its ceiling must not be charged here - a server that is
-      // already dying may not take a server that is still alive with it
-      // (review R4, N2).
-      if (session.reservedBytes <= 0) continue
+      // A session without a measurement holds no memory: it is on its way
+      // out, and the machine has it back (or gets it back in a moment). Its
+      // ceiling must not be charged here - a server that is already dying
+      // may not take a server that is still alive with it (review R4, N2).
+      //
+      // The criterion is the MEASUREMENT and not the reservation: the
+      // reservation is the number of the account, and the account can say
+      // "this server has taken its whole ceiling" while the server is
+      // running perfectly well and may still take 1448 MB more. A session
+      // that is skipped like that would not be charged at all - and the
+      // margin would degenerate into the bare free memory of the machine
+      // (review R5, M1).
+      if (session.measuredBytes === 0) continue
       const room = Math.max(0, session.ceilingBytes - session.confirmedBytes)
       total += room
     }
@@ -4470,12 +4497,19 @@ export class LspManager {
     }
     const entry = victim.entry
     if (entry === undefined || entry === null) return
-    // The message says why the server was released: the machine had less
-    // memory left than the running servers may still take (this server was
-    // the one that had to go), or the host gave the room to a server that
-    // was used less (the LRU rule).
-    const detail = victim === trigger ? PRESSURE_EXIT_DETAIL : PRESSURE_YIELD_DETAIL
+    // The message says why the server was released: the margin of the
+    // machine fell below the floor (this server was the one that had to go),
+    // or the host gave the room to a server that was used less (the LRU
+    // rule). The numbers of the snapshot go into the message, so that it is
+    // true in every band (review R5, M2).
+    const template = victim === trigger ? PRESSURE_EXIT_DETAIL : PRESSURE_YIELD_DETAIL
+    const detail = pressureDetailOf(template, resources)
     await this.#exitIdle(entry, victim, detail)
+    // The release may NOT have happened: the idle exit returns early when
+    // the session was replaced in the meantime or when it is already being
+    // released. The log may only say that a server was released when it
+    // really was (review R5, H1).
+    if (victim.state !== 'suspended') return
     // The two numbers are logged together: the account may still say that
     // there is room, and the operator has to see WHY the machine gave the
     // memory back (review R1: the account used to be inflated silently).

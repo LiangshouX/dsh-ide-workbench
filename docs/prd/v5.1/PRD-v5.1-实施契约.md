@@ -108,13 +108,17 @@ tight = (decision === 'tight')        ← 与 decision 恒等，不允许有第�
   **按该语言的典型占用（baseline）封顶**：`confirmed_i = min(起服窗口的下降量, baseline)`。
   差值法分不清「谁长的」：每分钟一次复测会把别的程序长的那一段也记到服务器头上 ⇒ **账目偏乐观**；
   起服窗口也可能被别的程序灌水 ⇒ 封顶让确认口径的误差**有界**（≤ 一个 baseline）。
-- 计入余量的**只有还持有预留额的会话**：预留额一还回去（进程一起步走），它的额度也不再计账
-  —— 否则一台正在死去的服务器会按满额上限把一台健康的服务器带下去（第四轮 N2）。
+- 计入余量的**只有还在跑的会话**：判据是**实测值**（`measured_i === 0` ⇒ 这个会话被释放过 ⇒ 不计账），
+  **不是**预留额（`reserved_i` 是**账目**的数，它会说「这台已经吃满了上限」而其实服务器跑得好好的 ⇒
+  第五轮 M1：那种会话被跳过后，它的额度一个字节都不计账 ⇒ 余量退化成裸空闲内存 ⇒ 阀门沉默）。
 - **不变式**：`safeAvailableBytes ≤ availableBytes` **恒成立**（`confirmed_i ≤ measured_i`）⇒
   压力阀改看确认口径之后，**触发只会更早，不会更晚**（账目已经低于硬地板时，确认口径一定也低于）。
 - 压力阀的触发条件因此是 `safeAvailableBytes < hardFloorBytes`。
   规格 MEM-12 §3.8 要求 2 的字面写法是 `availableBytes < hardFloor` —— **本轮按 R1 收紧**，
   理由（规格那条的前提是「`availableBytes` 是诚实的」，而它不是）与取舍见实施进展 §7.5.3。
+- **压力释放的文案由快照的数字生成**（`pressureDetailOf`）：「the machine had {margin} MB of memory
+  left for the running language servers - below the {floor} MB floor - …」。
+  句子里的两个数**必须**是快照里的那两个 ⇒ 它在**每个区间**都为真（第五轮 M2）。
 - 客户端**可以**显示 `safeAvailableMB`（诊断面板在它小于账目的可用时多一行「压力余量」），
   但**不得**用它做任何判定 —— 判定只有一个口径（MEM-09）。
 
