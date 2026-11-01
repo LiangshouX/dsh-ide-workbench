@@ -628,3 +628,17 @@ if (override.enabled === false) {
 |---|---|
 | `tests/lsp-registry.test.mjs` | 被关掉的语言仍在 `available` 里且 `enabled === false`；注册表里的每个语言要么在 `available` 要么在 `missing`，**一个都不丢** |
 | `tests/settings-lsp.test.mjs` | 被关掉的语言仍有自己的一行，开关是**未勾选**的；点它写回 `enabled: true`；页面上不再有「已关闭的语言服务器」这一栏 |
+
+---
+
+## 13. Java 语言服务器（JS-01 … JS-05）
+
+Java 不 work 的根因与修复方案单独成篇，编号不占用本文件的 D 编号：
+
+> `docs/prd/v5.1/PRD-v5.1-Java语言服务器修复方案.md`
+
+本文只做索引。修复覆盖五条：jdtls 由 JVM 直启（JS-01）、JDK 自动发现（JS-02）、
+`-data` 按工程根隔离（JS-03）、按当前文件语言路由（JS-04）、java 内存估算与上限落地
+（JS-05）。验证入口：`tests/lsp-java-runtime.test.mjs`（发现与 argv）、
+`tests/lsp-java-routing.test.mjs`（宿主路由）、`tests/client-lsp-language.test.mjs`
+（客户端上报语言）。

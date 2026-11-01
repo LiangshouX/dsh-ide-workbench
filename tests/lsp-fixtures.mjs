@@ -285,11 +285,17 @@ export function decodeChunks(chunks) {
  *   the server from the machine (the difference method of MEM-06 measures
  *   exactly that drop) - or to let another program allocate in the same
  *   window
+ * @param {object} [options.javaRuntime] replaces the Java runtime module
+ *   (`java-runtime.js`) the manager resolves jdtls through, so the tests can
+ *   inject a plan without an IDE, a JDK or a jdtls installation on the machine
+ * @param {object} [options.document] extra top-level sections of the settings
+ *   document (e.g. `{ idea: { path } }`), merged next to `lsp`; the `lsp`
+ *   section itself still comes from `options.lsp`
  * @returns {object} the manager and the recorded calls
  */
 export function makeManager(options = {}) {
   const lsp = { ...DEFAULT_LSP_SETTINGS, ...(options.lsp ?? {}) }
-  const document = { lsp }
+  const document = { lsp, ...(options.document ?? {}) }
   const spawned = []
   const workers = []
   const persisted = []
@@ -324,6 +330,7 @@ export function makeManager(options = {}) {
       return worker
     },
     now: options.now,
+    javaRuntime: options.javaRuntime,
     readMemory: options.readMemory ?? (() => ({ totalBytes: 16 * 1024 ** 3, freeBytes: 8 * 1024 ** 3 })),
     readyDelayMs: options.readyDelayMs ?? 10,
     restartBackoffMs: options.restartBackoffMs ?? 10,

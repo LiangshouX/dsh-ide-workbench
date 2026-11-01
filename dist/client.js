@@ -37775,6 +37775,19 @@ var WorkbenchWorkspace = class extends Workspace {
 
 // src/host/settings-defaults.js
 var BUILD_REQUEST_TIMEOUT_MS = 6e5;
+var LSP_LANGUAGE_IDS = [
+  "typescript",
+  "javascript",
+  "javascriptreact",
+  "typescriptreact",
+  "python",
+  "yaml",
+  "java",
+  "go",
+  "rust",
+  "c",
+  "cpp"
+];
 var DEFAULT_LSP_SETTINGS = {
   /** Master switch. false = never start a language server. */
   enabled: true,
@@ -37890,6 +37903,32 @@ var DEFAULT_LSP_SETTINGS = {
    * `args` replace the registered ones; `memoryLimitMB` lowers the
    * ceiling of one language; `memoryBaselineMB` replaces the estimate the
    * free memory is compared with.
+   *
+   * The java server has four keys of its own under `servers.java` (PRD-v5.1
+   * JS-02). Every one of them defaults to empty and every default is
+   * environment-derived: a path written into this file would work on one
+   * machine and nowhere else.
+   *
+   *   - `javaHome` (string, default `''`): the JDK that starts jdtls. A
+   *     directory that contains `bin/java[.exe]`, or the executable itself.
+   *     Empty = discover one, in the order explicit setting > `JAVA_HOME` >
+   *     `java` on PATH > the IDE's JDK table > the IDE's bundled runtime >
+   *     a scan of environment-derived roots.
+   *   - `jdtlsHome` (string, default `''`): the jdtls installation root.
+   *     Empty = `JDTLS_HOME`, else the layout is derived from the resolved
+   *     `jdtls` command.
+   *   - `javaSearchRoots` (string[], default `[]`): EXTRA roots to scan for a
+   *     JDK, for the user whose IDE is installed where nothing looks. It is a
+   *     fallback, not the normal path - the discovered sources above already
+   *     cover a standard machine.
+   *   - `javaArgs` (string[], default `[]`): extra JVM arguments appended to
+   *     the JVM part of the generated command line, before `-jar` (for
+   *     debugging, e.g. `-Dxxx` or an extra `-Xmx`; after the jar, `java`
+   *     would pass them to the Eclipse application instead of the JVM).
+   *
+   * `servers` is a free object: the settings store only guarantees that it is
+   * an object, so a missing key means "the default above" and no migration is
+   * needed when one of the keys is added.
    */
   servers: {},
   /** Project roots that completed a first build: { [absPath]: { at, languageId } }. */
@@ -38317,6 +38356,18 @@ function hostIsReachable() {
   if (typeof document !== "undefined" && typeof document.baseURI === "string" && document.baseURI !== "") return true;
   return false;
 }
+var languageHint = { root: "", languageId: "" };
+function setLspLanguageHint(root, languageId) {
+  if (typeof root !== "string" || root === "") return;
+  languageHint = {
+    root: normalizeScopePath(root),
+    languageId: typeof languageId === "string" ? languageId : ""
+  };
+}
+function languageHintFor(root) {
+  if (languageHint.root === "" || languageHint.languageId === "") return "";
+  return languageHint.root === normalizeScopePath(root) ? languageHint.languageId : "";
+}
 async function scopeRootFor(root) {
   if (typeof root !== "string" || root === "") return "";
   if (!hostIsReachable()) return root;
@@ -38326,7 +38377,10 @@ async function scopeRootFor(root) {
   }, SCOPE_TIMEOUT_MS);
   if (typeof timer?.unref === "function") timer.unref();
   try {
-    const answer = await call("lsp.scope", { root }, controller.signal);
+    const payload = { root };
+    const languageId = languageHintFor(root);
+    if (languageId !== "") payload.languageId = languageId;
+    const answer = await call("lsp.scope", payload, controller.signal);
     const scope = answer?.scopeRoot;
     if (typeof scope === "string" && scope !== "") return scope;
   } catch (error) {
@@ -39371,13 +39425,15 @@ var WorkbenchStore = class {
         settings,
         workspaces: workspaces.items,
         home: workspaces.defaultDirectory ?? "",
-        workspaceRoot: preferred ?? "",
-        root: typeof savedProject === "string" && savedProject !== "" ? savedProject : preferred ?? "",
-        phase: "ready"
+        workspaceRoot: preferred ?? ""
       });
+      const initialRoot = typeof savedProject === "string" && savedProject !== "" ? savedProject : preferred ?? "";
+      if (initialRoot !== "") this.#primeLspLanguageHint(initialRoot);
+      this.set({ root: initialRoot, phase: "ready" });
       if (preferred !== void 0 && preferred !== "") {
         await this.loadProjects(preferred);
         const projectRoot = this.#projectRootFor(preferred);
+        this.#primeLspLanguageHint(projectRoot);
         this.set({ root: projectRoot, gitRepoRoot: this.#defaultGitRepoRoot(projectRoot) });
         void this.#startLspForRestored(projectRoot);
         this.#restoreWorkspace(projectRoot);
@@ -40307,6 +40363,11 @@ var WorkbenchStore = class {
   /**
    * The host's memory pre-check for one project root (PRD-v5 §2.2).
    *
+   * The language of the file on the screen travels with the request: the
+   * check and the start must judge the same language - the baseline of
+   * TypeScript (434 MB) and the one of Java (2048 MB) are far apart, and a
+   * prompt that says "ok" for one and then refuses the start for the other
+   * is a question the user never got.
    * `null` means "the host could not answer": the check is skipped then, and
    * the host's own guard in `lsp.start` is the last line of defence.
    * @param {string} root
@@ -40314,12 +40375,134 @@ var WorkbenchStore = class {
    */
   async #lspResources(root) {
     try {
-      const result = await call2("lsp.resources", { root });
+      const payload = { root };
+      const languageId = this.#languageIdOnScreen(root) ?? this.#restoredLanguageIdFor(root);
+      if (languageId !== void 0) payload.languageId = languageId;
+      const result = await call2("lsp.resources", payload);
       if (result === null || typeof result !== "object") return null;
       return result;
     } catch {
       return null;
     }
+  }
+  /**
+   * The language the persisted workspace state of one root remembers.
+   *
+   * The workbench is restored BEFORE its tabs are: the root is set first
+   * (which starts the client session and its `lsp.scope` request) and the
+   * tabs are replayed a moment later. Without this the first handshake of a
+   * restarted workbench could only be guessed by the host, and in a polyglot
+   * workspace the guess and the start of the next `lsp.start` would name two
+   * different sub-projects.
+   *
+   * The witness is the file the restore will ACTIVATE, not the persisted
+   * `activePath` blindly: `#restoreWorkspace` activates the first restored
+   * tab when `activePath` is not one of them (the active tab may have been a
+   * diff/commit tab, or older than the 24 tabs that are persisted). Reading
+   * `activePath` alone would prime the handshake with the language of a tab
+   * that is not on the screen while the start uses the language of the one
+   * that is.
+   * @param {string} root the project root
+   * @returns {string | undefined} the language id, or undefined when unknown
+   */
+  #restoredLanguageIdFor(root) {
+    if (typeof root !== "string" || root === "") return void 0;
+    const workspaceState = this.state.settings?.workspaceState;
+    if (workspaceState === null || typeof workspaceState !== "object") return void 0;
+    const saved = workspaceState[root];
+    if (saved === null || typeof saved !== "object") return void 0;
+    const tabs = Array.isArray(saved.tabs) ? saved.tabs.filter((tab3) => tab3 !== null && typeof tab3 === "object" && typeof tab3.path === "string" && tab3.path !== "").slice(-24) : [];
+    const activePath = typeof saved.activePath === "string" ? saved.activePath : "";
+    const activeIsRestored = activePath !== "" && tabs.some((tab3) => tab3.path === activePath);
+    const restoredPath = activeIsRestored ? activePath : tabs[0]?.path ?? activePath;
+    if (restoredPath === "" || !isPathWithin(root, restoredPath)) return void 0;
+    const languageId = languageIdForPath(restoredPath);
+    return LSP_LANGUAGE_IDS.includes(languageId) ? languageId : void 0;
+  }
+  /**
+   * Record the language of one root for the session BEFORE the root changes.
+   *
+   * The client session is created by the root change itself (its handshake
+   * asks the host for the scope root), so the language hint has to be in
+   * place before `set({ root })` - the later `lsp.start` hint is too late for
+   * the first `lsp.scope` request.
+   * @param {string} root the project root that is about to become the root
+   * @returns {void}
+   */
+  #primeLspLanguageHint(root) {
+    if (typeof root !== "string" || root === "") return;
+    const languageId = this.#languageIdOnScreen(root) ?? this.#restoredLanguageIdFor(root);
+    try {
+      setLspLanguageHint(root, languageId ?? "");
+    } catch {
+    }
+  }
+  /**
+   * The language id the host should start the server for, when it is known.
+   *
+   * The host detects a language on its own when it is not told one, and that
+   * detection prefers the markers of a TypeScript project. A mixed repository
+   * (a `package.json` next to a `pom.xml`) is therefore judged TypeScript,
+   * and a `.java` file opened in it reached a server that cannot answer a
+   * single Java request (PRD-v5.1 JS-04).
+   *
+   * The file on the screen is the better witness, but only when all three
+   * answers are trustworthy:
+   *
+   *   - there is an open FILE tab (a diff or a placeholder has no language);
+   *   - the file lives under the root the session is started for: the host
+   *     keeps one language per root, so a file outside the root must not
+   *     decide the root's server;
+   *   - the extension maps onto a language id the host has a server for.
+   *     `languageIdForPath` answers `plaintext` for everything it does not
+   *     know, and the host refuses an id outside its registry.
+   *
+   * `undefined` means "I do not know": the host's own detection decides
+   * then, which is the behaviour every language had before.
+   *
+   * The tab is only a witness when the root IS the root the workbench shows:
+   * during a project switch the tab still belongs to the project that is
+   * being left, and an ancestor root would contain it by `isPathWithin` -
+   * priming the new root with the outgoing project's language would send a
+   * handshake `rootUri` of one language and start the server of another.
+   * @param {string} root the project root the session is started for
+   * @returns {string | undefined} the language id, or undefined when unknown
+   */
+  #languageIdOnScreen(root) {
+    if (typeof root !== "string" || root === "") return void 0;
+    if (this.state.root === "" || !sameScopePath(root, this.state.root)) return void 0;
+    const tab3 = this.activeTab;
+    if (tab3 === null || tab3.kind !== "file") return void 0;
+    if (typeof tab3.path !== "string" || tab3.path === "") return void 0;
+    if (!isPathWithin(root, tab3.path)) return void 0;
+    const languageId = languageIdForPath(tab3.path);
+    return LSP_LANGUAGE_IDS.includes(languageId) ? languageId : void 0;
+  }
+  /**
+   * The payload of one `lsp.start` call.
+   *
+   * `languageId` is only present when the client has an answer: the host
+   * falls back to its own detection for an absent field, and a field that is
+   * present but wrong is worse than no field at all.
+   *
+   * The same language is handed to the client session
+   * (`setLspLanguageHint`): the `lsp.scope` request of the handshake has to
+   * choose the same sub-project as the server of the host, and a wake or a
+   * rebuild of a session in a polyglot workspace must not ask for the
+   * sub-project of another language (PRD-v5 §4.2, JS-04).
+   * @param {string} root
+   * @param {boolean} force
+   * @returns {{root: string, force: boolean, languageId?: string}}
+   */
+  #lspStartPayload(root, force) {
+    const payload = { root, force };
+    const languageId = this.#languageIdOnScreen(root) ?? this.#restoredLanguageIdFor(root);
+    if (languageId !== void 0) payload.languageId = languageId;
+    try {
+      setLspLanguageHint(root, languageId ?? "");
+    } catch {
+    }
+    return payload;
   }
   /**
    * Start the language server for one project root.
@@ -40333,7 +40516,7 @@ var WorkbenchStore = class {
    */
   async #startLsp(root, options2 = {}) {
     try {
-      const result = await call2("lsp.start", { root, force: options2.force === true });
+      const result = await call2("lsp.start", this.#lspStartPayload(root, options2.force === true));
       await this.refreshLspStatus();
       return result;
     } catch {
@@ -40447,7 +40630,7 @@ var WorkbenchStore = class {
     }
     const force = memoryDecisionOf(this.state.lsp.resources) === "tight";
     try {
-      await call2("lsp.start", { root, force });
+      await call2("lsp.start", this.#lspStartPayload(root, force));
     } catch {
     }
     await this.refreshLspStatus();
@@ -40630,6 +40813,7 @@ var WorkbenchStore = class {
     return text;
   }
   async #switchProject(projectRoot) {
+    this.#primeLspLanguageHint(projectRoot);
     this.set({
       root: projectRoot,
       gitRepoRoot: this.#defaultGitRepoRoot(projectRoot),

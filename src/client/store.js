@@ -24,7 +24,13 @@ import { isPathWithin, relativePathWithin, sameScopePath, sessionCwdOf } from '.
 // analysis: the host knows whether the language server PROCESS is up, the
 // client knows whether the link to it works. The import graph is acyclic -
 // `lsp-session.js` imports the workspace and the API, not the store.
-import { LSP_HOST_HEALTHY_STATES, reconnectLsp as reconnectLspSession, reportLspFocus, shutdownHostLspAwaited } from './lsp-session.js'
+import { LSP_HOST_HEALTHY_STATES, reconnectLsp as reconnectLspSession, reportLspFocus, setLspLanguageHint, shutdownHostLspAwaited } from './lsp-session.js'
+// The language of the file on the screen is reported to the host with
+// `lsp.start`. `languageIdForPath` maps the extension, and the list of ids
+// that have a server is the same one the host registry is built from - the
+// two halves must not disagree about what can be started (PRD-v5.1 JS-04).
+import { languageIdForPath } from './lsp-uri.js'
+import { LSP_LANGUAGE_IDS } from '../host/settings-defaults.js'
 
 let sequence = 0
 
@@ -867,17 +873,28 @@ export class WorkbenchStore {
       // settings page store, or an older host) fall back to the old policy.
       const preferred = this.preferredRoot !== '' ? this.preferredRoot : this.#pickRoot(settings, workspaces)
       const savedProject = preferred !== undefined ? settings?.projectRoots?.[preferred] : undefined
+      // The settings (and therefore the persisted workspace state) belong to
+      // the store before the ROOT is set: setting the root creates the client
+      // session synchronously, and its `lsp.scope` request is the first thing
+      // that needs the language. Priming after that set is too late - the
+      // session subscriber has already asked for the scope, and the second
+      // `set({ root })` below is normally a no-op for an unchanged root.
       this.set({
         settings,
         workspaces: workspaces.items,
         home: workspaces.defaultDirectory ?? '',
         workspaceRoot: preferred ?? '',
-        root: typeof savedProject === 'string' && savedProject !== '' ? savedProject : (preferred ?? ''),
-        phase: 'ready',
       })
+      const initialRoot = typeof savedProject === 'string' && savedProject !== '' ? savedProject : (preferred ?? '')
+      if (initialRoot !== '') this.#primeLspLanguageHint(initialRoot)
+      this.set({ root: initialRoot, phase: 'ready' })
       if (preferred !== undefined && preferred !== '') {
         await this.loadProjects(preferred)
         const projectRoot = this.#projectRootFor(preferred)
+        // The hint goes in before the root: setting the root creates the
+        // client session, whose `lsp.scope` request is the first thing that
+        // needs the language (the handshake `rootUri` of a polyglot root).
+        this.#primeLspLanguageHint(projectRoot)
         this.set({ root: projectRoot, gitRepoRoot: this.#defaultGitRepoRoot(projectRoot) })
         // The project is restored, not switched: the index decision does not
         // run here. A decision the user has already expressed still does
@@ -2012,6 +2029,11 @@ export class WorkbenchStore {
   /**
    * The host's memory pre-check for one project root (PRD-v5 §2.2).
    *
+   * The language of the file on the screen travels with the request: the
+   * check and the start must judge the same language - the baseline of
+   * TypeScript (434 MB) and the one of Java (2048 MB) are far apart, and a
+   * prompt that says "ok" for one and then refuses the start for the other
+   * is a question the user never got.
    * `null` means "the host could not answer": the check is skipped then, and
    * the host's own guard in `lsp.start` is the last line of defence.
    * @param {string} root
@@ -2019,12 +2041,156 @@ export class WorkbenchStore {
    */
   async #lspResources(root) {
     try {
-      const result = await call('lsp.resources', { root })
+      const payload = { root }
+      // The tab of the root, or the file the persisted workspace state of
+      // the root remembers (the memory pre-check runs before a project the
+      // workbench is switching to has its tabs).
+      const languageId = this.#languageIdOnScreen(root) ?? this.#restoredLanguageIdFor(root)
+      if (languageId !== undefined) payload.languageId = languageId
+      const result = await call('lsp.resources', payload)
       if (result === null || typeof result !== 'object') return null
       return result
     } catch {
       return null
     }
+  }
+
+  /**
+   * The language the persisted workspace state of one root remembers.
+   *
+   * The workbench is restored BEFORE its tabs are: the root is set first
+   * (which starts the client session and its `lsp.scope` request) and the
+   * tabs are replayed a moment later. Without this the first handshake of a
+   * restarted workbench could only be guessed by the host, and in a polyglot
+   * workspace the guess and the start of the next `lsp.start` would name two
+   * different sub-projects.
+   *
+   * The witness is the file the restore will ACTIVATE, not the persisted
+   * `activePath` blindly: `#restoreWorkspace` activates the first restored
+   * tab when `activePath` is not one of them (the active tab may have been a
+   * diff/commit tab, or older than the 24 tabs that are persisted). Reading
+   * `activePath` alone would prime the handshake with the language of a tab
+   * that is not on the screen while the start uses the language of the one
+   * that is.
+   * @param {string} root the project root
+   * @returns {string | undefined} the language id, or undefined when unknown
+   */
+  #restoredLanguageIdFor(root) {
+    if (typeof root !== 'string' || root === '') return undefined
+    const workspaceState = this.state.settings?.workspaceState
+    if (workspaceState === null || typeof workspaceState !== 'object') return undefined
+    const saved = workspaceState[root]
+    if (saved === null || typeof saved !== 'object') return undefined
+    // The same filter and window `#restoreWorkspace` uses.
+    const tabs = Array.isArray(saved.tabs)
+      ? saved.tabs
+          .filter(tab => tab !== null && typeof tab === 'object'
+            && typeof tab.path === 'string' && tab.path !== '')
+          .slice(-24)
+      : []
+    const activePath = typeof saved.activePath === 'string' ? saved.activePath : ''
+    const activeIsRestored = activePath !== '' && tabs.some(tab => tab.path === activePath)
+    const restoredPath = activeIsRestored ? activePath : (tabs[0]?.path ?? activePath)
+    if (restoredPath === '' || !isPathWithin(root, restoredPath)) return undefined
+    const languageId = languageIdForPath(restoredPath)
+    return LSP_LANGUAGE_IDS.includes(languageId) ? languageId : undefined
+  }
+
+  /**
+   * Record the language of one root for the session BEFORE the root changes.
+   *
+   * The client session is created by the root change itself (its handshake
+   * asks the host for the scope root), so the language hint has to be in
+   * place before `set({ root })` - the later `lsp.start` hint is too late for
+   * the first `lsp.scope` request.
+   * @param {string} root the project root that is about to become the root
+   * @returns {void}
+   */
+  #primeLspLanguageHint(root) {
+    if (typeof root !== 'string' || root === '') return
+    const languageId = this.#languageIdOnScreen(root) ?? this.#restoredLanguageIdFor(root)
+    try {
+      setLspLanguageHint(root, languageId ?? '')
+    } catch {
+      // The hint is a nicety of the handshake: a failure must not break the
+      // project switch.
+    }
+  }
+
+  /**
+   * The language id the host should start the server for, when it is known.
+   *
+   * The host detects a language on its own when it is not told one, and that
+   * detection prefers the markers of a TypeScript project. A mixed repository
+   * (a `package.json` next to a `pom.xml`) is therefore judged TypeScript,
+   * and a `.java` file opened in it reached a server that cannot answer a
+   * single Java request (PRD-v5.1 JS-04).
+   *
+   * The file on the screen is the better witness, but only when all three
+   * answers are trustworthy:
+   *
+   *   - there is an open FILE tab (a diff or a placeholder has no language);
+   *   - the file lives under the root the session is started for: the host
+   *     keeps one language per root, so a file outside the root must not
+   *     decide the root's server;
+   *   - the extension maps onto a language id the host has a server for.
+   *     `languageIdForPath` answers `plaintext` for everything it does not
+   *     know, and the host refuses an id outside its registry.
+   *
+   * `undefined` means "I do not know": the host's own detection decides
+   * then, which is the behaviour every language had before.
+   *
+   * The tab is only a witness when the root IS the root the workbench shows:
+   * during a project switch the tab still belongs to the project that is
+   * being left, and an ancestor root would contain it by `isPathWithin` -
+   * priming the new root with the outgoing project's language would send a
+   * handshake `rootUri` of one language and start the server of another.
+   * @param {string} root the project root the session is started for
+   * @returns {string | undefined} the language id, or undefined when unknown
+   */
+  #languageIdOnScreen(root) {
+    if (typeof root !== 'string' || root === '') return undefined
+    if (this.state.root === '' || !sameScopePath(root, this.state.root)) return undefined
+    const tab = this.activeTab
+    if (tab === null || tab.kind !== 'file') return undefined
+    if (typeof tab.path !== 'string' || tab.path === '') return undefined
+    if (!isPathWithin(root, tab.path)) return undefined
+    const languageId = languageIdForPath(tab.path)
+    return LSP_LANGUAGE_IDS.includes(languageId) ? languageId : undefined
+  }
+
+  /**
+   * The payload of one `lsp.start` call.
+   *
+   * `languageId` is only present when the client has an answer: the host
+   * falls back to its own detection for an absent field, and a field that is
+   * present but wrong is worse than no field at all.
+   *
+   * The same language is handed to the client session
+   * (`setLspLanguageHint`): the `lsp.scope` request of the handshake has to
+   * choose the same sub-project as the server of the host, and a wake or a
+   * rebuild of a session in a polyglot workspace must not ask for the
+   * sub-project of another language (PRD-v5 §4.2, JS-04).
+   * @param {string} root
+   * @param {boolean} force
+   * @returns {{root: string, force: boolean, languageId?: string}}
+   */
+  #lspStartPayload(root, force) {
+    const payload = { root, force }
+    // The tab of the root, or the file the persisted workspace state of the
+    // root remembers: on the restore path the tabs are replayed after the
+    // start, and the handshake of the session must already know the language.
+    const languageId = this.#languageIdOnScreen(root) ?? this.#restoredLanguageIdFor(root)
+    if (languageId !== undefined) payload.languageId = languageId
+    // An unknown language clears the hint: the host decides, the session must
+    // ask the same way the host would decide.
+    try {
+      setLspLanguageHint(root, languageId ?? '')
+    } catch {
+      // The session is a nicety of the handshake: a failure there must not
+      // break the start.
+    }
+    return payload
   }
 
   /**
@@ -2039,7 +2205,7 @@ export class WorkbenchStore {
    */
   async #startLsp(root, options = {}) {
     try {
-      const result = await call('lsp.start', { root, force: options.force === true })
+      const result = await call('lsp.start', this.#lspStartPayload(root, options.force === true))
       await this.refreshLspStatus()
       return result
     } catch {
@@ -2177,7 +2343,7 @@ export class WorkbenchStore {
     // A2).
     const force = memoryDecisionOf(this.state.lsp.resources) === 'tight'
     try {
-      await call('lsp.start', { root, force })
+      await call('lsp.start', this.#lspStartPayload(root, force))
     } catch {
       // The status bar shows the failure.
     }
@@ -2396,6 +2562,9 @@ export class WorkbenchStore {
   }
 
   async #switchProject(projectRoot) {
+    // The root change creates the client session; its scope request must
+    // already know the language of the project that is being entered.
+    this.#primeLspLanguageHint(projectRoot)
     this.set({
       root: projectRoot,
       gitRepoRoot: this.#defaultGitRepoRoot(projectRoot),

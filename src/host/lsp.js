@@ -35,6 +35,7 @@ import { constants as osConstants, freemem, setPriority, totalmem } from 'node:o
 import { dirname, join, resolve as resolvePath } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { ApiError } from './wire.js'
+import * as javaRuntime from './java-runtime.js'
 import { BUILD_REQUEST_TIMEOUT_MS, DEFAULT_LSP_SETTINGS, IDLE_POLICIES, INDEX_SCOPES } from './settings-defaults.js'
 import { SEMANTIC_METHODS } from './semantic-methods.js'
 
@@ -59,6 +60,13 @@ import { SEMANTIC_METHODS } from './semantic-methods.js'
  * 400-600 MB (median 434 MB, 300 modules; 606 MB for 600 modules), so the
  * estimate was 1.4-2.4 times too low and the memory gate let the machine
  * run out of memory (PRD-v5 §5.2).
+ *
+ * `launcher` says HOW the server is started. Without it the `command` is
+ * spawned directly (a bundled package or an executable on PATH). With
+ * `'java'` the server is not the command at all: it is a JVM started through
+ * the JDK discovered by `./java-runtime.js`, and the `command` stays the
+ * probe target and the name the settings page shows (PRD-v5.1 §2.2). The
+ * field is optional on purpose: TypeScript, Python and YAML do not change.
  */
 export const LSP_REGISTRY = {
   typescript: {
@@ -92,10 +100,21 @@ export const LSP_REGISTRY = {
   java: {
     command: 'jdtls',
     args: [],
+    // jdtls is an Eclipse OSGi application: `jdtls` itself is a launcher
+    // script that cannot be spawned directly on Windows (ENOENT), so the
+    // server is a JVM started through the JDK of `java-runtime.js`.
+    launcher: 'java',
     languageIds: ['java'],
     memoryLimitMB: 2048,
-    memoryBaselineMB: 512,
-    requires: 'JDK 21+',
+    // jdtls starts with a 1 GB initial heap and keeps an Eclipse workspace on
+    // top of it: 1.5-2.5 GB is the typical footprint, not the worst case
+    // (PRD-v5.1 JS-05). The old 512 MB estimate was an order of magnitude low
+    // and let the memory gate start a server the machine could not hold.
+    memoryBaselineMB: 2048,
+    // Which JDK jdtls accepts is decided by the installed release (21 for the
+    // older ones, 25 for 1.63.0): a hard-coded version would be a lie on some
+    // machine (PRD-v5.1 §3.6).
+    requires: 'a JDK the installed jdtls accepts',
   },
   go: {
     command: 'gopls',
@@ -771,23 +790,206 @@ function hintFor(registryEntry, command) {
 }
 
 /**
- * Guess the language of one project root from its marker files.
+ * The file-extension language ids that map onto one REGISTRY KEY.
+ *
+ * The registry keys are what a session is looked up by, and what the settings
+ * override (`servers[languageId]`). The client reports the id of the file
+ * extension, and several extensions name variants that share one server but
+ * have their own configured entry: `.jsx` belongs to the `javascript` entry
+ * (so `servers.javascript` really controls it), `.tsx` to `typescript`,
+ * `.c`/`.h` to `cpp`. The map is explicit on purpose: "the first registry
+ * entry that lists the id" is ambiguous (both TypeScript aliases list all
+ * four ids) and would silently hang `.jsx` on the TypeScript override.
+ */
+const LANGUAGE_ALIASES = {
+  javascriptreact: 'javascript',
+  typescriptreact: 'typescript',
+  c: 'cpp',
+}
+
+/**
+ * The canonical registry key of one requested language id.
+ *
+ * The client derives its language id from the file extension, and several
+ * extensions name variants of one server (see {@link LANGUAGE_ALIASES}). The
+ * host looks a session up by REGISTRY KEY, so a variant that is passed
+ * through unchanged would be silently ignored and the root would keep the
+ * server of another language (JS-04). The lookup is by own property, so a
+ * value such as `__proto__` can never select an inherited Object member.
+ * @param {unknown} languageId the requested language id
+ * @returns {string | null} the registry key, or null when no server serves it
+ */
+function registryLanguageOf(languageId) {
+  if (typeof languageId !== 'string' || languageId === '') return null
+  if (Object.hasOwn(LSP_REGISTRY, languageId)) return languageId
+  if (Object.hasOwn(LANGUAGE_ALIASES, languageId)) {
+    const canonical = LANGUAGE_ALIASES[languageId]
+    if (Object.hasOwn(LSP_REGISTRY, canonical)) return canonical
+  }
+  return null
+}
+
+/**
+ * The language the last indexed build of one root wrote into the settings.
+ *
+ * The `indexedRoots` map survives a restart of the host, and it records the
+ * language the first build of the root was made for. A fresh host has no
+ * entry and no session yet, so without this fallback the handshake scope and
+ * the memory prompt of a restarted workbench would fall back to the vote -
+ * and a mixed root could be told a different language than the one it was
+ * indexed with (PRD-v5.1 §5.2).
+ * @param {string | null} root the absolute project root
+ * @param {object} lsp the `lsp` section of the settings
+ * @returns {string | null} the registry key, or null
+ */
+function persistedLanguageOf(root, lsp) {
+  if (typeof root !== 'string' || root === '') return null
+  const indexed = isPlainObject(lsp?.indexedRoots) ? lsp.indexedRoots : {}
+  // The record is looked up by the COMPARISON key: the writer stores the
+  // `resolvePath` spelling of the root, and another launch may spell the
+  // same Windows path with a different drive-letter case or with slashes.
+  const wanted = rootKey(root)
+  let record = null
+  for (const [key, value] of Object.entries(indexed)) {
+    if (rootKey(key) !== wanted) continue
+    record = value
+    break
+  }
+  if (!isPlainObject(record) || typeof record.languageId !== 'string') return null
+  return registryLanguageOf(record.languageId)
+}
+
+/**
+ * The launcher of the IDE the user configured, for the JDK discovery.
+ *
+ * The JetBrains Runtime of an IDE that is not on PATH is only reachable
+ * through the launcher the user already gave the plugin for "open in IDE";
+ * the discovery takes it as the first source of the bundled-runtime path
+ * (PRD §3.2 #5). An empty value is the normal case and means "find the IDE
+ * on PATH or in the environment-derived roots".
+ * @param {object} settings the settings document
+ * @returns {string}
+ */
+function ideaPathOf(settings) {
+  const idea = isPlainObject(settings) ? settings.idea : null
+  return isPlainObject(idea) && typeof idea.path === 'string' ? idea.path : ''
+}
+
+/**
+ * The Java runtime diagnostics of one settings-page entry (PRD-v5.1 §7.2).
+ *
+ * Which installation, which JDK and which candidates were found is only a
+ * fact about a Java entry: every other language gets no extra fields. The
+ * values are read from the PLAN, also when the plan failed - the user needs
+ * them most then (JS-02) - and are `null` / `[]` when the plan cannot be made.
+ * @param {object} registryEntry the registry entry
+ * @param {object | null} plan the Java plan of `#resolveServer`
+ * @returns {object} the four diagnostics fields, or an empty object
+ */
+function javaDiagnosticsOf(registryEntry, plan) {
+  if (registryEntry.launcher !== 'java') return {}
+  return {
+    jdtlsHome: typeof plan?.jdtlsHome === 'string' ? plan.jdtlsHome : null,
+    javaHome: typeof plan?.javaHome === 'string' ? plan.javaHome : null,
+    javaVersion: Number.isFinite(plan?.javaVersion) ? plan.javaVersion : null,
+    jdkCandidates: Array.isArray(plan?.jdkCandidates) ? plan.jdkCandidates : [],
+  }
+}
+
+/**
+ * The marker files that identify one language, in the order the fallback
+ * tries them.
+ *
+ * The order is the historical one and TypeScript comes first. The fallback is
+ * only reached when the source vote cannot decide (a tie, or no source file at
+ * all), so the older answer is kept for exactly those roots.
+ */
+const LANGUAGE_MARKERS = [
+  ['typescript', ['tsconfig.json', 'jsconfig.json']],
+  ['python', ['pyproject.toml', 'setup.py', 'requirements.txt']],
+  ['yaml', ['docker-compose.yml', 'docker-compose.yaml']],
+  ['java', ['pom.xml', 'build.gradle', 'build.gradle.kts']],
+  ['go', ['go.mod']],
+  ['rust', ['Cargo.toml']],
+]
+
+/**
+ * How long a language vote is reused (ms).
+ *
+ * The vote is a bounded scan of the file tree, and the client polls
+ * `lsp.resources` every two seconds. The language of a project does not
+ * change from second to second, so the answer is kept for a while - the same
+ * reasoning as {@link PROJECT_SIZE_TTL_MS} for the size of a project.
+ */
+const LANGUAGE_DETECTION_TTL_MS = 300000
+
+/**
+ * The recently detected languages, by the key of their root.
+ * @type {Map<string, { languageId: string, at: number }>}
+ */
+const DETECTED_LANGUAGES = new Map()
+
+/**
+ * The language of one project root whose sources do not vote.
+ *
+ * It is the oldest rule of the plugin and the fallback of
+ * {@link detectLanguage}: marker files in the historical order, TypeScript
+ * when there is none.
+ * @param {string} root the absolute project root
+ * @returns {string | null} the language, or null when no marker file exists
+ */
+function markerLanguageOf(root) {
+  if (typeof root !== 'string' || root === '') return null
+  for (const [languageId, files] of LANGUAGE_MARKERS) {
+    if (files.some(file => existsSync(join(root, file)))) return languageId
+  }
+  return null
+}
+
+/**
+ * The language with the most source files, when exactly one language wins.
+ * @param {Map<string, number>} votes the source count per language
+ * @returns {string | null} the winner, or null when nothing was counted or
+ *   several languages are tied at the top
+ */
+function winningLanguageOf(votes) {
+  let winner = null
+  let bestCount = 0
+  let tied = false
+  for (const [languageId, count] of votes) {
+    if (count > bestCount) {
+      winner = languageId
+      bestCount = count
+      tied = false
+    } else if (count === bestCount) {
+      tied = true
+    }
+  }
+  return tied ? null : winner
+}
+
+/**
+ * Guess the language of one project root.
+ *
+ * The sources of the project vote (PRD-v5.1 §5.4): a root with 300 `.java`
+ * files and 40 `.ts` files is a Java project, whatever its marker files say.
+ * A tie, or a root without any source file, falls back to the marker files in
+ * their historical order - with TypeScript first, because that was the only
+ * answer of the older versions. The vote is bounded and cached: it runs from
+ * the polling of `lsp.resources`.
  * @param {string} root the absolute project root
  * @returns {string} a language id of the registry
  */
-function detectLanguage(root) {
-  const markers = [
-    ['typescript', ['tsconfig.json', 'jsconfig.json']],
-    ['python', ['pyproject.toml', 'setup.py', 'requirements.txt']],
-    ['yaml', ['docker-compose.yml', 'docker-compose.yaml']],
-    ['java', ['pom.xml', 'build.gradle', 'build.gradle.kts']],
-    ['go', ['go.mod']],
-    ['rust', ['Cargo.toml']],
-  ]
-  for (const [languageId, files] of markers) {
-    if (files.some(file => existsSync(join(root, file)))) return languageId
-  }
-  return 'typescript'
+export function detectLanguage(root) {
+  if (typeof root !== 'string' || root === '') return 'typescript'
+  const key = rootKey(root)
+  const now = Date.now()
+  const cached = DETECTED_LANGUAGES.get(key)
+  if (cached !== undefined && now - cached.at < LANGUAGE_DETECTION_TTL_MS) return cached.languageId
+  const { votes } = scanSourceFiles(root)
+  const languageId = winningLanguageOf(votes) ?? markerLanguageOf(root) ?? 'typescript'
+  DETECTED_LANGUAGES.set(key, { languageId, at: now })
+  return languageId
 }
 
 /**
@@ -809,12 +1011,143 @@ const PROJECT_MARKERS = [
 ]
 
 /**
- * The file names that count as source of a project.
+ * The source extensions of the languages of the plugin, and the language each
+ * one belongs to.
  *
- * Only the languages of the plugin are counted: the scan is a heuristic that
- * answers "which of the sub-projects is the big one", not a file index.
+ * The table is the single source of "what counts as source" for the two
+ * heuristics that need it: the language vote of {@link detectLanguage} and
+ * the language-filtered count that chooses the sub-project of a program
+ * ({@link scopeRootOf}). Only the languages of the plugin are in it: the
+ * count is a heuristic that answers "which of the sub-projects is the one
+ * this language is written in", not a file index.
+ *
+ * The values are KEYS of {@link LSP_REGISTRY}: JavaScript and TypeScript share
+ * the TypeScript server, and `.c` files are served by the `cpp` entry.
+ *
+ * The SIZE TIER of the ceiling (MEM-11) deliberately does NOT read this
+ * table: it keeps the TypeScript-family extension set of the previous
+ * releases (`SIZE_EXTENSIONS`), so the documented ceilings - and the tests
+ * that pin them - stay unchanged. Extending the size estimate to every
+ * language is a memory-policy change of its own and is not part of JS-04/05.
  */
-const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']
+const SOURCE_LANGUAGE_BY_EXTENSION = {
+  '.ts': 'typescript',
+  '.tsx': 'typescript',
+  '.js': 'typescript',
+  '.jsx': 'typescript',
+  '.mjs': 'typescript',
+  '.cjs': 'typescript',
+  '.py': 'python',
+  '.java': 'java',
+  '.go': 'go',
+  '.rs': 'rust',
+  '.c': 'cpp',
+  '.h': 'cpp',
+  '.cc': 'cpp',
+  '.cpp': 'cpp',
+  '.cxx': 'cpp',
+  '.hpp': 'cpp',
+}
+
+/**
+ * The language one file name is a source of.
+ * @param {string} fileName the name of the file
+ * @returns {string | null} the language id, or null when the file is not source
+ */
+function sourceLanguageOf(fileName) {
+  const dot = fileName.lastIndexOf('.')
+  if (dot <= 0) return null
+  return SOURCE_LANGUAGE_BY_EXTENSION[fileName.slice(dot).toLowerCase()] ?? null
+}
+
+/**
+ * The most source files one scan counts (files).
+ *
+ * The scan is bounded on purpose: it runs while a language server is started
+ * or while the client polls the resources, and a workspace with thousands of
+ * files must not slow either down.
+ */
+const SOURCE_SCAN_CAP = 400
+
+/** The most directories deep one source scan goes (levels). */
+const SOURCE_SCAN_DEPTH = 3
+
+/**
+ * The source extensions of one language, or null when every source counts.
+ *
+ * The scope of a program is chosen among the sub-projects of a workspace by
+ * the number of source files, and only the files of the language the server
+ * is FOR may vote: in a polyglot workspace with a `web` folder of five `.ts`
+ * files and a `server` folder of twenty `.py` files, the TypeScript server
+ * must not be scoped to the Python folder (PRD-v5 §4.2, JS-04). The registry
+ * entry of the language names its file-extension ids, which is what the
+ * extension table is keyed by.
+ * @param {string | null} languageId the language of the session
+ * @returns {string[] | null} the counted extensions, or null for all of them
+ */
+function sourceExtensionsOf(languageId) {
+  if (typeof languageId !== 'string' || languageId === '') return null
+  const key = Object.hasOwn(LSP_REGISTRY, languageId)
+    ? languageId
+    : (Object.hasOwn(LANGUAGE_ALIASES, languageId) ? LANGUAGE_ALIASES[languageId] : null)
+  if (key === null) return null
+  const entry = LSP_REGISTRY[key]
+  if (entry === undefined) return null
+  const ids = new Set([key, ...(Array.isArray(entry.languageIds) ? entry.languageIds : [])])
+  const extensions = Object.keys(SOURCE_LANGUAGE_BY_EXTENSION)
+    .filter(extension => ids.has(SOURCE_LANGUAGE_BY_EXTENSION[extension]))
+  return extensions.length > 0 ? extensions : null
+}
+
+/**
+ * Scan the source files of one directory (bounded).
+ *
+ * One walk answers the two questions the callers ask - "how many sources does
+ * this project have?" and "which language dominates?" - because both used to
+ * walk the same tree with the same rule. Hidden directories and
+ * `node_modules` are skipped: they are not the sources of the project.
+ * @param {string} directory the absolute path of the project
+ * @param {number} [cap] the most files the scan counts
+ * @param {string[] | null} [extensions] the counted extensions, or null for
+ *   every extension of the table
+ * @returns {{ total: number, votes: Map<string, number> }} the total count and
+ *   the count per language
+ */
+function scanSourceFiles(directory, cap = SOURCE_SCAN_CAP, extensions = null) {
+  const votes = new Map()
+  let total = 0
+  const allowed = Array.isArray(extensions) && extensions.length > 0 ? new Set(extensions) : null
+  const visit = (current, depth) => {
+    if (depth > SOURCE_SCAN_DEPTH || total >= cap) return
+    let entries
+    try {
+      entries = readdirSync(current, { withFileTypes: true })
+    } catch {
+      // The directory does not exist (a project that was never created) or
+      // cannot be read: there is nothing to count.
+      return
+    }
+    for (const entry of entries) {
+      if (total >= cap) return
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+      if (entry.isDirectory()) {
+        visit(join(current, entry.name), depth + 1)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (allowed !== null) {
+        const dot = entry.name.lastIndexOf('.')
+        if (dot <= 0 || !allowed.has(entry.name.slice(dot).toLowerCase())) continue
+      }
+      const languageId = sourceLanguageOf(entry.name)
+      if (languageId === null) continue
+      total += 1
+      votes.set(languageId, (votes.get(languageId) ?? 0) + 1)
+    }
+  }
+  visit(directory, 0)
+  return { total, votes }
+}
 
 /**
  * Whether one directory is a project of its own.
@@ -858,33 +1191,15 @@ function subProjectsOf(root) {
  * The scan is a heuristic and it is bounded on purpose: it runs while a
  * language server is started, and a workspace with thousands of files must
  * not slow the start down. The count only decides which of several
- * sub-projects is the scope of the program.
+ * sub-projects is the scope of the program, so only the sources of the
+ * session language are counted when one is known (`languageId`).
  * @param {string} directory the absolute path of the project
+ * @param {string | null} [languageId] the language of the session, or null
+ *   to count every source
  * @returns {number} the number of source files that were counted
  */
-function sourceCountOf(directory) {
-  let counted = 0
-  const visit = (current, depth) => {
-    if (depth > 3 || counted >= 400) return
-    let entries
-    try {
-      entries = readdirSync(current, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (counted >= 400) return
-      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
-      if (entry.isDirectory()) {
-        visit(join(current, entry.name), depth + 1)
-        continue
-      }
-      if (!entry.isFile()) continue
-      if (SOURCE_EXTENSIONS.some(extension => entry.name.endsWith(extension))) counted += 1
-    }
-  }
-  visit(directory, 0)
-  return counted
+function sourceCountOf(directory, languageId = null) {
+  return scanSourceFiles(directory, SOURCE_SCAN_CAP, sourceExtensionsOf(languageId)).total
 }
 
 /**
@@ -942,35 +1257,28 @@ export function projectSizeOf(directory) {
 }
 
 /**
+ * The extensions the SIZE estimate of a project counts (MEM-11).
+ *
+ * This is the TypeScript-family set of the previous releases, kept on purpose:
+ * the tier of the ceiling was calibrated and tested against it, and widening
+ * it would change the ceiling of every non-TypeScript project (a small Java
+ * project used to be "unknown" and keep 2048 MB; counting its sources would
+ * lower it to 1 GB - below the footprint JS-05 measured for jdtls). The
+ * sub-project SCOPE of a program uses the language-filtered count of
+ * {@link scanSourceFiles} instead; the two questions are different.
+ */
+const SIZE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']
+
+/**
  * Count the source files of one project (bounded scan).
+ *
+ * The walk is the one of {@link scanSourceFiles}: only the cap and the
+ * extension set differ, so the size estimate counts what it always counted.
  * @param {string} directory the absolute path of the project
  * @returns {number} the number of source files that were counted
  */
 function countSourceFiles(directory) {
-  let counted = 0
-  const visit = (current, depth) => {
-    if (depth > 3 || counted >= PROJECT_SIZE_CAP) return
-    let entries
-    try {
-      entries = readdirSync(current, { withFileTypes: true })
-    } catch {
-      // The directory does not exist (a project that was never created) or
-      // cannot be read: the size is unknown.
-      return
-    }
-    for (const entry of entries) {
-      if (counted >= PROJECT_SIZE_CAP) return
-      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
-      if (entry.isDirectory()) {
-        visit(join(current, entry.name), depth + 1)
-        continue
-      }
-      if (!entry.isFile()) continue
-      if (SOURCE_EXTENSIONS.some(extension => entry.name.endsWith(extension))) counted += 1
-    }
-  }
-  visit(directory, 0)
-  return counted
+  return scanSourceFiles(directory, PROJECT_SIZE_CAP, SIZE_EXTENSIONS).total
 }
 
 /**
@@ -1058,31 +1366,40 @@ export function ceilingMBOf(languageId, scopeRoot, lsp) {
  *   - 'project' always converges onto the nearest sub-project.
  *
  * "The nearest sub-project" is the direct child of the root that is a
- * project. When there is more than one, the one with the most sources wins
- * - it is the project the user works in - and the first one in alphabetical
- * order breaks the tie.
+ * project. When there is more than one, the one with the most sources OF THE
+ * SESSION LANGUAGE wins - it is the project the user works in - and the first
+ * one in alphabetical order breaks the tie. A polyglot workspace must not
+ * scope the TypeScript server to the folder of the Python sub-project.
  *
  * @param {string} root the absolute project root
  * @param {string} [policy] 'auto' | 'root' | 'project'
+ * @param {string | null} [languageId] the language of the session, when it is
+ *   already known (null counts every source)
  * @returns {string} the absolute scope root
  */
-export function scopeRootOf(root, policy = 'auto') {
+export function scopeRootOf(root, policy = 'auto', languageId = null) {
   const absolute = resolvePath(String(root))
   if (policy === 'root') return absolute
   const own = isProjectRoot(absolute)
   if (own && policy !== 'project') return absolute
   const projects = subProjectsOf(absolute)
   if (projects.length === 0) return absolute
-  if (projects.length === 1) return resolvePath(projects[0])
+  const languageKnown = typeof languageId === 'string' && languageId !== ''
+  if (!languageKnown && projects.length === 1) return resolvePath(projects[0])
   let best = projects[0]
   let bestCount = -1
   for (const project of projects) {
-    const count = sourceCountOf(project)
+    const count = sourceCountOf(project, languageId)
     if (count > bestCount) {
       best = project
       bestCount = count
     }
   }
+  // A language that has NO source in any sub-project is not served by one of
+  // them: the program belongs to the root itself (the "invisible project"
+  // case - Java sources at the root next to a JS and a Python sub-project
+  // must not be scoped into the Python folder).
+  if (languageKnown && bestCount <= 0) return absolute
   return resolvePath(best)
 }
 
@@ -1572,6 +1889,7 @@ export class LspManager {
   #persistIndexedRoots
   #spawnServer
   #createWorker
+  #javaRuntime
   #now
   #readMemory
   #readyDelayMs
@@ -1642,6 +1960,9 @@ export class LspManager {
    *   replaces `ctx.subprocess.spawn` (used by the tests)
    * @param {(workerData: object) => object} [options.createWorker]
    *   replaces the frame worker (used by the tests)
+   * @param {object} [options.javaRuntime] replaces the Java runtime module
+   *   (`./java-runtime.js`: `javaServerPlan` and `sweepJavaWorkspaces`) - the
+   *   tests use a double instead of the machine of the user
    * @param {() => number} [options.now] the clock
    * @param {() => { totalBytes: number, freeBytes: number }} [options.readMemory]
    *   the memory probe
@@ -1659,6 +1980,7 @@ export class LspManager {
     this.#persistIndexedRoots = typeof options.persistIndexedRoots === 'function' ? options.persistIndexedRoots : null
     this.#spawnServer = typeof options.spawnServer === 'function' ? options.spawnServer : null
     this.#createWorker = typeof options.createWorker === 'function' ? options.createWorker : defaultCreateWorker
+    this.#javaRuntime = options.javaRuntime ?? javaRuntime
     this.#now = typeof options.now === 'function' ? options.now : () => Date.now()
     this.#readMemory = typeof options.readMemory === 'function' ? options.readMemory : defaultReadMemory
     this.#readyDelayMs = Number.isFinite(options.readyDelayMs) ? options.readyDelayMs : 1500
@@ -1917,12 +2239,24 @@ export class LspManager {
       const enabled = override.enabled !== false
       const invalid = validateServerCommand(command)
       if (invalid !== null) {
-        missing.push({ languageId, command, enabled, hint: invalid })
+        missing.push({ languageId, command, enabled, hint: invalid, ...javaDiagnosticsOf(registryEntry, null) })
         continue
       }
-      const resolution = this.#resolveServer(command)
+      // The plan of a Java server carries the runtime diagnostics even when
+      // the server cannot start: the entry of the settings page has to say
+      // WHICH JDK was found, also - and especially - when the start failed
+      // (PRD-v5.1 §3.5, §7.2). The launcher arguments of a foreign packaging
+      // are passed for the DISCOVERY (never as JVM arguments), so an
+      // installation that is only reachable through them is still reported.
+      const discoveryArgs = registryEntry.launcher === 'java' && Array.isArray(override.args)
+        ? override.args.map(String)
+        : []
+      const { resolution, hint, plan } = this.#resolveServer(command, languageId, lsp, {
+        ideaPath: ideaPathOf(settings),
+        discoveryArgs,
+      })
       if (resolution === null) {
-        missing.push({ languageId, command, enabled, hint: hintFor(registryEntry, command) })
+        missing.push({ languageId, command, enabled, hint, ...javaDiagnosticsOf(registryEntry, plan) })
         continue
       }
       const memoryLimitMB = Number.isFinite(override.memoryLimitMB)
@@ -1938,9 +2272,81 @@ export class LspManager {
         memoryLimitMB,
         memoryBaselineMB: baselineMB,
         memoryLimitSupported: resolution.supportsMemoryLimit,
+        ...javaDiagnosticsOf(registryEntry, plan),
       })
     }
     return { available, missing }
+  }
+
+  /**
+   * The language one project root is served by, without starting anything.
+   *
+   * ONE rule for every caller (`#startSession`, `scope`, `resources`): the
+   * pinned language wins; then a RUNNING session; then the explicit request;
+   * then the session that is not running any more (the language of a refused
+   * or released start - the most recent intent of the user); then the
+   * language the entry remembers; then the language the last indexed build
+   * wrote into the settings (a restart of the host has no entry yet); the
+   * vote over the sources of the root is the last fallback.
+   *
+   * The three callers MUST agree: the client's `rootUri`, the memory prompt
+   * and the process that is finally started would otherwise describe three
+   * different languages for one root.
+   * @param {string | null} root the absolute project root
+   * @param {object | null} entry the entry of the root, when it exists
+   * @param {object} lsp the `lsp` section of the settings
+   * @param {object} [context]
+   * @param {string | null} [context.requested] the explicitly requested language key
+   * @param {string | null} [context.previousLanguage] the language of the
+   *   replaced session (already torn down when the caller asks)
+   * @returns {string | null} the language registry key
+   */
+  #languageFor(root, entry, lsp, { requested = null, previousLanguage = undefined } = {}) {
+    const session = entry?.session ?? null
+    const pinned = entry?.languagePinned === true && typeof entry.languageId === 'string'
+    if (pinned) return entry.languageId
+    if (session !== null && this.#isRunning(session) && typeof session.languageId === 'string') {
+      return session.languageId
+    }
+    const recent = previousLanguage !== undefined
+      ? previousLanguage
+      : (session !== null && typeof session.languageId === 'string' ? session.languageId : null)
+    return requested
+      ?? recent
+      ?? (typeof entry?.languageId === 'string' ? entry.languageId : null)
+      ?? persistedLanguageOf(root, lsp)
+      ?? (root === null ? null : detectLanguage(root))
+  }
+
+  /**
+   * The scope root and the language of one project, without starting it.
+   *
+   * The client asks for the scope BEFORE the handshake: the `rootUri` of the
+   * `initialize` request decides the program the server builds, and the cwd
+   * of the process is decided by the host. The two must name the same
+   * project, so the answer has to be computed by the SAME rule the start
+   * path uses - including the pinned language of the root and a running
+   * session - and not by a second, independent rule (a pinned root answered
+   * with the language of the file the user happens to have open would tell
+   * the server to build the program of another sub-project).
+   * @param {{ root?: string, languageId?: string }} [payload]
+   * @returns {Promise<{ scopeRoot: string, languageId: string | null }>}
+   */
+  async scope({ root, languageId } = {}) {
+    const settings = await this.#settings()
+    const lsp = lspSection(settings)
+    const target = typeof root === 'string' && root.trim() !== ''
+      ? resolvePath(root)
+      : (this.#resolveEntry(root)?.root ?? null)
+    if (target === null) {
+      throw new ApiError('bad-request', 'the scope root needs a project root')
+    }
+    const entry = this.#peek(target)
+    const language = this.#languageFor(target, entry, lsp, { requested: registryLanguageOf(languageId) })
+    return {
+      languageId: typeof language === 'string' ? language : null,
+      scopeRoot: scopeRootOf(target, indexScopeOf(lsp), language),
+    }
   }
 
   /**
@@ -1949,29 +2355,53 @@ export class LspManager {
    * The estimate is the one of the language the root would be started with,
    * so the numbers the settings page shows are the numbers the start will
    * use (PRD §2.2). A running server knows its language; a root that was
-   * never started is detected the same way the start path detects it.
-   * @param {{ root?: string }} [payload]
+   * never started uses the language the client is about to start (the same
+   * one it sends to `lsp.start`), then the pinned language of the entry, and
+   * only then the detection - the memory prompt and the start must judge the
+   * same language, or the gate refuses a start it never asked about.
+   * @param {{ root?: string, languageId?: string }} [payload]
    * @returns {Promise<object>} the memory snapshot
    */
-  async resources({ root } = {}) {
+  async resources({ root, languageId } = {}) {
     const settings = await this.#settings()
     const lsp = lspSection(settings)
     const entry = this.#resolveEntry(root)
     const session = entry?.session ?? null
-    // A root that was never started has no session, but it still has a
-    // language: the same detection the start path uses.
+    // The root the snapshot is for: the requested one, or the root the
+    // manager saw last when the payload names none.
     const target = typeof root === 'string' && root.trim() !== ''
       ? resolvePath(root)
       : (entry?.root ?? null)
-    const languageId = session?.languageId ?? (target === null ? null : detectLanguage(target))
+    // A root that was never started has no session, but it still has a
+    // language: one rule for the prompt, the handshake scope and the start
+    // (see `#languageFor`), so the gate judges the same server the start
+    // will use.
+    const resolvedLanguage = this.#languageFor(target, entry, lsp, {
+      requested: registryLanguageOf(languageId),
+    })
     // The ceiling of the snapshot is the EFFECTIVE ceiling of the server
     // that would start: the tier of the project size, the ceiling of the
     // language and the global limit (MEM-11). A root that was never
     // started has no session, but it has a language and a size - the same
-    // ones the start path would use.
-    const memoryLimitMB = session?.memoryLimitMB
-      ?? ceilingMBOf(languageId, target === null ? null : scopeRootOf(target, indexScopeOf(lsp)), lsp)
-    return this.#resourcesSnapshot(memoryLimitMB, languageId, lsp)
+    // ones the start path would use. The scope is chosen with the language:
+    // only the sources of that language decide which sub-project is meant.
+    //
+    // The ceiling of the session (running or released, as long as it is the
+    // session of the language the snapshot is about) is used where it exists:
+    // a released session of another language (a YAML server that holds
+    // 512 MB, a Java start that is requested next) must not make the prompt
+    // judge Java with 512 MB while the start will use 2048 MB.
+    const sessionCeiling = session !== null && session.languageId === resolvedLanguage
+      && Number.isFinite(session.memoryLimitMB) && session.memoryLimitMB > 0
+      ? session.memoryLimitMB
+      : null
+    const memoryLimitMB = sessionCeiling
+      ?? ceilingMBOf(
+        resolvedLanguage,
+        target === null ? null : scopeRootOf(target, indexScopeOf(lsp), resolvedLanguage),
+        lsp,
+      )
+    return this.#resourcesSnapshot(memoryLimitMB, resolvedLanguage, lsp)
   }
 
   /**
@@ -2321,7 +2751,12 @@ export class LspManager {
       // does not wake it. The marker of the client is the same one, but the
       // host is the authority here - it is the host that starts the server.
       if (this.#isConservative(lsp, entry)) return
-      const started = await this.#ensureSession(entry, session.languageId)
+      // A wake is NOT an explicit request of the user: it reuses the language
+      // the root already has and must not pin it. Passing null lets
+      // `#startSession` use `entry.languageId`; a payload that arrives here
+      // right after a release must not freeze the language before the user
+      // rebuilds the index for another file (JS-04).
+      const started = await this.#ensureSession(entry, null)
       if (this.#isRunning(started)) {
         // The wake worked: the next idle release gets a fresh first wake.
         entry.lastWakeFailureAt = null
@@ -2517,6 +2952,26 @@ export class LspManager {
          * would be a second toast for one fault.
          */
         degradeEpisode: false,
+        /**
+         * The language this root runs its language server for (PRD-v5.1
+         * §5.2).
+         *
+         * It is decided when the first session of the root is started and
+         * kept from then on: a root whose language flipped with the file the
+         * user happens to open would start and stop a server per switch.
+         * @type {string | null}
+         */
+        languageId: null,
+        /**
+         * Whether `languageId` was pinned by an explicit request.
+         *
+         * A language that was only DETECTED is replaced once by the language
+         * the user asks for (the recovery path of JS-04: open the Java file,
+         * rebuild the index); after that the root stays on it. A released
+         * root therefore cannot flip back and forth between two servers.
+         * @type {boolean}
+         */
+        languagePinned: false,
       }
       ROOTS.set(key, entry)
     }
@@ -3004,29 +3459,88 @@ export class LspManager {
     // session gets its own idle timer and watchdog, and the old ones would
     // keep the host awake for nothing.
     const previous = entry.session
+    // The language of the session that is being replaced. A wake passes no
+    // language (it is not a request), and the language of a start that never
+    // reached a process is not in `entry.languageId` (that is written only
+    // after a successful spawn): without this snapshot a wake after a
+    // memory-refused Java start would silently start the DETECTED server
+    // instead of the one the user asked for.
+    const previousLanguage = previous !== null && previous !== undefined
+      && typeof previous.languageId === 'string' && LSP_REGISTRY[previous.languageId] !== undefined
+      ? previous.languageId
+      : null
     if (previous !== null && previous !== undefined) this.#teardownSession(previous)
     const settings = await this.#settings()
     const lsp = lspSection(settings)
     if (lsp.enabled === false) {
       throw new ApiError('forbidden', 'semantic analysis is disabled in the settings', 403)
     }
-    // The scope of the program (PRD-v5 §4.2): a workspace root with several
-    // projects in it must not be indexed as one program. The scope root is
-    // the directory the server is started in and the directory the program
-    // is built for.
-    const scopeRoot = scopeRootOf(entry.root, indexScopeOf(lsp))
-    const language = languageId ?? detectLanguage(scopeRoot)
+    // The language of a root is decided once and remembered on the entry
+    // (PRD-v5.1 §5.2). Three rules meet here:
+    //
+    //   - a RUNNING session is never replaced by another language:
+    //     `#ensureSession` returns it before this method is reached, so the
+    //     user switching between files of a mixed root cannot make the
+    //     server start and stop in a loop;
+    //   - when no session runs (a release, a shutdown, a crash), an explicit
+    //     request that arrives before the language was pinned wins ONCE and
+    //     pins the root. Without that, a mixed root whose first decision (the
+    //     automatic restore) guessed wrong could never start the server of
+    //     the file the user actually works in - the recovery path of JS-04
+    //     (open the Java file, rebuild the index);
+    //   - a WAKE is not an explicit request: it reuses the language the root
+    //     already has and never pins anything (the document payload of an
+    //     opened `.java` file must not freeze the old language before the
+    //     user rebuilds).
+    //
+    // The multi-language session of PRD §5.3 is out of scope for this round,
+    // so the pinned language is the only one the root runs.
+    const requested = registryLanguageOf(languageId)
+    const pinned = entry.languagePinned === true && typeof entry.languageId === 'string'
+    // One language rule for the start, the memory prompt and the handshake
+    // scope (`#languageFor`): the pinned language, a running session, the
+    // explicit request, the replaced session, the entry, the persisted
+    // build, the vote - in that order.
+    const language = this.#languageFor(entry.root, entry, lsp, {
+      requested,
+      previousLanguage,
+    })
     const registryEntry = LSP_REGISTRY[language]
     if (registryEntry === undefined) {
       throw new ApiError('bad-request', `unknown language "${language}"`)
     }
+    // The scope of the program (PRD-v5 §4.2): a workspace root with several
+    // projects in it must not be indexed as one program. The scope root is
+    // the directory the server is started in and the directory the program
+    // is built for; the sub-project is chosen by the sources of THIS
+    // language, so a polyglot workspace does not scope a TypeScript server
+    // to the folder of the Python sub-project.
+    const scopeRoot = scopeRootOf(entry.root, indexScopeOf(lsp), language)
     const override = isPlainObject(lsp.servers[language]) ? lsp.servers[language] : {}
     const command = typeof override.command === 'string' && override.command !== ''
       ? override.command
       : registryEntry.command
     const invalid = validateServerCommand(command)
     if (invalid !== null) throw new ApiError('bad-request', invalid)
-    const args = Array.isArray(override.args) ? override.args.map(String) : registryEntry.args
+    const baseArgs = Array.isArray(override.args) ? override.args.map(String) : registryEntry.args
+    // The two argument lists of a Java server are NOT the same thing
+    // (PRD-v5.1 §7.1).
+    //
+    //   - `servers[language].args` for java is the escape hatch of a foreign
+    //     packaging: it describes the LAUNCHER (the document's appendix A
+    //     names the Python script there). It may be read to find the jdtls
+    //     installation, and it must never become an argument of the JVM - a
+    //     script path before `-jar` would be taken as the main class.
+    //   - `servers[language].javaArgs` are JVM arguments: they reach the JVM
+    //     BEFORE `-jar` (see `buildJavaArgv`).
+    //
+    // Every other language has one argument list, and it is the argv of the
+    // server itself.
+    const javaDiscoveryArgs = registryEntry.launcher === 'java' ? baseArgs : []
+    const javaArgs = registryEntry.launcher === 'java' && Array.isArray(override.javaArgs)
+      ? override.javaArgs.map(String)
+      : []
+    const args = registryEntry.launcher === 'java' ? javaArgs : baseArgs
     // The effective ceiling of the language server (PRD-v5.1 §3.7, MEM-11).
     //
     // Three values play here, and the order matters: the per-language
@@ -3353,11 +3867,30 @@ export class LspManager {
       return session
     }
 
-    const resolution = this.#resolveServer(command)
+    // The executable is resolved here and not when the settings are loaded:
+    // the plan of a Java server depends on the root (`-data` isolation), on
+    // the effective ceiling of the session, on the extra JVM arguments, on
+    // the launcher arguments of the configuration (discovery only) and on
+    // the launcher of the IDE the user configured (the bundled runtime).
+    const { resolution, hint } = this.#resolveServer(command, language, lsp, {
+      root: entry.root,
+      memoryLimitMB,
+      extraArgs: args,
+      discoveryArgs: javaDiscoveryArgs,
+      ideaPath: ideaPathOf(settings),
+    })
     if (resolution === null) {
-      // The server is not installed: no retry helps. The user has to install
-      // it (or to point the settings at another executable).
-      this.#degrade(session, DEGRADE_CAUSES.notInstalled, `the ${language} language server ("${command}") is not installed. ${hintFor(registryEntry, command)}`)
+      // The server cannot start, and no retry helps: the user has to install
+      // it (or to point the settings at another executable). The hint of a
+      // Java server already is a whole sentence that lists every JDK that was
+      // found, so it stands on its own (PRD-v5.1 §3.5).
+      this.#degrade(
+        session,
+        DEGRADE_CAUSES.notInstalled,
+        registryEntry.launcher === 'java'
+          ? hint
+          : `the ${language} language server ("${command}") is not installed. ${hint}`,
+      )
       return session
     }
     session.resolution = resolution
@@ -3383,6 +3916,14 @@ export class LspManager {
     // starting - a cancel does exactly that. The session keeps its state and
     // is not dragged back into a build it has left.
     if (session.state !== 'starting') return session
+    // The language of the root is remembered only NOW: a start that was
+    // refused by the gate, the switch or the missing installation never
+    // reached a process, and it must not pin the root to a language that
+    // could not start at all (a typo in `javaHome` would otherwise make the
+    // root permanently "java"). A request that did reach a process is the
+    // decision of the user and stays (PRD-v5.1 §5.2).
+    entry.languageId = language
+    entry.languagePinned = pinned || requested !== null
     // The documents of the project are announced to the new server. This is
     // what the wake needs (IDLE-02): the host kept its document table over
     // the idle exit, and the fresh server knows nothing about them.
@@ -3395,25 +3936,78 @@ export class LspManager {
   }
 
   /**
-   * Locate the executable of one language server.
-   * @param {string} command the executable name
-   * @returns {{ path: string, scriptPath: string | null, source: 'bundled' | 'path', supportsMemoryLimit: boolean } | null}
+   * Locate how one language server is started, and the hint when it cannot be.
+   *
+   * Most servers are an executable the plugin spawns directly: the bundled
+   * package, or the `command` found on PATH. A Java server is not (PRD-v5.1
+   * §2.2): `jdtls` is an Eclipse OSGi application, so the plan names the JVM
+   * as the executable and carries the whole argv of the server. The hint of a
+   * failed Java start is the plan's own: it lists every JDK that was found,
+   * which is the answer the user needs (JS-02).
+   *
+   * @param {string} command the configured executable name
+   * @param {string | null} languageId the language of the server
+   * @param {object} lsp the `lsp` section of the settings
+   * @param {object} [context] the facts of the start
+   * @param {string | null} [context.root] the project root (`-data` isolation)
+   * @param {number} [context.memoryLimitMB] the effective ceiling of the session
+   * @param {string[]} [context.extraArgs] extra JVM argv of the settings
+   * @param {string[]} [context.discoveryArgs] launcher argv of a foreign
+   *   packaging, used ONLY to find the jdtls installation
+   * @param {string} [context.ideaPath] the launcher of the IDE the user configured
+   * @returns {{ resolution: object | null, hint: string | null, plan: object | null }}
+   *   the executable and argv, the installation hint, and the Java plan (null
+   *   for every other language)
    */
-  #resolveServer(command) {
+  #resolveServer(command, languageId, lsp, context = {}) {
+    const registryEntry = typeof languageId === 'string' ? LSP_REGISTRY[languageId] : undefined
+    if (registryEntry?.launcher === 'java') {
+      const plan = this.#javaRuntime.javaServerPlan({
+        lsp,
+        command,
+        root: context.root ?? null,
+        memoryLimitMB: context.memoryLimitMB,
+        extraArgs: context.extraArgs,
+        discoveryArgs: context.discoveryArgs,
+        ideaPath: context.ideaPath ?? '',
+      })
+      if (plan.ok === true) {
+        return {
+          // `supportsMemoryLimit` of the plan stays as it is: in the JVM mode
+          // the ceiling really reaches the server through `-Xmx`, in the
+          // script fallback it does not. `injectMemoryLimit` is false in both
+          // modes because the worker injects
+          // `initializationOptions.maxTsServerMemory`, which is a tsserver-only
+          // channel (JS-05).
+          resolution: { ...plan, injectMemoryLimit: false },
+          hint: null,
+          plan,
+        }
+      }
+      return { resolution: null, hint: plan.hint, plan }
+    }
     const bundled = resolveBundled(command)
     if (bundled !== null) {
       return {
-        path: bundled.binPath,
-        scriptPath: bundled.scriptPath,
-        source: 'bundled',
-        supportsMemoryLimit: MEMORY_LIMIT_AWARE.has(command),
+        resolution: {
+          path: bundled.binPath,
+          scriptPath: bundled.scriptPath,
+          source: 'bundled',
+          supportsMemoryLimit: MEMORY_LIMIT_AWARE.has(command),
+        },
+        hint: null,
+        plan: null,
       }
     }
     const probed = probePath(command)
     if (probed !== null) {
-      return { path: probed, scriptPath: null, source: 'path', supportsMemoryLimit: MEMORY_LIMIT_AWARE.has(command) }
+      return {
+        resolution: { path: probed, scriptPath: null, source: 'path', supportsMemoryLimit: MEMORY_LIMIT_AWARE.has(command) },
+        hint: null,
+        plan: null,
+      }
     }
-    return null
+    return { resolution: null, hint: hintFor(registryEntry ?? {}, command), plan: null }
   }
 
   /**
@@ -3449,7 +4043,11 @@ export class LspManager {
     }
     const worker = this.#createWorker({
       memoryLimitMB: session.memoryLimitMB,
-      injectMemoryLimit: session.supportsMemoryLimit,
+      // The ceiling reaches a server in one of two ways: the worker injects
+      // it into the handshake for tsserver, and the argv of a JVM carries it
+      // as `-Xmx`. A Java resolution sets `injectMemoryLimit` to false: jdtls
+      // does not know the `maxTsServerMemory` option (PRD-v5.1 JS-05).
+      injectMemoryLimit: resolution.injectMemoryLimit ?? session.supportsMemoryLimit,
     })
     session.worker = worker
     worker.on?.('message', (message) => {
@@ -3463,7 +4061,7 @@ export class LspManager {
       // The same fence: the death of an old worker may not be reported into
       // the session that replaced it.
       if (session.generation !== generation) return
-      this.#safely(this.#onCrash(entry, session, `the frame worker failed: ${messageOf(error)}`), 'the crash handler')
+      this.#safely(this.#onCrash(entry, session, `the frame worker failed: ${messageOf(error)}`, { javaExit: false }), 'the crash handler')
     })
     worker.on?.('messageerror', (error) => {
       // A message of the port that could not be deserialized. The port emits
@@ -3474,9 +4072,14 @@ export class LspManager {
       } catch { /* a broken logger may not take the host down */ }
     })
 
-    const argv = resolution.scriptPath !== null && resolution.scriptPath !== undefined
-      ? [process.execPath, resolution.scriptPath, ...session.args]
-      : [resolution.path, ...session.args]
+    // A Java server is a JVM: its argv is the whole plan, executable
+    // included (PRD-v5.1 §2.2). Every other server is either a JavaScript
+    // entry point started through this Node binary, or an executable.
+    const argv = resolution.launcher === 'java'
+      ? resolution.argv
+      : resolution.scriptPath !== null && resolution.scriptPath !== undefined
+        ? [process.execPath, resolution.scriptPath, ...session.args]
+        : [resolution.path, ...session.args]
     const spec = {
       argv,
       // The program is built for the scope root, not for the whole
@@ -3506,14 +4109,43 @@ export class LspManager {
         : this.#ctx?.subprocess?.spawn(spec)
     } catch (error) {
       this.#stopWorker(session)
+      // A JVM that refuses to start has already said why on stderr, and the
+      // full argv is what the user has to compare with the installation of
+      // jdtls - the risk table of the document asks for it by name (PRD-v5.1
+      // §9). Only the Java branch adds it: the argv of the other servers is
+      // the command of the settings, which the message already names.
+      if (resolution.launcher === 'java') {
+        throw new ApiError('lsp-unavailable', `${messageOf(error)} (command: ${argv.join(' ')})`)
+      }
       throw error
     }
     if (handle === undefined || handle === null) {
       this.#stopWorker(session)
-      throw new ApiError('lsp-unavailable', 'the language server did not start')
+      throw new ApiError(
+        'lsp-unavailable',
+        `the language server did not start${resolution.launcher === 'java' ? ` (command: ${argv.join(' ')})` : ''}`,
+      )
     }
     session.handle = handle
     session.intentionalExit = false
+    // The JVM of a Java server owns its workspace: the marker next to the
+    // directory lets the sweep of ANOTHER host process see that the
+    // workspace is in use and leave it alone (PRD-v5.1 §4.3). Best effort:
+    // a workspace without a marker is still a working workspace. When the
+    // handle does not expose the pid of its process, the pid of the HOST is
+    // used: the workspace was opened by this host, and a sweep of another
+    // process must keep it while this one lives.
+    if (resolution.launcher === 'java' && typeof this.#javaRuntime.markJavaWorkspaceOwner === 'function') {
+      // The marker names the JVM and the host: the JVM protects the running
+      // server, the host protects the workspace of a server that was released
+      // on the idle policy (the next payload wakes the same index).
+      const ownerPids = []
+      if (Number.isInteger(handle.pid)) ownerPids.push(handle.pid)
+      ownerPids.push(process.pid)
+      try {
+        this.#javaRuntime.markJavaWorkspaceOwner(resolution.workspaceDir, ownerPids)
+      } catch { /* the marker only protects against a foreign sweep */ }
+    }
     // The session is counted by the memory gate again.
     //
     // A session that crashed was torn down (it left the set of the
@@ -3620,7 +4252,10 @@ export class LspManager {
       })
       handle.stdout.on('end', () => {
         if (!current() || session.exited) return
-        this.#safely(this.#onCrash(entry, session, 'the output stream closed while the process was still running'), 'the crash handler')
+        // The stdout pipe of the server ended while the process still lives:
+        // that is a broken channel, not a JVM that rejected its JDK, so the
+        // Java runtime advice is not appended.
+        this.#safely(this.#onCrash(entry, session, 'the output stream closed while the process was still running', { javaExit: false }), 'the crash handler')
       })
       handle.stdout.on('error', () => {})
     }
@@ -4796,7 +5431,7 @@ export class LspManager {
   #noteTimeout(entry, session, reason) {
     session.timeouts += 1
     if (session.timeouts < this.#timeoutLimit) return
-    this.#safely(this.#onCrash(entry, session, `${session.timeouts} request timeouts (${reason})`), 'the crash handler')
+    this.#safely(this.#onCrash(entry, session, `${session.timeouts} request timeouts (${reason})`, { javaExit: false }), 'the crash handler')
   }
 
   /**
@@ -4817,6 +5452,42 @@ export class LspManager {
   }
 
   /**
+   * The Java runtime facts of a session that just died.
+   *
+   * The dominant Java failure is not "jdtls is missing": it is jdtls refusing
+   * the JDK it was started with, and then the process exits with a code and
+   * nothing else. The JDK list, the JDK that was chosen, the jdtls root and
+   * the full argv are the facts that make the failure answerable instead of a
+   * guess; PRD-v5.1 §3.5 (the list of the found JDKs in the failure
+   * message), §8.2 #6 (Java 21 in the settings) and §9 (the argv) require
+   * them. Every other language gets an empty string: its failure is the
+   * command of the settings, which the message already names.
+   * @param {object} session the session whose process died
+   * @returns {string} the diagnostics, or an empty string
+   */
+  #javaExitDiagnostics(session) {
+    const resolution = session?.resolution
+    if (resolution?.launcher !== 'java' || !Array.isArray(resolution.jdkCandidates)) return ''
+    const argv = Array.isArray(resolution.argv) && resolution.argv.length > 0
+      ? ` The command was: ${resolution.argv.join(' ')}.`
+      : ''
+    // A packaging that is spawned as its own executable does not use a JDK
+    // the plugin knows about: claiming "no discovered JDK" for it would be a
+    // false alarm, so only the command is reported for that mode.
+    if (resolution.mode === 'executable') return `.${argv}`
+    const candidates = resolution.jdkCandidates.length === 0
+      ? 'none'
+      : resolution.jdkCandidates.map(candidate => `${candidate.version} (${candidate.path})`).join(', ')
+    const chosen = typeof resolution.javaHome === 'string'
+      ? ` the JDK ${Number.isFinite(resolution.javaVersion) ? resolution.javaVersion : '?'} at ${resolution.javaHome},`
+      : ' no discovered JDK,'
+    const installation = typeof resolution.jdtlsHome === 'string'
+      ? ` The jdtls installation is at ${resolution.jdtlsHome}.`
+      : ''
+    return `. The server was started with${chosen} and the JDKs of this machine are ${candidates}.${installation}${argv} Which JDK the installed jdtls accepts is decided by the release of that installation: set lsp.servers.java.javaHome to the one it accepts.`
+  }
+
+  /**
    * React to a crashed language server.
    *
    * One death arrives TWICE: the stdout of the dead process ends first and
@@ -4832,8 +5503,12 @@ export class LspManager {
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {string} reason what happened
+   * @param {object} [options]
+   * @param {boolean} [options.javaExit] whether the JVM itself died (the Java
+   *   runtime facts then belong in the message; a frame-worker failure or a
+   *   request timeout is not a JVM failure and gets no JDK advice)
    */
-  async #onCrash(entry, session, reason) {
+  async #onCrash(entry, session, reason, { javaExit = true } = {}) {
     if (entry.session !== session) return
     // A session that is stopped on purpose (an idle release, a cancel, a
     // shutdown) is not a crash: the process is killed on the way out and its
@@ -4843,6 +5518,14 @@ export class LspManager {
     // duplicate and must not change anything (CRASH-01).
     if (session.crashedGeneration === session.generation) return
     session.crashedGeneration = session.generation
+    // A Java server that dies right after the start is almost always
+    // REJECTING the JDK it was started with: the JVM exits with a code and
+    // the OSGi log path, while the reason (`exit 13`) says nothing. The JDK
+    // list, the jdtls root and the argv are the answer the user needs, and
+    // the detail of the crash is the only place they are visible (PRD-v5.1
+    // §3.5, §8.2 #6, §9). The advice is only added when the JVM itself died:
+    // a frame-worker failure or a timeout says nothing about the JDK.
+    const described = javaExit ? `${reason}${this.#javaExitDiagnostics(session)}` : reason
     const state = session.state
     if (state === 'cancelled' || state === 'cancelling' || state === 'idle' || state === 'suspended' || state === 'degraded' || state === 'crashed') {
       return
@@ -4850,11 +5533,11 @@ export class LspManager {
     if (state === 'restarting') {
       // The restart really failed: the process died again while the restart
       // was still pending.
-      this.#degrade(session, DEGRADE_CAUSES.crash, this.#degradationDetail(reason, 'the automatic restart failed'))
+      this.#degrade(session, DEGRADE_CAUSES.crash, this.#degradationDetail(described, 'the automatic restart failed'))
       return
     }
     const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
-    this.#transition(session, 'crashed', reason)
+    this.#transition(session, 'crashed', described)
     // The handle of the dead process is cleared: for the whole restart
     // backoff (two seconds by default) `session.handle` pointed at the
     // process that is already gone, and every frame that arrived in that
@@ -4870,16 +5553,16 @@ export class LspManager {
     // but what the user should do about it depends on the reason - and a
     // server that died of a timeout has nothing to do with the memory. The
     // client picks the advice.
-    const detail = `The language server exited unexpectedly (${reason}).`
+    const detail = `The language server exited unexpectedly (${described}).`
     this.#notify(entry, { type: 'crash', root: entry.root, detail })
     if (lsp.autoRestart === false) {
-      this.#degrade(session, DEGRADE_CAUSES.crash, this.#degradationDetail(reason, 'the automatic restart is switched off in the settings'))
+      this.#degrade(session, DEGRADE_CAUSES.crash, this.#degradationDetail(described, 'the automatic restart is switched off in the settings'))
       return
     }
     if (session.restarts >= 1) {
       // The restart budget is one (PRD §2.7): the host does not try again
       // on its own, and a payload does not wake a server that crashed.
-      this.#degrade(session, DEGRADE_CAUSES.crash, this.#degradationDetail(reason, 'the automatic restart budget (1) is used up'))
+      this.#degrade(session, DEGRADE_CAUSES.crash, this.#degradationDetail(described, 'the automatic restart budget (1) is used up'))
       return
     }
     // The memory is checked again before the restart: the crash may well have
@@ -4894,18 +5577,18 @@ export class LspManager {
     // The refusal is the memory and not the crash: the machine may have
     // more memory later, and the session may be woken again then.
     if (resources.belowHardFloor) {
-      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.availableBytes)} MB available${worstCaseHintOf(resources)})`))
+      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(described, `there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.availableBytes)} MB available${worstCaseHintOf(resources)})`))
       return
     }
     // The machine-level budget is the same rule as at the start (MEM-08):
     // it is never skipped, not even by a session the user forced.
     const refusal = this.#budgetRefusal(resources, session.memoryLimitMB)
     if (refusal !== null) {
-      this.#degrade(session, DEGRADE_CAUSES.budget, this.#degradationDetail(reason, refusal))
+      this.#degrade(session, DEGRADE_CAUSES.budget, this.#degradationDetail(described, refusal))
       return
     }
     if (resources.tight && !session.force) {
-      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `the available memory is tight for the restart (${toMb(resources.availableBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended${worstCaseHintOf(resources)})`))
+      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(described, `the available memory is tight for the restart (${toMb(resources.availableBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended${worstCaseHintOf(resources)})`))
       return
     }
     session.restarts += 1
@@ -5142,8 +5825,21 @@ export function lspStateOf(root) {
  *
  * The host calls this when the plugin is unloaded: no language server may
  * outlive the plugin.
+ *
+ * The optional `knownRoots` are the project roots the SETTINGS still know
+ * (they survive this process). Without them the sweep would only know the
+ * roots that happened to be opened in this session, and the workspace of a
+ * project the user simply did not open today - a valid index cache - would
+ * read as an orphan and be deleted (PRD-v5.1 §4.3). The workspace of a root
+ * whose Java process is still alive is kept by the sweep itself: two hosts of
+ * one profile must not sweep each other's running servers.
+ * @param {object} [options]
+ * @param {string[]} [options.knownRoots] the persisted roots of the settings
+ * @param {object} [options.javaRuntime] replaces the Java runtime module of
+ *   the sweep (the tests inject a double instead of touching the profile)
  */
-export function shutdownAll() {
+export function shutdownAll({ knownRoots = [], javaRuntime: javaRuntimeOverride = null } = {}) {
+  const java = javaRuntimeOverride ?? javaRuntime
   for (const entry of ROOTS.values()) {
     const session = entry.session
     if (session === null) continue
@@ -5177,5 +5873,19 @@ export function shutdownAll() {
     entry.session = null
     entry.documents.clear()
   }
+  // The jdtls workspace of a root IS its index cache: it must survive a
+  // restart, so nothing is deleted on start. A root that is gone from both
+  // the live map and the persisted roots, however, leaves a
+  // multi-hundred-megabyte Eclipse workspace behind for ever, so the orphans
+  // are swept here, once, at unload (PRD-v5.1 §4.3). The keys of ROOTS are
+  // root keys already; the persisted roots are made keys by the sweep's
+  // caller contract (see `rootKey`).
+  try {
+    const known = new Set([...ROOTS.keys()])
+    for (const root of Array.isArray(knownRoots) ? knownRoots : []) {
+      if (typeof root === 'string' && root !== '') known.add(rootKey(root))
+    }
+    java.sweepJavaWorkspaces([...known])
+  } catch { /* an unload must not throw */ }
   ROOTS.clear()
 }

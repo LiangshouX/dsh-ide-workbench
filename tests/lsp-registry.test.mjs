@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { LSP_REGISTRY, validateServerCommand } from '../src/host/lsp.js'
+import { LSP_LANGUAGE_IDS } from '../src/host/settings-defaults.js'
 import { makeManager } from './lsp-fixtures.mjs'
 
 const require = createRequire(import.meta.url)
@@ -74,10 +75,41 @@ test('the bundled servers are the ones of the PRD table', () => {
 })
 
 test('the probed servers state what they need', () => {
-  assert.equal(LSP_REGISTRY.java.requires, 'JDK 21+')
+  // The exact JDK version is a property of the INSTALLED jdtls, not of the
+  // plugin: 1.63.0 needs JavaSE 25, older releases accepted 21. A hard-coded
+  // version number is a lie on some machine (PRD-v5.1 JS-02 / §3.6).
+  assert.equal(LSP_REGISTRY.java.requires, 'a JDK the installed jdtls accepts')
   assert.equal(LSP_REGISTRY.go.requires, 'Go toolchain')
   assert.equal(LSP_REGISTRY.rust.requires, 'rustup component')
   assert.equal(LSP_REGISTRY.cpp.requires, 'LLVM')
+})
+
+test('the java server is started through a JVM, not as the command itself', () => {
+  // `command` stays the probe target and the name the settings page shows.
+  assert.equal(LSP_REGISTRY.java.command, 'jdtls')
+  // `jdtls` on the official release is a Python script without an extension:
+  // spawning it directly is an ENOENT on every machine, so the entry names
+  // the launcher the server is really started with (PRD-v5.1 JS-01).
+  assert.equal(LSP_REGISTRY.java.launcher, 'java')
+  // jdtls starts with a 1 GB initial heap and holds an Eclipse workspace on
+  // top of it: the old 512 MB baseline was an order of magnitude below the
+  // real footprint and let the memory gate start a server the machine could
+  // not hold (PRD-v5.1 JS-05).
+  assert.equal(LSP_REGISTRY.java.memoryLimitMB, 2048)
+  assert.ok(
+    LSP_REGISTRY.java.memoryBaselineMB >= 2048,
+    `java baseline ${LSP_REGISTRY.java.memoryBaselineMB} is below the corrected estimate`,
+  )
+})
+
+test('the shared language list is exactly the set of languages the registry serves', () => {
+  // The client reports a language to the host only when it is in this list,
+  // and the host refuses a language id that is not in its registry: the two
+  // halves have to agree, or a start is refused without a hint on one side
+  // and never named on the other (PRD-v5.1 JS-04).
+  assert.equal(new Set(LSP_LANGUAGE_IDS).size, LSP_LANGUAGE_IDS.length, 'the list has no duplicates')
+  const covered = new Set(Object.values(LSP_REGISTRY).flatMap(entry => entry.languageIds))
+  assert.deepEqual([...covered].sort(), [...LSP_LANGUAGE_IDS].sort())
 })
 
 test('the packaged typescript is the 5.x line, never the 7.x compiler', () => {

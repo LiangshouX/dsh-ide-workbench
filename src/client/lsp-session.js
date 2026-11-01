@@ -1174,6 +1174,45 @@ function hostIsReachable() {
 }
 
 /**
+ * The language the workbench last reported for a project root.
+ *
+ * The session does not read the store (the import graph is acyclic: `store`
+ * imports this module, not the other way round), so the workbench PUSHES the
+ * language of the file it is starting the server for. The scope request
+ * carries it to the host: the `rootUri` of the handshake and the cwd of the
+ * server process must name the same sub-project (PRD-v5 §4.2, JS-04).
+ * @type {{ root: string, languageId: string }}
+ */
+let languageHint = { root: '', languageId: '' }
+
+/**
+ * Record the language the workbench is about to start a server for.
+ *
+ * An empty language means "not known": the host decides the language of the
+ * project on its own then, exactly like it does when a start names none.
+ * @param {string} root the project root
+ * @param {string} languageId the language id, or '' when unknown
+ * @returns {void}
+ */
+export function setLspLanguageHint(root, languageId) {
+  if (typeof root !== 'string' || root === '') return
+  languageHint = {
+    root: normalizeScopePath(root),
+    languageId: typeof languageId === 'string' ? languageId : '',
+  }
+}
+
+/**
+ * The recorded language of one project root, when it belongs to that root.
+ * @param {string} root the project root
+ * @returns {string} the language id, or '' when unknown
+ */
+function languageHintFor(root) {
+  if (languageHint.root === '' || languageHint.languageId === '') return ''
+  return languageHint.root === normalizeScopePath(root) ? languageHint.languageId : ''
+}
+
+/**
  * The scope root of one project, as the host reports it (PRD-v5 §4.2).
  *
  * The host owns the rule: the program of the language server converges onto
@@ -1185,6 +1224,13 @@ function hostIsReachable() {
  * A host that does not answer leaves the workspace root as the scope root:
  * the session starts, and the program is the one of the whole workspace (the
  * behaviour of the older versions).
+ *
+ * The language is sent when the workbench knows it (see
+ * {@link setLspLanguageHint}): the sub-project of a polyglot workspace is
+ * chosen by the sources of the language the session really starts, and the
+ * `rootUri` of the handshake must name the same project as the server of the
+ * host - otherwise a Java server is told to build the program of the Python
+ * sub-project (PRD-v5 §4.2, PRD-v5.1 JS-04).
  * @param {string} root the workspace root
  * @returns {Promise<string>} the scope root
  */
@@ -1197,7 +1243,10 @@ export async function scopeRootFor(root) {
   // this module); in the browser the timer is a plain number.
   if (typeof timer?.unref === 'function') timer.unref()
   try {
-    const answer = await call('lsp.scope', { root }, controller.signal)
+    const payload = { root }
+    const languageId = languageHintFor(root)
+    if (languageId !== '') payload.languageId = languageId
+    const answer = await call('lsp.scope', payload, controller.signal)
     const scope = answer?.scopeRoot
     if (typeof scope === 'string' && scope !== '') return scope
   } catch (error) {
@@ -1355,6 +1404,17 @@ function connectClient(client, config, root, scopeRoot) {
  *
  * The promise never rejects: a host that does not answer leaves the
  * workspace root as the scope root, and the session starts anyway.
+ *
+ * KNOWN LIMITATION (the shape of the P0 design, PRD-v5.1 §5.3): the scope is
+ * asked ONCE per client session, because the `initialize` of the first
+ * handshake is what decides the program and the host replays that handshake
+ * to a restarted server. A start that later picks another language for the
+ * same root (JS-04: open the Java file, rebuild the index) does not re-ask
+ * the scope, so the restarted server may still be initialized with the scope
+ * root of the previous language. In the common mixed repository the root is
+ * itself the project, so the scope is the root for every language and the
+ * limitation only shows in a workspace with several language-specific
+ * sub-projects; the per-(root, language) session of §5.3 removes it.
  * @param {any} client the client of the session
  * @param {any} config the configuration of the client
  * @param {string} root the workspace root

@@ -52,6 +52,33 @@ export const IDLE_POLICIES = ['never', 'after', 'onMemoryPressure', 'always']
  */
 export const INDEX_SCOPES = ['auto', 'root', 'project']
 
+/**
+ * The language ids the host registry can start a language server for.
+ *
+ * Both halves of the plugin import this list: the host refuses a `languageId`
+ * that is not in its registry, and the client only reports a language it can
+ * see a server for (PRD-v5.1 JS-04). One list keeps the two halves from
+ * disagreeing about which languages have a server - a second copy would drift
+ * away, and a language the client names while the host does not know it is a
+ * start that fails without a hint.
+ *
+ * The list is maintained by hand next to `LSP_REGISTRY`: adding a server there
+ * means adding its language ids here.
+ */
+export const LSP_LANGUAGE_IDS = [
+  'typescript',
+  'javascript',
+  'javascriptreact',
+  'typescriptreact',
+  'python',
+  'yaml',
+  'java',
+  'go',
+  'rust',
+  'c',
+  'cpp',
+]
+
 export const DEFAULT_LSP_SETTINGS = {
   /** Master switch. false = never start a language server. */
   enabled: true,
@@ -167,6 +194,32 @@ export const DEFAULT_LSP_SETTINGS = {
    * `args` replace the registered ones; `memoryLimitMB` lowers the
    * ceiling of one language; `memoryBaselineMB` replaces the estimate the
    * free memory is compared with.
+   *
+   * The java server has four keys of its own under `servers.java` (PRD-v5.1
+   * JS-02). Every one of them defaults to empty and every default is
+   * environment-derived: a path written into this file would work on one
+   * machine and nowhere else.
+   *
+   *   - `javaHome` (string, default `''`): the JDK that starts jdtls. A
+   *     directory that contains `bin/java[.exe]`, or the executable itself.
+   *     Empty = discover one, in the order explicit setting > `JAVA_HOME` >
+   *     `java` on PATH > the IDE's JDK table > the IDE's bundled runtime >
+   *     a scan of environment-derived roots.
+   *   - `jdtlsHome` (string, default `''`): the jdtls installation root.
+   *     Empty = `JDTLS_HOME`, else the layout is derived from the resolved
+   *     `jdtls` command.
+   *   - `javaSearchRoots` (string[], default `[]`): EXTRA roots to scan for a
+   *     JDK, for the user whose IDE is installed where nothing looks. It is a
+   *     fallback, not the normal path - the discovered sources above already
+   *     cover a standard machine.
+   *   - `javaArgs` (string[], default `[]`): extra JVM arguments appended to
+   *     the JVM part of the generated command line, before `-jar` (for
+   *     debugging, e.g. `-Dxxx` or an extra `-Xmx`; after the jar, `java`
+   *     would pass them to the Eclipse application instead of the JVM).
+   *
+   * `servers` is a free object: the settings store only guarantees that it is
+   * an object, so a missing key means "the default above" and no migration is
+   * needed when one of the keys is added.
    */
   servers: {},
   /** Project roots that completed a first build: { [absPath]: { at, languageId } }. */

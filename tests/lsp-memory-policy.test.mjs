@@ -47,7 +47,11 @@ test('the registry knows the memory baseline of every language', () => {
     javascript: 434,
     python: 192,
     yaml: 64,
-    java: 512,
+    // jdtls starts with a 1 GB initial heap and keeps an Eclipse workspace on
+    // top of it: 1.5-2.5 GB is its typical footprint (PRD-v5.1 JS-05). The
+    // old 512 MB was an order of magnitude low and let the memory gate start
+    // a server the machine could not hold.
+    java: 2048,
     go: 256,
     rust: 512,
     cpp: 384,

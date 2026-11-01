@@ -15,6 +15,7 @@
  * admitted through the public Connection service (the same fence `/api` uses).
  */
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { stat, unlink } from 'node:fs/promises'
 import { dirname, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,8 +32,7 @@ import {
   appendIgnore, createEntry, deleteEntries, duplicateEntry, moveEntries, renameEntry,
 } from './host/fileops.js'
 import { listFiles, searchFiles } from './host/search.js'
-import { LspManager, scopeRootOf, shutdownAll } from './host/lsp.js'
-import { DEFAULT_LSP_SETTINGS, INDEX_SCOPES } from './host/settings-defaults.js'
+import { LspManager, shutdownAll } from './host/lsp.js'
 import { registerLspWebSocket, shutdownLspWebSocket } from './host/lsp-ws.js'
 import { guardEmitter } from './host/guard.js'
 import {
@@ -276,19 +276,49 @@ function liveStateOf(live, path) {
 }
 
 /**
- * The index scope policy of the `lsp` section of the settings (PRD-v5 §4.2).
+ * The project roots the settings document still knows.
  *
- * The policy decides which project the program of the language server is
- * built for: 'auto' converges onto the nearest sub-project, 'root' keeps the
- * whole root, 'project' always converges. A settings document with an unknown
- * value falls back to the default, exactly like the host does when it starts a
- * language server.
- * @param {any} lsp the `lsp` section of the settings
- * @returns {'auto' | 'root' | 'project'} the policy
+ * The live map of the language server manager only holds the roots that were
+ * opened in THIS process, and the jdtls workspace of a project is its index
+ * cache: a project the user did not open today must not lose it. The settings
+ * document outlives the process, so its `projectRoots` (workspace root →
+ * project root) and the `lsp.indexedRoots` map are the roots the unload sweep
+ * has to keep.
+ *
+ * The document is read from the FILE as well: the in-memory `value` is the
+ * snapshot this process loaded, and another DSH host of the same profile may
+ * have written a project into it since. A teardown is rare and the file is
+ * small, so the synchronous read is cheaper than a wrong sweep - the sweep
+ * may delete a workspace that a project of another host still uses.
+ * @param {any} settings the settings store of this plugin fiber
+ * @returns {string[]} the absolute roots the settings remember
  */
-function indexScopePolicyOf(lsp) {
-  const section = lsp !== null && typeof lsp === 'object' && !Array.isArray(lsp) ? lsp : {}
-  return INDEX_SCOPES.includes(section.indexScope) ? section.indexScope : DEFAULT_LSP_SETTINGS.indexScope
+function knownRootsOfSettings(settings) {
+  const roots = []
+  const collect = (document) => {
+    if (document === null || typeof document !== 'object') return
+    const projectRoots = document.projectRoots
+    if (projectRoots !== null && typeof projectRoots === 'object') {
+      for (const [workspaceRoot, projectRoot] of Object.entries(projectRoots)) {
+        if (typeof workspaceRoot === 'string' && workspaceRoot !== '') roots.push(workspaceRoot)
+        if (typeof projectRoot === 'string' && projectRoot !== '') roots.push(projectRoot)
+      }
+    }
+    const indexedRoots = document.lsp?.indexedRoots
+    if (indexedRoots !== null && typeof indexedRoots === 'object') {
+      for (const root of Object.keys(indexedRoots)) {
+        if (root !== '') roots.push(root)
+      }
+    }
+  }
+  collect(settings !== null && typeof settings === 'object' ? settings.value : null)
+  try {
+    collect(JSON.parse(readFileSync(settingsFile(), 'utf8')))
+  } catch {
+    // A settings file that cannot be read adds nothing; the in-memory
+    // snapshot above is still a (smaller) answer.
+  }
+  return roots
 }
 
 /**
@@ -735,22 +765,28 @@ export function apply(ctx) {
 
     'lsp.resources': async (payload) => lsp.resources({
       root: typeof payload?.root === 'string' ? payload.root : undefined,
+      // The language the client is ABOUT to start: the memory prompt and the
+      // start must judge the same language, or the prompt says "ok" for the
+      // TypeScript baseline and the start then refuses with the Java one.
+      languageId: typeof payload?.languageId === 'string' ? payload.languageId : undefined,
     }),
 
     /**
-     * The root the language server builds its program for (PRD-v5 §4.2).
+     * The scope root the client has to put into the `rootUri` of its
+     * handshake (PRD-v5 §4.2).
      *
      * The client asks for it *before* it starts a session: the `rootUri` of
      * the `initialize` request is what tells the language server which
      * project it is looking at - the working directory of its process does
-     * not. The answer needs no running language server: the scope is a rule
-     * of the settings and of the disk, not a fact about a session.
+     * not. The answer must be the one the HOST would use, including the
+     * pinned language of the root and a running session: two independent
+     * rules would tell the server to build the program of one sub-project
+     * while its cwd is another one.
      */
-    'lsp.scope': async (payload) => {
-      const root = requireString(payload, 'root')
-      const current = await settings.get()
-      return { scopeRoot: scopeRootOf(root, indexScopePolicyOf(current.lsp)) }
-    },
+    'lsp.scope': async (payload) => lsp.scope({
+      root: requireString(payload, 'root'),
+      languageId: typeof payload?.languageId === 'string' ? payload.languageId : undefined,
+    }),
 
     'lsp.shutdown': async (payload) => lsp.shutdown({
       root: typeof payload?.root === 'string' ? payload.root : undefined,
@@ -967,7 +1003,7 @@ export function apply(ctx) {
       void handle.terminate().catch(() => {})
     }
     shutdownLspWebSocket()
-    shutdownAll()
+    shutdownAll({ knownRoots: knownRootsOfSettings(settings) })
   }, 'dsh-ide-workbench: teardown')
 
   ctx.effect(() => {
