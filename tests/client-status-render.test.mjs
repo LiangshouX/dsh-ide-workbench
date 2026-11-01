@@ -27,6 +27,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { en, zh } from '../src/client/i18n.js'
+import { WorkbenchStore } from '../src/client/store.js'
 import { createLspTransport, isControlEvent } from '../src/client/lsp-transport.js'
 import {
   configureLsp,
@@ -458,16 +459,39 @@ test('the reconnect button follows the dead session, not the display winner', as
   assert.equal(showReconnectButton(idle.key, 'failed'), true, 'the exit is there anyway')
 })
 
-test('the status bar and the toast share one list of the healthy host states', async () => {
+test('the status bar and the toast agree about every host state', async () => {
   // One list in one place: the status bar and the toast gate must not
   // disagree about what "the host is fine" means - they are the two pillars
   // of the same decision, and two lists would let them fight each other
   // (review R6-5).
-  const source = await readFile(join(root, 'src/client/Workbench.jsx'), 'utf8')
-  assert.match(source, /import \{ LSP_HOST_HEALTHY_STATES \} from '\.\/lsp-session\.js'/, 'the status bar takes the shared list')
-  assert.doesNotMatch(source, /const HOST_HEALTHY_STATES/, 'the status bar has no list of its own')
-  const session = await readFile(join(root, 'src/client/lsp-session.js'), 'utf8')
-  assert.match(session, /export const LSP_HOST_HEALTHY_STATES = \['starting', 'building', 'ready', 'restarting'\]/, 'the list lives in the session module')
+  //
+  // The assertion is a BEHAVIOUR, not a text (review O-2): for every state
+  // of the host, the toast is announced exactly when the status bar shows
+  // the red "the session is dead". A copy of the list that drifts apart
+  // makes this red; a rename of the constant does not.
+  const { lspStatusView } = await loadModule()
+  const states = [
+    'idle', 'disabled', 'degraded', 'crashed', 'suspended', 'cancelled', 'failed',
+    'starting', 'building', 'ready', 'restarting',
+  ]
+  for (const state of states) {
+    // The toast gate of the real store: it is the half that decides whether
+    // the failure is announced at all.
+    const store = new WorkbenchStore({ locale: { subscribe: () => () => {} } }, key => key)
+    const toasts = []
+    store.toast = (kind, text) => { toasts.push({ kind, text }) }
+    store.state = { ...store.state, lsp: { ...store.state.lsp, state } }
+    store.lspSessionState('failed', 'the handshake timed out')
+    const announced = toasts.length > 0
+    store.dispose()
+    // The other half: what the status bar says about the same state.
+    const view = lspStatusView({ t: translator(en) }, snapshot({ state, clientState: 'failed' }))
+    assert.equal(
+      announced,
+      view.key === 'sessionFailed',
+      `the toast and the status bar agree in the host state ${state}`,
+    )
+  }
 })
 
 test('the status of a starting session says how long the user waits', async () => {

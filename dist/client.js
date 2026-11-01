@@ -39032,6 +39032,7 @@ var WorkbenchStore = class {
         await this.loadProjects(preferred);
         const projectRoot = this.#projectRootFor(preferred);
         this.set({ root: projectRoot, gitRepoRoot: this.#defaultGitRepoRoot(projectRoot) });
+        void this.#startLspForRestored(projectRoot);
         this.#restoreWorkspace(projectRoot);
         void this.loadRestoredTree({ lazy: true });
         this.patch("commit", { mode: settings?.editor?.sideBySide === false ? "unified" : "side" });
@@ -39406,6 +39407,7 @@ var WorkbenchStore = class {
       // (PRD-v4 §3.2): it must not survive the switch.
       commit: this.#resetCommitSelection()
     });
+    void this.#startLspForRestored(projectRoot);
     this.#rememberProjectRoot(projectRoot);
     this.#restoreWorkspace(projectRoot);
     void this.loadRestoredTree({ lazy: true });
@@ -39728,6 +39730,40 @@ var WorkbenchStore = class {
     } catch {
       return null;
     }
+  }
+  /**
+   * Start the language server of a project that the workbench restores.
+   *
+   * The project switch asks the user whether the project shall be indexed;
+   * the two paths that restore a project must not ask - a dialog at every
+   * start of DSH would be unbearable. But a decision the user has already
+   * expressed must be honoured there too:
+   *
+   *   - `indexOnOpen: 'always'` says "always index";
+   *   - a remembered memory answer of 'accepted' says "start it anyway
+   *     although the memory is tight" - and that question is only asked
+   *     after the index decision said "build", so it means the same thing.
+   *
+   * The decision of the workbench has the last word: a project the user put
+   * into the basic mode (a remembered 'conservative', `indexOnOpen: 'never'`,
+   * the master switch off) gets no server - not even here.
+   *
+   * The host's own memory gate still applies: a machine that cannot afford
+   * the server does not get one (the hard floor is never skipped), and the
+   * tight band is skipped only for a project the user has already answered
+   * for.
+   * @param {string} root the project root
+   * @returns {Promise<void>}
+   */
+  async #startLspForRestored(root) {
+    if (typeof root !== "string" || root === "") return;
+    const lsp = this.state.settings?.lsp;
+    const always = lsp !== null && lsp !== void 0 && typeof lsp === "object" && (lsp.indexOnOpen ?? "ask") === "always";
+    const accepted = this.#memoryAnswer(root) === "accepted";
+    if (!always && !accepted) return;
+    if (this.lspIndexDecision(root) === "conservative") return;
+    this.#rememberIndexDecision(root, "build");
+    await this.#startLsp(root, { force: accepted });
   }
   /**
    * Rebuild the index of the current project.

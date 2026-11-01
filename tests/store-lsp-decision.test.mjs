@@ -289,3 +289,150 @@ test('the reconnect starts the server of a project that wanted one', async (t) =
     'the way out of a dead session still works',
   )
 })
+
+// ── the restore paths (review R7-1) ───────────────────────────────────────
+
+/**
+ * One host stub for the paths that restore a project.
+ *
+ * The host merges the patch into its settings document and answers with the
+ * whole document - the store adopts that answer, so a stub that answered
+ * with an empty document would wipe the settings of the store.
+ * @param {any} settings the settings document of the profile
+ * @returns {{calls: any[], starts: () => any[], restore: () => void}} the stub
+ */
+function restoreStub(settings) {
+  const calls = []
+  let document = { ...settings }
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    const method = String(url).split('/ide-workbench/api/')[1]
+    const body = init?.body === undefined ? {} : JSON.parse(init.body)
+    calls.push({ method, body })
+    let value = {}
+    if (method === 'settings.get') value = { file: 'settings.json', value: document }
+    else if (method === 'settings.update') {
+      document = { ...document, ...(body.patch ?? {}) }
+      value = { value: document }
+    } else if (method === 'workspace.list') {
+      value = { items: [{ path: ROOT }], defaultDirectory: ROOT, defaultRoot: ROOT }
+    } else if (method === 'workspace.projects') value = { workspace: body.root, projects: [] }
+    else if (method === 'lsp.start') value = { state: 'starting', forced: body.force === true }
+    else if (method === 'lsp.status') {
+      value = { enabled: true, state: 'idle', languageId: '', indexedRoots: [] }
+    } else if (method === 'git.status') value = { isRepo: true, branch: 'main', entries: [], subprocesses: 1 }
+    else if (method === 'git.log') value = { commits: [], hasMore: false }
+    else if (method === 'fs.tree') value = { entries: [], truncated: false }
+    else if (method === 'terminal.shells') value = { shells: [] }
+    else value = {}
+    return { ok: true, status: 200, async json() { return { ok: true, value } } }
+  }
+  return {
+    calls,
+    starts: () => calls.filter(call => call.method === 'lsp.start'),
+    restore() { globalThis.fetch = original },
+  }
+}
+
+/**
+ * The store of a workbench that boots at the project root.
+ * @param {any} settings the settings document of the profile
+ * @returns {any} the store
+ */
+function bootingStore(settings) {
+  const ctx = { locale: { subscribe: () => () => {} } }
+  return new WorkbenchStore(ctx, key => key, ROOT)
+}
+
+test('the restored project starts its language server when the policy says "always"', async (t) => {
+  const host = restoreStub(lspSettings({ indexOnOpen: 'always' }))
+  const store = bootingStore()
+  t.after(() => {
+    store.dispose()
+    host.restore()
+  })
+  await store.init()
+  await tick(30)
+  const starts = host.starts()
+  assert.equal(starts.length, 1, 'the host is asked to start the server')
+  assert.equal(starts[0].body.root, ROOT)
+  assert.equal(starts[0].body.force, false, 'the start is not forced')
+  assert.equal(
+    store.lspIndexDecision(ROOT),
+    'build',
+    'the store and the client session agree: the project wants a server',
+  )
+})
+
+test('the project of a switched workspace starts its language server too', async (t) => {
+  const host = restoreStub(lspSettings({ indexOnOpen: 'always' }))
+  const store = fakeStore({ settings: lspSettings({ indexOnOpen: 'always' }) })
+  t.after(() => {
+    store.dispose()
+    host.restore()
+  })
+  await store.setRoot(OTHER_ROOT)
+  await tick(30)
+  const starts = host.starts()
+  assert.equal(starts.length, 1, 'the host is asked to start the server')
+  assert.equal(starts[0].body.root, OTHER_ROOT)
+  assert.equal(starts[0].body.force, false, 'the start is not forced')
+  assert.equal(store.lspIndexDecision(OTHER_ROOT), 'build')
+})
+
+test('the restored project starts nothing while the policy asks', async (t) => {
+  const host = restoreStub(lspSettings({ indexOnOpen: 'ask' }))
+  const store = bootingStore()
+  t.after(() => {
+    store.dispose()
+    host.restore()
+  })
+  await store.init()
+  await tick(30)
+  assert.equal(host.starts().length, 0, 'the "ask" policy starts no server')
+  assert.equal(store.state.indexDecision, null, 'and it asks nothing either')
+})
+
+test('the restored project starts nothing while the policy says "never"', async (t) => {
+  const host = restoreStub(lspSettings({ indexOnOpen: 'never' }))
+  const store = bootingStore()
+  t.after(() => {
+    store.dispose()
+    host.restore()
+  })
+  await store.init()
+  await tick(30)
+  assert.equal(host.starts().length, 0, 'the "never" policy starts no server')
+})
+
+test('a remembered "start anyway" starts the server of the restored project', async (t) => {
+  const host = restoreStub(lspSettings({ memoryWarnedRoots: { [ROOT]: 'accepted' } }))
+  const store = bootingStore()
+  t.after(() => {
+    store.dispose()
+    host.restore()
+  })
+  await store.init()
+  await tick(30)
+  const starts = host.starts()
+  assert.equal(starts.length, 1, 'the remembered answer starts the server')
+  assert.equal(starts[0].body.force, true, 'the remembered answer forces the start')
+})
+
+test('a remembered "basic mode" keeps the restored project in the basic mode', async (t) => {
+  // The policy says "always", the answer of the user says "basic mode": the
+  // decision of the workbench has the last word.
+  const host = restoreStub(lspSettings({
+    indexOnOpen: 'always',
+    memoryWarnedRoots: { [ROOT]: 'conservative' },
+  }))
+  const store = bootingStore()
+  t.after(() => {
+    store.dispose()
+    host.restore()
+  })
+  await store.init()
+  await tick(30)
+  assert.equal(host.starts().length, 0, 'the user refused this project')
+  assert.equal(store.lspIndexDecision(ROOT), 'conservative')
+})

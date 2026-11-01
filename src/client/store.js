@@ -799,6 +799,10 @@ export class WorkbenchStore {
         await this.loadProjects(preferred)
         const projectRoot = this.#projectRootFor(preferred)
         this.set({ root: projectRoot, gitRepoRoot: this.#defaultGitRepoRoot(projectRoot) })
+        // The project is restored, not switched: the index decision does not
+        // run here. A decision the user has already expressed still does
+        // (review R7-1).
+        void this.#startLspForRestored(projectRoot)
         this.#restoreWorkspace(projectRoot)
         void this.loadRestoredTree({ lazy: true })
         this.patch('commit', { mode: settings?.editor?.sideBySide === false ? 'unified' : 'side' })
@@ -1224,6 +1228,10 @@ export class WorkbenchStore {
       // (PRD-v4 §3.2): it must not survive the switch.
       commit: this.#resetCommitSelection(),
     })
+    // The workspace was switched, not the project: the index decision does
+    // not run here. A decision the user has already expressed still does
+    // (review R7-1).
+    void this.#startLspForRestored(projectRoot)
     this.#rememberProjectRoot(projectRoot)
     this.#restoreWorkspace(projectRoot)
     void this.loadRestoredTree({ lazy: true })
@@ -1617,6 +1625,47 @@ export class WorkbenchStore {
       // The status bar shows the failure; a toast here would only add noise.
       return null
     }
+  }
+
+  /**
+   * Start the language server of a project that the workbench restores.
+   *
+   * The project switch asks the user whether the project shall be indexed;
+   * the two paths that restore a project must not ask - a dialog at every
+   * start of DSH would be unbearable. But a decision the user has already
+   * expressed must be honoured there too:
+   *
+   *   - `indexOnOpen: 'always'` says "always index";
+   *   - a remembered memory answer of 'accepted' says "start it anyway
+   *     although the memory is tight" - and that question is only asked
+   *     after the index decision said "build", so it means the same thing.
+   *
+   * The decision of the workbench has the last word: a project the user put
+   * into the basic mode (a remembered 'conservative', `indexOnOpen: 'never'`,
+   * the master switch off) gets no server - not even here.
+   *
+   * The host's own memory gate still applies: a machine that cannot afford
+   * the server does not get one (the hard floor is never skipped), and the
+   * tight band is skipped only for a project the user has already answered
+   * for.
+   * @param {string} root the project root
+   * @returns {Promise<void>}
+   */
+  async #startLspForRestored(root) {
+    if (typeof root !== 'string' || root === '') return
+    const lsp = this.state.settings?.lsp
+    const always = lsp !== null && lsp !== undefined && typeof lsp === 'object'
+      && (lsp.indexOnOpen ?? 'ask') === 'always'
+    const accepted = this.#memoryAnswer(root) === 'accepted'
+    // The 'ask' policy stays exactly as it is: no dialog, no server.
+    if (!always && !accepted) return
+    // The decision of the workbench has the last word: the user refused this
+    // project, so it gets no server - not even here.
+    if (this.lspIndexDecision(root) === 'conservative') return
+    // The store and the client session have to agree: the project wants a
+    // server.
+    this.#rememberIndexDecision(root, 'build')
+    await this.#startLsp(root, { force: accepted })
   }
 
   /**
