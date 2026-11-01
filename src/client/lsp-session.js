@@ -75,6 +75,16 @@ const DEFAULT_SHORTCUTS = {
 /** The WebSocket route of the host side LSP relay. */
 const LSP_WS_PATH = 'ide-workbench/ws/lsp'
 
+/**
+ * How long the client waits for the scope root of the host.
+ *
+ * The scope root decides the program the language server builds, so the
+ * handshake waits for it (PRD-v5 §4.2). But not for ever: a host that does
+ * not answer must not keep the semantic features dead - the workspace root is
+ * the scope root then, and the session starts anyway.
+ */
+const SCOPE_TIMEOUT_MS = 3000
+
 /** The store the session belongs to. */
 let sessionStore = null
 /** The one LSP client of the session. */
@@ -97,6 +107,26 @@ let unsubscribeStore = null
 let sessionKey = null
 /** The project root the running client belongs to. */
 let sessionRoot = ''
+/**
+ * The scope root the running client was built for.
+ *
+ * The scope root is the directory the language server builds its program for
+ * (PRD-v5 §4.2). It is part of the session key: a different scope means a
+ * different program, so the client has to be built again with the new root.
+ * @type {string}
+ */
+let sessionScopeRoot = ''
+/**
+ * The connection of the current client.
+ *
+ * The client is created before it is connected: the scope root of the project
+ * is asked for first, and the handshake waits for the answer (PRD-v5 §4.2).
+ * A request that arrives in that window must not fail with "Client not
+ * connected" - it waits for the connection, like every other request waits
+ * for the handshake.
+ * @type {{client: any, promise: Promise<void>, resolve: () => void} | null}
+ */
+let pendingConnection = null
 /** Whether the error reports of the library were redirected already. */
 let reportErrorRedirected = false
 /** The timer of the next handshake retry. */
@@ -398,7 +428,19 @@ function watchSemanticRequests(client) {
     applyRequestBudget(client)
     // A new find cycle: the files of the last one are stale.
     if (method === 'textDocument/references') clearRequestCache()
-    const promise = original(method, params)
+    // The client may not be connected yet: the scope root of the project is
+    // asked for before the handshake goes out (PRD-v5 §4.2). Such a request
+    // waits for the connection instead of failing with "Client not connected".
+    const connection = pendingConnection !== null && pendingConnection.client === client
+      ? pendingConnection.promise
+      : null
+    const promise = connection === null
+      ? original(method, params)
+      : connection.then(() => {
+        // The budget may have moved while the request waited.
+        applyRequestBudget(client)
+        return original(method, params)
+      })
     if (!SEMANTIC_METHODS.has(method)) return promise
     return promise.then(
       result => {
@@ -782,7 +824,162 @@ export function semanticDefinitionAvailable() {
   return capabilityAvailable('definitionProvider')
 }
 
-/** Create the client and open the socket. */
+/**
+ * Whether the host can be asked for the scope root of a project.
+ *
+ * The client half lives in a browser: the routes of the plugin are reached
+ * through the base of the page or through the transport the host injected.
+ * Without one of them there is no host to ask - the request could only fail,
+ * and the failure would delay the session by the timeout of the request. The
+ * workspace root is the scope root then, and the session starts right away.
+ * @returns {boolean} true when the host may be asked
+ */
+function hostIsReachable() {
+  const injected = globalThis.__DSH_TRANSPORT__?.streamBaseUrl
+  if (typeof injected === 'string' && injected !== '') return true
+  if (typeof document !== 'undefined' && typeof document.baseURI === 'string' && document.baseURI !== '') return true
+  return false
+}
+
+/**
+ * The scope root of one project, as the host reports it (PRD-v5 §4.2).
+ *
+ * The host owns the rule: the program of the language server converges onto
+ * the nearest sub-project, and the client cannot compute that - it does not
+ * see the disk. The host is asked through its own route, and it answers
+ * without a running language server: the scope is a rule of the settings and
+ * of the disk, not a fact about a session.
+ *
+ * A host that does not answer leaves the workspace root as the scope root:
+ * the session starts, and the program is the one of the whole workspace (the
+ * behaviour of the older versions).
+ * @param {string} root the workspace root
+ * @returns {Promise<string>} the scope root
+ */
+export async function scopeRootFor(root) {
+  if (typeof root !== 'string' || root === '') return ''
+  if (!hostIsReachable()) return root
+  const controller = new AbortController()
+  const timer = setTimeout(() => { controller.abort() }, SCOPE_TIMEOUT_MS)
+  // A pending timeout must not keep a Node process alive (the tests import
+  // this module); in the browser the timer is a plain number.
+  if (typeof timer?.unref === 'function') timer.unref()
+  try {
+    const answer = await call('lsp.scope', { root }, controller.signal)
+    const scope = answer?.scopeRoot
+    if (typeof scope === 'string' && scope !== '') return scope
+  } catch (error) {
+    console.warn('[lsp] the scope root could not be read:', error instanceof Error ? error.message : error)
+  } finally {
+    clearTimeout(timer)
+  }
+  return root
+}
+
+/**
+ * The index scope policy of the settings (PRD-v5 §4.2).
+ *
+ * The policy decides which project the program of the language server is
+ * built for. The host validates it (an unknown value falls back to the
+ * default there); the client only needs to notice that the policy *moved*,
+ * because a changed policy means a changed scope and a new client.
+ * @param {any} lsp the `lsp` section of the settings
+ * @returns {string} the policy
+ */
+function indexScopePolicy(lsp) {
+  const section = lsp !== null && typeof lsp === 'object' && !Array.isArray(lsp) ? lsp : {}
+  return typeof section.indexScope === 'string' ? section.indexScope : ''
+}
+
+/**
+ * The key of the session: what decides whether the client is built again.
+ *
+ * The scope root is part of it: a different scope means a different program,
+ * so the client has to be built again with the new root - and the policy
+ * belongs to it as well, because the policy is what decides the scope
+ * (PRD-v5 §4.2).
+ * @param {boolean} enabled whether the semantic features are on
+ * @param {string} root the workspace root
+ * @param {string} policy the index scope policy of the settings
+ * @param {string} scopeRoot the scope root of the running client
+ * @returns {string} the key
+ */
+function sessionKeyOf(enabled, root, policy, scopeRoot) {
+  return `${enabled}|${root}|${policy}|${scopeRoot}`
+}
+
+/**
+ * Connect the client and open the socket.
+ *
+ * The `rootUri` of the `initialize` request is written into the configuration
+ * of the client before the handshake goes out: the library reads it exactly
+ * there.
+ * @param {any} client the client of the session
+ * @param {any} config the configuration of the client
+ * @param {string} root the workspace root
+ * @param {string} scopeRoot the scope root the program is built for
+ */
+function connectClient(client, config, root, scopeRoot) {
+  config.rootUri = fileUriOf(scopeRoot)
+  sessionScopeRoot = scopeRoot
+  // The key follows the scope: the client that is running now is the one of
+  // this scope, and a changed scope builds a new client.
+  const lspSettings = sessionStore?.state?.settings?.lsp ?? null
+  sessionKey = sessionKeyOf(
+    sessionEnabled && lspSettings?.enabled !== false,
+    root,
+    indexScopePolicy(lspSettings),
+    scopeRoot,
+  )
+  client.connect(currentTransport)
+  watchHandshake(client)
+  // The client is connected now: the editors pick it up.
+  bumpVersion()
+  // The requests that waited for the connection may go.
+  if (pendingConnection !== null && pendingConnection.client === client) pendingConnection.resolve()
+}
+
+/**
+ * Connect the client with the scope root of the project.
+ *
+ * The scope root decides the program the language server builds, and the
+ * `rootUri` of the `initialize` request is what tells the server which
+ * project it is looking at - the working directory of its process does not
+ * (PRD-v5 §4.2). The root is therefore written into the configuration of the
+ * client *before* the handshake goes out: the host forwards the first
+ * handshake to the language server and answers the later ones from its
+ * cache, so only the first one decides the program.
+ *
+ * The promise never rejects: a host that does not answer leaves the
+ * workspace root as the scope root, and the session starts anyway.
+ * @param {any} client the client of the session
+ * @param {any} config the configuration of the client
+ * @param {string} root the workspace root
+ */
+async function connectWithScope(client, config, root) {
+  const scopeRoot = await scopeRootFor(root)
+  // The session may have ended - or moved to another project - while the
+  // host was asked. A client that is not the current one is not connected.
+  if (currentClient !== client) {
+    // The requests that wait for the connection must not hang: the client
+    // they belong to is gone.
+    if (pendingConnection !== null && pendingConnection.client === client) {
+      pendingConnection.resolve()
+      pendingConnection = null
+    }
+    return
+  }
+  connectClient(client, config, root, scopeRoot)
+}
+
+/**
+ * Start the session: create the client and open the socket.
+ *
+ * The client is created right away - the editors of the workbench ask for it
+ * as soon as it exists - but the handshake waits for the scope root of the
+ * project: the `initialize` request carries the `rootUri`, and the `rootUri`
+ * decides the program the language server builds (PRD-v5 §4.2).
+ */
 function startLsp() {
   if (currentClient !== null) return
   const store = sessionStore
@@ -793,7 +990,10 @@ function startLsp() {
   // A new client is a new session: no semantic request has been answered
   // yet, so the first one gets the long budget.
   semanticAnswers = 0
-  currentClient = new LSPClient({
+  // The configuration of the client. The library reads the `rootUri` when it
+  // creates the `initialize` request, so the scope root is written into this
+  // object before the handshake goes out.
+  const config = {
     rootUri: fileUriOf(root),
     // The budget of the construction is the budget of the session, so that a
     // request which is sent before the first wrapper call is not short
@@ -807,7 +1007,8 @@ function startLsp() {
     // The editor extensions are added by `lspExtensions()` instead, so that
     // the workbench can keep them out of the editors that have no client.
     extensions: [],
-  })
+  }
+  currentClient = new LSPClient(config)
   // The health of the features is watched on the request method of the
   // client, so that only the semantic failures are counted.
   watchSemanticRequests(currentClient)
@@ -831,9 +1032,19 @@ function startLsp() {
     // callback never throws.
     onControl: (event) => { store?.lspControl?.(event) },
   })
-  currentClient.connect(currentTransport)
-  watchHandshake(currentClient)
-  bumpVersion()
+  // The requests that arrive before the client is connected wait for the
+  // connection instead of failing with "Client not connected".
+  let resolveConnection = () => {}
+  const connection = new Promise(resolve => { resolveConnection = resolve })
+  pendingConnection = { client: currentClient, promise: connection, resolve: resolveConnection }
+  if (!hostIsReachable()) {
+    // There is no host to ask: the workspace root is the scope root, and the
+    // session starts right away.
+    connectClient(currentClient, config, root, root)
+    return
+  }
+  // The handshake waits for the scope root of the project.
+  void connectWithScope(currentClient, config, root)
 }
 
 /**
@@ -1033,6 +1244,11 @@ function stopLsp() {
   currentClient = null
   currentWorkspace = null
   currentTransport = null
+  // The requests that wait for the connection may go: the session is over.
+  if (pendingConnection !== null) {
+    pendingConnection.resolve()
+    pendingConnection = null
+  }
   // The health belongs to the running session: when it ends, the failures
   // of the old server say nothing about the next one. The answered semantic
   // requests go with it - the next session starts with a server that has to
@@ -1061,12 +1277,23 @@ function refreshLsp() {
   const enabled = sessionEnabled && lspSettings?.enabled !== false
   // Without a project there is no language server to talk to.
   const wanted = enabled && root !== ''
-  const key = `${enabled}|${root}`
+  const policy = indexScopePolicy(lspSettings)
+  // The scope root belongs to the project: another project has another scope,
+  // and the host is asked for it again.
+  if (sessionRoot !== root) sessionScopeRoot = ''
+  // The scope root is part of the key: the program of the language server is
+  // built for the scope, and a different scope needs a different client
+  // (PRD-v5 §4.2). The policy belongs to the key as well - it is what
+  // decides the scope.
+  const key = sessionKeyOf(enabled, root, policy, sessionScopeRoot)
   if (key === sessionKey) return
   const hadClient = currentClient !== null
   // The root of the client that is running now: it is the project whose
   // language server has to be stopped.
   const previousRoot = sessionRoot
+  // The scope root of the client that is running is kept until the host
+  // answers for the new one: the key must not move on its own, or every poll
+  // of the store would build a new client.
   sessionKey = key
   sessionRoot = root
   if (previousRoot !== root) {
@@ -1111,6 +1338,9 @@ export function configureLsp(store) {
   }
   sessionKey = null
   sessionRoot = ''
+  // The scope root belongs to the client of the previous store: the new one
+  // asks the host again.
+  sessionScopeRoot = ''
   // A new store is a new world for the client: it has not seen a language
   // server process yet, so the first process id it reads is the baseline of
   // the comparison and not a restart.

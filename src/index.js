@@ -31,7 +31,8 @@ import {
   appendIgnore, createEntry, deleteEntries, duplicateEntry, moveEntries, renameEntry,
 } from './host/fileops.js'
 import { listFiles, searchFiles } from './host/search.js'
-import { LspManager, shutdownAll } from './host/lsp.js'
+import { LspManager, scopeRootOf, shutdownAll } from './host/lsp.js'
+import { DEFAULT_LSP_SETTINGS, INDEX_SCOPES } from './host/settings-defaults.js'
 import { registerLspWebSocket, shutdownLspWebSocket } from './host/lsp-ws.js'
 import { guardEmitter } from './host/guard.js'
 import {
@@ -272,6 +273,22 @@ function liveStateOf(live, path) {
     if (samePath(key, path)) return state
   }
   return undefined
+}
+
+/**
+ * The index scope policy of the `lsp` section of the settings (PRD-v5 §4.2).
+ *
+ * The policy decides which project the program of the language server is
+ * built for: 'auto' converges onto the nearest sub-project, 'root' keeps the
+ * whole root, 'project' always converges. A settings document with an unknown
+ * value falls back to the default, exactly like the host does when it starts a
+ * language server.
+ * @param {any} lsp the `lsp` section of the settings
+ * @returns {'auto' | 'root' | 'project'} the policy
+ */
+function indexScopePolicyOf(lsp) {
+  const section = lsp !== null && typeof lsp === 'object' && !Array.isArray(lsp) ? lsp : {}
+  return INDEX_SCOPES.includes(section.indexScope) ? section.indexScope : DEFAULT_LSP_SETTINGS.indexScope
 }
 
 /**
@@ -715,6 +732,21 @@ export function apply(ctx) {
     'lsp.resources': async (payload) => lsp.resources({
       root: typeof payload?.root === 'string' ? payload.root : undefined,
     }),
+
+    /**
+     * The root the language server builds its program for (PRD-v5 §4.2).
+     *
+     * The client asks for it *before* it starts a session: the `rootUri` of
+     * the `initialize` request is what tells the language server which
+     * project it is looking at - the working directory of its process does
+     * not. The answer needs no running language server: the scope is a rule
+     * of the settings and of the disk, not a fact about a session.
+     */
+    'lsp.scope': async (payload) => {
+      const root = requireString(payload, 'root')
+      const current = await settings.get()
+      return { scopeRoot: scopeRootOf(root, indexScopePolicyOf(current.lsp)) }
+    },
 
     'lsp.shutdown': async (payload) => lsp.shutdown({
       root: typeof payload?.root === 'string' ? payload.root : undefined,

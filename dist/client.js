@@ -31846,6 +31846,7 @@ var en = {
   "lsp.diagnostics.state": "State",
   "lsp.diagnostics.health": "Failures / timeouts",
   "lsp.diagnostics.lastFailure": "Last failure",
+  "lsp.diagnostics.reason": "Reason",
   "lsp.diagnostics.noFailure": "No failure was recorded.",
   "lsp.diagnostics.stderr": "Language server output",
   "lsp.diagnostics.noLogs": "The language server wrote nothing to its output.",
@@ -32459,6 +32460,7 @@ var zh = {
   "lsp.diagnostics.state": "\u5F53\u524D\u72B6\u6001",
   "lsp.diagnostics.health": "\u5931\u8D25 / \u8D85\u65F6\u6B21\u6570",
   "lsp.diagnostics.lastFailure": "\u6700\u8FD1\u5931\u8D25",
+  "lsp.diagnostics.reason": "\u539F\u56E0",
   "lsp.diagnostics.noFailure": "\u6682\u65E0\u5931\u8D25\u8BB0\u5F55\u3002",
   "lsp.diagnostics.stderr": "\u8BED\u8A00\u670D\u52A1\u5668\u8F93\u51FA",
   "lsp.diagnostics.noLogs": "\u8BED\u8A00\u670D\u52A1\u5668\u6CA1\u6709\u8F93\u51FA\u4EFB\u4F55\u5185\u5BB9\u3002",
@@ -33294,6 +33296,16 @@ function initialState() {
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
       /**
+       * The root the program of the project is built for.
+       *
+       * The host reports it: it is the project root itself most of the time,
+       * and the nearest sub-project when the root is a workspace with several
+       * projects in it (PRD-v5 §4.2). The client only mirrors it, so the
+       * workspace fence can be narrowed to the directory the program really
+       * covers. It is a string or `null` - never `undefined`.
+       */
+      scopeRoot: null,
+      /**
        * The identity of the running language-server process.
        *
        * The host publishes it: the number changes with every new process, so
@@ -33467,6 +33479,11 @@ var WorkbenchStore = class {
     this.indexDecisionResolve = null;
     this.memoryDecisionResolve = null;
     this.lspServersChecked = /* @__PURE__ */ new Set();
+    this.visibilityBound = false;
+    if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+      document.addEventListener("visibilitychange", this.#onVisibilityChange);
+      this.visibilityBound = true;
+    }
   }
   // ── subscription ──────────────────────────────────────────────────────
   subscribe = (listener) => {
@@ -33474,6 +33491,21 @@ var WorkbenchStore = class {
     return () => {
       this.listeners.delete(listener);
     };
+  };
+  /**
+   * The listener of the document visibility.
+   *
+   * A hidden page cannot keep its cadence: the browser throttles the timers
+   * of a background page to once a minute. A window that was minimised
+   * therefore showed the status of a minute ago for up to a minute - and the
+   * status bar said "unknown (retrying…)" even though the server was healthy.
+   * The listener gives the window its status back as soon as it comes to
+   * the front, instead of waiting for the throttled interval.
+   */
+  #onVisibilityChange = () => {
+    if (typeof document === "undefined" || document.visibilityState !== "visible") return;
+    void this.pollStatus();
+    void this.refreshLspStatus();
   };
   getSnapshot = () => this.state;
   /**
@@ -34320,6 +34352,15 @@ var WorkbenchStore = class {
    * A degraded or crashed session used to be recoverable only by switching
    * the project away and back. The old session is shut down first: otherwise
    * the new one would find the memory the old one still holds.
+   *
+   * The start is forced when the free memory was the blocker: the host
+   * pre-checks the memory, and a start that is not forced is degraded by the
+   * same gate that degraded the session before. The user would click
+   * 【重新建立索引】 and land in exactly the same degraded state - a loop
+   * without an exit. Clicking the button IS the answer of the memory
+   * warning («仍然启动» = start anyway, PRD-v5 §2.3). A degradation caused
+   * by a missing server or by a crash must not bypass the memory gate, so
+   * the force is limited to the tight band.
    * @returns {Promise<void>}
    */
   async restartLsp() {
@@ -34330,8 +34371,9 @@ var WorkbenchStore = class {
       await call2("lsp.shutdown", { root });
     } catch {
     }
+    const force = this.state.lsp.resources?.tight === true;
     try {
-      await call2("lsp.start", { root });
+      await call2("lsp.start", { root, force });
     } catch {
     }
     await this.refreshLspStatus();
@@ -34608,6 +34650,10 @@ var WorkbenchStore = class {
       clearInterval(this.lspPollTimer);
       this.lspPollTimer = null;
     }
+    if (this.visibilityBound && typeof document !== "undefined" && typeof document.removeEventListener === "function") {
+      document.removeEventListener("visibilitychange", this.#onVisibilityChange);
+    }
+    this.visibilityBound = false;
     this.deactivate();
   }
   async pollStatus() {
@@ -34629,7 +34675,6 @@ var WorkbenchStore = class {
   async pollLspStatus() {
     if (this.state.root === "") return;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-      this.set({ lspStatusStale: true });
       return;
     }
     await this.refreshLspStatus();
@@ -34665,6 +34710,12 @@ var WorkbenchStore = class {
       source: typeof status.source === "string" ? status.source : null,
       detail: typeof status.detail === "string" ? status.detail : null,
       indexedRoots: Array.isArray(status.indexedRoots) ? status.indexedRoots : [],
+      // The root the program of the project is built for. The host knows it
+      // and the client has to mirror it: the workspace fence is narrowed to
+      // this directory, because the semantic answers are about it and not
+      // about the whole workspace (PRD-v5 §4.2). It is a string or null -
+      // never undefined.
+      scopeRoot: typeof status.scopeRoot === "string" && status.scopeRoot !== "" ? status.scopeRoot : null,
       // The identity of the running language-server process. It changes with
       // every new process, and the client uses the change to reset its
       // request budget: the new process has to build the program of the
@@ -34692,7 +34743,7 @@ var WorkbenchStore = class {
       next.cancellable = false;
     }
     const current = this.state.lsp;
-    const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled || current.processId !== next.processId || current.buildingProgram !== next.buildingProgram || memoryChanged;
+    const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled || current.processId !== next.processId || current.buildingProgram !== next.buildingProgram || current.scopeRoot !== next.scopeRoot || memoryChanged;
     const patch = { lspStatusStale: false };
     if (changed) patch.lsp = next;
     this.set(patch);
@@ -34752,8 +34803,12 @@ var WorkbenchStore = class {
     if (this.lspFaultNotified) return false;
     this.lspFaultNotified = true;
     const crashed = state === "crashed";
-    const reason = crashed ? this.#crashAdvice(detail) : detail;
-    this.toast("error", this.t(crashed ? "lsp.crashedToast" : "lsp.degradedToast"), reason);
+    const advice = this.#crashAdvice(detail);
+    this.toast("error", this.t(crashed ? "lsp.crashedToast" : "lsp.degradedToast"), advice);
+    const raw = typeof detail === "string" ? detail : "";
+    if (raw !== "" && this.state.lsp.detail !== raw) {
+      this.patch("lsp", { detail: raw });
+    }
     return true;
   }
   /**
@@ -55921,11 +55976,11 @@ var WorkbenchWorkspace = class extends Workspace {
    * The content that is announced is the editor buffer (the draft), never the
    * file on disk.
    *
-   * A document outside the project is *not* announced: the language server
-   * only knows the documents of the project and complains about the others
-   * ("Unexpected resource …"), and that complaint reaches the workbench as a
-   * fake error (review S8). The file itself stays known to the editor - the
-   * tab needs it - it is only kept away from the server.
+   * A document outside the scope is *not* announced: the language server only
+   * knows the documents of the project it builds its program for and complains
+   * about the others ("Unexpected resource …"), and that complaint reaches the
+   * workbench as a fake error (review S8). The file itself stays known to the
+   * editor - the tab needs it - it is only kept away from the server.
    * @param {string} uri the document URI
    * @param {string} languageId the LSP language id
    * @param {any} view the editor
@@ -55953,7 +56008,8 @@ var WorkbenchWorkspace = class extends Workspace {
     };
     this.files.push(file);
     const absolute = pathOfFileUri(uri);
-    if (absolute === null || !this.insideRoot(absolute)) return;
+    if (absolute === null || !this.insideScope(absolute)) return;
+    if (this.client.connected === false) return;
     file.announced = true;
     this.client.didOpen(file);
   }
@@ -55971,9 +56027,9 @@ var WorkbenchWorkspace = class extends Workspace {
    * 1. **No tab is opened.** The file is only needed to render the context
    *    of a reference row; opening it would turn one search into a batch of
    *    opened files.
-   * 2. **The fence holds.** A path outside the project is not read and does
-   *    not even produce a toast - one search may touch dozens of files, and
-   *    dozens of toasts would bury the panel.
+   * 2. **The fence holds.** A path outside the workspace is not read and
+   *    does not even produce a toast - one search may touch dozens of files,
+   *    and dozens of toasts would bury the panel.
    * 3. **The file is cached.** One search reads the same file again for
    *    every reference in it.
    * @param {string} uri the document URI
@@ -56095,11 +56151,39 @@ var WorkbenchWorkspace = class extends Workspace {
   }
   /**
    * Whether one path is inside the current project.
+   *
+   * The fence of the *workbench*: the project is the workspace root, and the
+   * workbench may open and show every file of it.
    * @param {string} absolute the absolute path
    * @returns {boolean} true when the path may be opened
    */
   insideRoot(absolute) {
     const root = this.store?.state?.root;
+    if (typeof root !== "string" || root === "") return false;
+    return isPathWithin(root, absolute);
+  }
+  /**
+   * Whether one path is inside the scope of the language server.
+   *
+   * The server is scoped to the *scope root* of the project (PRD-v5 §4.2):
+   * it builds its program for that directory, and a document outside of it is
+   * not part of the project. Such a document is never announced - the server
+   * would answer with a complaint ("not part of the workspace") that the
+   * workbench would have to swallow.
+   *
+   * The scope root comes from the store, which mirrors what the host reports.
+   * Without one the workspace root is the scope: the server knows the whole
+   * workspace then, and every document of it may be announced.
+   *
+   * The workbench itself is *not* fenced by the scope: the workbench may
+   * still open and show every file of the workspace - the scope is a fact
+   * about the server, not about the files.
+   * @param {string} absolute the absolute path
+   * @returns {boolean} true when the server may know the file
+   */
+  insideScope(absolute) {
+    const scope = this.store?.state?.lsp?.scopeRoot;
+    const root = typeof scope === "string" && scope !== "" ? scope : this.store?.state?.root;
     if (typeof root !== "string" || root === "") return false;
     return isPathWithin(root, absolute);
   }
@@ -56121,7 +56205,10 @@ var WorkbenchWorkspace = class extends Workspace {
   /**
    * Show another document to the user.
    *
-   * A path outside the project is refused: it is neither opened nor read.
+   * A path outside the workspace is refused: it is neither opened nor read.
+   * The scope of the language server does not narrow this: a file of the
+   * workspace that the server knows nothing about may still be shown - the
+   * server mentioned it, and the user has to see it.
    * @param {string} uri the document URI
    * @returns {Promise<any>} the editor, or `null` when it cannot be shown
    */
@@ -56161,8 +56248,21 @@ var WorkbenchWorkspace = class extends Workspace {
    * The documents are opened by `openFile()` - the editor plugin calls it as
    * soon as the plugin extension exists - and the host re-opens them itself
    * after a crash restart.
+   *
+   * One exception: a document that was opened *before* the client was
+   * connected was never announced - the library drops a notification that is
+   * sent without a transport, and the client is connected a moment after it
+   * was created (the scope root of the project is asked for before the
+   * handshake goes out, PRD-v5 §4.2). Such a document is announced now.
    */
   connected() {
+    for (const file of this.files) {
+      if (file.announced === true) continue;
+      const absolute = pathOfFileUri(file.uri);
+      if (absolute === null || !this.insideScope(absolute)) continue;
+      file.announced = true;
+      this.client.didOpen(file);
+    }
   }
   /**
    * Apply a server initiated change to one document.
@@ -56284,6 +56384,7 @@ var DEFAULT_SHORTCUTS = {
   complete: "Ctrl+Space"
 };
 var LSP_WS_PATH = "ide-workbench/ws/lsp";
+var SCOPE_TIMEOUT_MS = 3e3;
 var sessionStore = null;
 var currentClient = null;
 var currentWorkspace = null;
@@ -56295,6 +56396,8 @@ var sessionListeners = /* @__PURE__ */ new Set();
 var unsubscribeStore = null;
 var sessionKey = null;
 var sessionRoot = "";
+var sessionScopeRoot = "";
+var pendingConnection = null;
 var reportErrorRedirected = false;
 var handshakeTimer = null;
 var handshakeRetries = 0;
@@ -56385,7 +56488,11 @@ function watchSemanticRequests(client) {
   client.request = function request(method, params) {
     applyRequestBudget(client);
     if (method === "textDocument/references") clearRequestCache();
-    const promise = original(method, params);
+    const connection = pendingConnection !== null && pendingConnection.client === client ? pendingConnection.promise : null;
+    const promise = connection === null ? original(method, params) : connection.then(() => {
+      applyRequestBudget(client);
+      return original(method, params);
+    });
     if (!SEMANTIC_METHODS.has(method)) return promise;
     return promise.then(
       (result) => {
@@ -56571,6 +56678,64 @@ function semanticUsagesAvailable() {
 function semanticDefinitionAvailable() {
   return capabilityAvailable("definitionProvider");
 }
+function hostIsReachable() {
+  const injected = globalThis.__DSH_TRANSPORT__?.streamBaseUrl;
+  if (typeof injected === "string" && injected !== "") return true;
+  if (typeof document !== "undefined" && typeof document.baseURI === "string" && document.baseURI !== "") return true;
+  return false;
+}
+async function scopeRootFor(root) {
+  if (typeof root !== "string" || root === "") return "";
+  if (!hostIsReachable()) return root;
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, SCOPE_TIMEOUT_MS);
+  if (typeof timer?.unref === "function") timer.unref();
+  try {
+    const answer = await call("lsp.scope", { root }, controller.signal);
+    const scope = answer?.scopeRoot;
+    if (typeof scope === "string" && scope !== "") return scope;
+  } catch (error) {
+    console.warn("[lsp] the scope root could not be read:", error instanceof Error ? error.message : error);
+  } finally {
+    clearTimeout(timer);
+  }
+  return root;
+}
+function indexScopePolicy(lsp) {
+  const section = lsp !== null && typeof lsp === "object" && !Array.isArray(lsp) ? lsp : {};
+  return typeof section.indexScope === "string" ? section.indexScope : "";
+}
+function sessionKeyOf(enabled, root, policy, scopeRoot) {
+  return `${enabled}|${root}|${policy}|${scopeRoot}`;
+}
+function connectClient(client, config2, root, scopeRoot) {
+  config2.rootUri = fileUriOf(scopeRoot);
+  sessionScopeRoot = scopeRoot;
+  const lspSettings = sessionStore?.state?.settings?.lsp ?? null;
+  sessionKey = sessionKeyOf(
+    sessionEnabled && lspSettings?.enabled !== false,
+    root,
+    indexScopePolicy(lspSettings),
+    scopeRoot
+  );
+  client.connect(currentTransport);
+  watchHandshake(client);
+  bumpVersion();
+  if (pendingConnection !== null && pendingConnection.client === client) pendingConnection.resolve();
+}
+async function connectWithScope(client, config2, root) {
+  const scopeRoot = await scopeRootFor(root);
+  if (currentClient !== client) {
+    if (pendingConnection !== null && pendingConnection.client === client) {
+      pendingConnection.resolve();
+      pendingConnection = null;
+    }
+    return;
+  }
+  connectClient(client, config2, root, scopeRoot);
+}
 function startLsp() {
   if (currentClient !== null) return;
   const store = sessionStore;
@@ -56579,7 +56744,7 @@ function startLsp() {
   redirectMappingPositions();
   const root = typeof store.state?.root === "string" ? store.state.root : "";
   semanticAnswers = 0;
-  currentClient = new LSPClient({
+  const config2 = {
     rootUri: fileUriOf(root),
     // The budget of the construction is the budget of the session, so that a
     // request which is sent before the first wrapper call is not short
@@ -56593,7 +56758,8 @@ function startLsp() {
     // The editor extensions are added by `lspExtensions()` instead, so that
     // the workbench can keep them out of the editors that have no client.
     extensions: []
-  });
+  };
+  currentClient = new LSPClient(config2);
   watchSemanticRequests(currentClient);
   currentTransport = createLspTransport({
     url: () => lspSocketUrl(root),
@@ -56615,9 +56781,17 @@ function startLsp() {
       store?.lspControl?.(event);
     }
   });
-  currentClient.connect(currentTransport);
-  watchHandshake(currentClient);
-  bumpVersion();
+  let resolveConnection = () => {
+  };
+  const connection = new Promise((resolve) => {
+    resolveConnection = resolve;
+  });
+  pendingConnection = { client: currentClient, promise: connection, resolve: resolveConnection };
+  if (!hostIsReachable()) {
+    connectClient(currentClient, config2, root, root);
+    return;
+  }
+  void connectWithScope(currentClient, config2, root);
 }
 var MAX_HANDSHAKE_RETRIES = 3;
 function watchHandshake(client) {
@@ -56703,6 +56877,10 @@ function stopLsp() {
   currentClient = null;
   currentWorkspace = null;
   currentTransport = null;
+  if (pendingConnection !== null) {
+    pendingConnection.resolve();
+    pendingConnection = null;
+  }
   resetLspHealth();
   bumpVersion();
 }
@@ -56721,7 +56899,9 @@ function refreshLsp() {
   const root = typeof store.state?.root === "string" ? store.state.root : "";
   const enabled = sessionEnabled && lspSettings?.enabled !== false;
   const wanted = enabled && root !== "";
-  const key = `${enabled}|${root}`;
+  const policy = indexScopePolicy(lspSettings);
+  if (sessionRoot !== root) sessionScopeRoot = "";
+  const key = sessionKeyOf(enabled, root, policy, sessionScopeRoot);
   if (key === sessionKey) return;
   const hadClient = currentClient !== null;
   const previousRoot = sessionRoot;
@@ -56749,6 +56929,7 @@ function configureLsp(store) {
   }
   sessionKey = null;
   sessionRoot = "";
+  sessionScopeRoot = "";
   lastProcessId = null;
   if (typeof store?.subscribe === "function") {
     unsubscribeStore = store.subscribe(() => {
@@ -61812,6 +61993,16 @@ function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
             lastFailure === null ? t2("lsp.diagnostics.noFailure") : `${lastFailure.message ?? ""} (${new Date(lastFailure.at ?? 0).toLocaleTimeString()})`
           )
         ),
+        // The reason the host reported. The toast says «the details are in the
+        // diagnostics panel» - so the panel has to carry them. It is the
+        // technical sentence of the host (the host has no locale), and it is
+        // the only place where the exact reason is readable.
+        typeof lsp.detail === "string" && lsp.detail !== "" ? import_react19.default.createElement(
+          "div",
+          { className: "iwb-lsp-diagnostics-row" },
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-key" }, t2("lsp.diagnostics.reason")),
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-value" }, lsp.detail)
+        ) : null,
         import_react19.default.createElement(
           "div",
           { className: "iwb-lsp-diagnostics-row" },

@@ -85,7 +85,7 @@ async function loadModule() {
       absWorkingDir: root,
       stdin: {
         contents: [
-          "export { lspStatusView, formatWaited, waitedFor, showRebuildButton, showCancelButton, memoryFacts } from './src/client/Workbench.jsx'",
+          "export { lspStatusView, formatWaited, waitedFor, showRebuildButton, showCancelButton, memoryFacts, LspDiagnosticsModal } from './src/client/Workbench.jsx'",
           "export { SettingsForm } from './src/client/SettingsPanel.jsx'",
         ].join('\n'),
         resolveDir: root,
@@ -386,8 +386,48 @@ test('the memory row names the three numbers in Chinese too', async () => {
   assert.equal(facts.text, '可用 684 MB · 需要 651 MB · 已预留 2048 MB')
 })
 
-// ── the control events of the host ────────────────────────────────────────
+// ── the diagnostics panel ─────────────────────────────────────────────────
 //
+// The toast tells the user in one localized sentence, and its generic answer
+// says «the details are in the diagnostics panel». The panel therefore has to
+// carry the reason the host reported - it is the only place where the exact
+// technical reason is readable.
+
+test('the diagnostics panel shows the reason the host reported', async () => {
+  const { LspDiagnosticsModal } = await loadModule()
+  const store = { t: translator(en) }
+  const state = snapshot({
+    state: 'degraded',
+    detail: 'the language server stopped unexpectedly (3 request timeouts); the automatic restart budget (1) is used up',
+  })
+
+  const html = renderToStaticMarkup(React.createElement(LspDiagnosticsModal, {
+    store,
+    state,
+    onOpenSettings: () => {},
+    onClose: () => {},
+  }))
+
+  assert.match(html, /the automatic restart budget/, 'the reason of the host is shown')
+  assert.match(html, /lsp\.diagnostics\.reason|Latest failure|Reason/, 'the row has a label')
+})
+
+test('the diagnostics panel says nothing about a reason when there is none', async () => {
+  const { LspDiagnosticsModal } = await loadModule()
+  const store = { t: translator(en) }
+  const state = snapshot({ state: 'ready', detail: '' })
+
+  const html = renderToStaticMarkup(React.createElement(LspDiagnosticsModal, {
+    store,
+    state,
+    onOpenSettings: () => {},
+    onClose: () => {},
+  }))
+
+  assert.doesNotMatch(html, /lsp\.diagnostics\.reason/, 'the row is not there without a reason')
+})
+
+// ── the control events of the host ────────────────────────────────────────//
 // The host puts its own events on the same socket as the JSON-RPC messages.
 // The library would fail on them, so the transport takes them out of the
 // stream (PRD-v5 §1.5).

@@ -11,16 +11,25 @@ import { fileUriOf } from '../src/client/lsp-uri.js'
 
 /**
  * A recording client: the workspace only ever calls these two methods.
- * @returns {{calls: Array<any>, didOpen: Function, didClose: Function}} the client
+ *
+ * The client models the transport of the library: a notification that is sent
+ * without a transport is dropped, so a document that is opened before the
+ * client is connected never reaches the server.
+ * @param {object} [options]
+ * @param {boolean} [options.connected] whether the client is connected
+ * @returns {{calls: Array<any>, connected: boolean, didOpen: Function, didClose: Function}} the client
  */
-function recordingClient() {
+function recordingClient(options = {}) {
   const calls = []
   return {
     calls,
+    connected: options.connected !== false,
     didOpen(file) {
+      if (this.connected !== true) return
       calls.push({ kind: 'didOpen', uri: file.uri, version: file.version, text: file.doc.toString(), languageId: file.languageId })
     },
     didClose(uri) {
+      if (this.connected !== true) return
       calls.push({ kind: 'didClose', uri })
     },
   }
@@ -28,6 +37,10 @@ function recordingClient() {
 
 /**
  * A workbench store with one file tab.
+ *
+ * The `scopeRoot` is the root the language server builds its program for
+ * (PRD-v5 §4.2): the store mirrors it, and the workspace uses it for the
+ * fence of the *server*. Without one the workspace root is the scope.
  * @param {object} [options]
  * @returns {{store: any, calls: Array<any>}} the store and the recorded calls
  */
@@ -47,6 +60,7 @@ function recordingStore(options = {}) {
       root: options.root ?? 'C:/work/demo',
       tabs: options.tabs ?? [tab],
       settings: { lsp: { enabled: true }, shortcuts: {} },
+      lsp: { scopeRoot: options.scopeRoot ?? null },
     },
     openFile(path, openOptions) {
       calls.push({ kind: 'openFile', path, options: openOptions })
@@ -274,6 +288,80 @@ test('closeFile of an unknown document does nothing', () => {
   const workspace = new WorkbenchWorkspace(client, store, {})
   workspace.closeFile('file:///C:/work/demo/src/unknown.ts', null)
   assert.equal(client.calls.length, 0)
+})
+
+/**
+ * The fence of the server: the language server is scoped to the scope root of
+ * the project (PRD-v5 §4.2), so a document outside of it is not part of the
+ * program and must not be announced.
+ *
+ * The workbench is *not* fenced by the scope: it may still open and show
+ * every file of the workspace - the scope is a fact about the server, not
+ * about the files.
+ */
+test('a file inside the scope is announced to the server', () => {
+  const client = recordingClient()
+  const { store } = recordingStore({ root: 'C:/work/demo', scopeRoot: 'C:/work/demo/packages/app' })
+  const workspace = new WorkbenchWorkspace(client, store, {})
+  workspace.openFile('file:///C:/work/demo/packages/app/src/app.ts', 'typescript', null)
+  const opened = client.calls.find(call => call.kind === 'didOpen')
+  assert.ok(opened !== undefined, 'the server was told about the file')
+  assert.equal(opened.uri, 'file:///C:/work/demo/packages/app/src/app.ts')
+})
+
+test('a file outside the scope is not announced to the server', () => {
+  const client = recordingClient()
+  const { store } = recordingStore({ root: 'C:/work/demo', scopeRoot: 'C:/work/demo/packages/app' })
+  const workspace = new WorkbenchWorkspace(client, store, {})
+  workspace.openFile('file:///C:/work/demo/other/src/app.ts', 'typescript', null)
+  assert.equal(
+    client.calls.find(call => call.kind === 'didOpen'),
+    undefined,
+    'the server was not told about the file',
+  )
+  // The file is still tracked: the editor needs it.
+  assert.equal(workspace.files.length, 1)
+})
+
+test('a file outside the scope is still displayed', async () => {
+  const client = recordingClient()
+  const { store, calls } = recordingStore({ root: 'C:/work/demo', scopeRoot: 'C:/work/demo/packages/app' })
+  const view = { state: { doc: { toString: () => '' } } }
+  const workspace = new WorkbenchWorkspace(client, store, {
+    viewRegistry: { waitForEditorView: async () => view },
+  })
+  // The server knows nothing about the file - the workbench may show it
+  // anyway: it is a file of the workspace.
+  const result = await workspace.displayFile('file:///C:/work/demo/other/src/app.ts')
+  assert.equal(result, view, 'the file was shown')
+  const opened = calls.find(call => call.kind === 'openFile')
+  assert.ok(opened !== undefined, 'the file was opened in the workbench')
+  assert.equal(opened.path, 'C:\\work\\demo\\other\\src\\app.ts')
+})
+
+test('without a scope root the server knows the whole workspace', () => {
+  const client = recordingClient()
+  const { store } = recordingStore({ root: 'C:/work/demo', scopeRoot: null })
+  const workspace = new WorkbenchWorkspace(client, store, {})
+  workspace.openFile('file:///C:/work/demo/other/src/app.ts', 'typescript', null)
+  const opened = client.calls.find(call => call.kind === 'didOpen')
+  assert.ok(opened !== undefined, 'the server was told about the file')
+})
+
+test('a document that was opened before the connection is announced when it arrives', () => {
+  const client = recordingClient({ connected: false })
+  const { store } = recordingStore({ root: 'C:/work/demo' })
+  const workspace = new WorkbenchWorkspace(client, store, {})
+  // The client is connected a moment after it was created (the scope root of
+  // the project is asked for before the handshake goes out), so a document
+  // can be opened before the server is there.
+  workspace.openFile('file:///C:/work/demo/src/app.ts', 'typescript', null)
+  assert.equal(client.calls.find(call => call.kind === 'didOpen'), undefined, 'the server is not there yet')
+  client.connected = true
+  workspace.connected()
+  const opened = client.calls.find(call => call.kind === 'didOpen')
+  assert.ok(opened !== undefined, 'the document was announced when the client connected')
+  assert.equal(opened.uri, 'file:///C:/work/demo/src/app.ts')
 })
 
 test('updateFile dispatches the transaction into the editor of the document', () => {

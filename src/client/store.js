@@ -270,6 +270,16 @@ function initialState() {
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
       /**
+       * The root the program of the project is built for.
+       *
+       * The host reports it: it is the project root itself most of the time,
+       * and the nearest sub-project when the root is a workspace with several
+       * projects in it (PRD-v5 §4.2). The client only mirrors it, so the
+       * workspace fence can be narrowed to the directory the program really
+       * covers. It is a string or `null` - never `undefined`.
+       */
+      scopeRoot: null,
+      /**
        * The identity of the running language-server process.
        *
        * The host publishes it: the number changes with every new process, so
@@ -498,12 +508,43 @@ export class WorkbenchStore {
     this.memoryDecisionResolve = null
     /** The languages whose server registry was already fetched. */
     this.lspServersChecked = new Set()
+    /**
+     * Whether the document visibility listener is registered.
+     *
+     * The listener belongs to the document and not to the panel, so it is
+     * registered once for the lifetime of the store and removed again in
+     * `dispose()`.
+     */
+    this.visibilityBound = false
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', this.#onVisibilityChange)
+      this.visibilityBound = true
+    }
   }
 
   // ── subscription ──────────────────────────────────────────────────────
   subscribe = (listener) => {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
+  }
+
+  /**
+   * The listener of the document visibility.
+   *
+   * A hidden page cannot keep its cadence: the browser throttles the timers
+   * of a background page to once a minute. A window that was minimised
+   * therefore showed the status of a minute ago for up to a minute - and the
+   * status bar said "unknown (retrying…)" even though the server was healthy.
+   * The listener gives the window its status back as soon as it comes to
+   * the front, instead of waiting for the throttled interval.
+   */
+  #onVisibilityChange = () => {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+    // The work a poll tick would have done: the git status and the
+    // language-server status. The git poll only runs while the workbench is
+    // the visible surface, and `pollStatus()` knows that.
+    void this.pollStatus()
+    void this.refreshLspStatus()
   }
 
   getSnapshot = () => this.state
@@ -1479,6 +1520,15 @@ export class WorkbenchStore {
    * A degraded or crashed session used to be recoverable only by switching
    * the project away and back. The old session is shut down first: otherwise
    * the new one would find the memory the old one still holds.
+   *
+   * The start is forced when the free memory was the blocker: the host
+   * pre-checks the memory, and a start that is not forced is degraded by the
+   * same gate that degraded the session before. The user would click
+   * 【重新建立索引】 and land in exactly the same degraded state - a loop
+   * without an exit. Clicking the button IS the answer of the memory
+   * warning («仍然启动» = start anyway, PRD-v5 §2.3). A degradation caused
+   * by a missing server or by a crash must not bypass the memory gate, so
+   * the force is limited to the tight band.
    * @returns {Promise<void>}
    */
   async restartLsp() {
@@ -1490,8 +1540,12 @@ export class WorkbenchStore {
     } catch {
       // A session that is already gone is not an error here.
     }
+    // The snapshot the client holds is the one of the last poll - the
+    // shutdown above does not change it, and it is the memory situation the
+    // user ran into.
+    const force = this.state.lsp.resources?.tight === true
     try {
-      await call('lsp.start', { root })
+      await call('lsp.start', { root, force })
     } catch {
       // The status bar shows the failure.
     }
@@ -1827,6 +1881,14 @@ export class WorkbenchStore {
       clearInterval(this.lspPollTimer)
       this.lspPollTimer = null
     }
+    // The visibility listener belongs to the document, not to the store: a
+    // store that is dropped for good must not keep it, or it would refresh a
+    // store that nobody reads any more.
+    if (this.visibilityBound && typeof document !== 'undefined'
+      && typeof document.removeEventListener === 'function') {
+      document.removeEventListener('visibilitychange', this.#onVisibilityChange)
+    }
+    this.visibilityBound = false
     this.deactivate()
   }
 
@@ -1850,11 +1912,14 @@ export class WorkbenchStore {
   async pollLspStatus() {
     if (this.state.root === '') return
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-      // The browser throttles the timer of a hidden page, so the status cannot
-      // be refreshed while the app is in the background. The old snapshot is
-      // not current any more - the status bar says "unknown" instead of
-      // showing a value that may be minutes old.
-      this.set({ lspStatusStale: true })
+      // A hidden page cannot poll: the browser throttles the timer of a
+      // background page to once a minute. That is a fact about the window,
+      // not about the server - so the snapshot is NOT marked as stale. Only
+      // a FAILED poll may say "unknown" (PRD-v5 §2.3): a skipped poll said
+      // it, and the status bar then claimed the server was broken while it
+      // was perfectly healthy (the rebuild button disappeared with it).
+      // The `visibilitychange` listener refreshes the status as soon as the
+      // window comes back.
       return
     }
     await this.refreshLspStatus()
@@ -1894,6 +1959,14 @@ export class WorkbenchStore {
       source: typeof status.source === 'string' ? status.source : null,
       detail: typeof status.detail === 'string' ? status.detail : null,
       indexedRoots: Array.isArray(status.indexedRoots) ? status.indexedRoots : [],
+      // The root the program of the project is built for. The host knows it
+      // and the client has to mirror it: the workspace fence is narrowed to
+      // this directory, because the semantic answers are about it and not
+      // about the whole workspace (PRD-v5 §4.2). It is a string or null -
+      // never undefined.
+      scopeRoot: typeof status.scopeRoot === 'string' && status.scopeRoot !== ''
+        ? status.scopeRoot
+        : null,
       // The identity of the running language-server process. It changes with
       // every new process, and the client uses the change to reset its
       // request budget: the new process has to build the program of the
@@ -1951,6 +2024,7 @@ export class WorkbenchStore {
       || current.enabled !== next.enabled
       || current.processId !== next.processId
       || current.buildingProgram !== next.buildingProgram
+      || current.scopeRoot !== next.scopeRoot
       || memoryChanged
     // The status answered, so the mirrored snapshot is current again.
     const patch = { lspStatusStale: false }
@@ -2032,9 +2106,23 @@ export class WorkbenchStore {
     // but a degradation is not - the server may be switched off in the
     // settings, missing, or refused for lack of memory. "The language server
     // exited" would be a lie in those cases (PRD-v5 §1.5).
+    //
+    // The body of the toast is localized in BOTH cases: the host has no
+    // locale, so its detail is an English technical sentence. The
+    // degradation used to show that sentence as the body of a Chinese
+    // toast; the host's degradation details carry the same keywords
+    // ("timeout", "memory"), so the same three templates classify them.
     const crashed = state === 'crashed'
-    const reason = crashed ? this.#crashAdvice(detail) : detail
-    this.toast('error', this.t(crashed ? 'lsp.crashedToast' : 'lsp.degradedToast'), reason)
+    const advice = this.#crashAdvice(detail)
+    this.toast('error', this.t(crashed ? 'lsp.crashedToast' : 'lsp.degradedToast'), advice)
+    // The technical reason stays reachable: it is the detail of the mirrored
+    // status, and the status bar shows it in the tooltip of the status item
+    // (the poll overwrites it with the detail of the host status, which says
+    // the same thing).
+    const raw = typeof detail === 'string' ? detail : ''
+    if (raw !== '' && this.state.lsp.detail !== raw) {
+      this.patch('lsp', { detail: raw })
+    }
     return true
   }
 

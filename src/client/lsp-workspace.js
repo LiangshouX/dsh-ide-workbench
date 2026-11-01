@@ -9,12 +9,19 @@
  * completion list and in the reference list, so the *draft* is what the
  * language server has to see, never the file on disk (PRD risk #7).
  *
- * The other half of the job is the fence: a language server may answer with
- * a path outside the project. Such a path is never opened and never read;
- * `displayFile` returns `null` and the user gets a toast. The fence holds in
- * the other direction too: a document outside the project is never announced
- * to the server, because the server only knows the documents of the project
- * and complains about the others.
+ * The other half of the job is the fence, and there are two of them:
+ *
+ *   - **The fence of the workbench** is the workspace root. A language server
+ *     may answer with a path outside of it. Such a path is never opened and
+ *     never read; `displayFile` returns `null` and the user gets a toast.
+ *   - **The fence of the server** is the *scope root* of the project
+ *     (PRD-v5 §4.2): the language server builds its program for that
+ *     directory, so a document outside of it is never announced to it - the
+ *     server only knows the documents of its project and complains about the
+ *     others.
+ *
+ * The two fences are not the same: the workbench may still open and show
+ * every file of the workspace, even one the server knows nothing about.
  *
  * A third job was added later (PRD-v5 §3.2, USAGE-01): the library asks the
  * workspace for the file of *every* reference it got, and its own answer
@@ -299,11 +306,11 @@ export class WorkbenchWorkspace extends Workspace {
    * The content that is announced is the editor buffer (the draft), never the
    * file on disk.
    *
-   * A document outside the project is *not* announced: the language server
-   * only knows the documents of the project and complains about the others
-   * ("Unexpected resource …"), and that complaint reaches the workbench as a
-   * fake error (review S8). The file itself stays known to the editor - the
-   * tab needs it - it is only kept away from the server.
+   * A document outside the scope is *not* announced: the language server only
+   * knows the documents of the project it builds its program for and complains
+   * about the others ("Unexpected resource …"), and that complaint reaches the
+   * workbench as a fake error (review S8). The file itself stays known to the
+   * editor - the tab needs it - it is only kept away from the server.
    * @param {string} uri the document URI
    * @param {string} languageId the LSP language id
    * @param {any} view the editor
@@ -330,10 +337,15 @@ export class WorkbenchWorkspace extends Workspace {
       },
     }
     this.files.push(file)
-    // The fence of the workspace: the server only knows the documents of the
-    // project, and a URI that is not a file path cannot belong to it.
+    // The fence of the *server*: the language server is scoped to the scope
+    // root of the project, and a URI that is not a file path cannot belong to
+    // it.
     const absolute = pathOfFileUri(uri)
-    if (absolute === null || !this.insideRoot(absolute)) return
+    if (absolute === null || !this.insideScope(absolute)) return
+    // The library drops a notification that is sent without a transport: a
+    // client that is not connected yet knows nothing about the document. The
+    // document is announced when the connection arrives (`connected()`).
+    if (this.client.connected === false) return
     file.announced = true
     this.client.didOpen(file)
   }
@@ -352,9 +364,9 @@ export class WorkbenchWorkspace extends Workspace {
    * 1. **No tab is opened.** The file is only needed to render the context
    *    of a reference row; opening it would turn one search into a batch of
    *    opened files.
-   * 2. **The fence holds.** A path outside the project is not read and does
-   *    not even produce a toast - one search may touch dozens of files, and
-   *    dozens of toasts would bury the panel.
+   * 2. **The fence holds.** A path outside the workspace is not read and
+   *    does not even produce a toast - one search may touch dozens of files,
+   *    and dozens of toasts would bury the panel.
    * 3. **The file is cached.** One search reads the same file again for
    *    every reference in it.
    * @param {string} uri the document URI
@@ -483,11 +495,40 @@ export class WorkbenchWorkspace extends Workspace {
 
   /**
    * Whether one path is inside the current project.
+   *
+   * The fence of the *workbench*: the project is the workspace root, and the
+   * workbench may open and show every file of it.
    * @param {string} absolute the absolute path
    * @returns {boolean} true when the path may be opened
    */
   insideRoot(absolute) {
     const root = this.store?.state?.root
+    if (typeof root !== 'string' || root === '') return false
+    return isPathWithin(root, absolute)
+  }
+
+  /**
+   * Whether one path is inside the scope of the language server.
+   *
+   * The server is scoped to the *scope root* of the project (PRD-v5 §4.2):
+   * it builds its program for that directory, and a document outside of it is
+   * not part of the project. Such a document is never announced - the server
+   * would answer with a complaint ("not part of the workspace") that the
+   * workbench would have to swallow.
+   *
+   * The scope root comes from the store, which mirrors what the host reports.
+   * Without one the workspace root is the scope: the server knows the whole
+   * workspace then, and every document of it may be announced.
+   *
+   * The workbench itself is *not* fenced by the scope: the workbench may
+   * still open and show every file of the workspace - the scope is a fact
+   * about the server, not about the files.
+   * @param {string} absolute the absolute path
+   * @returns {boolean} true when the server may know the file
+   */
+  insideScope(absolute) {
+    const scope = this.store?.state?.lsp?.scopeRoot
+    const root = typeof scope === 'string' && scope !== '' ? scope : this.store?.state?.root
     if (typeof root !== 'string' || root === '') return false
     return isPathWithin(root, absolute)
   }
@@ -512,7 +553,10 @@ export class WorkbenchWorkspace extends Workspace {
   /**
    * Show another document to the user.
    *
-   * A path outside the project is refused: it is neither opened nor read.
+   * A path outside the workspace is refused: it is neither opened nor read.
+   * The scope of the language server does not narrow this: a file of the
+   * workspace that the server knows nothing about may still be shown - the
+   * server mentioned it, and the user has to see it.
    * @param {string} uri the document URI
    * @returns {Promise<any>} the editor, or `null` when it cannot be shown
    */
@@ -556,9 +600,21 @@ export class WorkbenchWorkspace extends Workspace {
    * The documents are opened by `openFile()` - the editor plugin calls it as
    * soon as the plugin extension exists - and the host re-opens them itself
    * after a crash restart.
+   *
+   * One exception: a document that was opened *before* the client was
+   * connected was never announced - the library drops a notification that is
+   * sent without a transport, and the client is connected a moment after it
+   * was created (the scope root of the project is asked for before the
+   * handshake goes out, PRD-v5 §4.2). Such a document is announced now.
    */
   connected() {
-    // Nothing to do: the open documents are already announced.
+    for (const file of this.files) {
+      if (file.announced === true) continue
+      const absolute = pathOfFileUri(file.uri)
+      if (absolute === null || !this.insideScope(absolute)) continue
+      file.announced = true
+      this.client.didOpen(file)
+    }
   }
 
   /**

@@ -12,13 +12,20 @@
  *     waits in the queue of the root and is replayed when the process is
  *     there (the same way the handshake is).
  *   - a project the user put into the basic mode on purpose is not woken.
+ *
+ * The wake has to work more than once: the memory gate may refuse the
+ * start, and the refusal must not end the semantic features of the project
+ * for the rest of the session.
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { encodeFrame } from '../src/host/lsp-frame.js'
-import { decodeChunks, makeManager, sleep, waitFor } from './lsp-fixtures.mjs'
+import { decodeChunks, makeManager, makeSink, sleep, waitFor } from './lsp-fixtures.mjs'
+
+/** One megabyte in bytes. */
+const MB = 1024 * 1024
 
 /** A project root that no other test uses. */
 function rootOf(name) {
@@ -66,6 +73,44 @@ async function releaseByIdle(fixture, root) {
   assert.equal((await manager.status({ root })).state, 'ready')
   await sleep(280)
   assert.equal((await manager.status({ root })).state, 'suspended', 'the server was released')
+}
+
+/**
+ * Wait until one root reaches a state.
+ *
+ * The wake is asynchronous: the payload is relayed, the settings are read
+ * and the memory gate runs before the session changes its state. A test
+ * that looks at the state right after the relay would look at the state
+ * before the wake.
+ * @param {object} manager the manager
+ * @param {string} root the project root
+ * @param {string} state the wanted state
+ * @returns {Promise<boolean>}
+ */
+async function waitForState(manager, root, state) {
+  return waitFor(() => manager.stateOf(root).state === state)
+}
+
+/**
+ * The number of start attempts one root saw.
+ *
+ * Every attempt walks the session into `starting`, so the state events are
+ * the honest counter of the attempts - a refused attempt starts no process
+ * and would be invisible in the number of spawned processes.
+ * @param {object} sink the sink of the client
+ * @returns {number}
+ */
+function startAttempts(sink) {
+  return sink.events.filter(event => event.type === 'state' && event.state === 'starting').length
+}
+
+/**
+ * The number of degradation events one root sent to its clients.
+ * @param {object} sink the sink of the client
+ * @returns {number}
+ */
+function degradations(sink) {
+  return sink.events.filter(event => event.type === 'degraded').length
 }
 
 test('the first payload after the idle release starts the server again', async () => {
@@ -196,3 +241,165 @@ test('a project that was not put into the basic mode is woken', async () => {
   manager.relayToServer(root, definitionOf(7))
   assert.ok(await waitFor(() => spawned.length === 2), 'the server was started again')
 })
+
+// ── the wake has to work more than once ────────────────────────────────────
+//
+// The wake used to work exactly once. The idle release suspended the
+// session, the first payload woke it, and the memory gate refused the
+// start: the session became `degraded`, and every later payload was
+// ignored - the user had to rebuild the index by hand (PRD-v5 §3.3,
+// IDLE-02). The user is never asked, so the server simply stayed away.
+//
+// The host therefore has to know *why* a session degraded, and it has to
+// let a later payload retry the degradations that are worth a retry: the
+// memory of the machine changes, a missing server does not.
+
+test('a wake that the memory gate refused is tried again after the backoff', async () => {
+  let freeBytes = 8 * 1024 ** 3
+  let clock = 0
+  const fixture = makeManager({
+    lsp: { idleTimeoutMs: 150, autoExit: true },
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes }),
+    now: () => Date.now() + clock,
+  })
+  const { manager, spawned } = fixture
+  const root = rootOf('memory-retry')
+  await releaseByIdle(fixture, root)
+  assert.equal(spawned.length, 1)
+
+  // The machine is tight now: the wake degrades instead of starting.
+  freeBytes = 1000 * MB
+  manager.relayToServer(root, definitionOf(7))
+  assert.ok(await waitForState(manager, root, 'degraded'), 'the wake degraded')
+  assert.equal(spawned.length, 1, 'no server was started')
+
+  // The user freed the memory and the next payload tries again.
+  freeBytes = 8 * 1024 ** 3
+  clock += 61000
+  fixture.document.lsp.idleTimeoutMs = 600000
+  manager.relayToServer(root, definitionOf(8))
+  assert.ok(await waitFor(() => spawned.length === 2), 'the server was started again')
+  assert.equal((await manager.status({ root })).state, 'building')
+})
+
+test('a payload inside the backoff does not start a second attempt', async () => {
+  let freeBytes = 8 * 1024 ** 3
+  let clock = 0
+  const fixture = makeManager({
+    lsp: { idleTimeoutMs: 150, autoExit: true },
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes }),
+    now: () => Date.now() + clock,
+  })
+  const { manager, spawned } = fixture
+  const root = rootOf('memory-backoff')
+  const sink = makeSink()
+  manager.attachSink(root, sink)
+  await releaseByIdle(fixture, root)
+  sink.events.length = 0
+
+  // The first wake is refused by the memory gate.
+  freeBytes = 1000 * MB
+  manager.relayToServer(root, definitionOf(7))
+  assert.ok(await waitForState(manager, root, 'degraded'), 'the wake degraded')
+  assert.equal(startAttempts(sink), 1, 'the first payload tried once')
+
+  // The next payload is inside the backoff window: the machine did not get
+  // more memory, so no second attempt is made.
+  manager.relayToServer(root, definitionOf(8))
+  await sleep(200)
+  assert.equal(startAttempts(sink), 1, 'the second payload did not start a second attempt')
+  assert.equal(spawned.length, 1, 'no server was started')
+})
+
+test('a wake that the missing server degraded is not retried', async () => {
+  let clock = 0
+  const fixture = makeManager({
+    lsp: { idleTimeoutMs: 150, autoExit: true },
+    now: () => Date.now() + clock,
+  })
+  const { manager, spawned, document } = fixture
+  const root = rootOf('not-installed')
+  const sink = makeSink()
+  manager.attachSink(root, sink)
+  await releaseByIdle(fixture, root)
+  sink.events.length = 0
+
+  // The language server is not installed any more: the wake degrades.
+  document.lsp.servers = { typescript: { command: 'iwb-language-server-that-is-not-installed' } }
+  manager.relayToServer(root, definitionOf(7))
+  assert.ok(await waitForState(manager, root, 'degraded'), 'the wake degraded')
+  assert.equal(spawned.length, 1, 'no server was started')
+
+  // A later payload does not try again: the user has to install the server,
+  // and a retry would only repeat the same refusal.
+  clock += 61000
+  manager.relayToServer(root, definitionOf(8))
+  await sleep(200)
+  assert.equal(startAttempts(sink), 1, 'the missing server is not retried')
+  assert.equal(spawned.length, 1, 'the server stays away')
+})
+
+test('the payload of a failed wake is replayed after the successful retry', async () => {
+  let freeBytes = 8 * 1024 ** 3
+  let clock = 0
+  const fixture = makeManager({
+    lsp: { idleTimeoutMs: 150, autoExit: true },
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes }),
+    now: () => Date.now() + clock,
+  })
+  const { manager, spawned } = fixture
+  const root = rootOf('replay-retry')
+  await releaseByIdle(fixture, root)
+
+  // The payloads of the user arrive while the machine is tight: they wait
+  // in the queue of the root.
+  freeBytes = 1000 * MB
+  manager.relayToServer(root, didOpenOf('file:///workspace/app.ts'))
+  manager.relayToServer(root, definitionOf(7))
+  assert.ok(await waitForState(manager, root, 'degraded'), 'the wake degraded')
+  assert.equal(spawned.length, 1, 'no server was started')
+
+  // The retry succeeds: the queue is replayed to the new process.
+  freeBytes = 8 * 1024 ** 3
+  clock += 61000
+  fixture.document.lsp.idleTimeoutMs = 600000
+  manager.relayToServer(root, definitionOf(8))
+  assert.ok(await waitFor(() => spawned.length === 2), 'the server was started again')
+
+  const payloads = decodeChunks(spawned[1].handle.stdinChunks)
+  const opens = payloads.filter(payload => payload.includes('textDocument/didOpen'))
+  assert.equal(opens.length, 1, 'the document is opened exactly once')
+  const failed = payloads.filter(payload => payload.includes('"id":7'))
+  assert.equal(failed.length, 1, 'the payload of the failed wake is replayed exactly once')
+})
+
+test('a degradation that does not change the state is announced once', async () => {
+  let freeBytes = 8 * 1024 ** 3
+  let clock = 0
+  const fixture = makeManager({
+    lsp: { idleTimeoutMs: 150, autoExit: true },
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes }),
+    now: () => Date.now() + clock,
+  })
+  const { manager } = fixture
+  const root = rootOf('one-event')
+  const sink = makeSink()
+  manager.attachSink(root, sink)
+  await releaseByIdle(fixture, root)
+  sink.events.length = 0
+
+  // The first wake is refused by the memory gate: the client learns about
+  // the degradation.
+  freeBytes = 1000 * MB
+  manager.relayToServer(root, definitionOf(7))
+  assert.ok(await waitFor(() => degradations(sink) === 1), 'the degradation is announced')
+
+  // The next attempt (after the backoff) fails in the same way: the state
+  // of the root does not change, so it is not a new fault either.
+  clock += 61000
+  manager.relayToServer(root, definitionOf(8))
+  await sleep(200)
+  assert.equal(startAttempts(sink), 2, 'the second attempt was made')
+  assert.equal(degradations(sink), 1, 'the client is not told about the same fault twice')
+})
+

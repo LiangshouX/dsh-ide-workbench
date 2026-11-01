@@ -16,7 +16,7 @@
 | **依赖安装** | `npm install`（78 个包，27 s） | ✅ **已装** |
 | 测试基线（依赖未装） | 436 项 / 344 通过 / 92 失败（`ERR_MODULE_NOT_FOUND`） | ⚠️ 规格里记录的旧数字，**不是绿基线** |
 | 测试基线（依赖装好后） | **717 项 / 717 通过 / 0 失败** | ✅ **绿基线已回填** |
-| 测试基线（改造完成） | **820 项 / 820 通过 / 0 失败**（**+103**） | ✅ |
+| 测试基线（改造完成） | **854 项 / 854 通过 / 0 失败**（**+137**） | ✅ |
 | 构建基线 | `npm run build` → `dist/client.js` 2,934.2 KiB，退出码 0 | ✅ |
 
 > ✅ 规格 §9.3 的要求已满足：**开工前先装了依赖**，得到真实的绿基线（717/717），因此本轮每个数字都能区分"新引入的回归"与"既有状态"。
@@ -30,13 +30,13 @@
 |---|---|---|---|
 | **M0** | SCOPE-02（仓库 `tsconfig.json`） | ✅ 完成 | 配置项目 **194 个文件**（自身 61 个源文件 + 类型声明），取代推断项目的 2,335 文件 / 84 MB |
 | **M1** | VIS-01 / VIS-02 / VIS-03 | ✅ 完成 | 新状态 `suspended`；四态四文案四色调；`idle` / `suspended` 下直接有【重新建立索引】 |
-| **M2** | STALE-01 / STALE-02 / STALE-03 | ✅ 完成 | 失活后不再冻结；轮询失败显示「状态未知（正在重试…）」；`starting` 起 60 s 出现【取消索引】并显示已等待时长 |
-| **M3** | VIS-04 / CRASH-02 | ✅ 完成 | 降级弹**一次** toast；降级 detail 自带原因 |
-| **M4** | IDLE-02 / IDLE-03 | ✅ 完成 | 休眠后首个语义载荷**自动**唤醒；文档表跨休眠保留并在新进程上重开（每份文档恰好一次 `didOpen`） |
+| **M2** | STALE-01 / STALE-02 / STALE-03 | ✅ 完成 | 失活后不再冻结；轮询失败显示「状态未知（正在重试…）」（**隐藏窗口不再误报**，复核第 5 条）；`starting` 起 60 s 出现【取消索引】并显示已等待时长 |
+| **M3** | VIS-04 / CRASH-02 | ✅ 完成 | 降级弹**一次** toast（**正文已本地化**，复核第 7 条）；降级 detail 自带原因，并在诊断面板新增「原因」一行 |
+| **M4** | IDLE-02 / IDLE-03 | ✅ 完成 | 休眠后首个语义载荷**自动**唤醒；文档表跨休眠保留并在新进程上重开（每份文档恰好一次 `didOpen`）；**内存原因的唤醒失败会带退避重试**（复核第 6 条） |
 | **M5** | IDLE-01 / IDLE-04 / IDLE-05 / MEM-04 | ✅ 完成 | 空闲策略三选一；构建期不装空闲定时器；空闲定时器不再丢失；`cancelAfterMs` 进入设置页 |
-| **M6** | MEM-01 / MEM-02 / MEM-03 | ⚠️ **部分** | MEM-01 ✅ 434 MB；MEM-02 ✅ 累计核算；MEM-03 **算式与契约已落地，默认探针读不到 standby**（见 §3.1，实测证据） |
+| **M6** | MEM-01 / MEM-02 / MEM-03 | ⚠️ **两条完成、一条按规格未达成** | MEM-01 ✅ 434 MB；MEM-02 ✅ 累计核算；MEM-03 ❌ **规格前提不成立**，不按字面实现（实测：standby 是可用内存，扣除它会让闸门误拒）——见 §3.1 |
 | **M7** | CRASH-01 | ✅ 完成 | `stdout.end()` + `exit(134)` 同时发生 ⇒ `spawned.length === 2`，最终状态**不是** `degraded` |
-| **M8** | SCOPE-01 | ⚠️ **宿主一半** | 宿主侧的作用域收敛、`cwd` 与 `scopeRoot` 上报已完成；**客户端仍以工作区根发 `rootUri`**（见 §3.4） |
+| **M8** | SCOPE-01 | ✅ 完成（复核后补齐） | 作用域**真的**收敛了：客户端按作用域根发 `rootUri`（`cwd` 不决定 program 范围），围栏分成「通报」与「显示」两个，宿主改为最新握手胜出——见 §3.4 |
 | **M9** | PERF-01 | ✅ 完成 | 仓库未变时 `status` 对象**身份不变** ⇒ ProjectPanel / CommitPanel 不再每 2 s 重渲染 |
 | **M10** | PERF-02 / PERF-03 / PERF-04 | ⚠️ **两项达标、一项改口径** | PERF-02 ✅ 比值达标（**6–8×**，绝对值未达标，见 §3.2）；PERF-04 ✅；PERF-03 **验收不可达**，实测见 §3.3 |
 
@@ -51,24 +51,24 @@
 | VIS-03 | ✅ | `src/client/Workbench.jsx`（`showRebuildButton`） | `idle` / `suspended` 下 `showRebuild` 为真 | `lsp.rebuilding !== true` 的互斥保留 |
 | VIS-04 | ✅ | `src/host/lsp.js`（`#transition` 发 `{type:'degraded'}`）、`src/client/lsp-transport.js`（`isControlEvent` / `onControl`）、`src/client/store.js`（`lspControl`） | 降级弹**一次** toast；控制事件**不进入** JSON-RPC 库；**休眠不弹** | 崩溃→重启→降级是**一个故障区间**，只弹一次（见 §3.5） |
 | STALE-01 | ✅ | `src/client/store.js`（`deactivate`） | 失活后轮询仍在，结果照常写回 store | 两个轮询定时器都 `unref()` 了，否则 Node 测试进程会被挂住 |
-| STALE-02 | ✅ | `src/client/store.js`（`state.lspStatusStale`） | 轮询失败 ⇒ 「状态未知（正在重试…）」，不再停在旧值 | 陈旧标志**优先于**一切状态分支（`Workbench.jsx`） |
+| STALE-02 | ✅ | `src/client/store.js`（`state.lspStatusStale`） | 轮询失败 ⇒ 「状态未知（正在重试…）」，不再停在旧值 | 陈旧标志**优先于**一切状态分支（`Workbench.jsx`）。**窗口隐藏不再置标志**（跳过轮询不是失败的轮询），回到前台由 `visibilitychange` 立即刷新 |
 | STALE-03 | ✅ | `src/host/lsp.js`（`startedAt` 前置、`#indexSnapshot`）、`src/client/store.js`（`lsp.index` 覆盖三态）、`src/client/Workbench.jsx`（`showCancelButton`） | 启动 60 s 后出现【取消索引】；显示「已等待 2 分 14 秒」 | `startedAt` 移到 `starting` **之前**，取消窗口从一开始就计时 |
 | IDLE-01 | ✅ | `src/host/settings-defaults.js`、`src/host/settings-store.js`（版本 4→5 + 迁移）、`src/host/lsp.js`、`src/client/SettingsPanel.jsx` | 设置页可选「永不退出」 | 「永不」选项带 1.8–2.2 GB 常驻警告；`autoExit: false` 的旧文档仍被宿主尊重 |
-| IDLE-02 | ✅ | `src/host/lsp.js`（`relayToServer` / `#requestWake` / `#wakeSession`） | 休眠后首个载荷自动拉起，载荷被重放 | 每个 root 一个 `wakePromise` 栅栏 ⇒ 一批并发载荷只起一个进程；`memoryWarnedRoots[root] === 'conservative'` 的项目**不唤醒** |
+| IDLE-02 | ✅ | `src/host/lsp.js`（`relayToServer` / `#requestWake` / `#wakeSession` / `degradeCause`） | 休眠后首个载荷自动拉起，载荷被重放 | 每个 root 一个 `wakePromise` 栅栏 ⇒ 一批并发载荷只起一个进程；`memoryWarnedRoots[root] === 'conservative'` 的项目**不唤醒**；**内存原因的降级会带 60 s 退避重试**，其它原因的降级不重试 |
 | IDLE-03 | ✅ | `src/host/lsp.js`（`#exitIdle` 不再 `#forgetDocuments`） | 宿主文档表跨休眠保留，唤醒后重开 | 每份文档**恰好一次** `didOpen`（重放载荷不会重复打开） |
 | IDLE-04 | ✅ | `src/host/lsp.js`（`#armIdleTimer` 判 `isBuildingProgram`） | 构建 program 期间不装空闲定时器 | 语义请求挂起时清定时器、服务器应答后重装 |
 | IDLE-05 | ✅ | `src/host/lsp.js`（`#rearmAfterEarlyExit`） | `#exitIdle` 提前返回后定时器被补装 | 剩余时间不足时按剩余时间补装，避免忙循环 |
-| SCOPE-01 | ⚠️ | `src/host/lsp.js`（`scopeRootOf` / `lsp.indexScope`） | 宿主侧作用域收敛完成 | **客户端半边未做**，见 §3.4 |
+| SCOPE-01 | ✅ | `src/host/lsp.js`（`scopeRootOf` / `lsp.indexScope`）、`src/index.js`（`lsp.scope` API）、`src/client/lsp-session.js`（握手用作用域根）、`src/client/lsp-workspace.js`（两个围栏） | 作用域真的收敛：`rootUri` 决定 program 范围 | 复核发现 `cwd` 不管用才补的客户端半边，见 §3.4；运行中的服务器保留原 program 到下次启动 |
 | SCOPE-02 | ✅ | `dsh-ide-workbench/tsconfig.json`（新增） | tsserver 不再需要构建推断项目 | `tsc` 不参与构建（esbuild），`npm run build` / `npm test` 均不受影响 |
 | MEM-01 | ✅ | `src/host/lsp.js`（`LSP_REGISTRY` 的 `memoryBaselineMB`） | 256 → **434** MB（实测中位数） | 代码与测试注释都写明：**256 MB 测的是空载包装进程，不是索引成本** |
 | MEM-02 | ✅ | `src/host/lsp.js`（`session.reservedBytes` / `#reservedBytes` / `#releaseReservation`） | 放行第 3 个索引前会先算上已有两个 | 预留额取**上限**（`memoryLimitMB`），取舍见 §3.6 |
-| MEM-03 | ⚠️ | `src/host/lsp.js`（探针契约 + 算式） | 算式与可注入契约已落地并有测试 | **默认探针读不到 standby**，实测证据见 §3.1 |
+| MEM-03 | ❌ **按规格未达成，且不应达成** | `src/host/lsp.js`（探针契约 + 算式） | 算式与可注入契约已落地并有测试 | **规格前提不成立**：standby 是内核优先回收的可用内存，扣除它会让闸门拒绝机器给得起的启动。实测证据与「为什么不按 `GetPerformanceInfo` 修」见 §3.1 |
 | MEM-04 | ✅ | `src/client/SettingsPanel.jsx`、`src/client/i18n.js` | 用户可调取消按钮出现的等待时间（秒） | 宿主默认值 60000 未改 |
 | CRASH-01 | ✅ | `src/host/lsp.js`（`session.crashedGeneration`） | `stdout.end()` + `exit(134)` ⇒ `spawned.length === 2`，状态**不是** `degraded` | 同一 generation 的第二个死亡信号被**忽略**而不是降级 |
 | CRASH-02 | ✅ | `src/host/lsp.js`（`#degradationDetail`） | 降级 detail 写明「<原因>；自动重启预算已用尽（1 次），语义分析已暂停」 | `#noteTimeout` 把 reason 带进了 `#onCrash` |
 | PERF-01 | ✅ | `src/client/store.js`（`sameGitStatus`） | 空仓库下 CommitPanel / ProjectPanel 不再每 2 s 重渲染 | `statusAt` 仍每次刷新（快照年龄要真实），但它不在面板的 slice 里 |
 | PERF-02 | ⚠️ | `src/host/search.js`（`comparePaths`） | 比值达标（**6–8×**），绝对值未达标 | 实测 330 ms → 50 ms（5 万条路径），见 §3.2 |
-| PERF-03 | ⚠️ | `src/client/CodeEditor.jsx`（`LANGUAGE_PACKAGES` / `languageCompartment`） | **验收的减包不可达**；实测收益改为「延后求值」 | 文件**增大** 118,750 B（+4.1 %），见 §3.3 |
+| PERF-03 | ⚠️ | `src/client/CodeEditor.jsx`（`LANGUAGE_PACKAGES` / `languageCompartment`） | **验收的减包不可达**；实测收益改为「延后求值」 | 文件**增大** 117,951 B（+4.07 %），见 §3.3；测试已改用**生产构建配置**（复核第 2 条） |
 | PERF-04 | ✅ | `src/client/index.jsx`（`WORKBENCH_CSS` 模块级常量） | 120 KB CSS 字符串每帧拼接 → 只拼一次 | `Styles` 一并提到模块级 |
 
 ---
@@ -90,18 +90,36 @@
 | `GlobalMemoryStatusEx().ullAvailPhys` | 2,889 / 3,010 / 2,970 MB | Windows 的「可用物理内存」 |
 | `os.freemem()`（Node 22） | 2,915 / 2,982 / 3,044 MB | 与 `ullAvailPhys` **在采样噪声内相等** |
 | `GetPerformanceInfo().SystemCache` | 2,403 / 2,408 / 2,405 MB | **文件缓存 + standby 合计**，不是 standby 本身 |
+| `Win32_PerfRawData_PerfOS_Memory.StandbyCache*`（正常/核心/保留） | 1,698 / 67 / 661 MB | **standby 列表本身**，三个优先级合计 ≈ 1.8–2.0 GB |
+| `FreeAndZeroPageListBytes` | 161 MB | 真正「空闲」的那部分 |
+| `AvailableBytes`（性能计数器） | 2,587 MB | **包含** standby —— 与 `ullAvailPhys` 同一个口径 |
 
-**结论**：
-1. `os.freemem()` 确实把 standby 算作可用（它等于 `ullAvailPhys`）；
-2. 但**纯 Node 拿不到 standby 的数字**：`GlobalMemoryStatusEx` 不报 standby，`GetPerformanceInfo.SystemCache` 把文件缓存和 standby 混在一起（2.4 GB，扣掉它会把可回收的文件缓存也一并当成不可用，闸门会荒谬地过严）；
-3. `FreePhysicalMemory`（WMI）就是 `ullAvailPhys`，换过去**一个字节都不差**。
+**决定性实验**：在这台机器上让一个 Node 进程**申请 1.5 GB**，同时观察计数器：
+
+| | standby | available |
+|---|---|---|
+| 申请前 | 2,046 MB | 2,483 MB |
+| 申请中（1.5 GB 已分配） | **830 MB**（↓ 1,216 MB） | 904 MB |
+| 申请释放后 | 844 MB | 2,614 MB |
+
+⇒ 那 1.5 GB **正是从 standby 里拿到的**，没有换页、没有失败。
+
+**结论（与规格的前提相反）**：
+
+1. `os.freemem()` 把 standby 算作可用 —— **这是对的**。standby 是**干净的、文件后备的、随时可丢弃**的页；内核在压力下**第一件丢的就是它**，先于换页。Windows 自己的 `Available Bytes` 计数器也把它算作可用。**「standby 不该算可用」是一个错误的前提。**
+2. 按规格扣除 standby 会让闸门**拒绝机器其实给得起的启动**：本机 available 2,483 MB、standby 1.2 GB，扣掉之后只剩约 1.3 GB，落在软阈值（651 × 2 = 1,302 MB）附近 —— 本来能起的索引会变成「紧张」，需要用户点【重新建立索引】。
+3. 复核意见建议的替代口径（`GetPerformanceInfo().SystemCache`）**更糟**：它把 standby 与文件缓存工作集混在一起（本机 2,403 MB vs standby 1,798 MB，**多算约 600 MB**），而且纯 Node 根本调不到这个 API（需要 FFI）。
+4. `FreePhysicalMemory`（WMI）就是 `ullAvailPhys`，换过去**一个字节都不差**。
 
 **决策**：
-- ✅ 落地了**算式与契约**：探针契约扩为 `{ totalBytes, freeBytes, standbyBytes? }`，宿主在分档前扣掉 standby，`availableBytes = free − standby − reserved` 并随快照上报（`standbyBytes` / `reservedBytes` / `availableBytes`）。
-- ✅ 测试证明了这套扣减（注入探针喂 standby）。
-- ⚠️ **默认探针报告 `standbyBytes: 0`** —— 没有能读出真实数字的纯 JS 途径。代码注释写明了这一点与两条出路（原生辅助 / 异步探针）。
-- **影响**：实机上 standby 仍被算作可用。**缓解**：standby 是内核在压力下**先回收**的一层，回收它不需要换页；真正挡住"把机器推进 swap"的是 **MEM-02 的预留额账本**，那一条是完整落地的。
-- **未按规格字面实现的原因**：规格给的第二条路（显式扣除）在没有可扣数字时无法执行；第一条路（换用 `FreePhysicalMemory`）经实测与 `os.freemem()` 等价。
+
+- ❌ **不实现扣除 standby**，并且把这一点写进代码注释而不是藏起来。规格 §5.4 的验收（「不再把 652 MB standby 当可用」）**未达成，且不应达成** —— 达成它会让插件拒绝机器给得起的启动。
+- ✅ 保留**算式与契约**（探针 `{ totalBytes, freeBytes, standbyBytes? }`、`availableBytes = free − standby − reserved`、快照上报 `standbyBytes` / `reservedBytes` / `availableBytes`）：默认探针报 `standbyBytes: 0`，而 **0 在 Windows 上就是正确的值**（standby 该算可用）。留给需要更严口径的部署注入探针。
+- ✅ **真正挡住「把机器推进 swap」的是 MEM-02 的预留额账本**，那一条是完整落地的：每台运行中的服务器按**被授予的上限**记账，进程一消失就归还。
+- **对复核意见的回应**：事实部分（「验收未达成、默认探针是空操作」）**接受**；「原缺陷未消除」**不接受** —— 因为它不是缺陷；「用 `GetPerformanceInfo` 真实实现」**不接受** —— 实测证明它会多扣约 600 MB 的可回收文件缓存。
+
+> 规格 §5.4 引用的「652 MB standby」是 `StandbyCacheReserveBytes`（661 MB）这一个优先级，不是 standby 列表的全量（1.8–2.0 GB）。本条与规格 §0.3 是同一类问题：**一条已过期的归因**，按实测更正，不按字面实现。
+
 
 ### 3.2 PERF-02 —— 相对收益达标，绝对指标未达标
 
@@ -136,17 +154,40 @@
 
 **实际拿到的收益**（在出厂的 `dist/client.bundle.cjs` 上核对）：13 个语言包与 13 个语法包被 `__esm` 包裹，初始化只在动态 import 的 promise 里发生 ⇒ **页面加载时不再求值**；实测省下 **291 ms CPU 与 8.3 MB 堆**（本机 Node，单文件）。编辑器内核（`@codemirror/state|view|language`、`@lezer/*`）仍然急加载，编辑器在启动时照常可用。
 
-**若要真正减包**：需要 `format: 'esm'` + `splitting: true` 的分块构建，入口 chunk 里 `@codemirror/lang-*` 与语法包归零——**但当前装载器吃不了兄弟 chunk**，这一项不在本轮范围。
+**若要真正减包**：需要 `format: 'esm'` + `splitting: true` 的分块构建，入口 chunk 里 `@codemirror/lang-*` 与语法包归零——**但当前装载器吃不了兄弟 chunk**（而且 esbuild 直接拒绝 `format: 'cjs'` + `splitting: true`），这一项不在本轮范围。
 
-### 3.4 SCOPE-01 —— 只做了宿主一半
+**复核追加（2026-11-01 检视后）**：本条原先的**测试**有一个更要命的问题——它用 `splitting: true` + `outdir` + `format: 'esm'` 打包后断言元数据，也就是**验证了一套产品根本不用的构建配置**。它证明的是「源码里写了动态 import」，不是「发布的产物变小了」；配置不同的测试最容易骗过评审。
+
+测试已重写：
+
+- 构建选项**从 `scripts/build.mjs` 本身抽取**（扫描 `await build({…})` 字面量，在 `vm` 里以 `dev:false` 求值），测试**无法再与生产构建漂移**；
+- 断言的是**产物的事实**：13 个语言包与 12 个语法包仍是**内联在同一个文件里**（≈ 879 KB），文件**变大了**——测试断言的是这个事实，不是「包离开了产物」；
+- 真正的收益有**运行时证据**：给每个语言包与语法包注入一个标记行，`require()` 产物后标记列表必须**为空**（加载时 0 个语言模块被求值；打开对应语言的文件时才求值）。只有编辑器内核（`@lezer/common`、`@lezer/highlight`）在加载时求值；
+- **回归检查**：把 `CodeEditor.jsx` 换回静态 import 重建，三条断言同时变红（0 个 promise 站点、0 个 `__esm` 包裹、**加载时 26 个语言模块被求值**）——测试不是空转的。
+
+A/B 数字（隔离的两棵树，只换 `CodeEditor.jsx`，都用生产配置）：**2,896,517 B → 3,014,468 B（+117,951 B / +4.07 %）**，与本文件先前记的 +118,750 B 一致（绝对值差 14 KB 是因为树在动）。
+
+### 3.4 SCOPE-01 —— `cwd` 不决定 program 范围，真正决定的是 `rootUri`
 
 **日期**：2026-11-01　**影响条款**：SCOPE-01、§4.2
 
-宿主侧已完成：新增 `lsp.indexScope`（`'auto' | 'root' | 'project'`，默认 `'auto'`）、导出 `scopeRootOf(root, policy)`、用作用域根作语言服务器的 `cwd`、并把 `scopeRoot` 上报进状态快照。`'auto'` 的规则是：root 本身就是项目就保留，否则收敛到**最近的直接子项目**。
+**复核发现（成立）**：宿主侧原来只把作用域根用作语言服务器的 `cwd`，而 **`cwd` 不决定 TypeScript 的 program 范围**。已装的 `typescript-language-server@6.0.2` 里写得很清楚：
 
-**未做**：客户端仍以**工作区根**发 `rootUri`（`src/client/lsp-session.js:767` 的 `fileUriOf(root)`），所以 tsserver 收到的仍是工作区根的 program。**这一半要改客户端**（要么发作用域根，要么由宿主改写握手），两者都超出了本轮分给宿主侧的范围。
+- `lib/cli.mjs:25294` — `this.workspaceRoot = this.initializeParams.rootUri ? parse(this.initializeParams.rootUri).fsPath : …`
+- `lib/cli.mjs:19266` — `getProjectRootPath(resource)` → `this.client.getWorkspaceRootForResource(resource)`
+- `lib/cli.mjs:19185` — 每个 `open` 命令带 `projectRootPath: this.getProjectRootPath(document.uri)`
+- `lib/cli.mjs:25367` — `this.tsClient.start(this.workspaceRoot, {…})`
 
-**影响**：规格 §4.2 的用户收益（首次语义请求从数分钟降到数秒）**依赖 SCOPE-02 的 `tsconfig.json`**——配置项目只有 194 个文件，这才是把推断项目换掉的那一半；SCOPE-01 的跨项目跳转失效风险因此也被限制在配置项目内。
+客户端仍以**工作区根**发 `rootUri`（`src/client/lsp-session.js` 的 `fileUriOf(root)`），所以 tsserver 建的仍然是覆盖整棵树的 program；宿主新增的 `scopeRoot` 字段被上报，却**没有人使用**。本仓库之所以变小，靠的是 SCOPE-02 的 `tsconfig.json`（把插件包变成 configured project），**不是**作用域规则。
+
+**已修复**（客户端侧）：
+
+- **宿主 API** `POST /ide-workbench/api/lsp.scope` → `{ scopeRoot }`。它读 `settings.lsp.indexScope` 并调用已导出的 `scopeRootOf(root, policy)`，**不需要**已有会话。
+- **客户端**在握手**发出之前**用作用域根当 `rootUri`（`fileUriOf(scopeRoot)`）。顺序很重要：宿主只把**第一次** `initialize` 转发给语言服务器（frame worker 的 `Handshake.noteForwarded`），所以只有第一次握手能决定 program。客户端对象照旧立刻创建、**握手等作用域**——晚一点创建对象会破坏五个既有测试文件里约 30 个同步取 `lspClient()` 的用例。
+- **围栏分成两个**：`insideScope()`（作用域根）只管**向服务器通报文档**；`insideRoot()`（工作区根）继续管查找引用的读文件与 `displayFile()`。作用域外的文件**不再通报给服务器**（这是作用域收敛的既定代价，规格 §4.2 点名了「跨项目跳转不再解析」），但工作台**仍然打不开**它——把 `displayFile()` 也收窄会让「跳转到服务器提到的文件」失效。
+- **宿主侧的补丁**：宿主原来永远保留**第一次**握手，于是作用域策略改动后，下一次重启会把 program 悄悄退回旧的作用域。现在**最新的握手胜出**（`#holdFor`），新起的服务器进程用客户端**当下**在用的作用域初始化。回归测试：`tests/lsp-review-fixes.test.mjs` 的「the newest handshake is the one a server that starts later is initialized with」（已验证：去掉修复即变红）。
+
+**仍未达成的一点**：**运行中的**服务器保留它原来的 program，直到它下一次启动。作用域策略是高级设置，这个「下次启动生效」的语义与插件的其它设置一致，记录在此。
 
 ### 3.5 VIS-04 —— 降级的 toast 另有标题（不谎报"服务器已退出"）
 
@@ -261,9 +302,10 @@ MEM-02 让闸门开始累计核算已启动的服务器，于是快照里多了 
 | `tests/lsp-idle-policy.test.mjs` | IDLE-01/04/05 | 9 |
 | `tests/lsp-memory-gate.test.mjs` | MEM-01/02/03 | 11 |
 | `tests/lsp-crash-generation.test.mjs` | CRASH-01 | 5 |
-| `tests/lsp-status-freshness.test.mjs` | STALE-01/02/03、VIS-04（store 侧）、PERF-01 | 19 |
-| `tests/client-status-render.test.mjs` | VIS-01/02/03/04（客户端侧）、STALE-02/03、IDLE-01、MEM-04 | 20 |
-| `tests/perf-hot-path.test.mjs` | PERF-02/03/04 | 6 |
+| `tests/lsp-status-freshness.test.mjs` | STALE-01/02/03、VIS-04（store 侧）、PERF-01 | 31 |
+| `tests/client-status-render.test.mjs` | VIS-01/02/03/04（客户端侧）、STALE-02/03、IDLE-01、MEM-04、诊断面板的「内存」行与「原因」行 | 28 |
+| `tests/perf-hot-path.test.mjs` | PERF-02/03/04（**用生产构建配置**） | 9 |
+| `tests/lsp-scope-client.test.mjs` | SCOPE-01 客户端侧（握手的作用域根、宿主不应答时的回退、围栏） | 6 |
 
 **既有测试的回归更新**（规格 §9.2 要求）：
 
@@ -275,18 +317,41 @@ MEM-02 让闸门开始累计核算已启动的服务器，于是快照里多了 
 | `tests/settings-lsp.test.mjs` | 设置架构 4 → 5，并**证明迁移**：旧文档补上 `idlePolicy: 'after'`、用户选过的策略不被改、未知策略被修复 |
 | `tests/lsp-budget-agreement.test.mjs` / `lsp-client-budget.test.mjs` | **未改**（宿主的预算规则没动；客户端只在 `suspended` 时加长预算，两端仍然一致） |
 | `tests/lsp-health-status.test.mjs` / `tests/lsp-error-toast.test.mjs` | **未改**（VIS-02/04 没有破坏它们的断言） |
+| `tests/lsp-review-fixes.test.mjs` | **新增 1 例**：最新握手胜出（作用域不会在重启时退回旧的）——去掉修复即变红 |
+| `tests/lsp-workspace.test.mjs` | **新增 5 例**：作用域围栏（通报 / 不通报 / 仍可显示 / 无作用域根时的回退 / 连接前打开的文档） |
 
 ---
 
-## 6. 提交记录
+## 6. 复核轮（2026-11-01）
+
+一轮外部检视提出 **7 条**。逐条复核后：**5 条成立并已修复**，**2 条按事实部分接受、结论部分拒绝**（附实测证据）。复核本身没有改动规格，因此这一节记的是**处置**。
+
+| # | 复核结论 | 复核 | 处置 |
+|---|---|---|---|
+| 1 | PERF-03 不会减小产物，产物反而大了 | ✅ **成立** | 见 §3.3：产物确实**变大**（+117,951 B / +4.07 %），验收「减包 573 KB」**不可达**（装载器每包只取一个脚本）。**没有**去改打包契约（那是 DSH 侧的事）。 |
+| 2 | PERF-03 的测试跑的是产品根本不用的一套构建配置 | ✅ **成立且严重** | 测试已重写：构建选项**从 `scripts/build.mjs` 本身抽取**（无法再漂移），断言产物的**事实**（包仍内联、文件变大）与**运行时行为**（加载时 0 个语言模块被求值，打开对应语言的文件时才求值）。回归检查：换回静态 import 后三条断言同时变红。 |
+| 3 | MEM-03 在生产环境是空操作 | ⚠️ **事实成立，结论不成立** | 验收确实未达成，**且不应达成**：standby 是内核优先回收的**可用内存**（分配 1.5 GB 实测从 standby 取走 1.2 GB，无换页）。复核建议的 `GetPerformanceInfo.SystemCache` 会**多扣约 600 MB** 的可回收文件缓存，且纯 Node 调不到。**不按字面实现**，见 §3.1。 |
+| 4 | SCOPE-01 只改了服务端 `cwd`，program 范围并未收敛 | ✅ **成立** | 已修复：`rootUri` 由客户端按作用域根发出，围栏分成「通报」与「显示」两个，新增宿主 API `lsp.scope`；宿主改为**最新握手胜出**，作用域不会在重启时悄悄退回。见 §3.4。 |
+| 5 | 窗口最小化后状态栏误报「状态未知」，最长约 1 分钟不恢复 | ✅ **成立** | 隐藏**不再**置陈旧标志（跳过轮询不是失败的轮询），并新增 `visibilitychange` 监听：回到前台立即刷新 LSP 状态与 git 状态。 |
+| 6 | 唤醒失败一次后，该 root 的自动唤醒被永久关闭 | ✅ **成立** | 宿主新增 `degradeCause`（`memory` / `not-installed` / `turned-off` / `crash`）：**只有内存原因**的降级值得重试，带 **60 s 退避**；失败的唤醒不丢载荷，成功后重放；重复降级不再重复发控制事件。客户端侧：【重新建立索引】在内存紧张时**强制**启动（否则用户点一次回到原点）。 |
+| 7 | 降级 toast 的正文是英文技术串 | ✅ **成立** | 降级与崩溃**走同一套本地化模板**（`crashAdviceFor`）：超时 → 超时建议，内存 → 内存建议，其余 → 「详情见诊断面板」。宿主的技术原文移到 `state.lsp.detail`，并**在诊断面板新增「原因」一行**——本地化文案说「详情在诊断面板」，面板就得真的有它。 |
+
+**复核之外补上的一处**：`tests/lsp-review-fixes.test.mjs` 新增「最新握手胜出」的回归用例（去掉修复即变红，已验证）。
+
+**本轮之后的数字**：**854 项 / 854 通过 / 0 失败**（本轮开始时 820）。
+
+---
+
+## 7. 提交记录
 
 | 日期 | 提交 | 内容 |
 |---|---|---|
-| — | — | （工作树未提交；按要求不代为提交） |
+| 2026-11-01 | `fdad597` | PRD-v5 改造需求的第一轮实现（30 个文件） |
+| — | — | （复核轮的修复见下一个提交） |
 
 ---
 
-## 7. 交付物对照（规格 §11）
+## 8. 交付物对照（规格 §11）
 
 | # | 交付物 | 位置 | 状态 |
 |---|---|---|---|

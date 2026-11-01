@@ -1018,7 +1018,7 @@ function MemoryDecisionModal({ store, state }) {
  * It answers the question the status bar cannot: what does the server say,
  * what failed last, how much memory is left, and what can be done about it.
  */
-function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
+export function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
   const t = store.t
   const lsp = state.lsp ?? {}
   const resources = lsp.resources ?? null
@@ -1055,7 +1055,8 @@ function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
               ? t('lsp.diagnostics.healthy')
               : `${failures} / ${timeouts}`,
           ),
-        ),        React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
+        ),
+        React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
           React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.lastFailure')),
           React.createElement('span', { className: 'iwb-lsp-diagnostics-value' },
             lastFailure === null
@@ -1063,6 +1064,16 @@ function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
               : `${lastFailure.message ?? ''} (${new Date(lastFailure.at ?? 0).toLocaleTimeString()})`,
           ),
         ),
+        // The reason the host reported. The toast says «the details are in the
+        // diagnostics panel» - so the panel has to carry them. It is the
+        // technical sentence of the host (the host has no locale), and it is
+        // the only place where the exact reason is readable.
+        typeof lsp.detail === 'string' && lsp.detail !== ''
+          ? React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
+              React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.reason')),
+              React.createElement('span', { className: 'iwb-lsp-diagnostics-value' }, lsp.detail),
+            )
+          : null,
         React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
           React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.memory')),
           React.createElement('span', { className: 'iwb-lsp-diagnostics-value', title: t('lsp.diagnostics.memoryHint') }, memoryText),

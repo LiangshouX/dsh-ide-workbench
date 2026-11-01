@@ -34,14 +34,15 @@ function rootOf(name) {
 /**
  * The `initialize` request of the browser.
  * @param {number} [id] the id of the request
+ * @param {string} [rootUri] the root of the project the client announces
  * @returns {string} the payload
  */
-function initializeText(id = 1) {
+function initializeText(id = 1, rootUri = 'file:///workspace') {
   return JSON.stringify({
     jsonrpc: '2.0',
     id,
     method: 'initialize',
-    params: { processId: null, rootUri: 'file:///workspace', capabilities: {} },
+    params: { processId: null, rootUri, capabilities: {} },
   })
 }
 
@@ -134,6 +135,28 @@ test('a handshake that arrives while the server runs reaches the stdin too', asy
   const frames = decodeChunks(handle().stdinChunks)
   assert.equal(frames.length, 1)
   assert.match(frames[0], /"method":"initialize"/)
+})
+
+test('the newest handshake is the one a server that starts later is initialized with', async () => {
+  // The `rootUri` of the handshake is what decides the program of the
+  // language server (the `cwd` of the process does not). The client asks the
+  // host for the scope of the project before it connects, so a client that
+  // rebuilds itself sends a new handshake with a new root - and a server that
+  // is started later has to be initialized with the scope the client is using
+  // NOW. With the first handshake kept for ever, the scope silently reverted
+  // to the old one on the next restart.
+  const { manager, handle } = makeManager()
+  const root = rootOf('n1-newest')
+  manager.attachSink(root, makeSink())
+
+  manager.relayToServer(root, initializeText())
+  manager.relayToServer(root, initializeText(2, 'file:///workspace/sub-project'))
+  await manager.start({ root })
+
+  const frames = decodeChunks(handle().stdinChunks)
+  const handshakes = frames.filter(frame => frame.includes('"method":"initialize"'))
+  assert.equal(handshakes.length, 1, 'the server is initialized exactly once')
+  assert.match(handshakes[0], /workspace\/sub-project/, 'the newest handshake is the one that reached the server')
 })
 
 // ── N2: the watchdog counts requests, not ticks ────────────────────────────

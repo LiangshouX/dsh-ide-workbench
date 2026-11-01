@@ -86,6 +86,40 @@ function lspRoutes(state, extra = {}) {
   }
 }
 
+/**
+ * A fake document for the tests that need one.
+ *
+ * The store registers its visibility listener on the document, so the fake
+ * has to offer `addEventListener` and `removeEventListener` as well. It is
+ * installed as `globalThis.document` and removed again by the test.
+ */
+function fakeDocument(visibilityState = 'visible') {
+  const listeners = new Map()
+  return {
+    visibilityState,
+    baseURI: 'http://dsh.internal/',
+    addEventListener(type, handler) {
+      const list = listeners.get(type) ?? []
+      list.push(handler)
+      listeners.set(type, list)
+    },
+    removeEventListener(type, handler) {
+      const list = listeners.get(type) ?? []
+      const index = list.indexOf(handler)
+      if (index >= 0) list.splice(index, 1)
+      listeners.set(type, list)
+    },
+    /** Fire one event. */
+    emit(type) {
+      for (const handler of [...(listeners.get(type) ?? [])]) handler()
+    },
+    /** How many listeners of one type are registered. */
+    count(type) {
+      return (listeners.get(type) ?? []).length
+    },
+  }
+}
+
 // ── STALE-01 ──────────────────────────────────────────────────────────────
 
 test('deactivate() keeps the language-server poll running', async (t) => {
@@ -156,6 +190,108 @@ test('an unusable status answer marks the status as stale', async (t) => {
   })
   await store.refreshLspStatus()
   assert.equal(store.state.lspStatusStale, true)
+})
+
+// ── STALE-02 (the minimised window) ───────────────────────────────────────
+
+test('a poll that is skipped for a hidden document does not mark the status as stale', async (t) => {
+  const doc = fakeDocument('hidden')
+  globalThis.document = doc
+  const store = fakeStore()
+  const calls = []
+  const restore = mockFetch(lspRoutes('ready'), calls)
+  t.after(() => {
+    store.dispose()
+    restore()
+    delete globalThis.document
+  })
+  await store.pollLspStatus()
+  assert.equal(
+    calls.filter(call => call.method === 'lsp.status').length,
+    0,
+    'a hidden document does not poll',
+  )
+  assert.equal(
+    store.state.lspStatusStale,
+    false,
+    'a skipped poll says nothing about the server, so it is not stale',
+  )
+  assert.equal(store.state.lsp.state, 'idle', 'the old snapshot is kept')
+})
+
+test('a failed poll marks the status as stale even when the document is visible', async (t) => {
+  const doc = fakeDocument('visible')
+  globalThis.document = doc
+  const store = fakeStore()
+  const restore = mockFetch({
+    'lsp.status': () => { throw new Error('the host is gone') },
+  })
+  t.after(() => {
+    store.dispose()
+    restore()
+    delete globalThis.document
+  })
+  await store.pollLspStatus()
+  assert.equal(store.state.lspStatusStale, true, 'a failed poll is a stale status')
+})
+
+test('a visible document refreshes the language-server status at once', async (t) => {
+  const doc = fakeDocument('hidden')
+  globalThis.document = doc
+  const store = fakeStore()
+  const calls = []
+  const restore = mockFetch(lspRoutes('ready'), calls)
+  t.after(() => {
+    store.dispose()
+    restore()
+    delete globalThis.document
+  })
+  await store.pollLspStatus()
+  assert.equal(calls.filter(call => call.method === 'lsp.status').length, 0)
+  // The window comes back: the browser throttled the timer of the hidden
+  // page, so the status must not wait for the next (throttled) tick.
+  doc.visibilityState = 'visible'
+  doc.emit('visibilitychange')
+  await tick(20)
+  assert.ok(
+    calls.some(call => call.method === 'lsp.status'),
+    'the status is asked for again as soon as the window is visible',
+  )
+  assert.equal(store.state.lsp.state, 'ready', 'the mirrored status is current again')
+  assert.equal(store.state.lspStatusStale, false)
+})
+
+test('a document that becomes hidden does not refresh the status', async (t) => {
+  const doc = fakeDocument('visible')
+  globalThis.document = doc
+  const store = fakeStore()
+  const calls = []
+  const restore = mockFetch(lspRoutes('ready'), calls)
+  t.after(() => {
+    store.dispose()
+    restore()
+    delete globalThis.document
+  })
+  doc.visibilityState = 'hidden'
+  doc.emit('visibilitychange')
+  await tick(20)
+  assert.equal(
+    calls.filter(call => call.method === 'lsp.status').length,
+    0,
+    'a hidden window is not polled',
+  )
+})
+
+test('the visibility listener is removed when the store is disposed', async (t) => {
+  const doc = fakeDocument('visible')
+  globalThis.document = doc
+  const store = fakeStore()
+  t.after(() => {
+    delete globalThis.document
+  })
+  assert.equal(doc.count('visibilitychange'), 1, 'the listener is registered once')
+  store.dispose()
+  assert.equal(doc.count('visibilitychange'), 0, 'a disposed store keeps no listener')
 })
 
 // ── STALE-03 ──────────────────────────────────────────────────────────────
@@ -292,7 +428,58 @@ test('a degraded control event shows the toast of the degradation', async (t) =>
   // title (PRD-v5 §1.5 VIS-04).
   assert.equal(toasts[0].text, 'lsp.degradedToast')
   assert.notEqual(toasts[0].text, 'lsp.crashedToast', 'the degradation does not claim that the server exited')
-  assert.equal(toasts[0].detail, 'the restart budget is used up')
+  // The body of the toast is localized: the host has no locale, so its
+  // detail is an English technical sentence that must not be the text the
+  // user reads.
+  assert.equal(toasts[0].detail, 'lsp.crashedGeneric', 'the body is the localized advice')
+  assert.notEqual(toasts[0].detail, 'the restart budget is used up', 'the raw detail is not the body')
+  // The technical reason stays reachable: it is the detail of the mirrored
+  // status, and the status bar shows it in its tooltip.
+  assert.equal(store.state.lsp.detail, 'the restart budget is used up', 'the raw detail is kept')
+})
+
+test('the body of a degradation is the localized advice of its reason', async (t) => {
+  const cases = [
+    ['3 request timeouts, the restart budget is used up', 'lsp.crashedTimeout'],
+    ['the machine ran out of memory', 'lsp.crashedMemory'],
+    ['out of memory while the program was built', 'lsp.crashedMemory'],
+    ['the restart budget is used up', 'lsp.crashedGeneric'],
+  ]
+  for (const [detail, advice] of cases) {
+    const { store, toasts } = recordingStore()
+    const restore = mockFetch(lspRoutes('degraded'))
+    store.lspControl({ type: 'degraded', root: ROOT, detail })
+    assert.equal(toasts.length, 1, 'the degradation is announced')
+    assert.equal(toasts[0].text, 'lsp.degradedToast', 'the title is the degradation')
+    assert.equal(toasts[0].detail, advice, `the reason "${detail}" is classified as ${advice}`)
+    assert.ok(
+      !toasts[0].detail.includes(detail),
+      'the body of the toast is not the English detail of the host',
+    )
+    if (store.toastTimer !== null) clearTimeout(store.toastTimer)
+    store.dispose()
+    restore()
+  }
+})
+
+test('a degradation reported by the poll has a localized body too', async (t) => {
+  const { store, toasts } = recordingStore()
+  const restore = mockFetch({
+    'lsp.status': () => ({
+      state: 'degraded',
+      enabled: true,
+      detail: 'the language server stopped unexpectedly (3 request timeouts)',
+    }),
+  })
+  t.after(() => {
+    if (store.toastTimer !== null) clearTimeout(store.toastTimer)
+    store.dispose()
+    restore()
+  })
+  await store.refreshLspStatus()
+  assert.equal(toasts.length, 1)
+  assert.equal(toasts[0].text, 'lsp.degradedToast')
+  assert.equal(toasts[0].detail, 'lsp.crashedTimeout', 'the timeout is classified as a timeout')
 })
 
 test('an unknown control event is ignored', async (t) => {
@@ -448,4 +635,125 @@ test('the snapshot timestamp moves while the status object stays', async (t) => 
   await store.refreshStatus({ force: true })
   assert.equal(store.state.status, first, 'the status object did not move')
   assert.ok(store.state.statusAt > at, 'the snapshot is as fresh as the poll says')
+})
+
+// ── the rebuild button (MEM-04) ───────────────────────────────────────────
+
+/** The memory snapshot of a machine whose free memory is tight. */
+const TIGHT_RESOURCES = {
+  freeBytes: 100 * 1024 * 1024,
+  needMB: 200,
+  canIndex: true,
+  tight: true,
+}
+
+/**
+ * A store whose memory snapshot is the given one.
+ * @param {object|null} resources the snapshot the client holds
+ * @returns {any} the store
+ */
+function storeWithResources(resources) {
+  const store = fakeStore()
+  store.state = { ...store.state, lsp: { ...store.state.lsp, resources } }
+  return store
+}
+
+test('the rebuild button starts the server anyway when the memory is tight', async (t) => {
+  const store = storeWithResources(TIGHT_RESOURCES)
+  const calls = []
+  const restore = mockFetch(lspRoutes('degraded'), calls)
+  t.after(() => {
+    if (store.toastTimer !== null) clearTimeout(store.toastTimer)
+    store.dispose()
+    restore()
+  })
+  await store.restartLsp()
+  const start = calls.find(call => call.method === 'lsp.start')
+  assert.ok(start, 'the server is started again')
+  assert.equal(
+    start.body.force,
+    true,
+    'the memory was the blocker, so the start is forced («仍然启动» = start anyway)',
+  )
+  const shutdown = calls.find(call => call.method === 'lsp.shutdown')
+  assert.ok(
+    calls.indexOf(shutdown) < calls.indexOf(start),
+    'the old session is shut down before the new one starts',
+  )
+})
+
+test('the rebuild button does not force the start when the memory is not the blocker', async (t) => {
+  for (const resources of [
+    { ...TIGHT_RESOURCES, tight: false },
+    null,
+  ]) {
+    const store = storeWithResources(resources)
+    const calls = []
+    const restore = mockFetch(lspRoutes('degraded'), calls)
+    await store.restartLsp()
+    const start = calls.find(call => call.method === 'lsp.start')
+    assert.ok(start, 'the server is started again')
+    assert.equal(
+      start.body.force,
+      false,
+      'a missing server or a crash must not bypass the memory gate',
+    )
+    if (store.toastTimer !== null) clearTimeout(store.toastTimer)
+    store.dispose()
+    restore()
+  }
+})
+
+// ── the scope of the program (SCOPE-01) ────────────────────────────────────
+
+test('the mirrored status carries the scope root of the program', async (t) => {
+  const store = fakeStore()
+  const restore = mockFetch({
+    'lsp.status': () => ({
+      state: 'ready',
+      enabled: true,
+      scopeRoot: 'C:\\work\\demo\\packages\\app',
+    }),
+  })
+  t.after(() => {
+    store.dispose()
+    restore()
+  })
+  await store.refreshLspStatus()
+  assert.equal(
+    store.state.lsp.scopeRoot,
+    'C:\\work\\demo\\packages\\app',
+    'the scope root of the host is mirrored',
+  )
+})
+
+test('the mirrored scope root is null when the host reports none', async (t) => {
+  const store = fakeStore()
+  const restore = mockFetch(lspRoutes('ready'))
+  t.after(() => {
+    store.dispose()
+    restore()
+  })
+  await store.refreshLspStatus()
+  assert.equal(store.state.lsp.scopeRoot, null, 'the field is null, never undefined')
+  assert.equal(typeof store.state.lsp.scopeRoot, 'object')
+})
+
+test('a changed scope root updates the mirrored status', async (t) => {
+  let scopeRoot = 'C:\\work\\demo'
+  const store = fakeStore()
+  const restore = mockFetch({
+    'lsp.status': () => ({ state: 'ready', enabled: true, scopeRoot }),
+  })
+  t.after(() => {
+    store.dispose()
+    restore()
+  })
+  await store.refreshLspStatus()
+  const first = store.state.lsp
+  assert.equal(first.scopeRoot, 'C:\\work\\demo')
+  scopeRoot = 'C:\\work\\demo\\packages\\app'
+  await store.refreshLspStatus()
+  assert.notEqual(store.state.lsp, first, 'a new scope is a new snapshot')
+  assert.equal(store.state.lsp.scopeRoot, 'C:\\work\\demo\\packages\\app')
 })
