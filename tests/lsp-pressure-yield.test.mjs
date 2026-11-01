@@ -219,3 +219,40 @@ test('a server that builds its program is never released', async () => {
   await sleep(120)
   assert.notEqual(manager.stateOf(building).state, 'suspended', 'the building server stays')
 })
+
+test('the valve fires when another program took the memory', async () => {
+  // N1: the difference between two readings is the growth of EVERYTHING on
+  // the machine. Another program that eats 7 GB while the language server
+  // starts must not be booked on the server: the reservation would
+  // collapse, the available memory would look huge, and the valve would
+  // stay silent while the machine is out of memory.
+  const steps = [7400, 7400, 400]
+  let index = 0
+  const { manager, handle, warnings } = makeManager({
+    lsp: { idleTimeoutMs: 600000, requestTimeoutMs: 100 },
+    readMemory: () => {
+      const step = steps[Math.min(index, steps.length - 1)]
+      index += 1
+      return { totalBytes: 16 * 1024 ** 3, freeBytes: step * MB }
+    },
+  })
+  const root = rootOf('foreign')
+  const started = await manager.start({ root })
+  assert.equal(started.state, 'building', 'the machine had room when the server started')
+  ready(handle())
+
+  // The measurement was void: the estimate of the registry is used, so the
+  // reservation is 1614 MB and the machine has 400 MB left.
+  const resources = await manager.resources({ root: rootOf('foreign-other') })
+  assert.equal(resources.measuredMB, 434, 'the difference was not the memory of the server')
+  assert.equal(resources.availableBytes, 0, 'the machine has no memory left')
+
+  assert.ok(
+    await waitFor(() => manager.stateOf(root).state === 'suspended', 4000),
+    'the valve fired: the server was released',
+  )
+  assert.ok(
+    warnings.some(warning => /cannot take more than/.test(warning)),
+    'the host log says that the difference was not the memory of the server',
+  )
+})

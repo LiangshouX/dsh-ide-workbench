@@ -194,6 +194,20 @@ lsp.start  →  正常起服（1 个进程，状态 building）
 服务器被释放后发一个 payload  →  进程数仍是 1，状态停在 idle   ← 没有被唤醒
 ```
 
+> ⚠️ **2026-11-01 23:38 更正（第二轮检视 N6）：上面这段「探针实测」的证据无效，结论仍然成立。**
+>
+> 那个探针用 `manager.shutdown()` 收尾，会话停在 **`idle`**；而 `#isWakeable` 只唤醒
+> **`suspended`**（`src/host/lsp.js` 里 `if (session.state === 'suspended') return true`）
+> ⇒ 那次探针**根本没有走到**被指认的 `#isConservative` 分支 —— 它看到的是「idle 不唤醒」，
+> 不是「conservative 不唤醒」。
+>
+> **结论本身仍然成立**，由代码走查成立（旧 `#isConservative` 的顺序确实是
+> `enabled → indexOnOpen → workspaceDefaults → memoryWarnedRoots`，与客户端的
+> `workspaceDefaults` 优先相反）。第二轮用**真实空闲退出 → `suspended`** 的路径重新实测，
+> 三种场景全部符合预期（见 `PRD-v5.1-代码检视报告-第二轮.md` §1.4）。
+>
+> ⇒ 本条应读作「**由代码走查成立，第二轮补上了正确的实测**」，而不是「第一轮已实测」。
+
 **后果**：宿主 `#wakeSession` 在 `#isConservative` 处直接 return ⇒ **空闲退出（10 分钟）/ 压力释放之后，语义功能永久失效**，而界面上项目是「已开启索引」的状态。用户只能再点一次【重新建立索引】。
 
 **最小修复方向**：宿主改读本轮新增的权威标记 `lsp.workspaceDefaults`（`conservative` 即基础模式）；**或** `restartLsp()` 同步清除 `memoryWarnedRoots` 的对应条目。二选一即可，但不能两侧各读各的。

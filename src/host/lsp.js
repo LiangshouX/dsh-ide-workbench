@@ -2593,10 +2593,15 @@ export class LspManager {
    *
    *   headroom_i = max(0, ceiling_i - measured_i)
    *
-   * `measured_i` is the real footprint of the server (MEM-06) and
+   * `measured_i` is the measured footprint of the server (MEM-06) and
    * `ceiling_i` the permission it was given (MEM-11). A server that uses
    * 606 MB of its 2048 MB ceiling endangers the next server with 1442 MB -
    * and with the old formula it endangered it with 2048 MB.
+   *
+   * The measured value is an upper bound of the real footprint (the method
+   * cannot say whose memory the machine lost), so the headroom is a lower
+   * bound: the account is a little too generous, and the pressure valve
+   * (MEM-12) watches the raw free memory as well.
    *
    * The reservation is given back on every path that ends a session:
    * `#terminateAndWait`, `#teardownSession` and `#onCrash`.
@@ -2611,13 +2616,21 @@ export class LspManager {
   }
 
   /**
-   * The real footprint of the running language servers (MEM-06).
+   * The measured footprint of the running language servers (MEM-06).
    *
    * The sum of the measurements of the running sessions, in bytes. The
    * client shows it, and it is the number that makes the reservation
    * understandable: "the machine has 2648 MB free, 606 MB of it is the
    * index that is already running, and 1442 MB of it is what that index
    * may still grow into".
+   *
+   * It is an UPPER BOUND of the real footprint, not the footprint itself:
+   * the method measures the drop of the free memory of the machine, and a
+   * drop that fits inside the room of the servers may belong to another
+   * program. The difference that does NOT fit is never counted, so the
+   * bound is conservative in the direction that matters for the gate (the
+   * reservation stays big), and the pressure valve watches the raw free
+   * memory as well (MEM-12).
    * @returns {number} the measured memory in bytes
    */
   #measuredBytes() {
@@ -3568,6 +3581,20 @@ export class LspManager {
    * manager: the later round must not count the drop of this spawn a
    * second time.
    *
+   * THE DIFFERENCE IS ONLY ATTRIBUTED WHEN THE SERVER COULD HAVE TAKEN IT.
+   * The difference between two readings is the growth of EVERYTHING on the
+   * machine: the IDE that indexes its own files, the browser, Docker, the
+   * antivirus. A server can never have taken more than the room it has
+   * left, so a difference that is bigger than its capacity was NOT its
+   * memory - and it is void (the estimate of the registry is used, and the
+   * host log says so with the numbers).
+   *
+   * Without that bound the accounting is optimistic in the dangerous
+   * direction: a foreign program that eats 7 GB would be booked on the
+   * server, the reservation would collapse, the available memory would
+   * look huge - and the pressure valve (MEM-12), which watches the
+   * available memory, would never fire.
+   *
    * @param {object} session the session
    * @param {number} freeBefore the free memory before the process started
    * @param {number} freeAfter the free memory after the process existed
@@ -3576,18 +3603,42 @@ export class LspManager {
     const delta = freeBefore - freeAfter
     // The baseline of the machine moves with the spawn: the round that
     // follows compares against this reading and not against the one of
-    // before the spawn.
+    // before the spawn. It moves in every case - also when the measurement
+    // is void, or every later round would be void for ever.
     this.#lastGlobalFreeBytes = freeAfter
-    if (delta > MEASURE_NOISE_MAX_MB * 1024 * 1024) {
+    const capacity = this.#capacityOf(session)
+    if (delta > MEASURE_NOISE_MAX_MB * 1024 * 1024 && delta <= capacity) {
+      // The difference fits the room the server has left: it is its growth.
+      // No clamp is needed - the bound is the capacity.
       session.measuredBytes = delta
       return
     }
     const { baselineMB } = memoryEstimateOf(session.languageId, session.lsp ?? DEFAULT_LSP_SETTINGS)
     session.measuredBytes = Math.max(0, baselineMB) * 1024 * 1024
-    const reason = delta < MEASURE_NOISE_MIN_MB * 1024 * 1024
-      ? 'the machine gave memory away while the server was started'
-      : 'the difference of the free memory was inside the noise band'
-    this.#ctx?.logger?.warn?.('lsp: the footprint of the %s language server could not be measured (%s, %d MB) - the estimate of %d MB is used instead', session.languageId, reason, Math.round(delta / (1024 * 1024)), baselineMB)
+    let reason
+    if (delta <= MEASURE_NOISE_MAX_MB * 1024 * 1024) {
+      reason = delta < MEASURE_NOISE_MIN_MB * 1024 * 1024
+        ? 'the machine gave memory away while the server was started'
+        : 'the difference of the free memory was inside the noise band'
+    } else {
+      reason = `the machine lost ${Math.round(delta / (1024 * 1024))} MB and the server cannot take more than ${Math.round(capacity / (1024 * 1024))} MB - the difference was not its memory`
+    }
+    this.#ctx?.logger?.warn?.('lsp: the footprint of the %s language server could not be measured (%s) - the estimate of %d MB is used instead', session.languageId, reason, baselineMB)
+  }
+
+  /**
+   * The room one language server has left (bytes).
+   *
+   * It is the difference between the ceiling the server was given and the
+   * footprint that was measured for it: the memory it may still take. A
+   * server that stands at its ceiling has no room left, and a difference
+   * of the machine can never be bigger than the room of all the servers
+   * together.
+   * @param {object} session the session
+   * @returns {number} the room in bytes
+   */
+  #capacityOf(session) {
+    return Math.max(0, session.ceilingBytes - session.measuredBytes)
   }
 
   /**
@@ -3607,14 +3658,30 @@ export class LspManager {
    * would let the machine run into the swap (PRD-v5.1 §3.1).
    *
    * So the manager keeps ONE baseline and ONE reading per round, and the
-   * difference is credited to the sessions that can still grow - split
-   * among them. The split is an APPROXIMATION (the machine does not say
-   * which server grew), but the SUM is exact: the difference is counted
-   * once, and the gate and the diagnostics panel work with the sum.
+   * difference is computed ONCE. It is then credited to the sessions that
+   * have room left - split PROPORTIONALLY to their room, so that no
+   * session can grow beyond its ceiling (and no clamp of the measured
+   * value is needed anywhere).
    *
-   * A session that is at its ceiling cannot grow any more, so it is not a
-   * candidate: the difference that it cannot take is left to the others
-   * (and to the next round).
+   * THE ATTRIBUTION IS BOUNDED, NOT EXACT. The difference of two readings
+   * is the growth of everything on the machine, and the method cannot say
+   * whose growth it was. Two consequences:
+   *
+   *   - a difference that does not fit the room of all the servers together
+   *     was NOT theirs: it is void, and the last values stay. That is the
+   *     conservative direction - the reservation stays big and the gate
+   *     stays strict;
+   *   - a difference that DOES fit may still contain the growth of another
+   *     program. The measured value is then an UPPER bound of the real
+   *     growth of the servers, the reservation an LOWER bound of their
+   *     room, and the available memory an UPPER bound - too optimistic by
+   *     the part that belonged to somebody else.
+   *
+   * That is why the pressure valve (MEM-12) watches the raw free memory of
+   * the machine as well: the account cannot be fooled that way.
+   *
+   * A session without room is not a candidate: the difference it cannot
+   * take is left to the others (and to the next round).
    */
   #remeasure() {
     try {
@@ -3637,12 +3704,17 @@ export class LspManager {
         this.#ctx?.logger?.warn?.('lsp: the re-measurement of the language servers was not conclusive (%d MB) - the last valid values are kept', Math.round(delta / (1024 * 1024)))
         return
       }
-      // The candidates: the sessions that may still grow.
+      // The candidates: the sessions that have room left, and the room
+      // itself. The room is what a server can still take, and the difference
+      // of the machine can never be bigger than the room of all the servers
+      // together.
       const growers = []
+      let capacity = 0
       for (const candidate of this.#sessions) {
-        if (candidate.ceilingBytes <= 0) continue
-        if (candidate.measuredBytes >= candidate.ceilingBytes) continue
-        growers.push(candidate)
+        const room = this.#capacityOf(candidate)
+        if (room <= 0) continue
+        growers.push({ session: candidate, room })
+        capacity += room
       }
       if (growers.length === 0) {
         // Nobody can take the difference: it was not theirs - another
@@ -3650,10 +3722,21 @@ export class LspManager {
         this.#ctx?.logger?.warn?.('lsp: the machine lost %d MB and no language server can take it - the last valid values are kept', Math.round(delta / (1024 * 1024)))
         return
       }
-      const share = delta / growers.length
+      if (delta > capacity) {
+        // VOID: the difference is bigger than what all the servers together
+        // could ever take, so it cannot be theirs. Booking it on them would
+        // make the reservations collapse and the available memory look huge
+        // while the machine is out of memory.
+        this.#ctx?.logger?.warn?.('lsp: the machine lost %d MB and the language servers can only take %d MB - the difference was not their memory and the last valid values are kept', Math.round(delta / (1024 * 1024)), Math.round(capacity / (1024 * 1024)))
+        return
+      }
+      // The difference fits: it is split PROPORTIONALLY to the room of the
+      // growers. No grower can grow beyond its ceiling this way, so the
+      // measured value needs no clamp.
       for (const grower of growers) {
-        grower.measuredBytes = Math.min(grower.ceilingBytes, grower.measuredBytes + share)
-        grower.reservedBytes = Math.max(0, grower.ceilingBytes - grower.measuredBytes)
+        const attributed = Math.floor(delta * grower.room / capacity)
+        grower.session.measuredBytes += attributed
+        grower.session.reservedBytes = Math.max(0, grower.session.ceilingBytes - grower.session.measuredBytes)
       }
     } catch (error) {
       // The measurement runs in an interval: a throw here is an uncaught
@@ -4141,11 +4224,34 @@ export class LspManager {
    * `suspended`, not in `degraded` (CONC-04): the machine did not break,
    * it asked for its memory back.
    *
-   * The trigger is the AVAILABLE memory and not the bare free memory
-   * (MEM-12): the free memory ignores the reservations of the running
-   * servers, and the books are already overspent exactly when that
-   * matters. The bare free number would not react while the machine has
-   * 2 GB of "free" memory and three servers that may grow into 6 GB.
+   * The trigger is BOTH numbers, and the reason of the second one is the
+   * method of the measurement (MEM-06):
+   *
+   *   - the AVAILABLE memory is the ACCOUNT: the free memory of the machine
+   *     minus what the running servers may still take. It is the number the
+   *     gate decides with, and it reacts while the books are already
+   *     overspent - the bare free number would not (PRD-v5.1 §3.8).
+   *   - the RAW FREE memory is the PHYSICAL TRUTH: it cannot be fooled by
+   *     an account that is too optimistic. The difference method cannot say
+   *     whose memory the machine lost, so a difference that FITS inside the
+   *     room of the servers may well be another program's - and then the
+   *     account says "there is room" while the machine is out of memory.
+   *
+   * The two are not checked side by side, because the account is DERIVED from
+   * the physical truth: `availableBytes` is `freeBytes` minus the
+   * reservations, and a reservation is never negative, so
+   *
+   *     availableBytes <= freeBytes     ALWAYS.
+   *
+   * A machine that is physically out of memory is therefore below the hard
+   * floor on the account as well, and the check on the account alone already
+   * covers it. A second condition on the raw free memory would be dead code
+   * today (the second round of the review asked for it; the first layer of
+   * that round - the attribution bounded by the room - is what actually
+   * keeps the account honest). The INVARIANT is what has to hold: if a later
+   * change ever makes `availableBytes` independent of `freeBytes` (a term
+   * that is not subtracted from the free memory, say), this trigger has to
+   * grow a second condition.
    *
    * The victim is chosen by the LRU order of CONC-03 - the machine is not
    * asked which server may go, and the server that builds its program is
@@ -4171,6 +4277,8 @@ export class LspManager {
       session.lastPressureAt = now
       const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
       const hardFloorBytes = resources.hardFloorMB * 1024 * 1024
+      // `availableBytes <= freeBytes` (see above), so this one comparison
+      // covers the account AND the physical truth.
       if (resources.availableBytes >= hardFloorBytes) return
       this.#safely(this.#yieldUnderPressure(session), 'the memory pressure release')
     } catch (error) {

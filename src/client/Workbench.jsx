@@ -441,12 +441,17 @@ export function showCancelButton(hostState, cancellable) {
  *
  * "Needs" is what the next server would take, and "Reserved" is what the
  * running servers may STILL GROW INTO - the ceiling they were granted minus
- * the memory they measured so far. The semantics changed with PRD-v5.1
+ * the memory they have taken already. The semantics changed with PRD-v5.1
  * MEM-05: the reservation used to be the whole ceiling, which charged every
  * running server twice (once for what it used, once for what it might still
- * take). What the running servers use is reported as "measured", and what
- * they may still take is the reservation. The reservation is only shown when
- * there is one: a row that always says "reserved 0 MB" is noise.
+ * take).
+ *
+ * The memory the running servers have taken already has NO row of its own:
+ * it is already subtracted from the free memory of the machine, which is why
+ * the panel shows the AVAILABLE memory and not "free minus used". "Reserved"
+ * is neither their usage nor their ceiling - it is the room they may still
+ * take. The reservation is only shown when there is one: a row that always
+ * says "reserved 0 MB" is noise.
  *
  * The panel shows TWO bands (PRD-v5.1 MEM-07): the typical one above ("the
  * server needs 651 MB, the machine has 1206 MB") and the worst one below

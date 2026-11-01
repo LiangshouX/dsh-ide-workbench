@@ -205,3 +205,123 @@ test('a difference that no server can take is left to the machine', async () => 
   assert.equal(after.measuredMB, 2048, 'the value of the server did not change')
   assert.equal(after.reservedBytes, 0, 'the server cannot grow any more')
 })
+
+test('a difference that is bigger than the room of the servers is void', async () => {
+  // N1: the difference between two readings is the growth of EVERYTHING on
+  // the machine. Another program that eats 7 GB must not be booked on the
+  // language server: the reservation would collapse, the available memory
+  // would look huge, and the pressure valve would never fire.
+  let freeBytes = 8000 * MB
+  let clock = 0
+  const { manager, warnings } = makeManager({
+    lsp: { memoryLimitMB: 2048, requestTimeoutMs: 100 },
+    now: () => Date.now() + clock,
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes }),
+  })
+  const root = rootOf('void-round')
+  await manager.start({ root })
+  await sleep(120)
+  const before = await manager.resources({ root: rootOf('void-round-other') })
+  assert.equal(before.measuredMB, 434, 'the estimate of the registry')
+  assert.equal(before.reservedBytes, (2048 - 434) * MB)
+
+  // Another program eats 6 GB: the server could never have taken that.
+  // (The machine keeps 2000 MB, so the pressure valve stays quiet and the
+  // measurement is the only thing that changes.)
+  freeBytes = 2000 * MB
+  clock += 61000
+  await sleep(120)
+
+  const after = await manager.resources({ root: rootOf('void-round-other') })
+  assert.equal(after.measuredMB, 434, 'the measurement is void: the values stay')
+  assert.equal(after.reservedBytes, (2048 - 434) * MB, 'and the reservation stays')
+  assert.ok(
+    warnings.some(warning => /can only take/.test(warning)),
+    'the host log says that the difference was not the memory of the servers',
+  )
+})
+
+test('a spawn window that is bigger than the ceiling of the server is void', async () => {
+  // The same rule on the other path: the server may never take more than
+  // its ceiling, so a bigger difference was not its memory.
+  const { manager, warnings } = makeManager({
+    lsp: { memoryLimitMB: 2048 },
+    // The spawn window sees a drop of 7000 MB - another program of the
+    // machine, not the server.
+    readMemory: scriptedProbe([7400, 7400, 400, 400]),
+  })
+  const root = rootOf('void-spawn')
+  await manager.start({ root })
+  const resources = await manager.resources({ root: rootOf('void-spawn-other') })
+  assert.equal(resources.measuredMB, 434, 'the estimate of the registry is used')
+  assert.equal(resources.reservedBytes, (2048 - 434) * MB)
+  assert.ok(
+    warnings.some(warning => /cannot take more than/.test(warning)),
+    'the host log says that the difference was not the memory of the server',
+  )
+})
+
+test('a difference that fits the room is still attributed', async () => {
+  // The bound is the room the server has left - and a difference that fits
+  // is counted, so that a server that really grows is measured.
+  let freeBytes = 8000 * MB
+  let clock = 0
+  const { manager } = makeManager({
+    lsp: { memoryLimitMB: 2048, requestTimeoutMs: 100 },
+    now: () => Date.now() + clock,
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes }),
+  })
+  const root = rootOf('fits')
+  await manager.start({ root })
+  await sleep(120)
+
+  // The room of the server is 2048 - 434 = 1614 MB: a difference of 1000 MB
+  // fits, a difference of 1614 MB fills it exactly.
+  freeBytes = 7000 * MB
+  clock += 61000
+  await sleep(120)
+  const middle = await manager.resources({ root: rootOf('fits-other') })
+  assert.equal(middle.measuredMB, 434 + 1000, 'the difference was attributed')
+
+  // The second difference fills the rest of the room exactly (the room is
+  // now 2048 - 1434 = 614 MB).
+  freeBytes = 6386 * MB
+  clock += 61000
+  await sleep(120)
+  const full = await manager.resources({ root: rootOf('fits-other') })
+  assert.equal(full.measuredMB, 2048, 'the server stands at its ceiling')
+  assert.equal(full.reservedBytes, 0, 'and it cannot grow any more')
+})
+
+test('the two paths answer the same', async () => {
+  // N2: the spawn window and the round are two calls of ONE rule. A
+  // difference that does not fit is void in both, and a difference that
+  // fits is counted in both - there is no clamp in one of them any more.
+  const spawn = makeManager({
+    lsp: { memoryLimitMB: 2048 },
+    readMemory: scriptedProbe([8000, 8000, 6000, 6000]),
+  })
+  const spawned = await spawn.manager.start({ root: rootOf('same-spawn') })
+  assert.equal(spawned.state, 'building')
+  const afterSpawn = await spawn.manager.resources({ root: rootOf('same-spawn-other') })
+  assert.equal(afterSpawn.measuredMB, 2000, 'the spawn window counted the difference')
+
+  // The same difference in the round: the room is 2048 - 2000 = 48 MB, so
+  // 2000 MB does NOT fit - the round is void, exactly like the spawn
+  // window would have been.
+  let freeBytes = 4000 * MB
+  let clock = 0
+  const round = makeManager({
+    lsp: { memoryLimitMB: 2048, requestTimeoutMs: 100 },
+    now: () => Date.now() + clock,
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes }),
+  })
+  const root = rootOf('same-round')
+  await round.manager.start({ root })
+  await sleep(120)
+  freeBytes = 2000 * MB
+  clock += 61000
+  await sleep(120)
+  const afterRound = await round.manager.resources({ root: rootOf('same-round-other') })
+  assert.equal(afterRound.measuredMB, 434, 'the round is void: the values stay')
+})

@@ -39913,12 +39913,46 @@ var WorkbenchStore = class {
     return value === "build" || value === "conservative" ? value : null;
   }
   /**
+   * Write the maps that remember the user, and undo the change when the host
+   * does not take it.
+   *
+   * The store changes its own state first - the client session asks for the
+   * decision right away, and a decision the user made must not wait for a
+   * round trip - and asks the host to write the document afterwards. When
+   * that write fails, the two sides disagree: the client says "index this
+   * project", the document of the host still says "basic mode". The host
+   * then keeps the basic mode while the user wonders why the button does
+   * nothing, and nothing was written down (review N5).
+   *
+   * So a failed write takes the change back: the section as it was before the
+   * change goes back into the store - a `set` wakes the subscribers, so the
+   * client session re-reads the decision and agrees with the host again - and
+   * the failure is logged. A silent inconsistency is worse than a visible
+   * failure.
+   *
+   * Both writes of the memory of the user go through this helper: the
+   * workspace-scoped default and the memory answer are ONE decision in two
+   * maps (PRD-v5.1 WS-04 / MEM-10), and they must not drift apart in the way
+   * they report a failure.
+   *
+   * @param {object} patch the maps to write, as the `lsp` section of a patch
+   * @param {object | null} previous the `lsp` section as it was before the change
+   * @returns {void}
+   */
+  #writeLspSettings(patch, previous) {
+    const lsp = this.state.settings?.lsp ?? {};
+    this.set({ settings: { ...this.state.settings, lsp: { ...lsp, ...patch } } });
+    void call2("settings.update", { patch: { lsp: patch } }).catch((error) => {
+      console.warn("[lsp] the settings of the semantic analysis could not be written:", error instanceof Error ? error.message : error);
+      this.set({ settings: { ...this.state.settings, lsp: previous ?? {} } });
+    });
+  }
+  /**
    * Write the decision of the user about the semantic analysis of one root.
    *
    * The decision is written to the settings document, so it survives a
    * workspace switch and a restart of DSH - the memory of the client does
-   * not (the store is evicted after three workspaces). A failure is not
-   * fatal: the user is asked again next time.
+   * not (the store is evicted after three workspaces).
    *
    * Only a decision the USER made belongs here. A decision the policy
    * derived (the automatic start of the 'always' policy) stays in the memory
@@ -39939,6 +39973,7 @@ var WorkbenchStore = class {
    */
   #rememberWorkspaceDecision(root, choice) {
     const decision = choice === "build" || choice === "build-forced" ? "build" : "conservative";
+    const previous = this.state.settings?.lsp ?? null;
     const lsp = this.state.settings?.lsp ?? {};
     const defaults3 = { ...lsp.workspaceDefaults !== null && typeof lsp.workspaceDefaults === "object" ? lsp.workspaceDefaults : {}, [root]: decision };
     const warned2 = { ...lsp.memoryWarnedRoots !== null && typeof lsp.memoryWarnedRoots === "object" ? lsp.memoryWarnedRoots : {} };
@@ -39946,9 +39981,7 @@ var WorkbenchStore = class {
       const key = Object.keys(warned2).find((entry) => sameScopePath(entry, root));
       if (key !== void 0) warned2[key] = null;
     }
-    this.set({ settings: { ...this.state.settings, lsp: { ...lsp, workspaceDefaults: defaults3, memoryWarnedRoots: warned2 } } });
-    void call2("settings.update", { patch: { lsp: { workspaceDefaults: defaults3, memoryWarnedRoots: warned2 } } }).catch(() => {
-    });
+    this.#writeLspSettings({ workspaceDefaults: defaults3, memoryWarnedRoots: warned2 }, previous);
   }
   /**
    * What the workbench decided about the language server of one project.
@@ -40034,16 +40067,18 @@ var WorkbenchStore = class {
    * server without asking (PRD-v5.1 MEM-10).
    *
    * The answer is written to the settings, so it survives a restart of the
-   * workbench. A failure is not fatal: the user is asked again next time.
+   * workbench. The write goes through the same helper as the workspace-scoped
+   * default: a write that fails takes the change back and says so, instead
+   * of leaving the client and the host with two different answers about the
+   * same project (review N5).
    * @param {string} root the project root
    * @param {'conservative'} answer the answer of the user
    */
   #rememberMemoryAnswer(root, answer) {
+    const previous = this.state.settings?.lsp ?? null;
     const warned2 = this.state.settings?.lsp?.memoryWarnedRoots;
     const next = { ...warned2 !== null && typeof warned2 === "object" ? warned2 : {}, [root]: answer };
-    this.set({ settings: { ...this.state.settings, lsp: { ...this.state.settings.lsp, memoryWarnedRoots: next } } });
-    void call2("settings.update", { patch: { lsp: { memoryWarnedRoots: next } } }).catch(() => {
-    });
+    this.#writeLspSettings({ memoryWarnedRoots: next }, previous);
   }
   /**
    * Show the memory warning and wait for the user's answer.
