@@ -476,6 +476,18 @@ const LSP_RECOVERED_STATES = ['starting', 'building', 'ready', 'idle', 'suspende
  */
 const LSP_INDEX_STATES = ['starting', 'building', 'restarting']
 
+/**
+ * The host states in which a language server is really on its way.
+ *
+ * The client session is a fault of its own: the host may be perfectly
+ * healthy while the link between the browser and the server is dead. But
+ * there is nothing that could fail when the host has no server at all - the
+ * user put the project into the basic mode on purpose, or the feature is
+ * switched off. In every other state the host knows better than the client,
+ * and its explanation is the truth (review P1-2).
+ */
+const LSP_HOST_FINE_STATES = ['starting', 'building', 'ready', 'restarting']
+
 export class WorkbenchStore {
   /**
    * @param {any} ctx client cordis context
@@ -534,6 +546,15 @@ export class WorkbenchStore {
     this.memoryDecisionResolve = null
     /** The languages whose server registry was already fetched. */
     this.lspServersChecked = new Set()
+    /**
+     * The index decision of every project of this session.
+     *
+     * The decision has to survive a project switch - the `lsp` slice is reset
+     * on every switch - so it lives in the store and not in the state. The
+     * client session asks for it before it builds a session: a project the
+     * user sent to the basic mode must not get one (review P1-2).
+     */
+    this.lspIndexDecisions = new Map()
     /**
      * Whether the document visibility listener is registered.
      *
@@ -1288,6 +1309,10 @@ export class WorkbenchStore {
   async #switchProjectWithIndex(project, ask = true) {
     const choice = await this.#decideIndex(project, ask)
     if (choice === 'cancel') return false
+    // The decision is recorded BEFORE the switch: the switch changes the root
+    // and wakes the subscribers, and the client session asks the decision for
+    // the new root right away (review P1-2).
+    this.#rememberIndexDecision(project.path, choice)
     await this.#switchProject(project.path)
     if (choice === 'build') await this.#startLsp(project.path)
     if (choice === 'build-forced') await this.#startLsp(project.path, { force: true })
@@ -1387,6 +1412,72 @@ export class WorkbenchStore {
     if (key === undefined) return ''
     const answer = warned[key]
     return answer === 'accepted' || answer === 'conservative' ? answer : ''
+  }
+
+  /**
+   * What the workbench decided about the language server of one project.
+   *
+   * The client session asks this before it builds a session: a project the
+   * user sent to the basic mode must not get one at all. The host would
+   * never start a server, the handshake would be held for ever, and the
+   * client would give up after four rounds - with a red status bar and a
+   * toast for a decision the user made on purpose (review P1-2).
+   *
+   * The answer is 'build' (a language server is wanted), 'conservative' (the
+   * basic mode: no server) or 'unknown' (this session made no decision - the
+   * caller decides then).
+   * @param {string} root the project root
+   * @returns {'build'|'conservative'|'unknown'}
+   */
+  lspIndexDecision(root) {
+    if (typeof root !== 'string' || root === '') return 'unknown'
+    const lsp = this.state.settings?.lsp
+    // A profile without the semantic-analysis section has no answer to give:
+    // the workbench did not decide anything about the project, and the caller
+    // decides then. (In a real profile the section always exists - the
+    // settings defaults fill it.)
+    if (lsp === null || lsp === undefined || typeof lsp !== 'object') return 'unknown'
+    // The master switch and the "never index" policy both keep the workbench
+    // in the conservative mode: no language server is started at all.
+    if (lsp.enabled === false) return 'conservative'
+    if ((lsp.indexOnOpen ?? 'ask') === 'never') return 'conservative'
+    // The user sent this project to the basic mode the last time the memory
+    // was tight: the answer is remembered in the settings.
+    if (this.#memoryAnswer(root) === 'conservative') return 'conservative'
+    // The decision of this session. It is recorded before the switch, so it
+    // is already there when the session asks for the new root.
+    const recorded = this.#recordedIndexDecision(root)
+    if (recorded !== null) return recorded
+    // No decision was made in this session.
+    return 'unknown'
+  }
+
+  /**
+   * The index decision this session made for one project root.
+   * @param {string} root the project root
+   * @returns {'build'|'conservative'|null} null when there was no decision
+   */
+  #recordedIndexDecision(root) {
+    for (const [key, decision] of this.lspIndexDecisions) {
+      if (sameScopePath(key, root)) return decision
+    }
+    return null
+  }
+
+  /**
+   * Remember the index decision of one project root.
+   *
+   * A cancelled decision changes nothing: the project was not switched, so
+   * the old decision still holds.
+   * @param {string} root the project root
+   * @param {'build'|'build-forced'|'conservative'|'cancel'} choice the answer of the user
+   */
+  #rememberIndexDecision(root, choice) {
+    if (choice === 'build' || choice === 'build-forced') {
+      this.lspIndexDecisions.set(root, 'build')
+      return
+    }
+    if (choice === 'conservative') this.lspIndexDecisions.set(root, 'conservative')
   }
 
   /**
@@ -1593,6 +1684,10 @@ export class WorkbenchStore {
    * with ONE toast - once per episode. The flag of the episode is a flag of
    * its own, so the fault episodes of the host and the ones of the client
    * session do not swallow each other's toast.
+   *
+   * The toast is only shown when the host has a language server that could
+   * fail: in every other state the host's own explanation is the truth, and
+   * a dead client session on top of it is a false alarm (review P1-2).
    * @param {string} state 'starting' | 'ready' | 'failed'
    * @param {string} [detail] the reason of the failure
    * @returns {void}
@@ -1609,6 +1704,13 @@ export class WorkbenchStore {
       return
     }
     if (this.lspSessionFaultNotified) return
+    // The host claims to be fine: there is a language server that could
+    // fail, so the dead client session is a real fault. In every other state
+    // the host's own explanation is the truth - the project was put into the
+    // basic mode on purpose, the feature is switched off, or the server was
+    // released - and a red "the session is dead" on top of it would be a
+    // false alarm (review P1-2).
+    if (!LSP_HOST_FINE_STATES.includes(lsp.state)) return
     this.lspSessionFaultNotified = true
     // The toast carries the localized text. The technical reason stays in
     // the mirrored state, where the status bar shows it in its tooltip.
@@ -1618,12 +1720,16 @@ export class WorkbenchStore {
   /**
    * Reconnect the semantic analysis - the way out of a dead session.
    *
-   * The handshake of the client goes first: the host keeps the NEWEST
-   * handshake and replays it to the next language server process, so a fresh
-   * `initialize` is what the new process is initialized with. The restart of
-   * the host comes second: a new process means a new frame worker with an
-   * empty handshake cache, so the `initialize` really reaches the server
-   * again - and the server that answers it is a healthy one.
+   * The handshake of the client goes first: the host replays the handshake it
+   * holds to the next language server process, so the new process is
+   * initialized with an `initialize` of the client. The restart of the host
+   * comes second: a new process means a new frame worker with an empty
+   * handshake cache, so the `initialize` really reaches the server again -
+   * and the server that answers it is a healthy one.
+   *
+   * The restart is skipped when the user refused a language server for this
+   * project: the button may not start a server behind their back (review
+   * P1-2).
    *
    * The method never throws: it is called from a button, and a failure of
    * one half must not keep the other half from running.
@@ -1636,6 +1742,10 @@ export class WorkbenchStore {
       // The client session is optional: the restart of the host below is the
       // way out in any case.
     }
+    // The project was put into the basic mode on purpose: there is no server
+    // to restart, and starting one would be the opposite of the decision the
+    // user made.
+    if (this.lspIndexDecision(this.state.root) === 'conservative') return
     try {
       await this.restartLsp()
     } catch {

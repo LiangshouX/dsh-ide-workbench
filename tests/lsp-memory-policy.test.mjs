@@ -232,15 +232,22 @@ test('a forced start ignores the tight memory', async () => {
   assert.equal(spawned.length, 1)
 })
 
-test('a forced start ignores the hard floor as well', async () => {
+test('a forced start does not ignore the hard floor', async () => {
+  // `force` is the permission for the TIGHT band: the user was asked how
+  // tight the memory is and said "start anyway". The hard floor means "this
+  // machine cannot run the server at all", and it is never skipped - least
+  // of all by the 【重新建立索引】 button, which passes `force` without
+  // asking anything (PRD-v5 §5.4, P2-3).
   const { manager, spawned } = makeManager({
     lsp: { memoryLimitMB: 2048 },
     readMemory: freeOf(64),
   })
   const root = rootOf('forced-low')
   const result = await manager.start({ root, force: true })
-  assert.equal(result.state, 'building')
-  assert.equal(spawned.length, 1)
+  assert.equal(result.state, 'degraded')
+  assert.equal(spawned.length, 0, 'no process may be created')
+  assert.match(result.detail, /not enough free memory/i, 'the detail names the cause')
+  assert.match(result.detail, /64 MB/, 'the detail names the free memory')
 })
 
 test('a machine below the hard floor never starts a server', async () => {
@@ -289,7 +296,10 @@ test('the headroom and the hard floor come from the settings', async () => {
   assert.equal(resources.thresholdBytes, 868 * MB)
 })
 
-test('a crashed server of a forced session is restarted even without memory', async () => {
+test('a crashed server of a forced session is not restarted below the hard floor', async () => {
+  // The crash site follows the same rule as the start site: the hard floor
+  // means "this machine cannot run the server at all", and it is never
+  // skipped - not even for a session the user forced (P2-3).
   let freeBytes = 8 * 1024 * MB
   const { manager, spawned, handle } = makeManager({
     restartBackoffMs: 10,
@@ -300,6 +310,29 @@ test('a crashed server of a forced session is restarted even without memory', as
   assert.equal(spawned.length, 1)
 
   freeBytes = 64 * MB
+  handle().exit(134)
+  await sleep(150)
+
+  assert.equal(spawned.length, 1, 'the machine cannot run the server a second time either')
+  const status = await manager.status({ root })
+  assert.equal(status.state, 'degraded')
+  assert.match(status.detail, /not enough free memory/i, 'the cause is the memory')
+})
+
+test('a crashed server of a forced session is restarted in the tight band', async () => {
+  // The tight band is what a forced session is allowed to ignore, and the
+  // restart budget of a forced session is untouched by it: it still gets its
+  // one automatic restart.
+  let freeBytes = 8 * 1024 * MB
+  const { manager, spawned, handle } = makeManager({
+    restartBackoffMs: 10,
+    readMemory: () => ({ totalBytes: 16 * 1024 * MB, freeBytes }),
+  })
+  const root = rootOf('forced-crash-tight')
+  await manager.start({ root, force: true })
+  assert.equal(spawned.length, 1)
+
+  freeBytes = 300 * MB
   handle().exit(134)
   await sleep(150)
 

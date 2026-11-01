@@ -16,7 +16,7 @@
 | **依赖安装** | `npm install`（78 个包，27 s） | ✅ **已装** |
 | 测试基线（依赖未装） | 436 项 / 344 通过 / 92 失败（`ERR_MODULE_NOT_FOUND`） | ⚠️ 规格里记录的旧数字，**不是绿基线** |
 | 测试基线（依赖装好后） | **717 项 / 717 通过 / 0 失败** | ✅ **绿基线已回填** |
-| 测试基线（改造完成） | **864 项 / 864 通过 / 0 失败**（**+147**） | ✅ |
+| 测试基线（改造完成） | **899 项 / 899 通过 / 0 失败**（**+182**） | ✅ |
 | 构建基线 | `npm run build` → `dist/client.js` 2,934.2 KiB，退出码 0 | ✅ |
 
 > ✅ 规格 §9.3 的要求已满足：**开工前先装了依赖**，得到真实的绿基线（717/717），因此本轮每个数字都能区分"新引入的回归"与"既有状态"。
@@ -36,7 +36,7 @@
 | **M5** | IDLE-01 / IDLE-04 / IDLE-05 / MEM-04 | ✅ 完成 | 空闲策略三选一；构建期不装空闲定时器；空闲定时器不再丢失；`cancelAfterMs` 进入设置页 |
 | **M6** | MEM-01 / MEM-02 / MEM-03 | ⚠️ **两条完成、一条按规格未达成** | MEM-01 ✅ 434 MB；MEM-02 ✅ 累计核算；MEM-03 ❌ **规格前提不成立**，不按字面实现（实测：standby 是可用内存，扣除它会让闸门误拒）——见 §3.1 |
 | **M7** | CRASH-01 | ✅ 完成 | `stdout.end()` + `exit(134)` 同时发生 ⇒ `spawned.length === 2`，最终状态**不是** `degraded` |
-| **M8** | SCOPE-01 | ✅ 完成（复核后补齐） | 作用域**真的**收敛了：客户端按作用域根发 `rootUri`（`cwd` 不决定 program 范围），围栏分成「通报」与「显示」两个，宿主改为最新握手胜出——见 §3.4 |
+| **M8** | SCOPE-01 | ✅ 完成（两轮复核后补齐） | 作用域**真的**收敛了：客户端按作用域根发 `rootUri`（`cwd` 不决定 program 范围），围栏分成「通报」与「显示」两个，宿主在**每一条路径上**保留最新的握手——见 §3.4 |
 | **M9** | PERF-01 | ✅ 完成 | 仓库未变时 `status` 对象**身份不变** ⇒ ProjectPanel / CommitPanel 不再每 2 s 重渲染 |
 | **M10** | PERF-02 / PERF-03 / PERF-04 | ⚠️ **两项达标、一项改口径** | PERF-02 ✅ 比值达标（**6–8×**，绝对值未达标，见 §3.2）；PERF-04 ✅；PERF-03 **验收不可达**，实测见 §3.3 |
 
@@ -58,7 +58,7 @@
 | IDLE-03 | ✅ | `src/host/lsp.js`（`#exitIdle` 不再 `#forgetDocuments`） | 宿主文档表跨休眠保留，唤醒后重开 | 每份文档**恰好一次** `didOpen`（重放载荷不会重复打开） |
 | IDLE-04 | ✅ | `src/host/lsp.js`（`#armIdleTimer` 判 `isBuildingProgram`） | 构建 program 期间不装空闲定时器 | 语义请求挂起时清定时器、服务器应答后重装 |
 | IDLE-05 | ✅ | `src/host/lsp.js`（`#rearmAfterEarlyExit`） | `#exitIdle` 提前返回后定时器被补装 | 剩余时间不足时按剩余时间补装，避免忙循环 |
-| SCOPE-01 | ✅ | `src/host/lsp.js`（`scopeRootOf` / `lsp.indexScope`）、`src/index.js`（`lsp.scope` API）、`src/client/lsp-session.js`（握手用作用域根）、`src/client/lsp-workspace.js`（两个围栏） | 作用域真的收敛：`rootUri` 决定 program 范围 | 复核发现 `cwd` 不管用才补的客户端半边，见 §3.4；运行中的服务器保留原 program 到下次启动 |
+| SCOPE-01 | ✅ | `src/host/lsp.js`（`scopeRootOf` / `lsp.indexScope`）、`src/index.js`（`lsp.scope` API）、`src/client/lsp-session.js`（握手用作用域根）、`src/client/lsp-workspace.js`（两个围栏） | 作用域真的收敛：`rootUri` 决定 program 范围 | 复核发现 `cwd` 不管用才补的客户端半边，见 §3.4；**宿主侧的收敛第一轮只修了一半**（服务器在跑时新握手不写回缓存），第五轮补齐；运行中的服务器保留原 program 到下次启动（**下次启动用最新的握手**） |
 | SCOPE-02 | ✅ | `dsh-ide-workbench/tsconfig.json`（新增） | tsserver 不再需要构建推断项目 | `tsc` 不参与构建（esbuild），`npm run build` / `npm test` 均不受影响 |
 | MEM-01 | ✅ | `src/host/lsp.js`（`LSP_REGISTRY` 的 `memoryBaselineMB`） | 256 → **434** MB（实测中位数） | 代码与测试注释都写明：**256 MB 测的是空载包装进程，不是索引成本** |
 | MEM-02 | ✅ | `src/host/lsp.js`（`session.reservedBytes` / `#reservedBytes` / `#releaseReservation`） | 放行第 3 个索引前会先算上已有两个 | 预留额取**上限**（`memoryLimitMB`），取舍见 §3.6 |
@@ -185,9 +185,9 @@ A/B 数字（隔离的两棵树，只换 `CodeEditor.jsx`，都用生产配置�
 - **宿主 API** `POST /ide-workbench/api/lsp.scope` → `{ scopeRoot }`。它读 `settings.lsp.indexScope` 并调用已导出的 `scopeRootOf(root, policy)`，**不需要**已有会话。
 - **客户端**在握手**发出之前**用作用域根当 `rootUri`（`fileUriOf(scopeRoot)`）。顺序很重要：宿主只把**第一次** `initialize` 转发给语言服务器（frame worker 的 `Handshake.noteForwarded`），所以只有第一次握手能决定 program。客户端对象照旧立刻创建、**握手等作用域**——晚一点创建对象会破坏五个既有测试文件里约 30 个同步取 `lspClient()` 的用例。
 - **围栏分成两个**：`insideScope()`（作用域根）只管**向服务器通报文档**；`insideRoot()`（工作区根）继续管查找引用的读文件与 `displayFile()`。作用域外的文件**不再通报给服务器**（这是作用域收敛的既定代价，规格 §4.2 点名了「跨项目跳转不再解析」），但工作台**仍然打不开**它——把 `displayFile()` 也收窄会让「跳转到服务器提到的文件」失效。
-- **宿主侧的补丁**：宿主原来永远保留**第一次**握手，于是作用域策略改动后，下一次重启会把 program 悄悄退回旧的作用域。现在**最新的握手胜出**（`#holdFor`），新起的服务器进程用客户端**当下**在用的作用域初始化。回归测试：`tests/lsp-review-fixes.test.mjs` 的「the newest handshake is the one a server that starts later is initialized with」（已验证：去掉修复即变红）。
+- **宿主侧的补丁（两轮复核才补齐）**：宿主原来永远保留**第一次**握手，于是作用域策略改动后，下一次重启会把 program 悄悄退回旧的作用域。第一轮复核把 `#holdFor` 改成**最新的握手胜出**，但那只覆盖了「服务器**不在**」的那条路：服务器**在跑**时，新握手被 frame worker 吸收应答（缓存命中直接返回、`noteForwarded` 对第二次握手返回 false），**从不写回宿主缓存** ⇒ 下次重启仍然用**旧**握手，作用域**静默退回**。第五轮复核（P1-1）指出这一点并已补齐：宿主在 `relayToServer` 把载荷交给 worker **之前**就记下握手（`if (isInitializeRequest(text)) entry.handshake = text`），而 worker 的 `{type:'handshake'}` 消息只在 `entry.handshake` **还是空**的时候填——那条消息是异步的，迟到的旧消息不能覆盖新握手。回归测试：`tests/lsp-review-fixes.test.mjs` 的「the newest handshake is the one a server that starts later is initialized with」，**加**新增的 `tests/lsp-handshake-scope.test.mjs`「a handshake that arrives while the server runs is the one a restarted server is initialized with」与「a late handshake message of the worker does not overwrite the newer handshake」（去掉修复即变红，已验证）。
 
-**仍未达成的一点**：**运行中的**服务器保留它原来的 program，直到它下一次启动。作用域策略是高级设置，这个「下次启动生效」的语义与插件的其它设置一致，记录在此。
+**仍未达成的一点**：**运行中的**服务器保留它原来的 program，直到它下一次启动。作用域策略是高级设置，这个「下次启动生效」的语义与插件的其它设置一致，记录在此。**（补齐之后，这条「下次启动生效」是保证：下一次启动用的是最新的握手。）**
 
 ### 3.5 VIS-04 —— 降级的 toast 另有标题（不谎报"服务器已退出"）
 
@@ -303,16 +303,65 @@ MEM-02 让闸门开始累计核算已启动的服务器，于是快照里多了 
 
 ---
 
+### 3.12 第五轮复核（2026-11-01）：三条成立、两条说明项；一处**复核没点名、却更常见**的误报
+
+**日期**：2026-11-01　**影响条款**：SCOPE-01 / VIS-01 / VIS-02 / MEM-02（连带）　**检视报告**：`docs/prd/v5/PRD-v5-代码检视报告-第五轮.md`
+
+第五轮检视提出 **5 条**（2 中 / 1 低 / 2 说明），无高危。逐条核实后 **5 条全部成立**，全部已修；另**更正了 7 处与代码不符的表述**（§6.2）。复核点名的三处复查（短握手预算 / 最新握手胜出 / clientState 优先级）里，**两处成立、一处只成立一半**——那「一半」正是 P1-1。
+
+#### P1-1（成立，已修）作用域只在「服务器不在」时收敛
+
+第一轮复核把「最新握手胜出」做进了 `#holdFor`——**服务器不在**的那条路。服务器**在跑**时，客户端的新握手被 frame worker 吸收应答（缓存命中直接返回；`noteForwarded` 对第二次握手返回 false），**从不写回宿主缓存** ⇒ 下一次进程重启（崩溃重启 / 空闲唤醒 / 【重新建立索引】）仍然用**旧** `rootUri` ⇒ **作用域静默退回**，比「不生效」更糟：它与用户刚做的设置相反。
+
+**修法**（宿主侧，1 行 + 1 个条件）：
+
+- `relayToServer` 在把载荷交给 worker **之前**记下握手（`if (isInitializeRequest(text)) entry.handshake = text`）。宿主是唯一知道「这个 root 现在用哪个握手」的权威。
+- worker 的 `{type:'handshake'}` 消息**只在 `entry.handshake` 还是空的时候**才填——那条消息是**异步**的，迟到的旧消息不能覆盖新握手。
+
+**回归测试**（新增 `tests/lsp-handshake-scope.test.mjs`，3 例）：服务器在跑时到达的握手才是重启后那个进程用的握手；迟到的 worker 消息不覆盖新握手；稍后启动的服务器用的是客户端的握手。去掉修复即变红（已验证）。
+
+#### P1-2（成立，已修）状态栏把「没有服务器」报成「会话死了」
+
+客户端会话机制（上一轮）**只读全局开关**，不看 store 已经决定的「这个项目不索引」。于是客户端对着一个**宿主永远不会起服务器**的项目建立了会话：握手被永久扣在 `entry.pending`，30 s 超时 × 4 轮后确定性变成 `failed` ⇒ 状态栏**变红** + 弹一次 toast，而这一切发生在**用户主动选择了基础模式**之后。【重新连接】还会**真的启动一个用户明确拒绝的服务器**。
+
+**复核没点名、却更常见的一类**：**启动时恢复的项目**（没有任何决策）同样会这样——约两分钟后变红。这说明缺陷不在某一条策略上，而在「客户端会话没有问过 store」。
+
+**修法**（三层）：
+
+1. **store 拥有决策**：新增 `lspIndexDecision(root)` → `'build' | 'conservative' | 'unknown'`。它把「全局开关」「`indexOnOpen: 'never'`」「记住的内存答复 `conservative`」「本次会话的决策」四件事合成一个答案。决策记录在**切项目之前**写入（切项目会唤醒订阅者，客户端会话立刻就会来问）。
+2. **会话跟着决策走**：`src/client/lsp-session.js` 在建会话前问这个决定 ⇒ 基础模式的项目**根本没有会话**（没有客户端、没有 socket、没有握手）。决策是 `'unknown'`（本次会话没决定）时**照旧建会话**——客户端本来就**先于**宿主起服务器提问（握手被扣着，等服务器出现），用宿主的此刻状态当前提会误伤正常路径。
+3. **故障由显示层收敛**：客户端的「会话死了」只压过**声称自己没事的**宿主（`starting` / `building` / `ready` / `restarting`）。`idle` / `disabled` 意味着**根本没有服务器**，没有人可以失败；`degraded` / `crashed` / `suspended` 则是**宿主自己知道原因**，它的话更有用。toast 同理。
+
+**为什么第 2 条不解决全部**：误报的**来源**是「宿主没有服务器，而客户端说有会话死了」。堵住来源（不建会话）解决的是「用户选了基础模式」这一类；**显示层**的收敛解决的是其余一切（宿主还没起服务器、内存闸门降级、启动时恢复的项目……）。两层都要。
+
+**【重新连接】**：store 的 `reconnectLsp()` 在决策为 `'conservative'` 时**不再调用 `lsp.start`**——那个按钮不许背着用户起一个服务器。
+
+#### P2-3（成立，已修）`force` 跳过整道内存闸门（含硬下限）
+
+客户端的注释写的是「force 只限 tight 档」，宿主的实现却是「跳过**整道**闸门」，**硬下限也在内**。硬下限的意思是「这台机器根本跑不动这个服务器」，它不该被一个**不弹窗**的按钮绕过——【重新建立索引】正是这样用的（它读上一次轮询的快照，快照最多 2 s 旧，而且它刚做完 `lsp.shutdown`，快照里的可用内存比实际更乐观）。
+
+**修法**：三处（`#startSession` / `#onCrash` 的重启闸门 / `#restart`）统一为：**快照永远取**，**硬下限永远拒绝**，**tight 档只在没有 force 时拒绝**。`force` 的含义回到它自己的文档：「用户答过『内存紧张也照样起』」。
+
+**两条既有测试记录的是旧行为**（`a forced start ignores the hard floor as well` 与 `a crashed server of a forced session is restarted even without memory`）⇒ **改写**成新的事实（不是删掉，断言也没有削弱），并补了两条 tight 档的用例。
+
+#### P3-4 / P3-5（成立，已修）
+
+- **P3-4**：宿主说 `building` 时客户端的「正在连接…」不可见——那恰恰是最容易误报的时刻。现在 `ready` 与 `building` 都显示「正在连接…」，**宿主自己的文案进提示框**（「正在构建索引…」）。`starting` / `restarting` **不动**：规格 §2.4（STALE-03）要求它们的**文案**带「已等待 2 分 14 秒」，不能被客户端的文案吞掉。顺带修了一个连带问题：【取消索引】的判断改用**宿主的状态**而不是状态栏的 key——状态栏的 key 现在可能是「正在连接…」，而它等的那个构建仍然可以取消。
+- **P3-5**：`semanticNote` 的英文兜底是**死代码**（`translate` 永不返回空串）⇒ 删掉，并在 `labels` 的合并处写明 `semanticUnavailable` **故意不被 prop 覆盖**（prop 的通用文案在会话已死时是**假话**）。
+
+---
+
 ## 4. 实机验收记录
 
 > 对应规格 §9.4 的清单。逐条回填**实际观察到的现象**，不写"通过"。
 
 **部署**：把新的 `src/host/**`、`src/index.js` 与重建的 `dist/client.js` 装进 DSH 配置档的插件目录
 （`%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-ide-workbench`），用插件管理器重启了插件 fiber。
+第五轮复核之后**又部署了一次**（同一目录，`src/index.js` + `src/host/*.js` + `dist/client.js`）。
 
 | # | 验收项 | 状态 | 观察 |
 |---|---|---|---|
-| 0 | **插件带新代码重启后宿主存活** | ✅ | `include:ide-workbench` 重启后 `fiberPhase: active`；`POST /ide-workbench/api/lsp.status` 有路由（未带栅栏 ⇒ 403）；**没有新的 `crash-*-host.log`**（最新一份仍是 2026-10-31） |
+| 0 | **插件带新代码重启后宿主存活** | ✅ | `include:ide-workbench` 重启后 `fiberPhase: active`；`POST /ide-workbench/api/lsp.status` 与 `lsp.scope` 有路由（未带栅栏 ⇒ 403）；**没有新的 `crash-*-host.log`**（最新一份仍是 2026-10-31）。第五轮复核后再次部署 + 重启，同样如此 |
 | 1 | 空闲 10 分钟后状态栏是**灰色**「已休眠（省内存）」，不是黄色「保守版」 | ⬜ | 需人工在 GUI 里等待 10 分钟 |
 | 2 | 休眠后状态栏上**直接**有【重新建立索引】 | ⬜ | 同上 |
 | 3 | 休眠后按 F12，服务器**自动**起来，用户没点任何按钮 | ⬜ | 同上 |
@@ -338,6 +387,9 @@ MEM-02 让闸门开始累计核算已启动的服务器，于是快照里多了 
 | `tests/client-status-render.test.mjs` | VIS-01/02/03/04（客户端侧）、STALE-02/03、IDLE-01、MEM-04、诊断面板的「内存」行与「原因」行 | 28 |
 | `tests/perf-hot-path.test.mjs` | PERF-02/03/04（**用生产构建配置**） | 9 |
 | `tests/lsp-scope-client.test.mjs` | SCOPE-01 客户端侧（握手的作用域根、宿主不应答时的回退、围栏） | 6 |
+| `tests/lsp-handshake-scope.test.mjs` | SCOPE-01 宿主侧（**服务器在跑时**到达的握手、迟到的 worker 消息）——第五轮 P1-1 | 3 |
+| `tests/store-lsp-decision.test.mjs` | store 的索引决策、toast 闸门、重连闸门——第五轮 P1-2 | 13 |
+| `tests/lsp-session-decision.test.mjs` | 客户端会话跟着决策走（基础模式的项目没有会话）——第五轮 P1-2 | 6 |
 
 **既有测试的回归更新**（规格 §9.2 要求）：
 
@@ -351,10 +403,15 @@ MEM-02 让闸门开始累计核算已启动的服务器，于是快照里多了 
 | `tests/lsp-health-status.test.mjs` / `tests/lsp-error-toast.test.mjs` | **未改**（VIS-02/04 没有破坏它们的断言） |
 | `tests/lsp-review-fixes.test.mjs` | **新增 1 例**：最新握手胜出（作用域不会在重启时退回旧的）——去掉修复即变红 |
 | `tests/lsp-workspace.test.mjs` | **新增 5 例**：作用域围栏（通报 / 不通报 / 仍可显示 / 无作用域根时的回退 / 连接前打开的文档） |
+| `tests/lsp-memory-policy.test.mjs` | **第五轮改写 2 例**：`force` **不再**跳过硬下限（旧行为写成了「ignores the hard floor」）——改成新事实并补了 tight 档的用例；断言没有削弱 |
+| `tests/lsp-memory-gate.test.mjs` | **第五轮新增 4 例**：强制启动在硬下限之下被拒、在 tight 档被放行、崩溃重启同样遵守硬下限 |
+| `tests/client-status-render.test.mjs` | **第五轮新增/改写**：红色「会话死了」只压过**声称没事的**宿主；`building` 期间也显示「正在连接…」；【取消索引】按**宿主状态**判断 |
 
 ---
 
 ## 6. 复核轮（2026-11-01）
+
+### 6.1 第四轮
 
 一轮外部检视提出 **7 条**。逐条复核后：**5 条成立并已修复**，**2 条按事实部分接受、结论部分拒绝**（附实测证据）。复核本身没有改动规格，因此这一节记的是**处置**。
 
@@ -372,6 +429,24 @@ MEM-02 让闸门开始累计核算已启动的服务器，于是快照里多了 
 
 **本轮之后的数字**：**864 项 / 864 通过 / 0 失败**（复核轮开始时 820）。
 
+### 6.2 第五轮
+
+检视报告：`docs/prd/v5/PRD-v5-代码检视报告-第五轮.md`（范围 `7b1df38` + `4b8af00`）。提出 **5 条**：2 中 / 1 低 / 2 说明，无高危。**5 条全部成立，全部已修**；另更正 **7 处**与代码不符的表述。
+
+| # | 复核结论 | 复核 | 处置 |
+|---|---|---|---|
+| P1-1 | 作用域只在「服务器不在」时收敛：服务器在跑时的新握手不写回宿主缓存，下次重启用**旧** `rootUri` | ✅ **成立** | 宿主在 `relayToServer` 交给 worker **之前**记下握手；worker 的消息只在空的时候填。3 条新回归测试（去掉修复即变红）。见 §3.12 |
+| P1-2 | 「从不索引」的项目约 2 分钟后状态栏变红；【重新连接】还会启动用户拒绝的服务器 | ✅ **成立** | 三层：store 拥有决策（`lspIndexDecision`）→ 会话跟着决策走 → 显示层只在宿主**声称没事**时才让「会话死了」压过去。另发现**复核没点名的一类**：启动时恢复的项目同样会误报。见 §3.12 |
+| P2-3 | 【重新建立索引】跳过整道内存闸门（含硬下限） | ✅ **成立** | `force` 只跳 tight 档，硬下限永远拒绝（三处统一）。两条记录旧行为的测试被**改写**成新事实。见 §3.12 |
+| P3-4 | 宿主说 `building` 时「正在连接…」不可见 | ✅ **成立** | `ready` 与 `building` 都显示「正在连接…」，宿主文案进提示框；`starting`/`restarting` 保持规格 §2.4 要求的「已等待 N 分 M 秒」 |
+| P3-5 | `semanticNote` 的英文兜底是死代码 | ✅ **成立** | 删掉；并在 `labels` 合并处写明 `semanticUnavailable` 故意不被 prop 覆盖 |
+
+**复核点名的三处复查**：短握手预算 ✅ 成立；最新握手胜出 ❌ **只成立一半**（即 P1-1，已补齐）；clientState 优先级 ✅ 成立，但**误报面**偏大（即 P1-2）。
+
+**更正的 7 处表述**：§3.4（最新握手胜出的范围）、M8 行、SCOPE-01 行、§3.4 末段（下次启动用什么握手）、§3.11（【重新连接】的承诺）、`src/client/store.js` 的 `force` 注释、PRD §5.1 问题③（`force` 跳过整个检查）。前六处已改；第七处**按 P2-3 修掉了**（不再是表述问题，是行为问题）。
+
+**本轮之后的数字**：**899 项 / 899 通过 / 0 失败**（本轮开始时 870）。
+
 ---
 
 ## 7. 提交记录
@@ -379,7 +454,10 @@ MEM-02 让闸门开始累计核算已启动的服务器，于是快照里多了 
 | 日期 | 提交 | 内容 |
 |---|---|---|
 | 2026-11-01 | `fdad597` | PRD-v5 改造需求的第一轮实现（30 个文件） |
-| — | — | （复核轮的修复见下一个提交） |
+| 2026-11-01 | `7b1df38` | 第四轮复核的处置：作用域收敛 + 5 条成立的发现修复 + 2 条按实测拒绝 |
+| 2026-11-01 | `4b8af00` | 状态栏不再在会话已死时说「就绪」（客户端会话状态 + 短握手预算 + 【重新连接】） |
+| 2026-11-01 | `605ad1d` | 被关掉的语言服务器还能再被打开（设置页的开关与宿主的注册表） |
+| — | — | （第五轮复核的修复：P1-1 握手收敛 / P1-2 决策闸门 / P2-3 硬下限 / P3-4、P3-5 —— 见下一个提交） |
 
 ---
 
@@ -392,6 +470,6 @@ MEM-02 让闸门开始累计核算已启动的服务器，于是快照里多了 
 | 3 | 宿主状态机与客户端渲染 | `src/host/lsp.js`、`src/client/Workbench.jsx`、`src/client/i18n.js`、`src/client/store.js` | ✅ |
 | 4 | 设置项与迁移 | `src/host/settings-defaults.js`、`src/host/settings-store.js`、`src/client/SettingsPanel.jsx` | ✅ |
 | 5 | 传输层控制事件 | `src/client/lsp-transport.js` | ✅ |
-| 6 | 新增测试 | §5 的 8 个文件 | ✅（规格列 7 个，多一个 `perf-hot-path`） |
+| 6 | 新增测试 | §5 的 12 个文件 | ✅（规格列 7 个，多 `perf-hot-path`、`lsp-scope-client`、`lsp-handshake-scope`、`store-lsp-decision`、`lsp-session-decision`） |
 | 7 | 仓库 `tsconfig.json` | `dsh-ide-workbench/tsconfig.json` | ✅ |
-| 8 | 回归基线记录 | 本文件 §0 | ✅（717 → 814，全绿） |
+| 8 | 回归基线记录 | 本文件 §0 | ✅（717 → 899，全绿） |

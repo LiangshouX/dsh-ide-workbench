@@ -398,12 +398,16 @@ export function showReconnectButton(viewKey) {
  * button belongs to those states as well - the UI used to withhold a
  * capability the host already had (PRD-v5 §2.4).
  *
- * @param {string} viewKey the key of the status view
+ * The argument is the state of the HOST and not the key of the status view:
+ * the client session may hide the state of the host behind "connecting…",
+ * but the build it waits for can still be cancelled.
+ *
+ * @param {string} hostState the state the host reports
  * @param {boolean} cancellable whether the host says the build may be cancelled
  * @returns {boolean} true when the button is shown
  */
-export function showCancelButton(viewKey, cancellable) {
-  return cancellable === true && ['building', 'starting', 'restarting'].includes(viewKey)
+export function showCancelButton(hostState, cancellable) {
+  return cancellable === true && ['building', 'starting', 'restarting'].includes(hostState)
 }
 
 /**
@@ -442,6 +446,41 @@ export function memoryFacts(store, resources) {
 }
 
 /**
+ * The host states in which the language server is supposed to work.
+ *
+ * Only in these states may the state of the client session overrule the
+ * host: everywhere else the host knows the real reason - there is no
+ * language server at all, or it crashed, or it was released - and its own
+ * wording is the more useful one (review P1-2).
+ */
+const HOST_HEALTHY_STATES = ['starting', 'building', 'ready', 'restarting']
+
+/**
+ * The host states in which the client session shows "connecting…".
+ *
+ * Only "ready" and "building": the label of "starting" and "restarting"
+ * carries the elapsed time (PRD-v5 §2.4), and the client session cannot be
+ * ready during them anyway - the language server is not up yet.
+ */
+const HOST_CONNECTING_STATES = ['ready', 'building']
+
+/**
+ * How long the session has been coming up.
+ *
+ * The host stamps the start of the session *before* it moves to "starting",
+ * so the elapsed time is real while the server comes up (PRD-v5 §2.4).
+ *
+ * @param {object} lsp the `lsp` slice of the state
+ * @returns {{minutes: number, seconds: number}|null} the two numbers, or
+ *   `null` when the host stamped no start
+ */
+function waitedSince(lsp) {
+  const startedAt = typeof lsp?.startedAt === 'number' && lsp.startedAt > 0 ? lsp.startedAt : 0
+  if (startedAt === 0) return null
+  return waitedFor(Date.now() - startedAt)
+}
+
+/**
  * The semantic-analysis status of the workbench (PRD-v5 §4.3).
  *
  * The host owns the state machine; this only maps it to a label, a tone and
@@ -457,9 +496,14 @@ export function memoryFacts(store, resources) {
  * the browser and the server works. The two never check each other, and the
  * status bar believed the host: it said "ready" while the semantic features
  * were completely dead (the menu was greyed out and the hovering did
- * nothing). The state of the client therefore wins over the host's "ready" -
- * and over every other host state, because the features do not work whatever
- * the host says.
+ * nothing). The state of the client therefore wins over a host that claims
+ * to be fine - the states "starting", "building", "ready" and "restarting".
+ *
+ * It does NOT win over a host that knows the real reason: "idle" and
+ * "disabled" mean that nobody can fail at all (there is no language server),
+ * and "degraded", "crashed", "suspended", "cancelled" and "failed" come with
+ * an explanation of the host that is more useful than "the session is dead"
+ * (review P1-2).
  *
  * The mapping is exported so the tests can assert the seven states without
  * mounting the whole workbench.
@@ -512,12 +556,17 @@ export function lspStatusView(store, state) {
       title: interpolate(t('lsp.serverMissing'), { language: missingOnly.languageId }),
     }
   }
-  // The state of the client session wins over every state of the host: a
-  // dead session means that the semantic features do not work, whatever the
-  // host says about its process. The language that is not installed is the
-  // one exception above - that message tells the user what to do, and a
-  // reconnect cannot install a server.
-  if (clientState === 'failed') {
+  // The state of the client session wins over a host that claims to be fine:
+  // a dead session means that the semantic features do not work, whatever the
+  // host says about its process. It does NOT win over a host that knows the
+  // real reason - "idle" means that nobody can fail, and "degraded",
+  // "crashed" or "suspended" come with an explanation of the host that is
+  // more useful than "the session is dead" (review P1-2).
+  //
+  // The language that is not installed is the one exception above - that
+  // message tells the user what to do, and a reconnect cannot install a
+  // server.
+  if (clientState === 'failed' && HOST_HEALTHY_STATES.includes(current)) {
     return {
       ...base,
       key: 'sessionFailed',
@@ -528,10 +577,31 @@ export function lspStatusView(store, state) {
       detail: clientDetail === '' ? base.detail : clientDetail,
     }
   }
-  if (clientState === 'starting' && current === 'ready') {
-    // The host says the process is up, but the handshake is not resolved
-    // yet: the features are not usable, so "ready" would be a lie.
-    return { ...base, key: 'sessionConnecting', text: t('lsp.status.sessionConnecting'), tone: 'idle' }
+  if (clientState === 'starting' && HOST_CONNECTING_STATES.includes(current)) {
+    // The host says the process is up (or is building the index), but the
+    // handshake is not resolved yet: the features are not usable, so "ready"
+    // would be a lie - and while the host builds the index, a false
+    // "everything is fine" is most likely (review P3-4).
+    //
+    // The host's own text goes into the tooltip: the label of the client
+    // would swallow it, and what the host is doing (or how long the user has
+    // been waiting for it) is exactly what the user wants to know.
+    //
+    // The states "starting" and "restarting" keep the label of the host: it
+    // carries the elapsed time (PRD-v5 §2.4), and the client session cannot
+    // be ready during them anyway.
+    const waited = waitedSince(lsp)
+    const waitedText = waited === null
+      ? ''
+      : formatWaited(waited.minutes, waited.seconds, isChineseText(t('lsp.status.sessionConnecting')) ? 'zh' : 'en')
+    const hostText = current === 'building' ? t('lsp.status.building') : ''
+    return {
+      ...base,
+      key: 'sessionConnecting',
+      text: t('lsp.status.sessionConnecting'),
+      tone: 'idle',
+      detail: base.detail === '' ? (waitedText !== '' ? waitedText : hostText) : base.detail,
+    }
   }
   // The health the client measured. It only matters while the server claims
   // to be ready.
@@ -543,14 +613,13 @@ export function lspStatusView(store, state) {
       // The host stamps the start of the session *before* it moves to
       // "starting", so the elapsed time is real while the server comes up
       // (PRD-v5 §2.4).
-      const startedAt = typeof lsp.startedAt === 'number' && lsp.startedAt > 0 ? lsp.startedAt : 0
-      if (startedAt === 0) {
+      const waited = waitedSince(lsp)
+      if (waited === null) {
         // Without a start time there is nothing to count: the plain text
         // says what the host is doing.
         const plain = current === 'starting' ? t('lsp.status.starting') : t('lsp.status.restarting')
         return { ...base, key: current, text: plain, tone: 'idle' }
       }
-      const waited = waitedFor(Date.now() - startedAt)
       const template = current === 'starting' ? t('lsp.status.startingWait') : t('lsp.status.restartingWait')
       return {
         ...base,
@@ -649,7 +718,10 @@ function LspStatus({ store, state, onOpenSettings, onOpenDiagnostics }) {
   const startedAt = typeof lsp.startedAt === 'number' ? lsp.startedAt : 0
   const cancellable = lsp.cancellable === true
     || (startedAt > 0 && Date.now() - startedAt > cancelAfter)
-  const showCancel = showCancelButton(view.key, cancellable)
+  // The cancel button follows the state of the HOST: the client session may
+  // hide that state behind "connecting…", but the build it waits for can
+  // still be cancelled.
+  const showCancel = showCancelButton(lsp.state, cancellable)
   // The conservative mode has no way back on its own: the rebuild button is
   // the difference between "the feature is gone" and "the feature is one
   // click away". A released server (idle, suspended) is recoverable, so it

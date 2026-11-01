@@ -721,7 +721,9 @@ export function apply(ctx) {
       root: requireString(payload, 'root'),
       languageId: typeof payload?.languageId === 'string' ? payload.languageId : undefined,
       // The user answered the memory question and asked for the server
-      // anyway: the host skips its memory pre-check then (PRD §2.3).
+      // anyway: the host skips the TIGHT band of its memory pre-check then
+      // (PRD §2.3). The hard floor is never skipped - a machine that cannot
+      // run the server does not run it with `force` either (review P2-3).
       force: payload?.force === true,
     }),
 

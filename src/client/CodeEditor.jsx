@@ -869,17 +869,18 @@ export function CodeEditor({
   // The labels of the menu. The prop carries the texts of the workbench,
   // but the reason why the semantic entries are greyed out comes from the
   // session: it depends on the state of the client session (the link between
-  // the browser and the language server), and only the session knows it. The
-  // prop would overwrite it with the generic text - and that text is a lie
-  // while the session is dead: it says that the server does not support the
-  // feature.
+  // the browser and the language server), and only the session knows it.
+  //
+  // `semanticUnavailable` is deliberately NOT overwritten by the prop: the
+  // generic text of the prop says that the language server does not support
+  // the feature, and that text is a lie while the session is dead.
   const sessionLabels = navLabels()
-  const labels = { ...sessionLabels, ...(navLabelsProp ?? {}) }
+  const labels = { ...sessionLabels, ...(navLabelsProp ?? {}), semanticUnavailable: sessionLabels.semanticUnavailable }
   const usageAvailable = semanticUsagesAvailable()
   const definitionAvailable = semanticDefinitionAvailable()
-  const semanticNote = sessionLabels.semanticUnavailable !== ''
-    ? sessionLabels.semanticUnavailable
-    : (labels.semanticUnavailable ?? 'The language server does not support finding usages.')
+  // The note of a greyed-out entry always comes from the session - never
+  // from the prop (see above).
+  const semanticNote = sessionLabels.semanticUnavailable
   // A greyed-out entry has to say *why* it is greyed out (PRD §7.1). The
   // reason is a tooltip: the label itself is narrow and gets ellipsized.
   const noteFor = (available) => (available ? undefined : semanticNote)

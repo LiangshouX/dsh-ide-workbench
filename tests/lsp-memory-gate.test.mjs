@@ -12,6 +12,11 @@
  *
  * The gate must never let the machine run into swap: the servers that are
  * already running are counted, and the standby cache is not free memory.
+ *
+ * The gate has two bands that refuse a start, and they are not the same:
+ * the TIGHT band is the user's decision (the user may start the server
+ * anyway), and the HARD FLOOR means "this machine cannot run the server at
+ * all" - it is never skipped, not even by a forced start (P2-3).
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -177,4 +182,77 @@ test('the crash of a server gives its memory back', async () => {
 
   const resources = await manager.resources({ root: rootOf('other') })
   assert.ok(resources.reservedBytes <= 2048 * MB, 'the dead server holds no more memory than a live one')
+})
+
+test('a forced start does not ignore the hard floor', async () => {
+  // `force` is the permission for the TIGHT band: the user was asked and
+  // said "start anyway". The hard floor means "this machine cannot run the
+  // server at all", and it is never skipped - least of all by the
+  // 【重新建立索引】 button, which passes `force` without asking anything
+  // (PRD-v5 §5.4, P2-3).
+  const { manager, spawned } = makeManager({
+    lsp: { memoryLimitMB: 2048 },
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes: 64 * MB }),
+  })
+  const root = rootOf('forced-low')
+  const result = await manager.start({ root, force: true })
+  assert.equal(result.state, 'degraded')
+  assert.equal(spawned.length, 0, 'no process may be created')
+  assert.match(result.detail, /not enough free memory/i, 'the detail names the cause')
+  assert.match(result.detail, /64 MB/, 'the detail names the free memory')
+})
+
+test('a forced start ignores the tight band', async () => {
+  // The tight band is the user's decision, and the user decided.
+  const { manager, spawned } = makeManager({
+    lsp: { memoryLimitMB: 2048 },
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes: 300 * MB }),
+  })
+  const root = rootOf('forced-tight')
+  const result = await manager.start({ root, force: true })
+  assert.equal(result.state, 'building')
+  assert.equal(spawned.length, 1)
+})
+
+test('a forced session is not restarted below the hard floor', async () => {
+  // The crash site follows the same rule as the start site: a machine that
+  // cannot run the server cannot run it a second time either.
+  let freeBytes = 8 * 1024 ** 3
+  const { manager, spawned, handle } = makeManager({
+    lsp: { memoryLimitMB: 2048 },
+    restartBackoffMs: 10,
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes }),
+  })
+  const root = rootOf('forced-crash-low')
+  await manager.start({ root, force: true })
+  assert.equal(spawned.length, 1)
+
+  // The machine runs out of memory - the crash may well have been the
+  // out-of-memory killer.
+  freeBytes = 64 * MB
+  handle().exit(134)
+  await sleep(150)
+
+  assert.equal(spawned.length, 1, 'no second process is started')
+  const status = await manager.status({ root })
+  assert.equal(status.state, 'degraded')
+  assert.match(status.detail, /not enough free memory/i, 'the cause is the memory')
+})
+
+test('a forced session is restarted in the tight band', async () => {
+  // The tight band is what a forced start is allowed to ignore, and the
+  // restart budget of a forced session is untouched by it.
+  const { manager, spawned, handle } = makeManager({
+    lsp: { memoryLimitMB: 2048 },
+    restartBackoffMs: 10,
+    readMemory: () => ({ totalBytes: 16 * 1024 ** 3, freeBytes: 300 * MB }),
+  })
+  const root = rootOf('forced-crash-tight')
+  await manager.start({ root, force: true })
+  assert.equal(spawned.length, 1)
+
+  handle().exit(134)
+  await sleep(150)
+
+  assert.equal(spawned.length, 2, 'the decision of the user survives the crash')
 })

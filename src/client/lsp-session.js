@@ -98,6 +98,32 @@ const SCOPE_TIMEOUT_MS = 3000
 const HANDSHAKE_TIMEOUT_MS = 30000
 
 /**
+ * The decision of the workbench about the index of one root.
+ *
+ * The store owns the decision: it is the one that asked the user
+ * (PRD-v5 §2.3). The session only reads it.
+ * @param {any} store the store of the session
+ * @param {string} root the project root
+ * @returns {'build'|'conservative'|'unknown'}
+ */
+function indexDecisionOf(store, root) {
+  if (store === null || store === undefined) return 'unknown'
+  if (typeof store.lspIndexDecision !== 'function') {
+    // A store that cannot answer (an older host, a test double) must not
+    // break the session: the session goes ahead as it always did, and only
+    // a store that says "the basic mode" stops it.
+    return 'build'
+  }
+  try {
+    const decision = store.lspIndexDecision(root)
+    return decision === 'build' || decision === 'conservative' ? decision : 'unknown'
+  } catch {
+    // A store that throws must not break the session either.
+    return 'build'
+  }
+}
+
+/**
  * The state of the CLIENT session.
  *
  * The host's status says that the language server PROCESS is up; it says
@@ -977,14 +1003,50 @@ function indexScopePolicy(lsp) {
  * so the client has to be built again with the new root - and the policy
  * belongs to it as well, because the policy is what decides the scope
  * (PRD-v5 §4.2).
+ *
+ * The "wanted" flag is part of it too: the session is built when there is
+ * something to talk to, and given up when there is not. It changes when the
+ * decision of the workbench changes - and that is exactly when the client
+ * has to be built again or torn down.
  * @param {boolean} enabled whether the semantic features are on
  * @param {string} root the workspace root
  * @param {string} policy the index scope policy of the settings
  * @param {string} scopeRoot the scope root of the running client
+ * @param {boolean} wanted whether the session wants a client at all
  * @returns {string} the key
  */
-function sessionKeyOf(enabled, root, policy, scopeRoot) {
-  return `${enabled}|${root}|${policy}|${scopeRoot}`
+function sessionKeyOf(enabled, root, policy, scopeRoot, wanted = true) {
+  return `${enabled}|${root}|${policy}|${scopeRoot}|${wanted ? '1' : '0'}`
+}
+
+/**
+ * Whether the session wants a client for one root.
+ *
+ * Three things have to agree:
+ *
+ *   - the semantic features are switched on (the global switch);
+ *   - there is a project;
+ *   - the workbench wants an index for this project. The store owns that
+ *     decision - it asked the user (PRD-v5 §2.3) - and a project the user
+ *     put into the basic mode must not get a session: the host would never
+ *     start a server for it, the handshake would wait for ever, and the
+ *     session would end up reporting a failure for a decision that was made
+ *     on purpose (review P1-2).
+ *
+ * The decision is NOT the host's state: the session is built BEFORE the
+ * host starts the server - the handshake is held until the server exists.
+ * A host that has no server yet is the normal state of the first second of
+ * a session, not a reason to refuse one.
+ * @param {any} store the store of the session
+ * @param {string} root the project root
+ * @returns {boolean}
+ */
+function sessionWanted(store, root) {
+  if (store === null || store === undefined) return false
+  const lspSettings = store.state?.settings?.lsp ?? null
+  if (!sessionEnabled || lspSettings?.enabled === false) return false
+  if (typeof root !== 'string' || root === '') return false
+  return indexDecisionOf(store, root) !== 'conservative'
 }
 
 /**
@@ -1009,6 +1071,7 @@ function connectClient(client, config, root, scopeRoot) {
     root,
     indexScopePolicy(lspSettings),
     scopeRoot,
+    sessionWanted(sessionStore, root),
   )
   // The handshake gets a SHORT budget: the server answers it in
   // milliseconds, and the long budget of the session belongs to the first
@@ -1206,6 +1269,10 @@ function scheduleHandshakeRetry() {
     // The session is dead, and the user has to know it: the status bar
     // believed the host and said "ready" while every semantic request was
     // dead. The console line alone left the user with no way out.
+    //
+    // The status bar decides how loud this is: a host that has no language
+    // server at all cannot have a dead session, and its own wording ("no
+    // language server") is the truth there (review P1-2).
     reportClientState('failed', lastHandshakeError)
     return
   }
@@ -1260,9 +1327,18 @@ function reinitializeLsp() {
  * The handshake is repeated, so the client gets the capabilities of the
  * server again. The retry budget starts over: the user asked for a new
  * attempt, and the failures of the old one must not end this one at once.
+ *
+ * A project the workbench does not want to index is left alone: the user
+ * said no, and a reconnect must not start the very server the decision
+ * refused (review P1-2).
  * @returns {void}
  */
 export function reconnectLsp() {
+  const root = typeof sessionStore?.state?.root === 'string' ? sessionStore.state.root : ''
+  if (indexDecisionOf(sessionStore, root) === 'conservative') {
+    console.warn('[lsp] the reconnect was refused: this project stays in the basic mode')
+    return
+  }
   handshakeRetries = 0
   lastHandshakeError = ''
   reportClientState('starting')
@@ -1427,8 +1503,15 @@ function refreshLsp() {
   const lspSettings = store.state?.settings?.lsp ?? null
   const root = typeof store.state?.root === 'string' ? store.state.root : ''
   const enabled = sessionEnabled && lspSettings?.enabled !== false
-  // Without a project there is no language server to talk to.
-  const wanted = enabled && root !== ''
+  // The decision of the workbench about this project: does it get an index?
+  // The store owns it (it asked the user, PRD-v5 §2.3), and the session has
+  // to follow it - a session for a project the user put into the basic mode
+  // waits for a server that will never come, and its handshake ends in a
+  // failure report for a decision that was made on purpose.
+  const decision = indexDecisionOf(store, root)
+  // Without a project there is no language server to talk to, and a project
+  // the workbench does not want to index gets no session at all.
+  const wanted = sessionWanted(store, root)
   const policy = indexScopePolicy(lspSettings)
   // The scope root belongs to the project: another project has another scope,
   // and the host is asked for it again.
@@ -1436,8 +1519,9 @@ function refreshLsp() {
   // The scope root is part of the key: the program of the language server is
   // built for the scope, and a different scope needs a different client
   // (PRD-v5 §4.2). The policy belongs to the key as well - it is what
-  // decides the scope.
-  const key = sessionKeyOf(enabled, root, policy, sessionScopeRoot)
+  // decides the scope. The "wanted" flag belongs to it too: the session is
+  // built when there is something to talk to and given up when there is not.
+  const key = sessionKeyOf(enabled, root, policy, sessionScopeRoot, wanted)
   if (key === sessionKey) return
   const hadClient = currentClient !== null
   // The root of the client that is running now: it is the project whose
@@ -1466,11 +1550,19 @@ function refreshLsp() {
     }
     startLsp(store)
   } else if (hadClient) {
-    // The feature is off: the language server of the host has to die now
+    // The session is over: the language server of the host has to die now
     // and not after its ten minute idle timeout (SET-01). The call happens
     // before the socket is closed, so the host learns about it while the
     // session is still alive.
-    shutdownHostLsp(previousRoot)
+    //
+    // The one case in which the server stays: the session was given up
+    // because the HOST released the server (the idle timeout, a crash) -
+    // the host knows that already, and shutting it down again would be
+    // pointless. Another project, a switched-off feature and a project the
+    // user put into the basic mode all end the server of the old root.
+    if (previousRoot !== root || !enabled || decision === 'conservative') {
+      shutdownHostLsp(previousRoot)
+    }
     stopLsp()
   }
 }

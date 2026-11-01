@@ -872,6 +872,9 @@ test('the state of the client session is mirrored into the store', async (t) => 
     if (store.toastTimer !== null) clearTimeout(store.toastTimer)
     store.dispose()
   })
+  // The host claims to be fine: there is a language server that could fail,
+  // so the failure of the client session is a real fault.
+  store.state.lsp = { ...store.state.lsp, state: 'ready' }
   assert.equal(store.state.lsp.clientState, 'starting', 'the session starts')
   assert.equal(store.state.lsp.clientDetail, '')
   store.lspSessionState('ready')
@@ -888,6 +891,9 @@ test('a dead client session is announced with one toast per episode', async (t) 
     if (store.toastTimer !== null) clearTimeout(store.toastTimer)
     store.dispose()
   })
+  // The host claims to be fine: the failure of the client session is a real
+  // fault then.
+  store.state.lsp = { ...store.state.lsp, state: 'ready' }
   store.lspSessionState('failed', 'the handshake timed out')
   assert.equal(toasts.length, 1, 'the failure is announced')
   assert.equal(toasts[0].kind, 'error')

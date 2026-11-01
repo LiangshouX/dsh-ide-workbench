@@ -290,6 +290,10 @@ test('the cancel button belongs to a session that is coming up', async () => {
 
   // The host can cancel a build that is still starting or restarting, so the
   // UI used to withhold a capability the host already had (PRD-v5 §2.4).
+  //
+  // The argument is the state of the HOST and not the key of the status
+  // view: the client session may hide the state of the host behind
+  // "connecting…", but the build it waits for can still be cancelled.
   assert.equal(showCancelButton('starting', true), true, 'a starting session can be cancelled')
   assert.equal(showCancelButton('restarting', true), true, 'a restarting session can be cancelled')
   assert.equal(showCancelButton('building', true), true, 'a running build can be cancelled')
@@ -306,7 +310,7 @@ test('the cancel button belongs to a session that is coming up', async () => {
 // while the semantic features were completely dead - the menu was greyed out
 // and the hovering did nothing.
 
-test('the dead client session wins over the ready server of the host', async () => {
+test('the dead client session wins over the host that claims to be fine', async () => {
   const { lspStatusView } = await loadModule()
   const store = { t: translator(en) }
 
@@ -321,11 +325,32 @@ test('the dead client session wins over the ready server of the host', async () 
   assert.equal(view.action, 'diagnostics')
   assert.equal(view.detail, 'the handshake timed out', 'the reason is in the tooltip')
 
-  // It wins over every other state of the host too: the features do not
-  // work whatever the host says about its process.
-  for (const state of ['degraded', 'failed', 'crashed', 'cancelled', 'idle', 'suspended', 'building']) {
+  // The features do not work whatever the host says about its process, so
+  // the dead session wins over every host state that claims to be fine.
+  for (const state of ['starting', 'building', 'ready', 'restarting']) {
     const other = lspStatusView(store, snapshot({ state, clientState: 'failed' }))
     assert.equal(other.key, 'sessionFailed', `the dead session wins over ${state}`)
+    assert.equal(other.tone, 'error', `the dead session is red over ${state}`)
+  }
+})
+
+test('the dead client session does not shout over the host that knows why', async () => {
+  const { lspStatusView } = await loadModule()
+  const store = { t: translator(en) }
+
+  // Nobody can fail when there is no language server at all: the project was
+  // put into the basic mode on purpose.
+  const idle = lspStatusView(store, snapshot({ state: 'idle', clientState: 'failed' }))
+  assert.equal(idle.key, 'idle', 'an idle host has its own wording')
+  assert.equal(idle.text, en['lsp.status.idle'])
+  assert.equal(idle.tone, 'idle')
+
+  // And where the host knows the reason, its explanation is more useful than
+  // "the session is dead".
+  for (const state of ['degraded', 'crashed', 'suspended', 'cancelled', 'failed']) {
+    const view = lspStatusView(store, snapshot({ state, clientState: 'failed' }))
+    assert.equal(view.key, state, `the host owns the ${state} state`)
+    assert.notEqual(view.text, en['lsp.status.sessionFailed'], `${state} is not the dead session`)
   }
 })
 
@@ -338,10 +363,57 @@ test('the connecting client session is not shown as ready', async () => {
   assert.equal(view.text, en['lsp.status.sessionConnecting'])
   assert.equal(view.tone, 'idle', 'connecting is grey, not green')
 
-  // A server that is not ready yet keeps its own text: the host knows more
-  // about the build than the client does.
+  // While the host builds the index, a false "everything is fine" is most
+  // likely: the connecting session is shown there too (review P3-4).
   const building = lspStatusView(store, snapshot({ state: 'building', clientState: 'starting' }))
-  assert.equal(building.key, 'building', 'the state of the host is kept')
+  assert.equal(building.key, 'sessionConnecting', 'the connecting session is shown while the host builds')
+  assert.equal(building.text, en['lsp.status.sessionConnecting'])
+  assert.equal(building.tone, 'idle', 'connecting is grey, not green')
+  // The host's own text is not lost: it stays in the tooltip.
+  assert.equal(building.detail, en['lsp.status.building'], "the host's text is in the tooltip")
+})
+
+test('a session that is coming up keeps the elapsed time in its label', async () => {
+  const { lspStatusView } = await loadModule()
+  const store = { t: translator(en) }
+
+  // The label of "starting" and "restarting" carries the elapsed time
+  // (PRD-v5 §2.4): the client session cannot be ready during them anyway,
+  // and the elapsed time belongs in the text, not only in the tooltip.
+  for (const state of ['starting', 'restarting']) {
+    const view = withClock(() => lspStatusView(store, snapshot({
+      state,
+      clientState: 'starting',
+      startedAt: NOW - 134000,
+    })))
+    assert.equal(view.key, state, `the host owns the ${state} state`)
+    assert.equal(view.text, `Semantic analysis: ${state}… (waited 2 min 14 s)`)
+    assert.equal(view.tone, 'idle')
+  }
+})
+
+test('the tooltip of a connecting session keeps what the host says', async () => {
+  const { lspStatusView } = await loadModule()
+  const store = { t: translator(en) }
+
+  // The elapsed time of a session that is coming up is the one thing the
+  // label of the client would swallow.
+  const building = withClock(() => lspStatusView(store, snapshot({
+    state: 'building',
+    clientState: 'starting',
+    startedAt: NOW - 134000,
+  })))
+  assert.equal(building.key, 'sessionConnecting')
+  assert.equal(building.detail, '2 min 14 s', 'the elapsed time is in the tooltip')
+
+  // The reason of the host wins over the elapsed time: it says more.
+  const withReason = withClock(() => lspStatusView(store, snapshot({
+    state: 'building',
+    clientState: 'starting',
+    detail: 'the language server is building the index',
+    startedAt: NOW - 134000,
+  })))
+  assert.equal(withReason.detail, 'the language server is building the index', 'the reason of the host is in the tooltip')
 })
 
 test('the reconnect button belongs to the dead session alone', async () => {

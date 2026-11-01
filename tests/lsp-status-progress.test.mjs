@@ -221,7 +221,14 @@ test('a running build still shows the build', async () => {
   } finally {
     restore()
   }
-  const view = mod.lspStatusView({ t: key => key }, { lsp: store.state.lsp, settings: store.state.settings })
+  // The client session is ready: the case is about the build that runs, not
+  // about the link to the language server. A session that is still connecting
+  // shows "connecting…" while the host builds (review P3-4) - that case
+  // lives in `tests/client-status-render.test.mjs`.
+  const view = mod.lspStatusView({ t: key => key }, {
+    lsp: { ...store.state.lsp, clientState: 'ready' },
+    settings: store.state.settings,
+  })
   assert.equal(view.key, 'building')
   assert.equal(view.text, 'lsp.status.building')
   assert.equal(view.tone, 'warn')

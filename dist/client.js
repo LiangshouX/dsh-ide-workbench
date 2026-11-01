@@ -37752,6 +37752,18 @@ var DEFAULT_SHORTCUTS = {
 var LSP_WS_PATH = "ide-workbench/ws/lsp";
 var SCOPE_TIMEOUT_MS = 3e3;
 var HANDSHAKE_TIMEOUT_MS = 3e4;
+function indexDecisionOf(store, root) {
+  if (store === null || store === void 0) return "unknown";
+  if (typeof store.lspIndexDecision !== "function") {
+    return "build";
+  }
+  try {
+    const decision = store.lspIndexDecision(root);
+    return decision === "build" || decision === "conservative" ? decision : "unknown";
+  } catch {
+    return "build";
+  }
+}
 var clientSessionState = "starting";
 var clientSessionDetail = "";
 var lastHandshakeError = "";
@@ -38089,8 +38101,15 @@ function indexScopePolicy(lsp) {
   const section = lsp !== null && typeof lsp === "object" && !Array.isArray(lsp) ? lsp : {};
   return typeof section.indexScope === "string" ? section.indexScope : "";
 }
-function sessionKeyOf(enabled, root, policy, scopeRoot) {
-  return `${enabled}|${root}|${policy}|${scopeRoot}`;
+function sessionKeyOf(enabled, root, policy, scopeRoot, wanted = true) {
+  return `${enabled}|${root}|${policy}|${scopeRoot}|${wanted ? "1" : "0"}`;
+}
+function sessionWanted(store, root) {
+  if (store === null || store === void 0) return false;
+  const lspSettings = store.state?.settings?.lsp ?? null;
+  if (!sessionEnabled || lspSettings?.enabled === false) return false;
+  if (typeof root !== "string" || root === "") return false;
+  return indexDecisionOf(store, root) !== "conservative";
 }
 function connectClient(client, config2, root, scopeRoot) {
   config2.rootUri = fileUriOf(scopeRoot);
@@ -38100,7 +38119,8 @@ function connectClient(client, config2, root, scopeRoot) {
     sessionEnabled && lspSettings?.enabled !== false,
     root,
     indexScopePolicy(lspSettings),
-    scopeRoot
+    scopeRoot,
+    sessionWanted(sessionStore, root)
   );
   client.timeout = HANDSHAKE_TIMEOUT_MS;
   client.connect(currentTransport);
@@ -38229,6 +38249,11 @@ function reinitializeLsp() {
   }
 }
 function reconnectLsp() {
+  const root = typeof sessionStore?.state?.root === "string" ? sessionStore.state.root : "";
+  if (indexDecisionOf(sessionStore, root) === "conservative") {
+    console.warn("[lsp] the reconnect was refused: this project stays in the basic mode");
+    return;
+  }
   handshakeRetries = 0;
   lastHandshakeError = "";
   reportClientState("starting");
@@ -38308,10 +38333,11 @@ function refreshLsp() {
   const lspSettings = store.state?.settings?.lsp ?? null;
   const root = typeof store.state?.root === "string" ? store.state.root : "";
   const enabled = sessionEnabled && lspSettings?.enabled !== false;
-  const wanted = enabled && root !== "";
+  const decision = indexDecisionOf(store, root);
+  const wanted = sessionWanted(store, root);
   const policy = indexScopePolicy(lspSettings);
   if (sessionRoot !== root) sessionScopeRoot = "";
-  const key = sessionKeyOf(enabled, root, policy, sessionScopeRoot);
+  const key = sessionKeyOf(enabled, root, policy, sessionScopeRoot, wanted);
   if (key === sessionKey) return;
   const hadClient = currentClient !== null;
   const previousRoot = sessionRoot;
@@ -38327,7 +38353,9 @@ function refreshLsp() {
     }
     startLsp(store);
   } else if (hadClient) {
-    shutdownHostLsp(previousRoot);
+    if (previousRoot !== root || !enabled || decision === "conservative") {
+      shutdownHostLsp(previousRoot);
+    }
     stopLsp();
   }
 }
@@ -38737,6 +38765,7 @@ function crashAdviceFor(detail, t2) {
 var LSP_FAULT_STATES = ["crashed", "degraded"];
 var LSP_RECOVERED_STATES = ["starting", "building", "ready", "idle", "suspended"];
 var LSP_INDEX_STATES = ["starting", "building", "restarting"];
+var LSP_HOST_FINE_STATES = ["starting", "building", "ready", "restarting"];
 var WorkbenchStore = class {
   /**
    * @param {any} ctx client cordis context
@@ -38772,6 +38801,7 @@ var WorkbenchStore = class {
     this.indexDecisionResolve = null;
     this.memoryDecisionResolve = null;
     this.lspServersChecked = /* @__PURE__ */ new Set();
+    this.lspIndexDecisions = /* @__PURE__ */ new Map();
     this.visibilityBound = false;
     if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
       document.addEventListener("visibilitychange", this.#onVisibilityChange);
@@ -39441,6 +39471,7 @@ var WorkbenchStore = class {
   async #switchProjectWithIndex(project, ask = true) {
     const choice = await this.#decideIndex(project, ask);
     if (choice === "cancel") return false;
+    this.#rememberIndexDecision(project.path, choice);
     await this.#switchProject(project.path);
     if (choice === "build") await this.#startLsp(project.path);
     if (choice === "build-forced") await this.#startLsp(project.path, { force: true });
@@ -39501,6 +39532,58 @@ var WorkbenchStore = class {
     if (key === void 0) return "";
     const answer = warned2[key];
     return answer === "accepted" || answer === "conservative" ? answer : "";
+  }
+  /**
+   * What the workbench decided about the language server of one project.
+   *
+   * The client session asks this before it builds a session: a project the
+   * user sent to the basic mode must not get one at all. The host would
+   * never start a server, the handshake would be held for ever, and the
+   * client would give up after four rounds - with a red status bar and a
+   * toast for a decision the user made on purpose (review P1-2).
+   *
+   * The answer is 'build' (a language server is wanted), 'conservative' (the
+   * basic mode: no server) or 'unknown' (this session made no decision - the
+   * caller decides then).
+   * @param {string} root the project root
+   * @returns {'build'|'conservative'|'unknown'}
+   */
+  lspIndexDecision(root) {
+    if (typeof root !== "string" || root === "") return "unknown";
+    const lsp = this.state.settings?.lsp;
+    if (lsp === null || lsp === void 0 || typeof lsp !== "object") return "unknown";
+    if (lsp.enabled === false) return "conservative";
+    if ((lsp.indexOnOpen ?? "ask") === "never") return "conservative";
+    if (this.#memoryAnswer(root) === "conservative") return "conservative";
+    const recorded = this.#recordedIndexDecision(root);
+    if (recorded !== null) return recorded;
+    return "unknown";
+  }
+  /**
+   * The index decision this session made for one project root.
+   * @param {string} root the project root
+   * @returns {'build'|'conservative'|null} null when there was no decision
+   */
+  #recordedIndexDecision(root) {
+    for (const [key, decision] of this.lspIndexDecisions) {
+      if (sameScopePath(key, root)) return decision;
+    }
+    return null;
+  }
+  /**
+   * Remember the index decision of one project root.
+   *
+   * A cancelled decision changes nothing: the project was not switched, so
+   * the old decision still holds.
+   * @param {string} root the project root
+   * @param {'build'|'build-forced'|'conservative'|'cancel'} choice the answer of the user
+   */
+  #rememberIndexDecision(root, choice) {
+    if (choice === "build" || choice === "build-forced") {
+      this.lspIndexDecisions.set(root, "build");
+      return;
+    }
+    if (choice === "conservative") this.lspIndexDecisions.set(root, "conservative");
   }
   /**
    * Remember what the user answered for one project.
@@ -39686,6 +39769,10 @@ var WorkbenchStore = class {
    * with ONE toast - once per episode. The flag of the episode is a flag of
    * its own, so the fault episodes of the host and the ones of the client
    * session do not swallow each other's toast.
+   *
+   * The toast is only shown when the host has a language server that could
+   * fail: in every other state the host's own explanation is the truth, and
+   * a dead client session on top of it is a false alarm (review P1-2).
    * @param {string} state 'starting' | 'ready' | 'failed'
    * @param {string} [detail] the reason of the failure
    * @returns {void}
@@ -39701,18 +39788,23 @@ var WorkbenchStore = class {
       return;
     }
     if (this.lspSessionFaultNotified) return;
+    if (!LSP_HOST_FINE_STATES.includes(lsp.state)) return;
     this.lspSessionFaultNotified = true;
     this.toast("error", this.t("lsp.sessionFailedToast"));
   }
   /**
    * Reconnect the semantic analysis - the way out of a dead session.
    *
-   * The handshake of the client goes first: the host keeps the NEWEST
-   * handshake and replays it to the next language server process, so a fresh
-   * `initialize` is what the new process is initialized with. The restart of
-   * the host comes second: a new process means a new frame worker with an
-   * empty handshake cache, so the `initialize` really reaches the server
-   * again - and the server that answers it is a healthy one.
+   * The handshake of the client goes first: the host replays the handshake it
+   * holds to the next language server process, so the new process is
+   * initialized with an `initialize` of the client. The restart of the host
+   * comes second: a new process means a new frame worker with an empty
+   * handshake cache, so the `initialize` really reaches the server again -
+   * and the server that answers it is a healthy one.
+   *
+   * The restart is skipped when the user refused a language server for this
+   * project: the button may not start a server behind their back (review
+   * P1-2).
    *
    * The method never throws: it is called from a button, and a failure of
    * one half must not keep the other half from running.
@@ -39723,6 +39815,7 @@ var WorkbenchStore = class {
       reconnectLsp();
     } catch {
     }
+    if (this.lspIndexDecision(this.state.root) === "conservative") return;
     try {
       await this.restartLsp();
     } catch {
@@ -57741,10 +57834,10 @@ function CodeEditor({
     onSendToChatRef.current?.({ text: current.text, fromLine: current.fromLine, toLine: current.toLine });
   };
   const sessionLabels = navLabels();
-  const labels = { ...sessionLabels, ...navLabelsProp ?? {} };
+  const labels = { ...sessionLabels, ...navLabelsProp ?? {}, semanticUnavailable: sessionLabels.semanticUnavailable };
   const usageAvailable = semanticUsagesAvailable();
   const definitionAvailable = semanticDefinitionAvailable();
-  const semanticNote = sessionLabels.semanticUnavailable !== "" ? sessionLabels.semanticUnavailable : labels.semanticUnavailable ?? "The language server does not support finding usages.";
+  const semanticNote = sessionLabels.semanticUnavailable;
   const noteFor = (available) => available ? void 0 : semanticNote;
   const goToDefinitionAt = (pos) => {
     const view = viewRef.current;
@@ -61541,8 +61634,8 @@ function showRebuildButton(viewKey, lsp = {}) {
 function showReconnectButton(viewKey) {
   return viewKey === "sessionFailed";
 }
-function showCancelButton(viewKey, cancellable) {
-  return cancellable === true && ["building", "starting", "restarting"].includes(viewKey);
+function showCancelButton(hostState, cancellable) {
+  return cancellable === true && ["building", "starting", "restarting"].includes(hostState);
 }
 function memoryFacts(store, resources) {
   const t2 = store.t;
@@ -61555,6 +61648,13 @@ function memoryFacts(store, resources) {
   const reservedMB = Math.round((resources.reservedBytes ?? 0) / mib);
   const text = `${t2("lsp.diagnostics.memoryAvailable")} ${availableMB} MB \xB7 ${t2("lsp.diagnostics.memoryNeed")} ${needMB} MB` + (reservedMB > 0 ? ` \xB7 ${t2("lsp.diagnostics.memoryReserved")} ${reservedMB} MB` : "");
   return { availableMB, needMB, reservedMB, text };
+}
+var HOST_HEALTHY_STATES = ["starting", "building", "ready", "restarting"];
+var HOST_CONNECTING_STATES = ["ready", "building"];
+function waitedSince(lsp) {
+  const startedAt = typeof lsp?.startedAt === "number" && lsp.startedAt > 0 ? lsp.startedAt : 0;
+  if (startedAt === 0) return null;
+  return waitedFor(Date.now() - startedAt);
 }
 function lspStatusView(store, state) {
   const t2 = store.t;
@@ -61585,7 +61685,7 @@ function lspStatusView(store, state) {
       title: interpolate5(t2("lsp.serverMissing"), { language: missingOnly.languageId })
     };
   }
-  if (clientState === "failed") {
+  if (clientState === "failed" && HOST_HEALTHY_STATES.includes(current)) {
     return {
       ...base2,
       key: "sessionFailed",
@@ -61596,20 +61696,28 @@ function lspStatusView(store, state) {
       detail: clientDetail === "" ? base2.detail : clientDetail
     };
   }
-  if (clientState === "starting" && current === "ready") {
-    return { ...base2, key: "sessionConnecting", text: t2("lsp.status.sessionConnecting"), tone: "idle" };
+  if (clientState === "starting" && HOST_CONNECTING_STATES.includes(current)) {
+    const waited = waitedSince(lsp);
+    const waitedText = waited === null ? "" : formatWaited(waited.minutes, waited.seconds, isChineseText(t2("lsp.status.sessionConnecting")) ? "zh" : "en");
+    const hostText = current === "building" ? t2("lsp.status.building") : "";
+    return {
+      ...base2,
+      key: "sessionConnecting",
+      text: t2("lsp.status.sessionConnecting"),
+      tone: "idle",
+      detail: base2.detail === "" ? waitedText !== "" ? waitedText : hostText : base2.detail
+    };
   }
   const failures = Number.isFinite(lsp.consecutiveFailures) ? lsp.consecutiveFailures : 0;
   const timeouts = Number.isFinite(lsp.consecutiveTimeouts) ? lsp.consecutiveTimeouts : 0;
   switch (current) {
     case "starting":
     case "restarting": {
-      const startedAt = typeof lsp.startedAt === "number" && lsp.startedAt > 0 ? lsp.startedAt : 0;
-      if (startedAt === 0) {
+      const waited = waitedSince(lsp);
+      if (waited === null) {
         const plain = current === "starting" ? t2("lsp.status.starting") : t2("lsp.status.restarting");
         return { ...base2, key: current, text: plain, tone: "idle" };
       }
-      const waited = waitedFor(Date.now() - startedAt);
       const template = current === "starting" ? t2("lsp.status.startingWait") : t2("lsp.status.restartingWait");
       return {
         ...base2,
@@ -61662,7 +61770,7 @@ function LspStatus({ store, state, onOpenSettings, onOpenDiagnostics }) {
   const cancelAfter = state.settings?.lsp?.cancelAfterMs ?? 6e4;
   const startedAt = typeof lsp.startedAt === "number" ? lsp.startedAt : 0;
   const cancellable = lsp.cancellable === true || startedAt > 0 && Date.now() - startedAt > cancelAfter;
-  const showCancel = showCancelButton(view.key, cancellable);
+  const showCancel = showCancelButton(lsp.state, cancellable);
   const showRebuild = showRebuildButton(view.key, lsp);
   const showReconnect = showReconnectButton(view.key);
   const tone = view.tone === "ok" ? " iwb-lsp-status-ready" : view.tone === "warn" ? " iwb-lsp-status-warn" : view.tone === "error" ? " iwb-lsp-status-error" : " iwb-lsp-status-muted";

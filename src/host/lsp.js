@@ -1107,8 +1107,10 @@ export class LspManager {
    * The call is idempotent: a server that is already running is not spawned
    * a second time, the current state is returned instead.
    *
-   * `force` skips the memory pre-check: the user was asked how tight the
-   * memory is and asked for the server anyway (PRD §2.3).
+   * `force` skips the TIGHT band of the memory pre-check: the user was
+   * asked how tight the memory is and asked for the server anyway
+   * (PRD §2.3). It does NOT skip the hard floor - a machine that cannot
+   * run the server at all does not run it with `force` either (P2-3).
    * @param {{ root: string, languageId?: string, force?: boolean }} payload
    * @returns {Promise<{ state: string, detail: string | null, resources: object | null }>}
    */
@@ -1410,6 +1412,13 @@ export class LspManager {
    * payload stays in the queue, and a later payload tries again - after the
    * backoff. The user is never asked, and the server does not stay away
    * for the rest of the session.
+   *
+   * The handshake is recorded HERE, before the payload goes to the worker
+   * (P1-1): the worker absorbs a second handshake - it answers it from its
+   * cache - and it reports only the FIRST one to the host. A handshake that
+   * arrives while the server runs would therefore never reach the host, and
+   * the next server process would be initialized with the OLD `rootUri`:
+   * the index scope would silently revert.
    * @param {string} root the absolute project root
    * @param {string} text one bare JSON-RPC payload
    * @returns {boolean} false when no language server is running
@@ -1427,6 +1436,10 @@ export class LspManager {
       this.#requestWake(entry, session, text)
       return false
     }
+    // The newest handshake is the one the next server process is initialized
+    // with. The host owns it: the worker cannot report it (see the note
+    // above).
+    if (isInitializeRequest(text)) entry.handshake = text
     session.worker.postMessage({ type: 'send', text, origin: 'client' })
     this.#touch(entry, session)
     return true
@@ -1995,8 +2008,9 @@ export class LspManager {
        * The user asked for the server although the memory was tight.
        *
        * The decision belongs to the user, so it survives a restart: the
-       * server that was forced once is not stopped by the memory check of
-       * the next crash.
+       * server that was forced once is not stopped by the TIGHT band of the
+       * memory check of the next crash. The hard floor is never skipped -
+       * not even for a forced session (P2-3).
        */
       force: force === true,
       /**
@@ -2141,25 +2155,28 @@ export class LspManager {
     }
 
     // The memory pre-check runs before every start, not only when the
-    // settings are validated (PRD §2.2). A forced start skips it: the user
-    // was asked how tight the memory is and asked for the server anyway.
-    if (!session.force) {
-      const resources = this.#resourcesSnapshot(memoryLimitMB, language, lsp)
-      session.resources = resources
-      // Three bands (PRD §2.3): enough memory starts the server, a tight
-      // budget is the user's decision, and a machine that is out of memory
-      // cannot run a server at all.
-      //
-      // Both refusals have the cause `memory`: the situation of the machine
-      // changes, and a later payload may try again (IDLE-02).
-      if (resources.belowHardFloor) {
-        this.#degrade(session, DEGRADE_CAUSES.memory, `not enough free memory to start the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Close other programs, lower the memory limit in the settings, or use the conservative mode.`)
-        return session
-      }
-      if (resources.tight) {
-        this.#degrade(session, DEGRADE_CAUSES.memory, `the free memory is tight for the ${language} language server (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it anyway to continue, or use the conservative mode.`)
-        return session
-      }
+    // settings are validated (PRD §2.2).
+    //
+    // `force` means "the user said start anyway although the memory is
+    // tight" - it skips the TIGHT band and only the tight band. The hard
+    // floor means "this machine cannot run the server at all", and it is
+    // never skipped: least of all by the 【重新建立索引】 button, which
+    // passes `force` without asking anything (P2-3).
+    const resources = this.#resourcesSnapshot(memoryLimitMB, language, lsp)
+    session.resources = resources
+    // Three bands (PRD §2.3): enough memory starts the server, a tight
+    // budget is the user's decision, and a machine that is out of memory
+    // cannot run a server at all.
+    //
+    // Both refusals have the cause `memory`: the situation of the machine
+    // changes, and a later payload may try again (IDLE-02).
+    if (resources.belowHardFloor) {
+      this.#degrade(session, DEGRADE_CAUSES.memory, `not enough free memory to start the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Close other programs, lower the memory limit in the settings, or use the conservative mode.`)
+      return session
+    }
+    if (resources.tight && !session.force) {
+      this.#degrade(session, DEGRADE_CAUSES.memory, `the free memory is tight for the ${language} language server (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it anyway to continue, or use the conservative mode.`)
+      return session
     }
 
     const resolution = this.#resolveServer(command)
@@ -2539,7 +2556,13 @@ export class LspManager {
       // The browser sends its handshake once. A language server that is
       // started later - or restarted after a crash - needs it again, so the
       // host keeps it and replays it to every new process.
-      if (typeof message.text === 'string' && message.text !== '') {
+      //
+      // The message is ASYNCHRONOUS: it can arrive after `relayToServer`
+      // recorded a NEWER handshake (P1-1), and it must not overwrite that
+      // one with the older text it carries. The host owns the handshake -
+      // it is the newest one that counts - and the worker only fills the gap
+      // when nothing is known yet.
+      if (typeof message.text === 'string' && message.text !== '' && entry.handshake === '') {
         entry.handshake = message.text
       }
       return
@@ -3185,21 +3208,23 @@ export class LspManager {
       return
     }
     // The memory is checked again before the restart: the crash may well have
-    // been an out-of-memory kill (PRD §2.7). A server the user forced once
-    // is not stopped by the check again.
-    if (!session.force) {
-      const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
-      session.resources = resources
-      // The refusal is the memory and not the crash: the machine may have
-      // more memory later, and the session may be woken again then.
-      if (resources.belowHardFloor) {
-        this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.availableBytes)} MB available)`))
-        return
-      }
-      if (resources.tight) {
-        this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `the free memory is tight for the restart (${toMb(resources.availableBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended)`))
-        return
-      }
+    // been an out-of-memory kill (PRD §2.7).
+    //
+    // The rule is the same as at the start: the hard floor is never skipped
+    // (a machine that cannot run the server cannot run it a second time
+    // either), and the tight band is skipped only for a session the user
+    // forced (P2-3).
+    const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
+    session.resources = resources
+    // The refusal is the memory and not the crash: the machine may have
+    // more memory later, and the session may be woken again then.
+    if (resources.belowHardFloor) {
+      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.availableBytes)} MB available)`))
+      return
+    }
+    if (resources.tight && !session.force) {
+      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `the free memory is tight for the restart (${toMb(resources.availableBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended)`))
+      return
     }
     session.restarts += 1
     this.#transition(session, 'restarting', 'restarting the language server')
@@ -3217,19 +3242,20 @@ export class LspManager {
     session.restartTimer = null
     if (entry.session !== session) return
     const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
-    if (!session.force) {
-      const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
-      session.resources = resources
-      // The refusal is the memory: the machine may have more memory later,
-      // and the session may be woken again then (IDLE-02).
-      if (resources.belowHardFloor) {
-        this.#degrade(session, DEGRADE_CAUSES.memory, `there is not enough free memory to restart the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
-        return
-      }
-      if (resources.tight) {
-        this.#degrade(session, DEGRADE_CAUSES.memory, `the free memory is tight for the restart of the language server (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it again to continue, or use the conservative mode.`)
-        return
-      }
+    // The memory is checked again before the restart, with the same rule as
+    // at the start: the hard floor is never skipped, and the tight band is
+    // skipped only for a session the user forced (P2-3).
+    const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
+    session.resources = resources
+    // The refusal is the memory: the machine may have more memory later,
+    // and the session may be woken again then (IDLE-02).
+    if (resources.belowHardFloor) {
+      this.#degrade(session, DEGRADE_CAUSES.memory, `there is not enough free memory to restart the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
+      return
+    }
+    if (resources.tight && !session.force) {
+      this.#degrade(session, DEGRADE_CAUSES.memory, `the free memory is tight for the restart of the language server (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it again to continue, or use the conservative mode.`)
+      return
     }
     // The documents the new server does not know yet (see
     // `#reopenDocuments`).
