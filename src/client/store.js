@@ -2108,11 +2108,28 @@ export class WorkbenchStore {
   /**
    * Fall back to the conservative mode: the language server of the current
    * project is stopped and its memory is released.
+   *
+   * The DECISION comes first, and it is the half that was missing: the
+   * button stopped the server on the host, but the client session still
+   * believed the project wanted a language server. The next semantic request
+   * woke it again (IDLE-02) - the server came back, and the click looked
+   * like it had never happened.
+   *
+   * The decision is a decision of the USER, so it is written to the settings
+   * document (PRD-v5.1 WS-04): "use the basic mode" means KEEP the basic
+   * mode - over a workspace switch and over a restart of DSH. The way back
+   * is the 【重新建立索引】 button, which writes 'build' into the same place.
    * @returns {Promise<void>}
    */
   async degradeLsp() {
     const root = this.state.root
     if (root === '') return
+    // The decision first: the client session asks the store whether it wants
+    // a server, and the answer has to be "no" before the server is gone -
+    // otherwise the session stays and the next request wakes the server up
+    // again.
+    this.#rememberIndexDecision(root, 'conservative')
+    this.#rememberWorkspaceDecision(root, 'conservative')
     try {
       await call('lsp.shutdown', { root })
     } catch {
@@ -2596,8 +2613,22 @@ export class WorkbenchStore {
     // is the change the user has to see.
     const resources = status.resources ?? null
     const known = this.state.lsp.resources ?? null
+    // The host carries the snapshot only when there IS a server: the estimate
+    // belongs to a language server, so a root without one has no estimate to
+    // report ("no server, no estimate").
+    //
+    // "The host has nothing to say" is NOT "there is nothing": the client
+    // fetched the snapshot itself when the diagnostics panel opened (the
+    // `lsp.resources` route answers for every root, even one that was never
+    // started), and a poll that does not carry a snapshot must NOT throw
+    // that away. It did, and the memory row of the panel blinked from the
+    // numbers to a dash two seconds after the panel was opened.
+    //
+    // The snapshot of a project that was LEFT is not kept: the whole `lsp`
+    // slice is reset when the project changes, so nothing of another project
+    // can survive here.
     const memoryChanged = resources === null
-      ? known !== null
+      ? false
       : (known === null
         || Math.round((known.availableBytes ?? known.freeBytes ?? 0) / (1024 * 1024))
           !== Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024))

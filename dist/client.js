@@ -40357,11 +40357,24 @@ var WorkbenchStore = class {
   /**
    * Fall back to the conservative mode: the language server of the current
    * project is stopped and its memory is released.
+   *
+   * The DECISION comes first, and it is the half that was missing: the
+   * button stopped the server on the host, but the client session still
+   * believed the project wanted a language server. The next semantic request
+   * woke it again (IDLE-02) - the server came back, and the click looked
+   * like it had never happened.
+   *
+   * The decision is a decision of the USER, so it is written to the settings
+   * document (PRD-v5.1 WS-04): "use the basic mode" means KEEP the basic
+   * mode - over a workspace switch and over a restart of DSH. The way back
+   * is the 【重新建立索引】 button, which writes 'build' into the same place.
    * @returns {Promise<void>}
    */
   async degradeLsp() {
     const root = this.state.root;
     if (root === "") return;
+    this.#rememberIndexDecision(root, "conservative");
+    this.#rememberWorkspaceDecision(root, "conservative");
     try {
       await call2("lsp.shutdown", { root });
     } catch {
@@ -40745,7 +40758,7 @@ var WorkbenchStore = class {
     };
     const resources = status.resources ?? null;
     const known = this.state.lsp.resources ?? null;
-    const memoryChanged = resources === null ? known !== null : known === null || Math.round((known.availableBytes ?? known.freeBytes ?? 0) / (1024 * 1024)) !== Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024)) || known.needMB !== resources.needMB || known.canIndex !== resources.canIndex || known.tight !== resources.tight;
+    const memoryChanged = resources === null ? false : known === null || Math.round((known.availableBytes ?? known.freeBytes ?? 0) / (1024 * 1024)) !== Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024)) || known.needMB !== resources.needMB || known.canIndex !== resources.canIndex || known.tight !== resources.tight;
     if (memoryChanged) next.resources = resources;
     if (LSP_INDEX_STATES.includes(next.state)) {
       const index = await this.#lspIndex(root);
