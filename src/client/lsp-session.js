@@ -697,11 +697,25 @@ function requestTimeoutOf(store) {
  *
  * After the first answered semantic request the server is up and answers the
  * incremental requests quickly, so the configured timeout applies again.
+ *
+ * A *suspended* server is the exception: it was released to save memory and
+ * the next payload wakes it up (PRD-v5 §3.3). The woken server builds the
+ * program of the project from scratch, so it gets the long budget - the same
+ * one a session that has not answered a semantic request yet gets.
  * @param {any} store the workbench store
  * @returns {number} the budget in milliseconds
  */
 export function requestBudgetOf(store) {
   const configured = requestTimeoutOf(store)
+  // A suspended server is about to be woken: the woken server builds the
+  // program of the project from scratch, exactly like a fresh session, and
+  // the host waits for it with the long budget (`session.realAnswers` is 0
+  // for every new process - the wake starts one). The client has to agree
+  // from the moment the request is *created*: it learns about the new
+  // process only through the two-second status poll, and a short budget in
+  // that window would show "Request timed out" while the host is still
+  // building (PRD-v5 §3.3).
+  if (store?.state?.lsp?.state === 'suspended') return Math.max(configured, BUILD_REQUEST_TIMEOUT_MS)
   if (semanticAnswers > 0) return configured
   return Math.max(configured, BUILD_REQUEST_TIMEOUT_MS)
 }
@@ -722,6 +736,22 @@ function applyRequestBudget(client) {
 }
 
 /**
+ * The states in which the semantic commands stay enabled.
+ *
+ * A *suspended* server is recoverable: the host wakes it up on the first
+ * payload (PRD-v5 §3.3), so the commands must not be greyed out - otherwise
+ * the user cannot start the wake from the context menu. An `idle` server was
+ * never started for this root (the host would not wake it), and
+ * `degraded` / `failed` are faults: in both cases the command stays off.
+ *
+ * @param {string} state the state the host reports
+ * @returns {boolean} true when the semantic commands may be used
+ */
+export function semanticStateAllowed(state) {
+  return state === 'ready' || state === 'suspended'
+}
+
+/**
  * Whether the semantic features may be used right now.
  * @returns {boolean} true when the server is ready and offers the feature
  */
@@ -731,7 +761,7 @@ function capabilityAvailable(name) {
   if (!capabilities[name]) return false
   const slice = sessionStore?.state?.lsp ?? null
   if (slice !== null && typeof slice === 'object' && typeof slice.state === 'string') {
-    if (slice.state !== 'ready') return false
+    if (!semanticStateAllowed(slice.state)) return false
   }
   return true
 }
@@ -795,6 +825,11 @@ function startLsp() {
     onError: (error) => {
       console.warn('[lsp] transport error:', error instanceof Error ? error.message : error)
     },
+    // The control events of the host (a degradation, a crash) are not
+    // JSON-RPC messages: they belong to the store, which turns them into a
+    // toast. The store may be gone and the method may not exist yet, so the
+    // callback never throws.
+    onControl: (event) => { store?.lspControl?.(event) },
   })
   currentClient.connect(currentTransport)
   watchHandshake(currentClient)

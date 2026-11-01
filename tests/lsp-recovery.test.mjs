@@ -81,8 +81,10 @@ test('a language server that crashes twice is not started again', async () => {
   assert.equal(spawned.length, 2, 'there is no second automatic restart')
   const status = await manager.status({ root })
   assert.equal(status.state, 'degraded')
-  // The detail is the fact; the advice follows the reason.
-  assert.match(status.detail, /already used once/i)
+  // The detail explains itself: the original reason AND the exhausted
+  // budget (CRASH-02).
+  assert.match(status.detail, /exited with code 134/i, 'the original reason is named')
+  assert.match(status.detail, /restart budget/i, 'the exhausted budget is named')
 })
 
 test('the process identity changes when the language server is restarted', async () => {
@@ -178,7 +180,7 @@ test('a crashed language server is not restarted when the memory is not enough',
   const status = await manager.status({ root })
   assert.equal(status.state, 'degraded')
   assert.match(status.detail, /64 MB/, 'the message names the free memory')
-  assert.match(status.detail, /384 MB/, 'the message names the memory that is needed')
+  assert.match(status.detail, /651 MB/, 'the message names the memory that is needed')
 })
 
 test('the documents of the user are opened again after a restart', async () => {

@@ -75,6 +75,31 @@ async function walkFiles(root, prefix = '') {
 }
 
 /**
+ * The order of the file index.
+ *
+ * The order is the code-unit order of the path: a total order, and therefore
+ * a predictable one. `localeCompare` would promise the ICU collation of the
+ * locale of the machine - locale dependent, and about six times slower than a
+ * plain comparison (PRD-v5 PERF-02). The sort never promised a collation,
+ * only that it is stable and predictable, so the plain order is the honest
+ * choice: it is also the same order on every machine.
+ *
+ * The comparison is a total order, so `Array.prototype.sort` (stable since
+ * V8 7.0) keeps the input order of equal entries. The list is deduplicated
+ * before it is sorted, so no two entries are equal anyway and the order does
+ * not depend on the order git or the filesystem reported the paths in.
+ *
+ * @param {string} left the first path
+ * @param {string} right the second path
+ * @returns {number} -1, 0 or 1
+ */
+function comparePaths(left, right) {
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
+}
+
+/**
  * List every project file (workspace-relative, forward slashes).
  * @param {{ root: string, workspaceRoot: string, prefix?: string, isRepo?: boolean }} env
  */
@@ -84,12 +109,12 @@ export async function listFiles(env) {
     const result = await runGit(env, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { allowFailure: true })
     if (result.code === 0) {
       const files = [...new Set(result.stdout.split('\0').filter(Boolean).map(path => mapPath(env, path)))]
-        .sort((left, right) => left.localeCompare(right))
+        .sort(comparePaths)
       return { files, tookMs: Date.now() - started }
     }
   }
   const files = await walkFiles(env.workspaceRoot ?? env.root)
-  return { files: [...new Set(files)].sort((left, right) => left.localeCompare(right)), tookMs: Date.now() - started }
+  return { files: [...new Set(files)].sort(comparePaths), tookMs: Date.now() - started }
 }
 
 /** Escape a literal string for a regular expression. */

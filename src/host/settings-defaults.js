@@ -29,6 +29,27 @@
  */
 export const BUILD_REQUEST_TIMEOUT_MS = 600000
 
+/**
+ * The idle policies of the `lsp` section (PRD-v5 §3.2).
+ *
+ * 'never' = the language server stays until the user stops it; 'after' = it
+ * is released after `idleTimeoutMs` without a request; 'onMemoryPressure' =
+ * it is released when the machine runs out of free memory.
+ *
+ * The list lives here and not in the host, because the settings page needs
+ * it to offer the three choices - and a second copy would drift away.
+ */
+export const IDLE_POLICIES = ['never', 'after', 'onMemoryPressure']
+
+/**
+ * The index scopes of the `lsp` section (PRD-v5 §4.2).
+ *
+ * 'auto' = the nearest sub-project root when the root is not a project of
+ * its own; 'root' = the whole root (a workspace with several projects);
+ * 'project' = always the nearest sub-project root.
+ */
+export const INDEX_SCOPES = ['auto', 'root', 'project']
+
 export const DEFAULT_LSP_SETTINGS = {
   /** Master switch. false = never start a language server. */
   enabled: true,
@@ -48,6 +69,27 @@ export const DEFAULT_LSP_SETTINGS = {
   memoryHardFloorMB: 256,
   /** Idle time after which the language server exits (ms). */
   idleTimeoutMs: 600000,
+  /**
+   * When an idle language server may release its memory (PRD-v5 §3.2).
+   *
+   * 'never' = never on its own; 'after' = after `idleTimeoutMs` without a
+   * request; 'onMemoryPressure' = when the machine runs out of free memory.
+   *
+   * `autoExit: false` still means "never" for the documents that were
+   * written before this setting existed - the host honours the older
+   * switch over the newer policy.
+   */
+  idlePolicy: 'after',
+  /**
+   * The scope of the program the language server builds (PRD-v5 §4.2).
+   *
+   * 'auto' = the nearest sub-project root when the root is not a project of
+   * its own; 'root' = the whole root; 'project' = always the nearest
+   * sub-project root. A workspace root with several projects in it makes
+   * the language server merge them into one program (measured: 2,335 files
+   * / 84 MB), so the scope is converged onto one project.
+   */
+  indexScope: 'auto',
   /** LSP request timeout (ms). Must stay >= 30000: the client library's own
    * default is 3000, which silently times out on large projects. */
   requestTimeoutMs: 30000,

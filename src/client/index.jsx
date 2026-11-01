@@ -22,6 +22,26 @@ import { configureLsp } from './lsp-session.js'
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs', 'sessions']
 const PANEL_ID = 'ide-workbench'
 
+/**
+ * The stylesheet of the workbench.
+ *
+ * The terminal stylesheet and the workbench stylesheet are concatenated
+ * once, when the module is loaded: the result is a ~120 KB string, and it was
+ * built on *every* render - so the browser re-parsed the whole stylesheet on
+ * every frame of every Session that draws the workbench (PRD-v5 PERF-04).
+ * The stylesheet of the workbench itself is a module constant already
+ * (`styles.js`), and this one follows the same pattern.
+ */
+export const WORKBENCH_CSS = `${xtermCss}\n${CSS}`
+
+/**
+ * The styles of the workbench, rendered through React.
+ *
+ * The lifetime of the style element follows the lifetime of the plugin's
+ * seats, so the component is rendered wherever the workbench is drawn.
+ */
+export const Styles = () => React.createElement('style', { 'data-dsh-ide-workbench': '' }, WORKBENCH_CSS)
+
 function PanelIcon({ size = 20 }) {
   return React.createElement('svg', {
     viewBox: '0 0 20 20', width: size, height: size, fill: 'none',
@@ -220,9 +240,6 @@ export function apply(ctx) {
     suppressFileLinkClaim = true
     return () => { suppressFileLinkClaim = false }
   }
-
-  // Render styles through React so their lifetime follows the plugin's seats.
-  const Styles = () => React.createElement('style', { 'data-dsh-ide-workbench': '' }, `${xtermCss}\n${CSS}`)
 
   /**
    * The host session table, read once and then cached.

@@ -1,14 +1,34 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { encodeFrame } from '../src/host/lsp-frame.js'
-import { assertTransition, canTransition, rootKey } from '../src/host/lsp.js'
+import { assertTransition, canTransition, rootKey, scopeRootOf } from '../src/host/lsp.js'
 import { makeManager, makeSink, sleep } from './lsp-fixtures.mjs'
 
 /** A project root that no other test uses. */
 function rootOf(name) {
   return join(tmpdir(), `iwb-lsp-${name}`)
+}
+
+/**
+ * A workspace with two sub-projects (PRD-v5 §4.2).
+ *
+ * The workspace itself is no project: the language server would merge the
+ * sub-projects into one program (measured: 2,335 files / 84 MB for six
+ * projects).
+ * @param {string} name the name of the fixture
+ * @returns {string} the absolute path of the workspace
+ */
+function workspaceOf(name) {
+  const workspace = mkdtempSync(join(tmpdir(), `iwb-lsp-scope-${name}-`))
+  mkdirSync(join(workspace, 'app'))
+  writeFileSync(join(workspace, 'app', 'package.json'), '{}\n')
+  writeFileSync(join(workspace, 'app', 'index.ts'), 'export const a = 1\n')
+  mkdirSync(join(workspace, 'tools'))
+  writeFileSync(join(workspace, 'tools', 'package.json'), '{}\n')
+  return workspace
 }
 
 test('a language server walks from idle through starting and building to ready', async () => {
@@ -144,4 +164,66 @@ test('a root without a language server reports that it is idle', async () => {
   assert.equal(status.serverId, null)
   assert.equal(status.source, null)
   assert.deepEqual(status.indexedRoots, [])
+})
+
+test('the scope of the program is the nearest sub-project', () => {
+  const workspace = workspaceOf('nearest')
+  assert.equal(scopeRootOf(workspace), join(workspace, 'app'), 'the workspace is not a project itself')
+  assert.equal(scopeRootOf(workspace, 'project'), join(workspace, 'app'))
+  assert.equal(scopeRootOf(workspace, 'root'), workspace, 'the policy may keep the whole root')
+})
+
+test('a root that is a project of its own is the scope', () => {
+  const workspace = workspaceOf('own')
+  assert.equal(scopeRootOf(join(workspace, 'app')), join(workspace, 'app'))
+  assert.equal(scopeRootOf(join(workspace, 'app'), 'project'), join(workspace, 'app'))
+})
+
+test('a root without any project keeps itself', () => {
+  const root = rootOf('no-project')
+  assert.equal(scopeRootOf(root), root)
+})
+
+test('the language server is started in the scope of the program', async () => {
+  const workspace = workspaceOf('cwd')
+  const { manager, spawned } = makeManager()
+  await manager.start({ root: workspace })
+  assert.equal(spawned[0].spec.cwd, join(workspace, 'app'), 'the server is started in the scope')
+  const status = await manager.status({ root: workspace })
+  assert.equal(status.scopeRoot, join(workspace, 'app'), 'the status shows what is indexed')
+})
+
+test('the scope of the program may be the whole root', async () => {
+  const workspace = workspaceOf('whole')
+  const { manager, spawned } = makeManager({ lsp: { indexScope: 'root' } })
+  await manager.start({ root: workspace })
+  assert.equal(spawned[0].spec.cwd, workspace)
+  const status = await manager.status({ root: workspace })
+  assert.equal(status.scopeRoot, workspace)
+})
+
+test('the cancel window counts from the moment the server is started', async () => {
+  // The start time belongs to the transition into "starting": the client
+  // shows how long the build has been running, and the time the process
+  // needed to start belongs to that window (PRD-v5 §2.4).
+  const { manager } = makeManager({ spawnDelayMs: 300 })
+  const root = rootOf('started-at')
+  const starting = manager.start({ root })
+  await sleep(40)
+  const state = manager.stateOf(root)
+  assert.equal(state.state, 'starting')
+  assert.equal(typeof state.startedAt, 'number', 'the window is open while the process starts')
+  await starting
+})
+
+test('a restart may be cancelled as well', async () => {
+  const { manager, handle } = makeManager({ lsp: { cancelAfterMs: 0 }, restartBackoffMs: 400 })
+  const root = rootOf('restart-cancel')
+  await manager.start({ root })
+
+  handle().exit(134)
+  await sleep(80)
+  const snapshot = await manager.index({ root })
+  assert.equal(snapshot.state, 'restarting')
+  assert.equal(snapshot.cancellable, true, 'the restart builds the program again')
 })

@@ -17,12 +17,46 @@
  *    exponential backoff and flushes whatever was queued in the meantime.
  * 3. **No uncaught exceptions.** A dead socket must not take the editor down;
  *    failures are reported through the `onError` callback instead.
+ *
+ * The host also puts *control events* on the same socket (`{"type":"degraded"}`).
+ * They are not JSON-RPC messages and the library must never see them, so the
+ * transport takes them out of the stream and hands them to `onControl`.
  */
 
 /** The backoff schedule of the automatic reconnect, in milliseconds. */
 const RETRY_BASE_MS = 500
 /** The longest the transport waits before another reconnect attempt. */
 const RETRY_MAX_MS = 30000
+
+/**
+ * Whether a payload of the socket is a control event of the host.
+ *
+ * A control event is a plain JSON object without `jsonrpc` and with a
+ * `type` of its own (`{"type":"degraded","root":"…"}`). A JSON-RPC payload
+ * always carries `jsonrpc: "2.0"`, so the two can never collide.
+ *
+ * The library would choke on a control event - it is not a JSON-RPC message
+ * at all - so the transport takes such a payload out of the stream before
+ * the subscribers see it.
+ *
+ * @param {string} text the raw payload of the socket
+ * @returns {object|null} the parsed control event, or `null` for everything else
+ */
+export function isControlEvent(text) {
+  if (typeof text !== 'string' || text === '') return null
+  let parsed = null
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    // A payload that is not JSON belongs to the library: it owns the error
+    // message of a broken stream.
+    return null
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  if (parsed.jsonrpc !== undefined) return null
+  if (typeof parsed.type !== 'string') return null
+  return parsed
+}
 
 /**
  * Create one LSP transport.
@@ -37,6 +71,9 @@ const RETRY_MAX_MS = 30000
  *   called when the socket closes
  * @param {(error: unknown) => void} [options.onError] called for every
  *   connection or send failure
+ * @param {(event: object) => void} [options.onControl] called for every
+ *   control event of the host; such an event never reaches the subscribers
+ *   of the library
  * @param {new (url: string) => any} [options.WebSocketImpl] the socket
  *   implementation (the global `WebSocket` by default)
  * @returns {{send: (message: string) => void, subscribe: (handler: (value: string) => void) => void,
@@ -44,7 +81,7 @@ const RETRY_MAX_MS = 30000
  *   readonly ready: boolean, readonly queued: number}}
  */
 export function createLspTransport(options = {}) {
-  const { url, onOpen, onClose, onError } = options
+  const { url, onOpen, onClose, onError, onControl } = options
   const handlers = new Set()
   const queue = []
   let socket = null
@@ -133,6 +170,20 @@ export function createLspTransport(options = {}) {
     })
     socket.addEventListener?.('message', (event) => {
       const data = typeof event?.data === 'string' ? event.data : String(event?.data ?? '')
+      // A control event of the host is not a JSON-RPC message: the library
+      // would fail on it. It is taken out of the stream here and handed to
+      // the store instead (PRD-v5 §1.5).
+      const control = isControlEvent(data)
+      if (control !== null) {
+        if (typeof onControl === 'function') {
+          try {
+            onControl(control)
+          } catch (error) {
+            report(error)
+          }
+        }
+        return
+      }
       for (const handler of [...handlers]) {
         try {
           handler(data)

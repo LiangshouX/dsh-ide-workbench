@@ -20,6 +20,11 @@
  * - a column precise reveal, so a jump lands on the column and not only on
  *   the line (NAV-05).
  *
+ * The grammar of the open file is fetched on demand (PRD-v5 PERF-03): the
+ * thirteen language packages are a quarter of the client bundle, and only one
+ * of them is needed at a time. The editor therefore renders without
+ * highlighting until the package of the file arrives.
+ *
  * Two shortcuts of the language-server library are deliberately *not*
  * installed: `renameKeymap` (F2) and `formatKeymap` (Shift-Alt-f) would
  * collide with the workbench shortcuts (PRD §0.2 #6).
@@ -37,19 +42,6 @@ import {
 import { SearchQuery, setSearchQuery, search } from '@codemirror/search'
 import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle, ensureSyntaxTree } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
-import { javascript } from '@codemirror/lang-javascript'
-import { json } from '@codemirror/lang-json'
-import { markdown } from '@codemirror/lang-markdown'
-import { python } from '@codemirror/lang-python'
-import { java } from '@codemirror/lang-java'
-import { css } from '@codemirror/lang-css'
-import { html } from '@codemirror/lang-html'
-import { sql } from '@codemirror/lang-sql'
-import { yaml } from '@codemirror/lang-yaml'
-import { xml } from '@codemirror/lang-xml'
-import { cpp } from '@codemirror/lang-cpp'
-import { go } from '@codemirror/lang-go'
-import { rust } from '@codemirror/lang-rust'
 import { findReferences, jumpToDefinition, LSPPlugin } from '@codemirror/lsp-client'
 import { findMatches, replaceAllMatches } from './find.js'
 import { fileUriOf } from './lsp-uri.js'
@@ -97,30 +89,99 @@ const IDENTIFIER_NODE_NAMES = new Set([
  */
 const lspCompartment = new Compartment()
 
-/** Language extension for one file path (empty = plain text). */
-export function languageForPath(path) {
+/**
+ * The compartment that holds the grammar of the document.
+ *
+ * The grammar arrives asynchronously (it is fetched on demand, see
+ * `LANGUAGE_PACKAGES`), so it lives in a compartment: the editor renders
+ * without highlighting until the package arrives, and the compartment then
+ * takes the grammar in place. A file that changes its language gets the
+ * grammar of the new language - the old one is taken away first.
+ */
+const languageCompartment = new Compartment()
+
+/**
+ * The language packages, loaded on demand.
+ *
+ * The thirteen packages and the parsers they pull in are about a quarter of
+ * the client bundle, and a session uses one of them at a time (PRD-v5
+ * PERF-03). Every entry is therefore a *loader*, not the package itself: a
+ * static import of a package anywhere in the module graph would put all of
+ * them back into the bundle.
+ *
+ * The key is the language of the file; the loader resolves to the CodeMirror
+ * extension of that language.
+ */
+const LANGUAGE_PACKAGES = {
+  javascript: () => import('@codemirror/lang-javascript').then(module => module.javascript()),
+  'javascript-jsx': () => import('@codemirror/lang-javascript').then(module => module.javascript({ jsx: true })),
+  'javascript-ts': () => import('@codemirror/lang-javascript').then(module => module.javascript({ typescript: true })),
+  'javascript-tsx': () => import('@codemirror/lang-javascript').then(module => module.javascript({ typescript: true, jsx: true })),
+  json: () => import('@codemirror/lang-json').then(module => module.json()),
+  markdown: () => import('@codemirror/lang-markdown').then(module => module.markdown()),
+  python: () => import('@codemirror/lang-python').then(module => module.python()),
+  java: () => import('@codemirror/lang-java').then(module => module.java()),
+  css: () => import('@codemirror/lang-css').then(module => module.css()),
+  html: () => import('@codemirror/lang-html').then(module => module.html()),
+  sql: () => import('@codemirror/lang-sql').then(module => module.sql()),
+  yaml: () => import('@codemirror/lang-yaml').then(module => module.yaml()),
+  xml: () => import('@codemirror/lang-xml').then(module => module.xml()),
+  cpp: () => import('@codemirror/lang-cpp').then(module => module.cpp()),
+  go: () => import('@codemirror/lang-go').then(module => module.go()),
+  rust: () => import('@codemirror/lang-rust').then(module => module.rust()),
+}
+
+/**
+ * The language of one file path.
+ *
+ * The key names the package of `LANGUAGE_PACKAGES`; `''` means "plain text" -
+ * no package, no grammar, and the editor stays unhighlighted.
+ *
+ * @param {string} path the path of the file
+ * @returns {string} the key of the language, or `''`
+ */
+export function languageKeyForPath(path) {
   const lower = String(path ?? '').toLowerCase()
   const dot = lower.lastIndexOf('.')
   const ext = dot < 0 ? '' : lower.slice(dot)
   switch (ext) {
-    case '.js': case '.mjs': case '.cjs': return javascript()
-    case '.jsx': return javascript({ jsx: true })
-    case '.ts': case '.mts': case '.cts': return javascript({ typescript: true })
-    case '.tsx': return javascript({ typescript: true, jsx: true })
-    case '.json': case '.jsonc': case '.json5': return json()
-    case '.md': case '.markdown': case '.mdx': return markdown()
-    case '.py': case '.pyw': case '.pyi': return python()
-    case '.java': return java()
-    case '.css': case '.scss': case '.less': return css()
-    case '.html': case '.htm': case '.vue': case '.svelte': return html()
-    case '.sql': return sql()
-    case '.yml': case '.yaml': return yaml()
-    case '.xml': case '.svg': case '.xsl': case '.xsd': return xml()
-    case '.c': case '.h': case '.cpp': case '.cc': case '.cxx': case '.hpp': case '.hh': return cpp()
-    case '.go': return go()
-    case '.rs': return rust()
-    default: return []
+    case '.js': case '.mjs': case '.cjs': return 'javascript'
+    case '.jsx': return 'javascript-jsx'
+    case '.ts': case '.mts': case '.cts': return 'javascript-ts'
+    case '.tsx': return 'javascript-tsx'
+    case '.json': case '.jsonc': case '.json5': return 'json'
+    case '.md': case '.markdown': case '.mdx': return 'markdown'
+    case '.py': case '.pyw': case '.pyi': return 'python'
+    case '.java': return 'java'
+    case '.css': case '.scss': case '.less': return 'css'
+    case '.html': case '.htm': case '.vue': case '.svelte': return 'html'
+    case '.sql': return 'sql'
+    case '.yml': case '.yaml': return 'yaml'
+    case '.xml': case '.svg': case '.xsl': case '.xsd': return 'xml'
+    case '.c': case '.h': case '.cpp': case '.cc': case '.cxx': case '.hpp': case '.hh': return 'cpp'
+    case '.go': return 'go'
+    case '.rs': return 'rust'
+    default: return ''
   }
+}
+
+/**
+ * The grammar of one file path.
+ *
+ * The package is fetched on demand: the promise resolves when the grammar is
+ * there, and the caller puts it into the language compartment. A file
+ * without a known language resolves to an empty list - the editor then shows
+ * the plain text.
+ *
+ * @param {string} path the path of the file
+ * @returns {Promise<any[]>} the language extension of the file
+ */
+export async function loadLanguageForPath(path) {
+  const key = languageKeyForPath(path)
+  const loader = LANGUAGE_PACKAGES[key]
+  if (loader === undefined) return []
+  const extension = await loader()
+  return Array.isArray(extension) ? extension : [extension]
 }
 
 /**
@@ -555,7 +616,6 @@ export function CodeEditor({
   useEffect(() => {
     const host = hostRef.current
     if (host === null) return undefined
-    const language = languageForPath(path)
     const uri = fileUriOf(path)
     const extensions = [
       lineNumbers(),
@@ -584,7 +644,10 @@ export function CodeEditor({
         ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly }),
         ...editorKeymapRest(),
       ]),
-      ...(Array.isArray(language) ? language : [language]),
+      // The grammar of the document (PERF-03). It is fetched on demand, so
+      // the compartment starts empty and the editor renders without
+      // highlighting until the package arrives.
+      languageCompartment.of([]),
       // The semantic extensions come after the language, the server needs to
       // know the language of the document.
       lspCompartment.of([...lspExtensions(), ...lspPluginExtension(path)]),
@@ -708,7 +771,25 @@ export function CodeEditor({
       focusFind: () => view.focus(),
     }
     onReadyRef.current?.(api)
+    // The grammar of the document is fetched on demand (PERF-03): the editor
+    // renders without highlighting until the package arrives, and the
+    // compartment then takes the grammar in place. The load belongs to this
+    // view: a document that is rebuilt (a new path, a reset) starts with an
+    // empty compartment again, so the grammar of the old language never stays
+    // behind.
+    let languageCancelled = false
+    loadLanguageForPath(path).then(extension => {
+      if (languageCancelled) return
+      try {
+        view.dispatch({ effects: languageCompartment.reconfigure(extension) })
+      } catch {
+        /* the editor may already be gone */
+      }
+    }).catch(() => {
+      // The package could not be fetched: the file stays plain text.
+    })
     return () => {
+      languageCancelled = true
       onReadyRef.current?.(null)
       if (uri !== '') unregisterEditorView(uri, view)
       viewRef.current = null

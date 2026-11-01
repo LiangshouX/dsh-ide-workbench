@@ -21,7 +21,9 @@ test('a language server that was idle for too long exits', async () => {
   await sleep(280)
 
   assert.equal(handle().terminateCalls, 1, 'the process is terminated')
-  assert.equal((await manager.status({ root })).state, 'idle')
+  // The release is not a failure: the state is "suspended" and not "idle"
+  // (VIS-01) - the client shows a grey "asleep" for it.
+  assert.equal((await manager.status({ root })).state, 'suspended')
   assert.equal(spawned.length, 1)
 })
 
@@ -63,7 +65,7 @@ test('a language server is started again after the idle exit', async () => {
   await manager.start({ root })
   handle().stdout.write(encodeFrame(JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })))
   await sleep(280)
-  assert.equal((await manager.status({ root })).state, 'idle')
+  assert.equal((await manager.status({ root })).state, 'suspended')
 
   const restarted = await manager.start({ root })
   assert.equal(restarted.state, 'building')
@@ -79,7 +81,7 @@ test('the memory is checked again before the language server is started again', 
   const root = rootOf('idle-memory')
   await manager.start({ root })
   await sleep(280)
-  assert.equal((await manager.status({ root })).state, 'idle')
+  assert.equal((await manager.status({ root })).state, 'suspended')
 
   freeBytes = 32 * 1024 ** 2
   const restarted = await manager.start({ root })
@@ -93,5 +95,5 @@ test('the idle exit can be switched off', async () => {
   await manager.start({ root })
   await sleep(280)
   assert.equal(handle().terminateCalls, 0, 'the process keeps running')
-  assert.notEqual((await manager.status({ root })).state, 'idle')
+  assert.notEqual((await manager.status({ root })).state, 'suspended')
 })

@@ -97,6 +97,56 @@ function errorMessage(error) {
 }
 
 /**
+ * Whether two git status snapshots say the same thing.
+ *
+ * The panels read the whole status object (`ProjectPanel`) or its entry list
+ * (`CommitPanel`), so a brand new object on every poll wakes them every two
+ * seconds - even in an empty repository that did not change by a single byte
+ * (PRD-v5 §7.2 PERF-01). The comparison therefore covers everything the
+ * panels read: the branch, the detached flag, the counters and the per-file
+ * status. The path set alone is not enough - a file can change its `xy`
+ * status, or become staged, without the set of paths changing.
+ *
+ * The subprocess count of the call is deliberately not compared: it counts
+ * the git processes of that one call and never says anything about the
+ * repository.
+ * @param {any} previous the snapshot the store holds
+ * @param {any} next the snapshot the host just reported
+ * @returns {boolean} whether the two snapshots are equivalent
+ */
+function sameGitStatus(previous, next) {
+  if (previous === null || typeof previous !== 'object') return false
+  if (next === null || typeof next !== 'object') return false
+  if (previous.isRepo !== next.isRepo) return false
+  if (previous.branch !== next.branch) return false
+  if (previous.detached !== next.detached) return false
+  if (previous.oid !== next.oid) return false
+  if (previous.upstream !== next.upstream) return false
+  if (previous.ahead !== next.ahead) return false
+  if (previous.behind !== next.behind) return false
+  if (previous.truncated !== next.truncated) return false
+  if (previous.entryLimit !== next.entryLimit) return false
+  if (previous.root !== next.root) return false
+  const left = Array.isArray(previous.entries) ? previous.entries : []
+  const right = Array.isArray(next.entries) ? next.entries : []
+  if (left.length !== right.length) return false
+  for (let index = 0; index < left.length; index += 1) {
+    const before = left[index]
+    const after = right[index]
+    if (before.path !== after.path) return false
+    if (before.xy !== after.xy) return false
+    if (before.staged !== after.staged) return false
+    if (before.unstaged !== after.unstaged) return false
+    if (before.untracked !== after.untracked) return false
+    if (before.conflict !== after.conflict) return false
+    if (before.ignored !== after.ignored) return false
+    if (before.stagedLines !== after.stagedLines) return false
+    if (before.unstagedLines !== after.unstagedLines) return false
+  }
+  return true
+}
+
+/**
  * Whether one link path is a plain relative path (no leading slash at all).
  *
  * The ambiguous shape — exactly one leading slash — is decided by
@@ -146,6 +196,14 @@ function initialState() {
     statusAt: 0,
     /** True while the cached status is older than the last poll tick. */
     statusStale: false,
+    /**
+     * True while the mirrored language-server status is unknown (PRD-v5 §2.3).
+     *
+     * The status bar shows "unknown (retrying…)" instead of an old value:
+     * a failed poll must not keep presenting the last snapshot as if it were
+     * current.
+     */
+    lspStatusStale: false,
     layout: { left: 'project', leftWidth: 300, bottom: null, bottomHeight: 270, gitDrawerWidth: 420 },
     /** True while the pane is too narrow for side-by-side docks (CSS + JS agree). */
     stacked: false,
@@ -362,6 +420,36 @@ export function crashAdviceFor(detail, t) {
   return t('lsp.crashedGeneric')
 }
 
+/**
+ * The host states that mean the semantic features are broken.
+ *
+ * A crash and a degradation are the two states the user has to learn about
+ * (PRD-v5 §1.5 VIS-04): the toast tells the user that the semantic analysis
+ * stopped working and why.
+ */
+const LSP_FAULT_STATES = ['crashed', 'degraded']
+
+/**
+ * The host states that mean the language server is healthy again.
+ *
+ * A fault episode ends with one of them: the next fault is a new episode and
+ * gets its own toast. `restarting` and `cancelling` are deliberately NOT in
+ * the list - the host walks `crashed → restarting → degraded` inside one
+ * millisecond window, so clearing the flag there would produce two toasts
+ * for one fault.
+ */
+const LSP_RECOVERED_STATES = ['starting', 'building', 'ready', 'idle', 'suspended']
+
+/**
+ * The host states whose progress the client reads from `lsp.index`.
+ *
+ * The host accepts a cancel in `starting` and in `restarting` as well (its
+ * `CANCELLABLE_STATES`), and the cancel clock starts with the `starting`
+ * state - so the client has to ask for the index in these states too, or the
+ * user never sees the cancel button (PRD-v5 §2.4 STALE-03).
+ */
+const LSP_INDEX_STATES = ['starting', 'building', 'restarting']
+
 export class WorkbenchStore {
   /**
    * @param {any} ctx client cordis context
@@ -395,6 +483,15 @@ export class WorkbenchStore {
     this.lastToolGroup = 'left'
     /** Timer of the language-server status poll (PRD-v5 §4.3). */
     this.lspPollTimer = null
+    /**
+     * Whether the current fault episode was already announced (PRD-v5 §1.5).
+     *
+     * The control event and the two-second poll can report the same crash,
+     * and the host walks `crashed → restarting → degraded` inside one
+     * millisecond window. The flag makes the two paths idempotent: one fault
+     * episode, one toast.
+     */
+    this.lspFaultNotified = false
     /** Resolver of the pending index decision, if a dialog is open. */
     this.indexDecisionResolve = null
     /** Resolver of the pending memory warning, if a dialog is open. */
@@ -1472,7 +1569,12 @@ export class WorkbenchStore {
    */
   semanticNavigation() {
     const lsp = this.state.lsp ?? {}
-    const ready = lsp.enabled !== false && lsp.state === 'ready'
+    // A `suspended` server is asleep, not gone: the host wakes it on the
+    // first payload (PRD-v5 §3.3 IDLE-02), so the semantic entries stay
+    // available and the user never has to start the wake by hand. `idle`
+    // means no server was ever started for this root - the host will not
+    // wake it - and `degraded` / `failed` are real faults.
+    const ready = lsp.enabled !== false && (lsp.state === 'ready' || lsp.state === 'suspended')
     return {
       findUsages: {
         enabled: ready,
@@ -1657,6 +1759,10 @@ export class WorkbenchStore {
     this.set({ active: true })
     if (this.pollTimer === null) {
       this.pollTimer = setInterval(() => { void this.pollStatus() }, 2000)
+      // A timer must not keep a Node process alive: the client bundle runs in
+      // a browser, where `unref` does not exist (the host guards it the same
+      // way).
+      this.pollTimer?.unref?.()
     }
     if (this.state.root !== '') {
       if (this.state.statusAt === 0) {
@@ -1670,11 +1776,15 @@ export class WorkbenchStore {
     }
     if (this.state.root !== '' && !this.state.dirs.has(this.state.root)) void this.loadRestoredTree({ lazy: true })
     // The semantic-analysis status is polled on the same cadence as the git
-    // status, but only while the workbench is the visible surface.
+    // status. The poll survives `deactivate()` (PRD-v5 §2.2 STALE-01): a
+    // workbench that is not the visible surface still has to know whether the
+    // language server is alive, or the status bar would freeze on its last
+    // value for ever.
     if (this.lspPollTimer === null) {
       this.lspPollTimer = setInterval(() => { void this.pollLspStatus() }, 2000)
-      void this.pollLspStatus()
+      this.lspPollTimer?.unref?.()
     }
+    void this.pollLspStatus()
     // Sessions survive a trip to the Conversation: the terminal view is kept
     // mounted by the sidebar, so only its visibility changes.
   }
@@ -1687,15 +1797,37 @@ export class WorkbenchStore {
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
-    if (this.lspPollTimer !== null) {
-      clearInterval(this.lspPollTimer)
-      this.lspPollTimer = null
-    }
+    // The language-server poll keeps running on purpose (PRD-v5 §2.2
+    // STALE-01). Stopping it here froze `state.lsp.state` on its last value:
+    // the status bar said "starting…" long after the server was gone. The
+    // cadence is the one the PRD already mandates (§4.3), so this is no new
+    // load. A store that is dropped for good stops its timers in
+    // `dispose()`.
     if (this.restoredTimer !== null) {
       clearTimeout(this.restoredTimer)
       this.restoredTimer = null
     }
     void this.persistNow()
+  }
+
+  /**
+   * Drop the store for good.
+   *
+   * `deactivate()` only pauses the workbench - the language-server status
+   * keeps being polled. A store that is evicted from the cache is gone for
+   * good, so its timers have to stop: otherwise every visited workspace
+   * would keep a poll running for the rest of the session.
+   */
+  dispose() {
+    if (this.pollTimer !== null) {
+      clearInterval(this.pollTimer)
+      this.pollTimer = null
+    }
+    if (this.lspPollTimer !== null) {
+      clearInterval(this.lspPollTimer)
+      this.lspPollTimer = null
+    }
+    this.deactivate()
   }
 
   async pollStatus() {
@@ -1706,23 +1838,34 @@ export class WorkbenchStore {
   }
 
   /**
-   * Poll the language-server status while the workbench is visible.
+   * Poll the language-server status.
    *
    * The poll only reads: the host owns the state machine, so the client
-   * never derives a state of its own.
+   * never derives a state of its own. It runs even while the workbench is
+   * not the visible surface (PRD-v5 §2.2 STALE-01): the store is shared
+   * between the workbench and the sidebar, and a frozen snapshot is what the
+   * user reported as "starting…" that never ended.
    * @returns {Promise<void>}
    */
   async pollLspStatus() {
-    if (!this.state.active || this.state.root === '') return
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    if (this.state.root === '') return
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      // The browser throttles the timer of a hidden page, so the status cannot
+      // be refreshed while the app is in the background. The old snapshot is
+      // not current any more - the status bar says "unknown" instead of
+      // showing a value that may be minutes old.
+      this.set({ lspStatusStale: true })
+      return
+    }
     await this.refreshLspStatus()
   }
 
   /**
    * Refresh the mirrored language-server status (PRD-v5 §3.1, §4.3).
    *
-   * A crash is announced exactly once: the poll would otherwise repeat the
-   * toast every two seconds.
+   * A fault is announced exactly once per fault episode: the poll would
+   * otherwise repeat the toast every two seconds, and the control event may
+   * report the same crash (PRD-v5 §1.5 VIS-04).
    * @returns {Promise<void>}
    */
   async refreshLspStatus() {
@@ -1732,10 +1875,16 @@ export class WorkbenchStore {
     try {
       status = await call('lsp.status', { root })
     } catch {
+      // The host did not answer: the old snapshot is not current any more.
+      // Keeping it would freeze the status bar on "starting…" (the fault the
+      // user reported), so the client says "unknown" instead (PRD-v5 §2.3).
+      this.set({ lspStatusStale: true })
       return
     }
-    if (status === null || typeof status !== 'object') return
-    const previous = this.state.lsp.state
+    if (status === null || typeof status !== 'object') {
+      this.set({ lspStatusStale: true })
+      return
+    }
     const next = {
       ...this.state.lsp,
       enabled: status.enabled !== false,
@@ -1770,8 +1919,12 @@ export class WorkbenchStore {
         || known.canIndex !== resources.canIndex
         || known.tight !== resources.tight)
     if (memoryChanged) next.resources = resources
-    // A running build reports its progress through `lsp.index`.
-    if (next.state === 'building') {
+    // A running build reports its progress through `lsp.index`. The host
+    // accepts a cancel in `starting` and in `restarting` as well, and the
+    // cancel clock starts with the `starting` state - so the index is read in
+    // these states too, or the user never gets the cancel button the host
+    // would accept (PRD-v5 §2.4 STALE-03).
+    if (LSP_INDEX_STATES.includes(next.state)) {
       const index = await this.#lspIndex(root)
       if (index !== null) {
         next.progress = typeof index.progress === 'string' ? index.progress : ''
@@ -1799,13 +1952,18 @@ export class WorkbenchStore {
       || current.processId !== next.processId
       || current.buildingProgram !== next.buildingProgram
       || memoryChanged
-    if (changed) this.set({ lsp: next })
-    // The crash is a one-time event: the toast must not repeat on every poll.
-    if (next.state === 'crashed' && previous !== 'crashed') {
-      // The advice follows the reason: a server that died of a timeout has
-      // nothing to do with the memory, and a toast that blames the memory
-      // sends the user to a setting that cannot help.
-      this.toast('error', this.t('lsp.crashedToast'), this.#crashAdvice(next.detail ?? ''))
+    // The status answered, so the mirrored snapshot is current again.
+    const patch = { lspStatusStale: false }
+    if (changed) patch.lsp = next
+    this.set(patch)
+    // A fault is announced once per fault episode (PRD-v5 §1.5 VIS-04). The
+    // poll announces it too: the control event is lost when the socket is
+    // down, and the episode flag makes the two paths idempotent.
+    if (LSP_RECOVERED_STATES.includes(next.state)) {
+      // The server is healthy again: the next fault is a new episode.
+      this.lspFaultNotified = false
+    } else {
+      this.#announceLspFault(next.state, next.detail ?? '')
     }
     // The "not installed" state needs the server registry; it is fetched once
     // per language, not on every poll.
@@ -1813,6 +1971,71 @@ export class WorkbenchStore {
       this.lspServersChecked.add(next.languageId)
       void this.#loadLspServers()
     }
+  }
+
+  /**
+   * Handle one control event of the language server (PRD-v5 §1.5 VIS-04).
+   *
+   * The host announces a crash or a degradation over the socket, and the
+   * client shows the toast. Every other event (`state`, `ready`, `idle`,
+   * `didClose`) is informational: the two-second poll owns the mirrored
+   * status, so an event must not overwrite it - and `didClose` in particular
+   * must not touch the editor state.
+   *
+   * The method is called from a WebSocket callback, so it must never throw:
+   * a broken toast may not take the socket down.
+   * @param {{type?: string, root?: string, detail?: string, state?: string}} event
+   * @returns {void}
+   */
+  lspControl(event) {
+    try {
+      if (event === null || typeof event !== 'object') return
+      const type = typeof event.type === 'string' ? event.type : ''
+      // An event of another project is noise: the toast belongs to the root
+      // the user is working in.
+      if (typeof event.root === 'string' && event.root !== ''
+        && !sameScopePath(event.root, this.state.root)) return
+      if (type === 'degraded') {
+        this.#announceLspFault('degraded', event.detail ?? '')
+        return
+      }
+      if (type === 'crash') {
+        this.#announceLspFault('crashed', event.detail ?? '')
+      }
+      // Every other type is informational and ignored.
+    } catch {
+      // A control event may never break the socket it arrived on.
+    }
+  }
+
+  /**
+   * Announce one fault of the language server - once per fault episode.
+   *
+   * The host walks `crashed → restarting → degraded` inside one millisecond
+   * window, and the control event and the two-second poll can report the
+   * same fault. The episode flag makes the two paths idempotent: the first
+   * announcement wins, the second one is swallowed. The flag is cleared by
+   * the poll when the server is healthy again.
+   * @param {string} state the host state ('crashed' or 'degraded')
+   * @param {string} detail the reason the host reported
+   * @returns {boolean} whether the toast was shown
+   */
+  #announceLspFault(state, detail) {
+    if (!LSP_FAULT_STATES.includes(state)) return false
+    if (this.lspFaultNotified) return false
+    this.lspFaultNotified = true
+    // The advice follows the reason: a server that died of a timeout has
+    // nothing to do with the memory, and a toast that blames the memory
+    // sends the user to a setting that cannot help.
+    //
+    // The two faults do not have the same title either: a crash is an exit,
+    // but a degradation is not - the server may be switched off in the
+    // settings, missing, or refused for lack of memory. "The language server
+    // exited" would be a lie in those cases (PRD-v5 §1.5).
+    const crashed = state === 'crashed'
+    const reason = crashed ? this.#crashAdvice(detail) : detail
+    this.toast('error', this.t(crashed ? 'lsp.crashedToast' : 'lsp.degradedToast'), reason)
+    return true
   }
 
   /**
@@ -1931,13 +2154,20 @@ export class WorkbenchStore {
     try {
       const status = await call('git.status', { root, numstat: this.#wantsNumstat() })
       if (this.gitRoot !== root) return
-      const previousPaths = new Set(this.state.status.entries.map(entry => entry.path))
-      const nextPaths = new Set(status.entries.map(entry => entry.path))
-      const changed = status.entries.some(entry => !previousPaths.has(entry.path))
-        || [...previousPaths].some(path => !nextPaths.has(path))
+      const previous = this.state.status
+      // The panels read the whole status object (`ProjectPanel`) or its entry
+      // list (`CommitPanel`), so a brand new object on every poll woke them
+      // every two seconds - even in an empty repository that did not change
+      // by a single byte (PRD-v5 §7.2 PERF-01). The old object stays while
+      // the snapshot says the same thing: its identity is what the panel
+      // slices compare.
+      const changed = !sameGitStatus(previous, status)
       this.set({
-        status,
+        status: changed ? status : previous,
         statusError: null,
+        // The snapshot is as old as this poll says it is. The timestamp moves
+        // on every successful poll, but it does not touch the status object,
+        // so it cannot defeat the short-circuit above.
         statusAt: Date.now(),
         statusStale: false,
       })
@@ -4214,7 +4444,11 @@ export class StoreCache {
       // content silently.
       const tabs = store?.state?.tabs ?? []
       if (tabs.some(tab => tab.dirty === true)) continue
-      store.deactivate()
+      // An evicted store is gone for good: its timers have to stop. A store
+      // that is only paused (`deactivate`) keeps the language-server poll
+      // running, so every visited workspace would poll for ever.
+      if (typeof store.dispose === 'function') store.dispose()
+      else store.deactivate()
       this.stores.delete(key)
       this.sessions.delete(key)
     }
@@ -4222,7 +4456,10 @@ export class StoreCache {
 
   /** Deactivate and drop every store (plugin teardown). */
   clear() {
-    for (const store of this.stores.values()) store.deactivate()
+    for (const store of this.stores.values()) {
+      if (typeof store.dispose === 'function') store.dispose()
+      else store.deactivate()
+    }
     this.stores.clear()
     this.sessions.clear()
     if (process.env.NODE_ENV !== 'production' && perfCounters !== null) perfCounters.stores = 0

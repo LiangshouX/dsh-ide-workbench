@@ -36,9 +36,15 @@ function freeOf(freeMB) {
 }
 
 test('the registry knows the memory baseline of every language', () => {
+  // The TypeScript number is a MEASUREMENT and not a guess: the 256 MB of
+  // the earlier versions measured the idle wrapper process of the server,
+  // not the index it builds. The index of a real project measured 400-600
+  // MB (median 434 MB for 300 modules, 606 MB for 600 modules), so the
+  // estimate was 1.4-2.4 times too low and the memory gate let the machine
+  // run out of memory (PRD-v5 §5.2).
   const expected = {
-    typescript: 256,
-    javascript: 256,
+    typescript: 434,
+    javascript: 434,
     python: 192,
     yaml: 64,
     java: 512,
@@ -69,7 +75,7 @@ test('the status carries the memory snapshot, so the numbers are live', async ()
   await manager.start({ root, languageId: 'typescript' })
   const running = await manager.status({ root })
   assert.ok(running.resources !== null, 'a running server reports its memory')
-  assert.equal(running.resources.needMB, 384, 'TypeScript: 256 MB baseline times 1.5')
+  assert.equal(running.resources.needMB, 651, 'TypeScript: the measured 434 MB baseline times 1.5')
   assert.equal(running.resources.freeBytes, 2850 * MB)
   assert.equal(running.resources.canIndex, true)
 })
@@ -80,10 +86,10 @@ test('the estimate of a language is its baseline times the headroom', async () =
     readMemory: freeOf(4096),
   })
   const resources = await manager.resources({ root: rootOf('typescript') })
-  assert.equal(resources.baselineMB, 256)
+  assert.equal(resources.baselineMB, 434)
   assert.equal(resources.headroom, 1.5)
-  assert.equal(resources.needMB, 384)
-  assert.equal(resources.thresholdBytes, 384 * MB)
+  assert.equal(resources.needMB, 651)
+  assert.equal(resources.thresholdBytes, 651 * MB)
   assert.equal(resources.hardFloorMB, 256)
   assert.equal(resources.canIndex, true)
   assert.equal(resources.tight, false)
@@ -137,17 +143,17 @@ test('the estimate of the root is the one of the language that would start', asy
   // TypeScript - the same detection the start path uses.
   const resources = await manager.resources({ root: rootOf('detect') })
   assert.equal(resources.languageId, 'typescript')
-  assert.equal(resources.baselineMB, 256)
+  assert.equal(resources.baselineMB, 434)
 })
 
 test('the conservative fallback never blocks a language that has an estimate', async () => {
   // SET-03: the free-memory threshold is no longer a gate.
   const { manager, spawned } = makeManager({
     lsp: { memoryLimitMB: 2048, freeMemoryThresholdMB: 4096 },
-    readMemory: freeOf(1024),
+    readMemory: freeOf(2048),
   })
   const resources = await manager.resources({ root: rootOf('fallback') })
-  assert.equal(resources.thresholdBytes, 384 * MB)
+  assert.equal(resources.thresholdBytes, 651 * MB)
   assert.equal(resources.canIndex, true)
   const result = await manager.start({ root: rootOf('fallback') })
   assert.equal(result.state, 'building')
@@ -179,7 +185,7 @@ test('a language without a baseline of its own uses the default estimate', async
     readMemory: freeOf(4096),
   })
   const resources = await manager.resources({ root: rootOf('unknown') })
-  assert.equal(resources.baselineMB, 256)
+  assert.equal(resources.baselineMB, 434)
   assert.equal(DEFAULT_BASELINE_MB, 256)
 })
 
@@ -212,7 +218,7 @@ test('a tight machine does not start a server on its own', async () => {
   assert.equal(result.state, 'degraded')
   assert.equal(spawned.length, 0, 'no process may be created without the user')
   assert.match(result.detail, /300 MB/, 'the detail names the free memory')
-  assert.match(result.detail, /384 MB/, 'the detail names the expected memory')
+  assert.match(result.detail, /651 MB/, 'the detail names the expected memory')
 })
 
 test('a forced start ignores the tight memory', async () => {
@@ -247,7 +253,7 @@ test('a machine below the hard floor never starts a server', async () => {
   assert.equal(result.state, 'degraded')
   assert.equal(spawned.length, 0)
   assert.match(result.detail, /100 MB/)
-  assert.match(result.detail, /384 MB/)
+  assert.match(result.detail, /651 MB/)
 })
 
 test('a machine with enough memory starts the server', async () => {
@@ -268,7 +274,7 @@ test('the start answer carries the memory snapshot of the pre-check', async () =
   })
   const result = await manager.start({ root: rootOf('snapshot') })
   assert.equal(result.resources.tight, true)
-  assert.equal(result.resources.needMB, 384)
+  assert.equal(result.resources.needMB, 651)
 })
 
 test('the headroom and the hard floor come from the settings', async () => {
@@ -279,8 +285,8 @@ test('the headroom and the hard floor come from the settings', async () => {
   const resources = await manager.resources({ root: rootOf('configured') })
   assert.equal(resources.headroom, 2)
   assert.equal(resources.hardFloorMB, 512)
-  assert.equal(resources.needMB, 512)
-  assert.equal(resources.thresholdBytes, 512 * MB)
+  assert.equal(resources.needMB, 868)
+  assert.equal(resources.thresholdBytes, 868 * MB)
 })
 
 test('a crashed server of a forced session is restarted even without memory', async () => {
@@ -318,7 +324,7 @@ test('a crashed server of a tight machine is not restarted', async () => {
   const status = await manager.status({ root })
   assert.equal(status.state, 'degraded')
   assert.match(status.detail, /300 MB/)
-  assert.match(status.detail, /384 MB/)
+  assert.match(status.detail, /651 MB/)
 })
 
 test('the migration fills the new memory fields of an old document', () => {

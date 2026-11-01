@@ -38,8 +38,16 @@ function Group({ title, description, children }) {
   )
 }
 
-function Row({ label, hint, children }) {
-  return React.createElement('div', { className: 'iwb-settings-row' },
+/**
+ * One settings row: a label with its hint on the left, a control on the right.
+ *
+ * The optional `title` is the tooltip of the row. It carries the long
+ * explanation of a control whose visible hint has to stay short.
+ * @param {{label: string, hint?: string, title?: string, children: any}} props
+ *   the label, the optional hint, the optional tooltip and the control
+ */
+function Row({ label, hint, title, children }) {
+  return React.createElement('div', { className: 'iwb-settings-row', title },
     React.createElement('div', { className: 'iwb-settings-label' },
       React.createElement('div', { className: 'iwb-settings-title' }, label),
       hint !== undefined ? React.createElement('div', { className: 'iwb-settings-hint' }, hint) : null,
@@ -158,6 +166,23 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
   /** Settings changed but not yet sent; merged so rapid edits never drop one. */
   const pendingPatch = useRef({})
   const alive = useRef(true)
+  /**
+   * The idle policy of the semantic analysis.
+   *
+   * A document written before the policy existed has no such key; the host
+   * then behaves like "after an idle time", and so does the page.
+   *
+   * The old switch `autoExit: false` is the authority of the host: it means
+   * "never exit", whatever the policy says. A page that showed "after an idle
+   * time" for such a document would contradict the host - the server would
+   * never exit while the page promised that it would - so the switch wins
+   * here too (PRD-v5 §3.2).
+   */
+  const idlePolicy = draft.lsp?.autoExit === false
+    ? 'never'
+    : (typeof draft.lsp?.idlePolicy === 'string' && draft.lsp.idlePolicy !== ''
+      ? draft.lsp.idlePolicy
+      : 'after')
 
   // The registry and the memory snapshot are facts of the machine, not
   // settings: they are read when the page opens and never written back.
@@ -532,12 +557,47 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
           }),
         ),
       ),
+      // The idle policy replaces the old "exit the server when idle" switch
+      // (PRD-v5 §3.2): one dropdown says *when* the server lets go, and the
+      // minutes below it are the length of the "after an idle time" option.
+      React.createElement(Row, { label: t('settings.lspIdlePolicy'), hint: t('settings.lspIdlePolicyShort'), title: t('settings.lspIdlePolicyHint') },
+        React.createElement('select', {
+          className: 'iwb-select',
+          value: idlePolicy,
+          // The switch travels with the policy: a document that says
+          // `autoExit: false` must not keep that value while the page claims
+          // the server exits after an idle time. The host honours the switch
+          // over the policy, so the page has to write both.
+          onChange: event => update({
+            lsp: { idlePolicy: event.target.value, autoExit: event.target.value !== 'never' },
+          }),
+        },
+          React.createElement('option', { value: 'never' }, t('settings.lspIdlePolicyNever')),
+          React.createElement('option', { value: 'after' }, t('settings.lspIdlePolicyAfter')),
+          React.createElement('option', { value: 'onMemoryPressure' }, t('settings.lspIdlePolicyMemory')),
+        ),
+      ),
+      // "Never exit" is the one option with a price the user has to know:
+      // the language server stays resident and takes its memory for good.
+      idlePolicy === 'never'
+        ? React.createElement('div', { className: 'iwb-settings-hint' }, t('settings.lspIdlePolicyNeverWarning'))
+        : null,
       React.createElement(SubGroup, { title: t('settings.lspTimeoutGroup') },
         React.createElement(Field, { label: t('settings.lspIdleTimeout'), hint: t('settings.lspIdleTimeoutShort'), title: t('settings.lspIdleTimeoutHint') },
           React.createElement('input', {
             type: 'number', min: 1, max: 240,
             value: Math.round((draft.lsp?.idleTimeoutMs ?? 600000) / 60000),
             onChange: event => update({ lsp: { idleTimeoutMs: (Number(event.target.value) || 10) * 60000 } }),
+          }),
+        ),
+        // How long an index may run before the cancel button appears. The
+        // host owns the threshold, but without a field for it the user could
+        // not change it (MEM-04).
+        React.createElement(Field, { label: t('settings.lspCancelAfter'), hint: t('settings.lspCancelAfterShort'), title: t('settings.lspCancelAfterHint') },
+          React.createElement('input', {
+            type: 'number', min: 5, max: 600, step: 5,
+            value: Math.round((draft.lsp?.cancelAfterMs ?? 60000) / 1000),
+            onChange: event => update({ lsp: { cancelAfterMs: (Number(event.target.value) || 60) * 1000 } }),
           }),
         ),
         React.createElement(Field, { label: t('settings.lspRequestTimeout'), hint: t('settings.lspRequestTimeoutShort'), title: t('settings.lspRequestTimeoutHint') },
@@ -549,13 +609,6 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
             onChange: event => update({ lsp: { requestTimeoutMs: Math.max(30000, Number(event.target.value) || 30000) } }),
           }),
         ),
-      ),
-      React.createElement(Row, { label: t('settings.lspAutoExit') },
-        React.createElement('input', {
-          type: 'checkbox',
-          checked: draft.lsp?.autoExit !== false,
-          onChange: event => update({ lsp: { autoExit: event.target.checked } }),
-        }),
       ),
       React.createElement(Row, { label: t('settings.lspAutoRestart') },
         React.createElement('input', {
@@ -587,22 +640,39 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
       // "384 MB needed" is a number, "the machine is short on memory" is a
       // decision. Without an open project there is no language to estimate,
       // so only the free memory is shown.
+      //
+      // The number is the one the host judges the start by - the free memory
+      // of the machine minus what the running servers have reserved. The free
+      // memory alone would say "plenty" while the gate says "tight", and two
+      // screens that answer the same question differently are worse than one
+      // screen with an honest number (PRD-v5 §3.2 / MEM-02).
       lspResources !== null
-        ? React.createElement('div', { className: 'iwb-settings-hint' },
-            typeof lspResources.languageId === 'string' && lspResources.languageId !== ''
-              ? interpolate(t('settings.lspMemoryNow'), {
-                  free: Math.round((lspResources.freeBytes ?? 0) / (1024 * 1024)),
-                  need: Math.round(lspResources.needMB ?? 0),
-                  threshold: Math.round((lspResources.thresholdBytes ?? 0) / (1024 * 1024)),
-                  floor: Math.round(lspResources.hardFloorMB ?? 256),
-                  language: lspResources.languageId,
-                  state: lspResources.tight === true
-                    ? t('settings.lspMemoryState.tight')
-                    : (lspResources.canIndex === false ? t('settings.lspMemoryState.low') : t('settings.lspMemoryState.ok')),
-                })
-              : interpolate(t('settings.lspMemoryNowNoProject'), {
-                  free: Math.round((lspResources.freeBytes ?? 0) / (1024 * 1024)),
-                }),
+        ? React.createElement(React.Fragment, null,
+            React.createElement('div', { className: 'iwb-settings-hint' },
+              typeof lspResources.languageId === 'string' && lspResources.languageId !== ''
+                ? interpolate(t('settings.lspMemoryNow'), {
+                    available: Math.round((lspResources.availableBytes ?? lspResources.freeBytes ?? 0) / (1024 * 1024)),
+                    need: Math.round(lspResources.needMB ?? 0),
+                    threshold: Math.round((lspResources.thresholdBytes ?? 0) / (1024 * 1024)),
+                    floor: Math.round(lspResources.hardFloorMB ?? 256),
+                    language: lspResources.languageId,
+                    state: lspResources.tight === true
+                      ? t('settings.lspMemoryState.tight')
+                      : (lspResources.canIndex === false ? t('settings.lspMemoryState.low') : t('settings.lspMemoryState.ok')),
+                  })
+                : interpolate(t('settings.lspMemoryNowNoProject'), {
+                    available: Math.round((lspResources.availableBytes ?? lspResources.freeBytes ?? 0) / (1024 * 1024)),
+                  }),
+            ),
+            // The reservation gets its own line, and only when there is one:
+            // it is the reason the available memory is smaller than the free
+            // memory of the machine.
+            Math.round((lspResources.reservedBytes ?? 0) / (1024 * 1024)) > 0
+              ? React.createElement('div', { className: 'iwb-settings-hint' },
+                  interpolate(t('settings.lspMemoryReserved'), {
+                    reserved: Math.round((lspResources.reservedBytes ?? 0) / (1024 * 1024)),
+                  }))
+              : null,
           )
         : null,
     ),

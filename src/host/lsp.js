@@ -29,13 +29,13 @@
  * `resolvedPath` still points at the `.bin` shim so the settings page can show
  * the user what is installed.
  */
-import { accessSync, constants, existsSync, readFileSync } from 'node:fs'
+import { accessSync, constants, existsSync, readFileSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { constants as osConstants, freemem, setPriority, totalmem } from 'node:os'
 import { dirname, join, resolve as resolvePath } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { ApiError } from './wire.js'
-import { BUILD_REQUEST_TIMEOUT_MS, DEFAULT_LSP_SETTINGS } from './settings-defaults.js'
+import { BUILD_REQUEST_TIMEOUT_MS, DEFAULT_LSP_SETTINGS, IDLE_POLICIES, INDEX_SCOPES } from './settings-defaults.js'
 import { SEMANTIC_METHODS } from './semantic-methods.js'
 
 /**
@@ -52,6 +52,13 @@ import { SEMANTIC_METHODS } from './semantic-methods.js'
  * case: it is the estimate the free memory is compared with, so a YAML
  * project does not need the gigabytes a TypeScript project needs (PRD §2.2).
  * It can be overridden the same way the memory limit is.
+ *
+ * The number of the TypeScript server is a *measurement*, not a guess: the
+ * 256 MB of the earlier versions measured the idle wrapper process of the
+ * server, not the index it builds. The index of a real project measured
+ * 400-600 MB (median 434 MB, 300 modules; 606 MB for 600 modules), so the
+ * estimate was 1.4-2.4 times too low and the memory gate let the machine
+ * run out of memory (PRD-v5 §5.2).
  */
 export const LSP_REGISTRY = {
   typescript: {
@@ -59,14 +66,14 @@ export const LSP_REGISTRY = {
     args: ['--stdio'],
     languageIds: ['typescript', 'javascript', 'javascriptreact', 'typescriptreact'],
     memoryLimitMB: 2048,
-    memoryBaselineMB: 256,
+    memoryBaselineMB: 434,
   },
   javascript: {
     command: 'typescript-language-server',
     args: ['--stdio'],
     languageIds: ['typescript', 'javascript', 'javascriptreact', 'typescriptreact'],
     memoryLimitMB: 2048,
-    memoryBaselineMB: 256,
+    memoryBaselineMB: 434,
   },
   python: {
     command: 'basedpyright-langserver',
@@ -180,14 +187,24 @@ const MEMORY_LIMIT_AWARE = new Set(['typescript-language-server'])
 const TRANSITIONS = {
   idle: ['starting', 'idle'],
   starting: ['building', 'failed', 'degraded', 'cancelling', 'crashed', 'idle'],
-  building: ['ready', 'failed', 'degraded', 'cancelling', 'crashed', 'idle'],
-  ready: ['crashed', 'degraded', 'cancelling', 'idle'],
+  building: ['ready', 'failed', 'degraded', 'cancelling', 'crashed', 'idle', 'suspended'],
+  ready: ['crashed', 'degraded', 'cancelling', 'idle', 'suspended'],
   restarting: ['building', 'failed', 'degraded', 'cancelling', 'idle'],
   crashed: ['restarting', 'degraded', 'cancelling', 'idle'],
   cancelling: ['cancelled', 'idle'],
   cancelled: ['starting', 'idle'],
   failed: ['starting', 'idle'],
   degraded: ['starting', 'idle'],
+  /**
+   * The server was released on purpose - the memory it held was given
+   * back to the machine (PRD-v5 §1.2).
+   *
+   * It is NOT a failure: the difference to `degraded` is the difference
+   * between "the machine could not afford it" and "the machine does not
+   * need it right now". The way back is `starting` (the first request
+   * wakes the server again), and `idle` is the way out for good.
+   */
+  suspended: ['starting', 'idle', 'degraded'],
 }
 
 /** The short progress label of every state, for the status bar. */
@@ -202,6 +219,7 @@ const PROGRESS = {
   crashed: 'crashed',
   degraded: 'degraded',
   failed: 'failed',
+  suspended: 'suspended',
 }
 
 /** How many stderr lines are kept per language server for the settings page. */
@@ -216,6 +234,34 @@ const MAX_STDERR_LINES = 200
  * the state machine).
  */
 const CANCELLABLE_STATES = ['starting', 'building', 'ready', 'restarting']
+
+/**
+ * The message of an idle release (VIS-01).
+ *
+ * The server was released on purpose: the memory it held was given back to
+ * the machine. That is not a failure, and the message has to say so - the
+ * status bar shows the state, and the state is "asleep", not "broken".
+ */
+const IDLE_EXIT_DETAIL = 'the language server was released to reclaim memory after a period of inactivity (this is not a failure)'
+
+/**
+ * The message of a release under memory pressure.
+ *
+ * The same as the idle release, but the reason is the machine: it needs the
+ * memory more than the project needs the index.
+ */
+const PRESSURE_EXIT_DETAIL = 'the machine ran out of free memory, so the language server was released to reclaim it (this is not a failure)'
+
+/**
+ * The shortest interval of the memory pressure check (ms).
+ */
+const PRESSURE_CHECK_MIN_MS = 250
+
+/**
+ * The longest interval of the memory pressure check (ms).
+ */
+const PRESSURE_CHECK_MAX_MS = 30000
+
 /**
  * How many client payloads may wait for a language server.
  *
@@ -356,6 +402,31 @@ export function lspSection(settings) {
     indexedRoots: isPlainObject(section.indexedRoots) ? section.indexedRoots : {},
     memoryWarnedRoots: isPlainObject(section.memoryWarnedRoots) ? section.memoryWarnedRoots : {},
   }
+}
+
+/**
+ * The idle policy of the `lsp` section (PRD-v5 §3.2).
+ *
+ * `autoExit: false` is the switch of the documents that were written before
+ * schema 5, and it still means "never exit": the older switch overrides the
+ * newer policy, so a document that has it keeps its meaning.
+ * @param {object} lsp the `lsp` section of the settings
+ * @returns {'never' | 'after' | 'onMemoryPressure'}
+ */
+function idlePolicyOf(lsp) {
+  const section = isPlainObject(lsp) ? lsp : {}
+  if (section.autoExit === false) return 'never'
+  return IDLE_POLICIES.includes(section.idlePolicy) ? section.idlePolicy : DEFAULT_LSP_SETTINGS.idlePolicy
+}
+
+/**
+ * The index scope of the `lsp` section (PRD-v5 §4.2).
+ * @param {object} lsp the `lsp` section of the settings
+ * @returns {'auto' | 'root' | 'project'}
+ */
+function indexScopeOf(lsp) {
+  const section = isPlainObject(lsp) ? lsp : {}
+  return INDEX_SCOPES.includes(section.indexScope) ? section.indexScope : DEFAULT_LSP_SETTINGS.indexScope
 }
 
 /**
@@ -507,6 +578,147 @@ function detectLanguage(root) {
 }
 
 /**
+ * The files that make a directory a project of its own.
+ *
+ * The list is the marker set of the languages the plugin knows: a directory
+ * with one of them is a project, a directory without one is only a folder.
+ */
+const PROJECT_MARKERS = [
+  'package.json',
+  'tsconfig.json',
+  'jsconfig.json',
+  'pyproject.toml',
+  'setup.py',
+  'Cargo.toml',
+  'go.mod',
+  'pom.xml',
+  'build.gradle',
+]
+
+/**
+ * The file names that count as source of a project.
+ *
+ * Only the languages of the plugin are counted: the scan is a heuristic that
+ * answers "which of the sub-projects is the big one", not a file index.
+ */
+const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']
+
+/**
+ * Whether one directory is a project of its own.
+ * @param {string} directory the absolute path of the directory
+ * @returns {boolean}
+ */
+function isProjectRoot(directory) {
+  return PROJECT_MARKERS.some(marker => existsSync(join(directory, marker)))
+}
+
+/**
+ * The project roots directly below one directory.
+ *
+ * Only the direct children are looked at: a sub-project that lives deeper is
+ * part of the project above it, and the scope has to be the *nearest* one.
+ * @param {string} root the absolute path of the directory
+ * @returns {string[]} the absolute paths of the sub-projects, sorted
+ */
+function subProjectsOf(root) {
+  let entries
+  try {
+    entries = readdirSync(root, { withFileTypes: true })
+  } catch {
+    // The root does not exist (a project that was never created) or cannot
+    // be read: there is no sub-project to find.
+    return []
+  }
+  const projects = []
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+    const directory = join(root, entry.name)
+    if (isProjectRoot(directory)) projects.push(directory)
+  }
+  return projects.sort()
+}
+
+/**
+ * How many source files one project has (bounded scan).
+ *
+ * The scan is a heuristic and it is bounded on purpose: it runs while a
+ * language server is started, and a workspace with thousands of files must
+ * not slow the start down. The count only decides which of several
+ * sub-projects is the scope of the program.
+ * @param {string} directory the absolute path of the project
+ * @returns {number} the number of source files that were counted
+ */
+function sourceCountOf(directory) {
+  let counted = 0
+  const visit = (current, depth) => {
+    if (depth > 3 || counted >= 400) return
+    let entries
+    try {
+      entries = readdirSync(current, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (counted >= 400) return
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+      if (entry.isDirectory()) {
+        visit(join(current, entry.name), depth + 1)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (SOURCE_EXTENSIONS.some(extension => entry.name.endsWith(extension))) counted += 1
+    }
+  }
+  visit(directory, 0)
+  return counted
+}
+
+/**
+ * The root of the program the language server builds (PRD-v5 §4.2).
+ *
+ * A workspace root that holds several independent projects must not be
+ * indexed as one program: the language server merges them and builds one
+ * program for the whole tree (measured: 2,335 files / 84 MB for six
+ * projects, where one of them had 159 files).
+ *
+ * The rule:
+ *
+ *   - 'root' keeps the whole root - the behaviour of the older versions.
+ *   - 'auto' keeps a root that is a project of its own and converges onto
+ *     the nearest sub-project otherwise.
+ *   - 'project' always converges onto the nearest sub-project.
+ *
+ * "The nearest sub-project" is the direct child of the root that is a
+ * project. When there is more than one, the one with the most sources wins
+ * - it is the project the user works in - and the first one in alphabetical
+ * order breaks the tie.
+ *
+ * @param {string} root the absolute project root
+ * @param {string} [policy] 'auto' | 'root' | 'project'
+ * @returns {string} the absolute scope root
+ */
+export function scopeRootOf(root, policy = 'auto') {
+  const absolute = resolvePath(String(root))
+  if (policy === 'root') return absolute
+  const own = isProjectRoot(absolute)
+  if (own && policy !== 'project') return absolute
+  const projects = subProjectsOf(absolute)
+  if (projects.length === 0) return absolute
+  if (projects.length === 1) return resolvePath(projects[0])
+  let best = projects[0]
+  let bestCount = -1
+  for (const project of projects) {
+    const count = sourceCountOf(project)
+    if (count > bestCount) {
+      best = project
+      bestCount = count
+    }
+  }
+  return resolvePath(best)
+}
+
+/**
  * One byte count in megabytes, for the messages the user reads.
  * @param {number} bytes
  * @returns {number}
@@ -534,11 +746,37 @@ function defaultCreateWorker(workerData) {
 }
 
 /**
+ * The standby cache of the machine (0 when the platform cannot report it).
+ *
+ * On Windows the standby cache is part of the "available" physical memory
+ * of `GlobalMemoryStatusEx` - which is what `os.freemem()` returns - but it
+ * is memory the machine has already given to the file cache: the kernel may
+ * drop it at any moment, so it is not memory a language server may use.
+ * The measurement of PRD-v5 §5.4 found 652 MB of standby counted as
+ * available - exactly the cost of one medium index.
+ *
+ * Node cannot read the number: `GlobalMemoryStatusEx` does not report it and
+ * `GetPerformanceInfo` is not reachable from JavaScript. The default probe
+ * therefore reports 0 (the host never subtracts the same memory twice), and
+ * a deployment that knows its number injects a probe that reports it (see
+ * `options.readMemory`).
+ * @returns {number} the standby cache in bytes
+ */
+function standbyCacheBytes() {
+  return 0
+}
+
+/**
  * The default memory probe.
- * @returns {{ totalBytes: number, freeBytes: number }}
+ *
+ * The free memory of the machine, without the standby cache. The probe is
+ * injectable (`options.readMemory`), and an injected probe may report the
+ * standby cache as well (`standbyBytes`) - the host subtracts it before it
+ * compares the free memory with the estimate of a language server.
+ * @returns {{ totalBytes: number, freeBytes: number, standbyBytes: number }}
  */
 function defaultReadMemory() {
-  return { totalBytes: totalmem(), freeBytes: freemem() }
+  return { totalBytes: totalmem(), freeBytes: freemem(), standbyBytes: standbyCacheBytes() }
 }
 
 /**
@@ -593,6 +831,15 @@ function snapshotOf(entry) {
     cancellable: state === 'starting' || state === 'building' || state === 'ready',
     progress: PROGRESS[state] ?? state,
     memoryLimitMB: session?.memoryLimitMB ?? null,
+    /**
+     * The root the program of the project is built for.
+     *
+     * It is the project root itself most of the time, and the nearest
+     * sub-project when the root is a workspace with several projects in it
+     * (PRD-v5 §4.2). The user has to see it: the program is built for that
+     * directory and not for the whole workspace.
+     */
+    scopeRoot: session?.scopeRoot ?? null,
     stderrLines: session === null ? [] : [...session.stderrLines],
     // The requests the server did not answer in time. The counter is the
     // host's own truth about the server; the client counts its own failures
@@ -615,6 +862,16 @@ function snapshotOf(entry) {
      * request yet and a semantic request is outstanding.
      */
     buildingProgram: isBuildingProgram(session),
+    /**
+     * Whether the idle timer of the session is armed.
+     *
+     * The timer is the promise of the host that the memory of the language
+     * server is given back when the project is not used any more. It is not
+     * armed while the program is built (IDLE-04), and it is armed again
+     * whenever the idle exit could not release the session (IDLE-05) - so
+     * the answer is "yes" for every session that may still be released.
+     */
+    idleArmed: session?.idleTimer !== null && session?.idleTimer !== undefined,
   }
 }
 
@@ -638,6 +895,17 @@ export class LspManager {
   #timeoutLimit
   #graceMs
   #lastEntry = null
+  /**
+   * The sessions this manager owns.
+   *
+   * The memory gate counts the servers that are already running (MEM-02),
+   * and a session that is gone must not be counted any more. The set is
+   * per manager and not per process: the module-level `ROOTS` map is
+   * shared by every manager of the process, and a reservation of one
+   * manager must not be charged to another one.
+   * @type {Set<object>}
+   */
+  #sessions = new Set()
 
   /**
    * @param {object} options
@@ -711,6 +979,13 @@ export class LspManager {
        */
       processId: session?.processId ?? 0,
       /**
+       * The root the program of the project is built for.
+       *
+       * The status bar shows it, because the program is built for that
+       * directory and not for the whole workspace (PRD-v5 §4.2).
+       */
+      scopeRoot: session?.scopeRoot ?? null,
+      /**
        * Whether the program of the project is still being built.
        *
        * The status bar shows it while the state is "ready": the session is
@@ -719,6 +994,13 @@ export class LspManager {
        * whole project (more than ten minutes on a large project).
        */
       buildingProgram: isBuildingProgram(session),
+      /**
+       * Whether the idle timer of the session is armed.
+       *
+       * The timer is the promise of the host that the memory of the language
+       * server is given back when the project is not used any more.
+       */
+      idleArmed: session?.idleTimer !== null && session?.idleTimer !== undefined,
       // The memory of the machine and the estimate of the server travel with
       // the status: the client polls it every two seconds anyway, and a
       // running server already knows its language, so nothing has to be
@@ -952,7 +1234,7 @@ export class LspManager {
   stateOf(root) {
     const entry = this.#peek(this.#requireRoot(root))
     return entry === null
-      ? { root: resolvePath(String(root)), state: 'idle', languageId: null, command: null, source: null, detail: null, startedAt: null, cancellable: false, progress: 'idle', memoryLimitMB: null, stderrLines: [], timeouts: 0, processId: 0, buildingProgram: false }
+      ? { root: resolvePath(String(root)), state: 'idle', languageId: null, command: null, source: null, detail: null, startedAt: null, cancellable: false, progress: 'idle', memoryLimitMB: null, scopeRoot: null, stderrLines: [], timeouts: 0, processId: 0, buildingProgram: false, idleArmed: false }
       : snapshotOf(entry)
   }
 
@@ -1040,6 +1322,11 @@ export class LspManager {
    * So a payload that arrives without a server is *held* and replayed the
    * moment one starts. The payloads are opaque strings: the main thread
    * never parses them.
+   *
+   * A session that was released by the idle exit is the special case
+   * (IDLE-02): the first payload that needs the server starts it again, so
+   * the user does not have to rebuild the index by hand. The payload stays
+   * in the queue and is replayed when the new process exists.
    * @param {string} root the absolute project root
    * @param {string} text one bare JSON-RPC payload
    * @returns {boolean} false when no language server is running
@@ -1052,11 +1339,85 @@ export class LspManager {
     const session = entry.session ?? null
     if (session === null || session.worker === null) {
       this.#holdFor(entry, text)
+      // The server may have been released on purpose: the first payload
+      // wakes it up again.
+      this.#requestWake(entry, session, text)
       return false
     }
     session.worker.postMessage({ type: 'send', text, origin: 'client' })
     this.#touch(entry, session)
     return true
+  }
+
+  /**
+   * Start the language server again after an idle release (IDLE-02).
+   *
+   * The wake happens at most once at a time: several payloads can arrive in
+   * the same tick, and every one of them would start a server.
+   * @param {object} entry the root entry
+   * @param {object | null} session the session that was released
+   * @param {string} text the payload that arrived
+   */
+  #requestWake(entry, session, text) {
+    if (session === null || session === undefined) return
+    // Only a session that was released on purpose may be woken. A session
+    // that is starting, that failed or that the user cancelled stays as it
+    // is.
+    if (session.state !== 'suspended') return
+    // The handshake is not a wake: it is replayed to every new process
+    // anyway, and it says nothing about the work the user wants to do.
+    if (isInitializeRequest(text)) return
+    if (entry.wakePromise !== null && entry.wakePromise !== undefined) return
+    const running = this.#wakeSession(entry, session)
+    entry.wakePromise = running
+    this.#safely(running.finally(() => {
+      if (entry.wakePromise === running) entry.wakePromise = null
+    }), 'the wake')
+  }
+
+  /**
+   * The wake itself: start the language server of a released session.
+   *
+   * The start goes through `#ensureSession`, so the memory pre-check of
+   * `#startSession` runs: a machine that cannot afford the server right now
+   * degrades instead of starting it, and the payload stays in the queue.
+   * @param {object} entry the root entry
+   * @param {object} session the session that was released
+   * @returns {Promise<void>}
+   */
+  async #wakeSession(entry, session) {
+    try {
+      const settings = await this.#settings()
+      const lsp = lspSection(settings)
+      // The user put this project into the basic mode on purpose: the host
+      // does not wake it. The marker of the client is the same one, but the
+      // host is the authority here - it is the host that starts the server.
+      if (this.#isConservative(lsp, entry)) return
+      await this.#ensureSession(entry, session.languageId)
+    } catch (error) {
+      // A wake that fails must not take the host down: the session stays
+      // released, and the next payload tries again.
+      this.#ctx?.logger?.warn?.('lsp: the language server could not be woken: %s', messageOf(error))
+    }
+  }
+
+  /**
+   * Whether the user put one project into the basic mode on purpose.
+   *
+   * The answer is remembered in the settings (`lsp.memoryWarnedRoots`), so
+   * the host does not wake a project the user has switched off (PRD-v5
+   * §3.3, risk table).
+   * @param {object} lsp the `lsp` section of the settings
+   * @param {object} entry the root entry
+   * @returns {boolean}
+   */
+  #isConservative(lsp, entry) {
+    const warned = isPlainObject(lsp.memoryWarnedRoots) ? lsp.memoryWarnedRoots : {}
+    for (const [key, answer] of Object.entries(warned)) {
+      if (answer !== 'conservative') continue
+      if (rootKey(key) === entry.key) return true
+    }
+    return false
   }
 
   /**
@@ -1142,6 +1503,13 @@ export class LspManager {
          * started later - or restarted after a crash - can be initialized.
          */
         handshake: '',
+        /**
+         * The wake that is currently running (IDLE-02).
+         *
+         * Several payloads can arrive in the same tick, and every one of
+         * them would start a language server: the promise is the fence.
+         */
+        wakePromise: null,
       }
       ROOTS.set(key, entry)
     }
@@ -1186,6 +1554,10 @@ export class LspManager {
    * `cancellable` is computed by the host, because the host owns the
    * `cancelAfterMs` setting: the cancel button appears once the build has
    * been running longer than that (PRD §2.4).
+   *
+   * A restart (`restarting`) is a build as well: the server has to build
+   * the program of the project again, and that takes just as long as the
+   * first build. The cancel button belongs to it, too.
    * @param {object | null} session
    * @returns {{ state: string, progress: string, startedAt?: number, cancellable: boolean }}
    */
@@ -1197,13 +1569,64 @@ export class LspManager {
       : DEFAULT_LSP_SETTINGS.cancelAfterMs
     const startedAt = session?.startedAt ?? null
     const elapsed = startedAt === null ? 0 : this.#now() - startedAt
-    const cancellable = (state === 'starting' || state === 'building') && elapsed >= cancelAfterMs
+    const cancellable = (state === 'starting' || state === 'building' || state === 'restarting') && elapsed >= cancelAfterMs
     return {
       state,
       progress: PROGRESS[state] ?? state,
       startedAt: startedAt ?? undefined,
       cancellable,
     }
+  }
+
+  /**
+   * The memory that the running language servers of this process hold.
+   *
+   * The gate has to know what this process already started (MEM-02): the
+   * free memory of the machine is not free for a *new* server, because the
+   * servers that are already running may still take their whole ceiling.
+   *
+   * THE RESERVATION IS THE CEILING (`memoryLimitMB`), NOT THE MEASURED
+   * FOOTPRINT. This is a deliberate trade-off:
+   *
+   *   - The measured footprint of a TypeScript index is 434 MB (the median
+   *     of the measurement of PRD-v5 §5.2), but the server is told that it
+   *     may use up to `memoryLimitMB` (2 GB by default, and that ceiling
+   *     really reaches the server as `maxTsServerMemory`).
+   *   - The machine has to survive the worst case of every server it runs.
+   *     Reserving the measured footprint would let three servers claim
+   *     1.3 GB on a machine with 4 GB of free memory - and each of them
+   *     may really take its 2 GB, which is a machine that swaps.
+   *   - The price is a stricter gate: on a 16 GB machine with 4 GB of free
+   *     memory the first two indexes are allowed and the third one is
+   *     refused, and on an 8 GB machine with 8 GB of free memory four
+   *     TypeScript indexes are allowed (8 GB reserved, ~1.8 GB measured).
+   *     A user who opens several projects may see the conservative mode
+   *     for the third one. That is the point of the gate: it is better to
+   *     refuse an index than to swap.
+   *
+   * The reservation is given back on every path that ends a session:
+   * `#terminateAndWait`, `#teardownSession` and `#onCrash`.
+   * @returns {number} the reserved memory in bytes
+   */
+  #reservedBytes() {
+    let total = 0
+    for (const session of this.#sessions) {
+      if (session.reservedBytes > 0) total += session.reservedBytes
+    }
+    return total
+  }
+
+  /**
+   * Give the memory of one session back to the machine.
+   *
+   * The reservation has to go away on every path that ends a session, or
+   * the gate refuses the next server because of a server that does not
+   * exist any more.
+   * @param {object | null} session the session
+   */
+  #releaseReservation(session) {
+    if (session === null || session === undefined) return
+    session.reservedBytes = 0
   }
 
   /**
@@ -1217,6 +1640,13 @@ export class LspManager {
    *   free >= hardFloorMB  tight    - the user decides; the host refuses to
    *                                    start the server without `force`
    *   otherwise            too low  - the server degrades
+   *
+   * The free memory that the bands are computed from is the free memory of
+   * the machine MINUS the standby cache (MEM-03: on Windows `os.freemem()`
+   * counts the standby cache as available, and 652 MB of standby are
+   * exactly one medium index) MINUS the memory the servers of this process
+   * have already reserved (MEM-02: the gate has to know what it already
+   * started).
    *
    * The free-memory threshold of the settings is only the conservative
    * fallback: it speaks when no estimate of the language is known, and it
@@ -1247,26 +1677,39 @@ export class LspManager {
     const thresholdBytes = Math.max(hardFloorMB, floorMB) * 1024 * 1024
     const softThresholdBytes = needMB * MEMORY_SOFT_FACTOR * 1024 * 1024
     const hardFloorBytes = hardFloorMB * 1024 * 1024
-    const freeBytes = memory.freeBytes
+    // The standby cache is memory the machine has already given to the file
+    // cache: it may be dropped at any moment, so it is not memory a
+    // language server may use.
+    const standbyBytes = Number.isFinite(memory.standbyBytes) && memory.standbyBytes > 0
+      ? memory.standbyBytes
+      : 0
+    const freeBytes = Math.max(0, memory.freeBytes - standbyBytes)
+    // The servers that are already running hold their memory: it is not
+    // free for the next one.
+    const reservedBytes = this.#reservedBytes()
+    const availableBytes = Math.max(0, freeBytes - reservedBytes)
     // The authoritative answer of the host: what may happen with this
     // snapshot. The client renders it instead of judging the numbers again -
     // two sides that judge the same snapshot differently give the user two
     // different answers.
-    const decision = freeBytes < hardFloorBytes ? 'low' : (freeBytes < softThresholdBytes ? 'tight' : 'ok')
+    const decision = availableBytes < hardFloorBytes ? 'low' : (availableBytes < softThresholdBytes ? 'tight' : 'ok')
     return {
       totalBytes: memory.totalBytes,
       freeBytes,
+      standbyBytes,
+      reservedBytes,
+      availableBytes,
       thresholdBytes,
       memoryLimitMB: limit,
-      canIndex: freeBytes >= thresholdBytes,
+      canIndex: availableBytes >= thresholdBytes,
       needMB,
       baselineMB,
       headroom,
       hardFloorMB,
       // "Tight" is the whole window between the hard floor and the soft
       // factor: the user decides there, the host does not start on its own.
-      tight: freeBytes >= hardFloorBytes && freeBytes < softThresholdBytes,
-      belowHardFloor: freeBytes < hardFloorBytes,
+      tight: availableBytes >= hardFloorBytes && availableBytes < softThresholdBytes,
+      belowHardFloor: availableBytes < hardFloorBytes,
       // 'ok' = the server may start, 'tight' = the user has to decide,
       // 'low' = the machine cannot afford it.
       decision,
@@ -1308,7 +1751,12 @@ export class LspManager {
     if (lsp.enabled === false) {
       throw new ApiError('forbidden', 'semantic analysis is disabled in the settings', 403)
     }
-    const language = languageId ?? detectLanguage(entry.root)
+    // The scope of the program (PRD-v5 §4.2): a workspace root with several
+    // projects in it must not be indexed as one program. The scope root is
+    // the directory the server is started in and the directory the program
+    // is built for.
+    const scopeRoot = scopeRootOf(entry.root, indexScopeOf(lsp))
+    const language = languageId ?? detectLanguage(scopeRoot)
     const registryEntry = LSP_REGISTRY[language]
     if (registryEntry === undefined) {
       throw new ApiError('bad-request', `unknown language "${language}"`)
@@ -1350,6 +1798,23 @@ export class LspManager {
       args,
       memoryLimitMB,
       lsp,
+      /**
+       * The root the program of the project is built for (PRD-v5 §4.2).
+       *
+       * It is the project root itself most of the time, and the nearest
+       * sub-project when the root is a workspace with several projects in
+       * it: the language server would otherwise merge them into one
+       * program (measured: 2,335 files / 84 MB).
+       */
+      scopeRoot,
+      /**
+       * The memory this session has reserved on the machine (bytes).
+       *
+       * The gate subtracts the reservations of the running sessions from
+       * the free memory before it decides (MEM-02). The reservation is
+       * given when the process starts and given back when it goes away.
+       */
+      reservedBytes: 0,
       /**
        * The user asked for the server although the memory was tight.
        *
@@ -1426,6 +1891,7 @@ export class LspManager {
       cancelPromise: null,
       lastActivityAt: this.#now(),
       idleTimer: null,
+      pressureTimer: null,
       watchdogTimer: null,
       readyTimer: null,
       restartTimer: null,
@@ -1437,6 +1903,15 @@ export class LspManager {
        * they were started with and stop when it moved on.
        */
       generation: 0,
+      /**
+       * The generation whose death was already reported (CRASH-01).
+       *
+       * One death arrives twice - the stdout of the dead process ends and
+       * the promise of the process resolves - and the second signal must
+       * not degrade the session: the restart budget is one, and the
+       * duplicate signal spent it before the restart even began.
+       */
+      crashedGeneration: -1,
       /**
        * The identity of the language server process of this session.
        *
@@ -1461,6 +1936,13 @@ export class LspManager {
       processId: previous?.processId ?? 0,
     }
     entry.session = session
+    this.#sessions.add(session)
+    // The clock of the cancel window starts NOW, before the transition into
+    // "starting" (PRD-v5 §2.4): the client shows how long the build has
+    // been running, and the time the process needed to start belongs to
+    // that window.
+    session.startedAt = this.#now()
+    session.lastActivityAt = this.#now()
     this.#transition(session, 'starting', 'starting the language server')
 
     // A language that is switched off in the settings is never started. The
@@ -1500,6 +1982,11 @@ export class LspManager {
     session.resolvedPath = resolution.path
     session.supportsMemoryLimit = resolution.supportsMemoryLimit
 
+    // The documents the new server does not know yet. The payloads that are
+    // replayed below are told to the new server as well, so they must not
+    // be opened twice - a second `didOpen` for the same URI breaks the
+    // protocol (the client does not re-open the documents itself).
+    const announced = new Set(entry.documents.keys())
     try {
       await this.#spawn(entry, session, resolution)
     } catch (error) {
@@ -1513,8 +2000,11 @@ export class LspManager {
     // starting - a cancel does exactly that. The session keeps its state and
     // is not dragged back into a build it has left.
     if (session.state !== 'starting') return session
+    // The documents of the project are announced to the new server. This is
+    // what the wake needs (IDLE-02): the host kept its document table over
+    // the idle exit, and the fresh server knows nothing about them.
+    this.#reopenDocuments(entry, session, announced)
     this.#transition(session, 'building', 'building the program')
-    session.startedAt = this.#now()
     session.lastActivityAt = this.#now()
     this.#armIdleTimer(entry, session)
     this.#armWatchdog(entry, session)
@@ -1606,7 +2096,10 @@ export class LspManager {
       : [resolution.path, ...session.args]
     const spec = {
       argv,
-      cwd: entry.root,
+      // The program is built for the scope root, not for the whole
+      // workspace (PRD-v5 §4.2): the server has to see the project it
+      // indexes and nothing else.
+      cwd: session.scopeRoot ?? entry.root,
       stdio: { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
       graceMs: this.#graceMs,
     }
@@ -1625,6 +2118,13 @@ export class LspManager {
     }
     session.handle = handle
     session.intentionalExit = false
+    // The server is running: it holds memory from now on, and the gate has
+    // to know it (MEM-02). The reservation is the ceiling the server may
+    // use - the machine has to survive the worst case of every server it
+    // runs (see `#reservedBytes`).
+    session.reservedBytes = Number.isFinite(session.memoryLimitMB) && session.memoryLimitMB > 0
+      ? session.memoryLimitMB * 1024 * 1024
+      : 0
     // The new process starts at zero. The requests of the old one will
     // never be answered, and the program of the project is built again -
     // so the first semantic request after a restart is a long one too.
@@ -1783,11 +2283,17 @@ export class LspManager {
       // features (the client counts exactly those answers).
       const id = message.id
       if (typeof id === 'number' || typeof id === 'string') {
+        const semantic = SEMANTIC_METHODS.has(message.method)
         session.pendingRequests.set(id, {
           at: this.#now(),
           handshake: message.handshake === true,
-          semantic: SEMANTIC_METHODS.has(message.method),
+          semantic,
         })
+        // A semantic request that is outstanding means that the server is
+        // building the program of the project (IDLE-04). The idle timer is
+        // cleared: the server must not be released while it does the work
+        // the user is waiting for.
+        if (semantic) this.#clearIdleTimer(session)
       }
       return
     }
@@ -1808,6 +2314,10 @@ export class LspManager {
         if (pending !== undefined && pending.semantic === true) session.realAnswers += 1
         session.pendingRequests.delete(id)
         session.timeouts = 0
+        // The program is built: the idle timer may be armed again (the
+        // server answered a semantic request, so it is not building
+        // anything any more).
+        if (pending !== undefined && pending.semantic === true) this.#touch(entry, session)
       }
       return
     }
@@ -1899,11 +2409,26 @@ export class LspManager {
 
   /**
    * Re-open every document after a restart.
+   *
+   * The client does not re-open the documents itself when the connection is
+   * live again (`lsp-workspace.js`): the host knows the documents and
+   * announces them to the new server. The same is true for the wake after
+   * an idle exit (IDLE-02/IDLE-03): the host kept its document table, and
+   * the fresh server knows nothing about it.
+   *
+   * `announced` is the set of documents that were known *before* the server
+   * was started: those are the ones the new server has to learn about. The
+   * documents that arrived while there was no server are replayed as
+   * payloads and must not be opened a second time - a second `didOpen` for
+   * the same URI breaks the protocol.
    * @param {object} entry the root entry
    * @param {object} session the session
+   * @param {Set<string> | null} [announced] the documents that were known
+   *   before the server was started
    */
-  #reopenDocuments(entry, session) {
+  #reopenDocuments(entry, session, announced = null) {
     for (const document of entry.documents.values()) {
+      if (announced !== null && !announced.has(document.uri)) continue
       this.#sendToServer(session, {
         jsonrpc: '2.0',
         method: 'textDocument/didOpen',
@@ -1951,6 +2476,14 @@ export class LspManager {
     const entry = session.entry
     if (entry !== undefined) {
       this.#notify(entry, { type: 'state', root: entry.root, state: next, detail })
+      // A degradation is a failure the user has to know about, and the
+      // status bar is polled every two seconds: the poll almost never
+      // catches the state itself (`crashed` -> `restarting` -> `degraded`
+      // happens inside one millisecond). The degradation therefore carries
+      // its own event (VIS-04), and the client shows it as a toast.
+      if (next === 'degraded') {
+        this.#notify(entry, { type: 'degraded', root: entry.root, detail })
+      }
     }
   }
 
@@ -2055,6 +2588,24 @@ export class LspManager {
 
   /**
    * Arm the idle timer of one session.
+   *
+   * The policy of the settings decides what happens (PRD-v5 §3.2):
+   *
+   *   - 'never' arms no timer at all: the server stays until the user
+   *     stops it.
+   *   - 'after' arms the timer of `idleTimeoutMs`.
+   *   - 'onMemoryPressure' arms no timer: the server is released when the
+   *     machine runs out of free memory (see `#armPressureTimer`).
+   *
+   * `autoExit: false` still means "never": the documents that were written
+   * before the policy existed keep their meaning.
+   *
+   * The timer is not armed while the program of the project is built
+   * (IDLE-04): the server is busy with the work the user is waiting for,
+   * and killing it would throw that work away. The idle timeout and the
+   * build budget are both ten minutes by default, so they used to fire
+   * together.
+   *
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {number} [delayMs] the delay, when it is not the configured timeout
@@ -2062,12 +2613,77 @@ export class LspManager {
   #armIdleTimer(entry, session, delayMs) {
     this.#clearIdleTimer(session)
     const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
-    if (lsp.autoExit === false) return
+    const policy = idlePolicyOf(lsp)
+    if (policy === 'never') {
+      this.#clearPressureTimer(session)
+      return
+    }
+    if (policy === 'onMemoryPressure') {
+      // No idle timer: the memory of the machine decides when the server
+      // has to go.
+      this.#armPressureTimer(entry, session)
+      return
+    }
+    this.#clearPressureTimer(session)
+    if (isBuildingProgram(session)) return
     const timeout = Number.isFinite(delayMs) ? delayMs : Number(lsp.idleTimeoutMs)
     if (!Number.isFinite(timeout) || timeout <= 0) return
     const timer = setTimeout(() => { this.#onIdle(entry, session, timeout) }, timeout)
     timer.unref?.()
     session.idleTimer = timer
+  }
+
+  /**
+   * Arm the timer that watches the free memory of the machine.
+   *
+   * The policy 'onMemoryPressure' releases the language server when the
+   * machine runs out of memory - not after a fixed time. The check reads
+   * the same memory probe the gate uses, and the interval is short enough
+   * to be useful and long enough to be cheap.
+   * @param {object} entry the root entry
+   * @param {object} session the session
+   */
+  #armPressureTimer(entry, session) {
+    this.#clearPressureTimer(session)
+    const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
+    const configured = Number(lsp.idleTimeoutMs)
+    const interval = Number.isFinite(configured) && configured > 0
+      ? Math.min(PRESSURE_CHECK_MAX_MS, Math.max(PRESSURE_CHECK_MIN_MS, configured))
+      : PRESSURE_CHECK_MAX_MS
+    const timer = setInterval(() => { this.#checkMemoryPressure(entry, session) }, interval)
+    timer.unref?.()
+    session.pressureTimer = timer
+  }
+
+  /**
+   * The memory of the machine dropped below the hard floor.
+   *
+   * The server is released then: the machine needs the memory more than
+   * the project needs the index. The release is not a failure - the server
+   * comes back with the first request (IDLE-02).
+   * @param {object} entry the root entry
+   * @param {object} session the session
+   */
+  #checkMemoryPressure(entry, session) {
+    try {
+      if (entry.session !== session) return
+      if (session.state !== 'ready' && session.state !== 'building') return
+      const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
+      const memory = this.#readMemory()
+      const standbyBytes = Number.isFinite(memory.standbyBytes) && memory.standbyBytes > 0
+        ? memory.standbyBytes
+        : 0
+      const freeBytes = Math.max(0, memory.freeBytes - standbyBytes)
+      const hardFloorMB = Number.isFinite(lsp.memoryHardFloorMB) && lsp.memoryHardFloorMB >= 0
+        ? lsp.memoryHardFloorMB
+        : MEMORY_HARD_FLOOR_MB
+      if (freeBytes >= hardFloorMB * 1024 * 1024) return
+      this.#safely(this.#exitIdle(entry, session, PRESSURE_EXIT_DETAIL), 'the memory pressure release')
+    } catch (error) {
+      // The check runs in an interval: a throw here is an uncaught
+      // exception and would end the DSH host process.
+      this.#ctx?.logger?.warn?.('lsp: the memory pressure check failed: %s', messageOf(error))
+    }
   }
 
   /**
@@ -2088,27 +2704,72 @@ export class LspManager {
   }
 
   /**
-   * Stop the language server because it has been idle for too long.
+   * Stop the language server because it was idle for too long.
+   *
+   * The state becomes `suspended` and not `idle` (VIS-01): the server was
+   * released on purpose, and that is not a failure. The client shows it as
+   * "asleep" and the first request starts the server again (IDLE-02).
    *
    * The `indexedRoots` map is *not* touched: "this root was indexed" stays
    * true even though the server is gone (PRD §2.6).
+   *
+   * The document table of the host is *not* cleared either (IDLE-03): the
+   * documents are still open in the editor of the user, and the wake
+   * re-opens them for the new server. The clients are told that the
+   * documents are closed - their editor state must not change.
    * @param {object} entry the root entry
    * @param {object} session the session
+   * @param {string} [detail] the message shown to the user
    */
-  async #exitIdle(entry, session) {
+  async #exitIdle(entry, session, detail = IDLE_EXIT_DETAIL) {
     if (entry.session !== session) return
-    if (session.state !== 'ready' && session.state !== 'building') return
+    if (session.state !== 'ready' && session.state !== 'building') {
+      // The timer must not be lost (IDLE-05): the session is in a state
+      // that cannot be released right now, so the timer is armed again and
+      // the release happens later. A session that does not run any more
+      // (it is suspended or gone) gets no timer.
+      this.#rearmAfterEarlyExit(entry, session)
+      return
+    }
     session.intentionalExit = true
     this.#writeDidClose(entry, session)
     await this.#terminateAndWait(session)
     // The idle timer is cleared here as well: the session that is going
     // away must not leave a timer behind that fires ten minutes later.
     this.#teardownSession(session)
-    this.#transition(session, 'idle', 'the language server exited after a period of inactivity')
-    for (const uri of this.#forgetDocuments(entry)) {
+    this.#transition(session, 'suspended', detail)
+    // The documents stay in the table of the host (IDLE-03): the wake
+    // re-opens them for the new server. The clients are told that the
+    // documents are closed, so their editor state stays untouched.
+    for (const uri of entry.documents.keys()) {
       this.#notify(entry, { type: 'didClose', uri })
     }
-    this.#notify(entry, { type: 'idle', root: entry.root })
+    this.#notify(entry, { type: 'suspended', root: entry.root, detail })
+  }
+
+  /**
+   * Arm the idle timer again after the idle exit could not release the
+   * session (IDLE-05).
+   *
+   * Without this the timer is gone for ever: `#onIdle` clears it before it
+   * calls the idle exit, and the early return of the exit would leave the
+   * session without one - and the memory of the language server would never
+   * be given back.
+   *
+   * The remaining time keeps the deadline of the release. A session that
+   * has been idle for longer than the timeout gets the whole timeout again:
+   * a delay of zero would be a busy loop.
+   * @param {object} entry the root entry
+   * @param {object} session the session
+   */
+  #rearmAfterEarlyExit(entry, session) {
+    if (entry.session !== session) return
+    if (!['starting', 'building', 'ready', 'restarting'].includes(session.state)) return
+    const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
+    const timeout = Number(lsp.idleTimeoutMs)
+    const elapsed = this.#now() - session.lastActivityAt
+    const remaining = Number.isFinite(timeout) ? timeout - elapsed : 0
+    this.#armIdleTimer(entry, session, remaining > 0 ? remaining : undefined)
   }
 
   /**
@@ -2185,6 +2846,10 @@ export class LspManager {
    * it is reset as soon as the server answers one of them (see
    * `#onWorkerMessage`). The message says "request timeouts" and not
    * "consecutive request timeouts": the counter is not a streak of ticks.
+   *
+   * The reason of the timeout travels with the crash (CRASH-02): the
+   * degradation has to answer "why did it degrade?", and "3 request
+   * timeouts" is a part of that answer.
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {string} reason the reason of the timeout
@@ -2192,23 +2857,61 @@ export class LspManager {
   #noteTimeout(entry, session, reason) {
     session.timeouts += 1
     if (session.timeouts < this.#timeoutLimit) return
-    this.#safely(this.#onCrash(entry, session, `${session.timeouts} request timeouts`), 'the crash handler')
+    this.#safely(this.#onCrash(entry, session, `${session.timeouts} request timeouts (${reason})`), 'the crash handler')
+  }
+
+  /**
+   * The detail of a degraded session (CRASH-02).
+   *
+   * The user asks "why did it degrade?" and the answer has to be in the
+   * detail: the ORIGINAL reason (what killed the server) AND the cause
+   * that ended the recovery (the exhausted budget, the settings, the
+   * memory). A detail that only says "the server was not started again"
+   * cannot answer that question - the status bar tooltip and the
+   * diagnostics panel show the detail and nothing else.
+   * @param {string} reason the original reason
+   * @param {string} cause why the server was not started again
+   * @returns {string}
+   */
+  #degradationDetail(reason, cause) {
+    return `the language server stopped unexpectedly (${reason}); ${cause}, so the semantic analysis is paused`
   }
 
   /**
    * React to a crashed language server.
+   *
+   * One death arrives TWICE: the stdout of the dead process ends first and
+   * the promise of the process resolves a moment later. The second signal
+   * must not degrade the session - the restart budget is one, and the
+   * duplicate signal used to spend it (CRASH-01): the server was killed by
+   * the out-of-memory killer, the restart began, and the duplicate signal
+   * degraded the session before the restart had even started.
+   *
+   * The generation of the process is the fence: a signal that belongs to a
+   * process whose death was already reported is ignored.
+   *
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {string} reason what happened
    */
   async #onCrash(entry, session, reason) {
     if (entry.session !== session) return
+    // A session that is stopped on purpose (an idle release, a cancel, a
+    // shutdown) is not a crash: the process is killed on the way out and its
+    // output stream ends with it.
+    if (session.intentionalExit) return
+    // The crash of this generation was already reported: the signal is a
+    // duplicate and must not change anything (CRASH-01).
+    if (session.crashedGeneration === session.generation) return
+    session.crashedGeneration = session.generation
     const state = session.state
-    if (state === 'cancelled' || state === 'cancelling' || state === 'idle' || state === 'degraded' || state === 'crashed') {
+    if (state === 'cancelled' || state === 'cancelling' || state === 'idle' || state === 'suspended' || state === 'degraded' || state === 'crashed') {
       return
     }
     if (state === 'restarting') {
-      this.#transition(session, 'degraded', `the language server could not be restarted (${reason})`)
+      // The restart really failed: the process died again while the restart
+      // was still pending.
+      this.#transition(session, 'degraded', this.#degradationDetail(reason, 'the automatic restart failed'))
       return
     }
     const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
@@ -2222,6 +2925,8 @@ export class LspManager {
     // new ones, and a session that stays crashed must not keep a watchdog
     // alive.
     this.#teardownSession(session)
+    // The dead process holds no memory any more (MEM-02).
+    this.#releaseReservation(session)
     // The detail is the FACT and not an advice: the reason is known here,
     // but what the user should do about it depends on the reason - and a
     // server that died of a timeout has nothing to do with the memory. The
@@ -2229,11 +2934,11 @@ export class LspManager {
     const detail = `The language server exited unexpectedly (${reason}).`
     this.#notify(entry, { type: 'crash', root: entry.root, detail })
     if (lsp.autoRestart === false) {
-      this.#transition(session, 'degraded', detail)
+      this.#transition(session, 'degraded', this.#degradationDetail(reason, 'the automatic restart is switched off in the settings'))
       return
     }
     if (session.restarts >= 1) {
-      this.#transition(session, 'degraded', `${detail} The automatic restart was already used once, so the server was not started again.`)
+      this.#transition(session, 'degraded', this.#degradationDetail(reason, 'the automatic restart budget (1) is used up'))
       return
     }
     // The memory is checked again before the restart: the crash may well have
@@ -2243,11 +2948,11 @@ export class LspManager {
       const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
       session.resources = resources
       if (resources.belowHardFloor) {
-        this.#transition(session, 'degraded', `The language server exited unexpectedly (${reason}) and there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
+        this.#transition(session, 'degraded', this.#degradationDetail(reason, `there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.availableBytes)} MB available)`))
         return
       }
       if (resources.tight) {
-        this.#transition(session, 'degraded', `The language server exited unexpectedly (${reason}) and the free memory is tight for the restart (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it again to continue, or use the conservative mode.`)
+        this.#transition(session, 'degraded', this.#degradationDetail(reason, `the free memory is tight for the restart (${toMb(resources.availableBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended)`))
         return
       }
     }
@@ -2279,6 +2984,9 @@ export class LspManager {
         return
       }
     }
+    // The documents the new server does not know yet (see
+    // `#reopenDocuments`).
+    const announced = new Set(entry.documents.keys())
     try {
       await this.#spawn(entry, session, session.resolution)
     } catch (error) {
@@ -2293,7 +3001,7 @@ export class LspManager {
     this.#transition(session, 'building', 'building the program')
     session.startedAt = this.#now()
     session.lastActivityAt = this.#now()
-    this.#reopenDocuments(entry, session)
+    this.#reopenDocuments(entry, session, announced)
     this.#armIdleTimer(entry, session)
     this.#armWatchdog(entry, session)
   }
@@ -2305,6 +3013,10 @@ export class LspManager {
   async #terminateAndWait(session) {
     const handle = session.handle
     if (handle === undefined || handle === null) return
+    // The memory of the session is given back as soon as the process is on
+    // its way out: the gate must not refuse the next server because of a
+    // server that is already gone (MEM-02).
+    this.#releaseReservation(session)
     // The handle is cleared BEFORE the process is terminated: a frame that
     // is still on its way (the frame worker is a thread - it answers in a
     // later turn of the event loop) would otherwise be written into the
@@ -2352,7 +3064,12 @@ export class LspManager {
    */
   #teardownSession(session) {
     if (session === null || session === undefined) return
+    // The session is gone: it must not be counted by the memory gate any
+    // more (MEM-02).
+    this.#sessions.delete(session)
+    this.#releaseReservation(session)
     this.#clearIdleTimer(session)
+    this.#clearPressureTimer(session)
     this.#clearWatchdog(session)
     if (session.readyTimer !== null) {
       clearTimeout(session.readyTimer)
@@ -2373,6 +3090,17 @@ export class LspManager {
     if (session.idleTimer !== null) {
       clearTimeout(session.idleTimer)
       session.idleTimer = null
+    }
+  }
+
+  /**
+   * Clear the memory pressure timer of one session.
+   * @param {object} session the session
+   */
+  #clearPressureTimer(session) {
+    if (session.pressureTimer !== null && session.pressureTimer !== undefined) {
+      clearInterval(session.pressureTimer)
+      session.pressureTimer = null
     }
   }
 
@@ -2477,6 +3205,10 @@ export function shutdownAll() {
     if (session.idleTimer !== null) {
       clearTimeout(session.idleTimer)
       session.idleTimer = null
+    }
+    if (session.pressureTimer !== null && session.pressureTimer !== undefined) {
+      clearInterval(session.pressureTimer)
+      session.pressureTimer = null
     }
     if (session.watchdogTimer !== null) {
       clearInterval(session.watchdogTimer)

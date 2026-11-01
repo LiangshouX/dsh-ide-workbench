@@ -9,10 +9,10 @@ import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { ApiError } from './wire.js'
-import { DEFAULT_LSP_SETTINGS } from './settings-defaults.js'
+import { DEFAULT_LSP_SETTINGS, IDLE_POLICIES, INDEX_SCOPES } from './settings-defaults.js'
 
 /** The settings schema version this build writes. */
-export const SETTINGS_VERSION = 4
+export const SETTINGS_VERSION = 5
 
 /**
  * The free-memory threshold of the documents written before schema 4.
@@ -194,7 +194,7 @@ export function migrateLegacyShortcuts(value) {
 }
 
 /**
- * Fill in the `lsp` section of a document written before schema 4.
+ * Fill in the `lsp` section of a document written before schema 4 or 5.
  *
  * The migration only touches the `lsp` section: every other setting the user
  * made survives untouched, which is the whole point of the schema bump. A
@@ -206,6 +206,10 @@ export function migrateLegacyShortcuts(value) {
  * conservative fallback now (PRD §4.4). A document that still carries the old
  * default would keep that gate alive, so the exact legacy value is rewritten.
  * A value the user chose is never touched.
+ *
+ * Schema 5 added the idle policy and the index scope. A document that does
+ * not carry them keeps the behaviour it had: the server is released after
+ * the idle timeout, and the program is built for the whole root.
  * @param {any} value the merged settings document
  * @returns {any} the same document, migrated in place
  */
@@ -227,6 +231,18 @@ export function migrateLspSettings(value) {
   }
   if (!Number.isSafeInteger(migrated.memoryHardFloorMB) || migrated.memoryHardFloorMB < 0) {
     migrated.memoryHardFloorMB = DEFAULT_SETTINGS.lsp.memoryHardFloorMB
+  }
+  // The idle policy of schema 5: a document that does not carry one (or
+  // carries a value this build does not know) keeps the behaviour of
+  // schema 4 - the server is released after the idle timeout. A value the
+  // user chose is never touched.
+  if (!IDLE_POLICIES.includes(migrated.idlePolicy)) {
+    migrated.idlePolicy = DEFAULT_SETTINGS.lsp.idlePolicy
+  }
+  // The index scope of schema 5: the same rule - an unknown value falls
+  // back to the conservative default.
+  if (!INDEX_SCOPES.includes(migrated.indexScope)) {
+    migrated.indexScope = DEFAULT_SETTINGS.lsp.indexScope
   }
   value.lsp = migrated
   return value

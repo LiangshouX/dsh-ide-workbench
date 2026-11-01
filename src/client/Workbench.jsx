@@ -312,6 +312,120 @@ export const LSP_UNSTABLE_FAILURES = 3
 export const LSP_UNSTABLE_TIMEOUTS = 2
 
 /**
+ * The two numbers of a waited time.
+ *
+ * The status text of a session that is coming up has to say how long the
+ * user has been waiting: a bare "starting…" looked like a hang, because
+ * the client froze on it for ten minutes (PRD-v5 §2.4).
+ *
+ * @param {number} elapsedMs the milliseconds since the session started
+ * @returns {{minutes: number, seconds: number}} the two numbers
+ */
+export function waitedFor(elapsedMs) {
+  const value = Number.isFinite(elapsedMs) ? elapsedMs : 0
+  const total = Math.max(0, Math.floor(value / 1000))
+  return { minutes: Math.floor(total / 60), seconds: total % 60 }
+}
+
+/**
+ * A waited time as one readable string.
+ *
+ * The units belong to the language of the interface, so they are a parameter
+ * and not a constant: "2 min 14 s" and "2 分 14 秒" say the same thing.
+ *
+ * @param {number} minutes the whole minutes
+ * @param {number} seconds the seconds left
+ * @param {'en'|'zh'} [locale] the language of the units
+ * @returns {string} "2 min 14 s" / "2 分 14 秒"
+ */
+export function formatWaited(minutes, seconds, locale = 'en') {
+  return locale === 'zh'
+    ? `${minutes} 分 ${seconds} 秒`
+    : `${minutes} min ${seconds} s`
+}
+
+/**
+ * Whether a translated text is Chinese.
+ *
+ * The store does not carry the locale of the interface, but the text does:
+ * the Chinese table is Chinese. The status item only needs it to pick the
+ * units of the waited time.
+ *
+ * @param {string} text a translated text
+ * @returns {boolean} true for a Chinese text
+ */
+function isChineseText(text) {
+  return /[\u3400-\u9fff]/.test(typeof text === 'string' ? text : '')
+}
+
+/**
+ * Whether the status bar offers the rebuild button.
+ *
+ * The conservative mode has no way back on its own: the rebuild button is
+ * the difference between "the feature is gone" and "the feature is one
+ * click away". A server that was released (`idle`, `suspended`) is
+ * recoverable, so the button belongs to those states too (PRD-v5 §1.4).
+ *
+ * @param {string} viewKey the key of the status view
+ * @param {object} [lsp] the `lsp` slice of the state
+ * @returns {boolean} true when the button is shown
+ */
+export function showRebuildButton(viewKey, lsp = {}) {
+  if (lsp.rebuilding === true) return false
+  return ['degraded', 'failed', 'cancelled', 'idle', 'suspended'].includes(viewKey)
+}
+
+/**
+ * Whether the status bar offers the cancel button.
+ *
+ * The host can cancel a build that is still starting or restarting, so the
+ * button belongs to those states as well - the UI used to withhold a
+ * capability the host already had (PRD-v5 §2.4).
+ *
+ * @param {string} viewKey the key of the status view
+ * @param {boolean} cancellable whether the host says the build may be cancelled
+ * @returns {boolean} true when the button is shown
+ */
+export function showCancelButton(viewKey, cancellable) {
+  return cancellable === true && ['building', 'starting', 'restarting'].includes(viewKey)
+}
+
+/**
+ * The three numbers of the memory row of the diagnostics panel.
+ *
+ * "Available" is the memory a new language server may really use - the free
+ * memory of the machine minus what the running servers have reserved. It is
+ * the number the host judges the start by, so it is the number the panel has
+ * to show: the free memory of the machine alone would say "plenty of memory"
+ * while the gate says "tight".
+ *
+ * "Needs" is what the next server would take, and "Reserved" is what the
+ * running servers have claimed - their ceiling, not the memory they actually
+ * use. The reservation is only shown when there is one: a row that always
+ * says "reserved 0 MB" is noise.
+ *
+ * The helper is exported so the numbers can be asserted without mounting the
+ * whole dialog.
+ *
+ * @param {{t: (key: string) => string}} store the workbench store
+ * @param {object | null} resources the memory snapshot of the host
+ * @returns {{availableMB: number|null, needMB: number|null, reservedMB: number, text: string}}
+ */
+export function memoryFacts(store, resources) {
+  const t = store.t
+  if (resources === null || resources === undefined) {
+    return { availableMB: null, needMB: null, reservedMB: 0, text: '—' }
+  }
+  const mib = 1024 * 1024
+  const availableMB = Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / mib)
+  const needMB = Math.round(resources.needMB ?? 0)
+  const reservedMB = Math.round((resources.reservedBytes ?? 0) / mib)
+  const text = `${t('lsp.diagnostics.memoryAvailable')} ${availableMB} MB · ${t('lsp.diagnostics.memoryNeed')} ${needMB} MB`
+    + (reservedMB > 0 ? ` · ${t('lsp.diagnostics.memoryReserved')} ${reservedMB} MB` : '')
+  return { availableMB, needMB, reservedMB, text }
+}
+
+/**
  * The semantic-analysis status of the workbench (PRD-v5 §4.3).
  *
  * The host owns the state machine; this only maps it to a label, a tone and
@@ -337,6 +451,13 @@ export function lspStatusView(store, state) {
   const current = typeof lsp.state === 'string' && lsp.state !== '' ? lsp.state : 'idle'
   const detail = typeof lsp.detail === 'string' ? lsp.detail : ''
   const base = { title: t('lsp.statusTitle'), detail, action: null }
+  // A poll that failed leaves the client with a value that may be minutes
+  // old. Showing that value is exactly what made the status bar lie - it
+  // froze on "starting" long after the host was gone - so the stale flag
+  // wins over every other state (PRD-v5 §2.3).
+  if (state?.lspStatusStale === true) {
+    return { ...base, key: 'unknown', text: t('lsp.status.unknown'), tone: 'idle' }
+  }
   if (settingsLsp.enabled === false || lsp.enabled === false || current === 'disabled') {
     return { ...base, key: 'disabled', text: t('lsp.status.disabled'), tone: 'idle' }
   }
@@ -364,8 +485,31 @@ export function lspStatusView(store, state) {
   const timeouts = Number.isFinite(lsp.consecutiveTimeouts) ? lsp.consecutiveTimeouts : 0
   switch (current) {
     case 'starting':
-    case 'restarting':
-      return { ...base, key: current, text: t('lsp.status.starting'), tone: 'idle' }
+    case 'restarting': {
+      // The host stamps the start of the session *before* it moves to
+      // "starting", so the elapsed time is real while the server comes up
+      // (PRD-v5 §2.4).
+      const startedAt = typeof lsp.startedAt === 'number' && lsp.startedAt > 0 ? lsp.startedAt : 0
+      if (startedAt === 0) {
+        // Without a start time there is nothing to count: the plain text
+        // says what the host is doing.
+        const plain = current === 'starting' ? t('lsp.status.starting') : t('lsp.status.restarting')
+        return { ...base, key: current, text: plain, tone: 'idle' }
+      }
+      const waited = waitedFor(Date.now() - startedAt)
+      const template = current === 'starting' ? t('lsp.status.startingWait') : t('lsp.status.restartingWait')
+      return {
+        ...base,
+        key: current,
+        text: interpolate(template, { minutes: waited.minutes, seconds: waited.seconds }),
+        tone: 'idle',
+        // The tooltip says how long the user waits when the host says
+        // nothing about it.
+        detail: base.detail === ''
+          ? formatWaited(waited.minutes, waited.seconds, isChineseText(template) ? 'zh' : 'en')
+          : base.detail,
+      }
+    }
     case 'building':
       return { ...base, key: 'building', text: t('lsp.status.building'), tone: 'warn' }
     case 'cancelling':
@@ -413,10 +557,22 @@ export function lspStatusView(store, state) {
       // semantic features were gone.
       return { ...base, key: 'degraded', text: t('lsp.status.degraded'), tone: 'warn', action: 'diagnostics' }
     case 'failed':
-      return { ...base, key: 'failed', text: t('lsp.status.degraded'), tone: 'warn', action: 'diagnostics' }
+      // The server could not be started at all: that is a fault, and it has
+      // to look like one - a red dot, not the quiet yellow of the basic mode.
+      return { ...base, key: 'failed', text: t('lsp.status.failed'), tone: 'error', action: 'diagnostics' }
+    case 'idle':
+      // No server runs at all. Nothing is broken: the workbench is in its
+      // basic mode and says so.
+      return { ...base, key: 'idle', text: t('lsp.status.idle'), tone: 'idle', action: 'diagnostics' }
+    case 'suspended':
+      // The host released the server to give the memory back (PRD-v5 §1.2).
+      // That is a deliberate act and not a fault: a grey dot, and the
+      // rebuild button right next to it.
+      return { ...base, key: 'suspended', text: t('lsp.status.suspended'), tone: 'idle', action: 'diagnostics' }
     default:
-      // No server runs: the workbench is in its conservative mode.
-      return { ...base, key: 'idle', text: t('lsp.status.degraded'), tone: 'warn', action: 'diagnostics' }
+      // An unknown state is treated like an idle one: the workbench keeps
+      // its basic mode, and nothing pretends that something broke.
+      return { ...base, key: 'idle', text: t('lsp.status.idle'), tone: 'idle', action: 'diagnostics' }
   }
 }
 
@@ -439,13 +595,12 @@ function LspStatus({ store, state, onOpenSettings, onOpenDiagnostics }) {
   const startedAt = typeof lsp.startedAt === 'number' ? lsp.startedAt : 0
   const cancellable = lsp.cancellable === true
     || (startedAt > 0 && Date.now() - startedAt > cancelAfter)
-  const showCancel = view.key === 'building' && cancellable
+  const showCancel = showCancelButton(view.key, cancellable)
   // The conservative mode has no way back on its own: the rebuild button is
   // the difference between "the feature is gone" and "the feature is one
-  // click away". A project that never had a server keeps the clean status
-  // bar - its way in is the diagnostics panel.
-  const showRebuild = lsp.rebuilding !== true
-    && (view.key === 'degraded' || view.key === 'failed' || view.key === 'cancelled')
+  // click away". A released server (idle, suspended) is recoverable, so it
+  // gets the same button (PRD-v5 §1.4).
+  const showRebuild = showRebuildButton(view.key, lsp)
   const tone = view.tone === 'ok' ? ' iwb-lsp-status-ready'
     : (view.tone === 'warn' ? ' iwb-lsp-status-warn' : (view.tone === 'error' ? ' iwb-lsp-status-error' : ' iwb-lsp-status-muted'))
   const title = view.detail === '' ? view.title : `${view.title} — ${view.detail}`
@@ -871,8 +1026,9 @@ function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
   const timeouts = Number.isFinite(lsp.consecutiveTimeouts) ? lsp.consecutiveTimeouts : 0
   const lastFailure = lsp.lastFailure ?? null
   const view = lspStatusView(store, state)
-  const freeMB = resources === null ? null : Math.round((resources.freeBytes ?? 0) / (1024 * 1024))
-  const needMB = resources === null ? null : Math.round(resources.needMB ?? 0)
+  // The three numbers of the memory row: what is available, what the next
+  // server needs, and what the running servers have reserved.
+  const memoryText = memoryFacts(store, resources).text
   return React.createElement('div', {
     className: 'iwb-modal-backdrop',
     onMouseDown: event => { if (event.target === event.currentTarget) onClose() },
@@ -909,9 +1065,7 @@ function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
         ),
         React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
           React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.memory')),
-          React.createElement('span', { className: 'iwb-lsp-diagnostics-value' },
-            freeMB === null ? '—' : `${freeMB} MB / ${needMB} MB`,
-          ),
+          React.createElement('span', { className: 'iwb-lsp-diagnostics-value', title: t('lsp.diagnostics.memoryHint') }, memoryText),
         ),
         React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
           React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.stderr')),

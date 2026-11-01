@@ -40,9 +40,9 @@ test('the threshold comes from the estimate, not from the conservative fallback'
     readMemory: () => ({ totalBytes: 16 * 1024 * MB, freeBytes: 8 * 1024 * MB }),
   })
   const resources = await manager.resources({ root: rootOf('threshold') })
-  // TypeScript: a 256 MB baseline times the 1.5 headroom factor.
-  assert.equal(resources.needMB, 384)
-  assert.equal(resources.thresholdBytes, 384 * MB)
+  // TypeScript: the measured 434 MB index baseline times the 1.5 headroom.
+  assert.equal(resources.needMB, 651)
+  assert.equal(resources.thresholdBytes, 651 * MB)
   assert.equal(resources.memoryLimitMB, 512)
   assert.equal(resources.canIndex, true)
 })
@@ -53,7 +53,7 @@ test('the memory limit is a ceiling, not a floor', async () => {
     readMemory: () => ({ totalBytes: 16 * 1024 * MB, freeBytes: 4 * 1024 * MB }),
   })
   const resources = await manager.resources({ root: rootOf('limit') })
-  assert.equal(resources.thresholdBytes, 384 * MB)
+  assert.equal(resources.thresholdBytes, 651 * MB)
   assert.equal(resources.canIndex, true)
 })
 
@@ -69,7 +69,7 @@ test('a language server is not started when the memory is not enough', async () 
   const status = await manager.status({ root })
   assert.equal(status.state, 'degraded')
   assert.match(status.detail, /100 MB/, 'the detail names the free memory')
-  assert.match(status.detail, /384 MB/, 'the detail names the memory that is needed')
+  assert.match(status.detail, /651 MB/, 'the detail names the memory that is needed')
 })
 
 test('a language server is started when the memory is enough', async () => {

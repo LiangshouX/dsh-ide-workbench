@@ -33,9 +33,10 @@ async function withProfile(document, run) {
   }
 }
 
-test('the settings schema is version 4', () => {
-  assert.equal(SETTINGS_VERSION, 4)
-  assert.equal(DEFAULT_SETTINGS.version, 4)
+test('the settings schema is version 5', () => {
+  // Schema 5 carries the idle policy of the semantic analysis (PRD-v5 §3.2).
+  assert.equal(SETTINGS_VERSION, 5)
+  assert.equal(DEFAULT_SETTINGS.version, 5)
 })
 
 test('the lsp section carries the PRD-v5 defaults', () => {
@@ -48,6 +49,9 @@ test('the lsp section carries the PRD-v5 defaults', () => {
   assert.equal(lsp.memoryHeadroom, 1.5)
   assert.equal(lsp.memoryHardFloorMB, 256)
   assert.equal(lsp.idleTimeoutMs, 600000)
+  // The idle policy of schema 5: the server is released after the idle
+  // timeout, exactly as it was in schema 4.
+  assert.equal(lsp.idlePolicy, 'after')
   assert.equal(lsp.cancelAfterMs, 60000)
   assert.equal(lsp.autoExit, true)
   assert.equal(lsp.autoRestart, true)
@@ -101,7 +105,7 @@ test('a schema 2 document without an lsp section keeps every other setting', asy
   }, async () => {
     const store = new SettingsStore()
     const value = await store.get()
-    assert.equal(value.version, 4)
+    assert.equal(value.version, 5)
     // The old settings survived.
     assert.equal(value.lastRoot, 'D:\\Code\\keep-me')
     assert.equal(value.git.path, 'C:\\git\\bin\\git.exe')
@@ -109,11 +113,48 @@ test('a schema 2 document without an lsp section keeps every other setting', asy
     // The lsp section was filled in from the defaults.
     assert.equal(value.lsp.enabled, true)
     assert.equal(value.lsp.requestTimeoutMs, 30000)
+    // The idle policy of schema 5 is the behaviour of schema 4: the server
+    // is released after the idle timeout.
+    assert.equal(value.lsp.idlePolicy, 'after')
     assert.deepEqual(value.lsp.indexedRoots, {})
     // The new shortcuts were added without losing the old ones.
     assert.equal(value.shortcuts.findUsages, 'Alt+F7')
     assert.equal(value.shortcuts.rename, 'F2')
   })
+})
+
+test('a document of schema 4 gains the idle policy of schema 5', async () => {
+  await withProfile({
+    version: 4,
+    lastRoot: 'D:\\Code\\keep-me',
+    lsp: { enabled: false, idleTimeoutMs: 120000 },
+  }, async () => {
+    const store = new SettingsStore()
+    const value = await store.get()
+    assert.equal(value.version, 5)
+    // The policy of schema 4 is the default of schema 5: the server is
+    // released after the idle timeout.
+    assert.equal(value.lsp.idlePolicy, 'after')
+    // The rest of the document survived the migration.
+    assert.equal(value.lsp.enabled, false)
+    assert.equal(value.lsp.idleTimeoutMs, 120000)
+    assert.equal(value.lastRoot, 'D:\\Code\\keep-me')
+  })
+})
+
+test('the migration keeps an idle policy the user chose', () => {
+  const value = { lsp: { idlePolicy: 'never' } }
+  migrateLspSettings(value)
+  assert.equal(value.lsp.idlePolicy, 'never')
+  const memory = { lsp: { idlePolicy: 'onMemoryPressure' } }
+  migrateLspSettings(memory)
+  assert.equal(memory.lsp.idlePolicy, 'onMemoryPressure')
+})
+
+test('the migration repairs an idle policy this build does not know', () => {
+  const value = { lsp: { idlePolicy: 'sometimes' } }
+  migrateLspSettings(value)
+  assert.equal(value.lsp.idlePolicy, 'after')
 })
 
 test('a schema 2 document is backed up before the migration', async () => {
