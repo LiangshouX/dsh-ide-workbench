@@ -291,10 +291,15 @@ export function migrateLspSettings(value) {
  * One settings document for the lifetime of the plugin fiber.
  */
 export class SettingsStore {
-  constructor() {
+  /**
+   * @param {any} [ctx] the context of the host; it carries the logger of
+   *   the plugin, which takes the warning of a write that failed
+   */
+  constructor(ctx = null) {
     this.value = DEFAULT_SETTINGS
     this.ready = null
     this.pending = Promise.resolve()
+    this.ctx = ctx ?? null
   }
 
   /** Load (once) and return the current document. */
@@ -303,6 +308,13 @@ export class SettingsStore {
     return this.ready
   }
 
+  /**
+   * Read the document of the profile, migrate it and keep it in the memory.
+   *
+   * A document that cannot be read is not a reason to refuse the work: the
+   * defaults are a working state, and the next write replaces the file.
+   * @returns {Promise<object>} the document of the profile
+   */
   async #load() {
     try {
       const text = await readFile(settingsFile(), 'utf8')
@@ -325,7 +337,25 @@ export class SettingsStore {
     return this.value
   }
 
-  /** Merge one patch and persist atomically (serialized). */
+  /**
+   * Merge one patch and persist it (serialized).
+   *
+   * The patch is merged onto the value of the LAST SUCCESSFUL write, and the
+   * new value is committed to the memory only after the file is on the disk.
+   * The other order - merge into the memory, then write - lets the memory be
+   * newer than the disk when the write fails: the host would act on a
+   * decision the file does not know, the client would believe that its
+   * decision was saved, and the next start of DSH would silently undo it.
+   *
+   * A failed write rejects. The caller - the client - has to learn that its
+   * decision was lost, so that it can roll its own state back; a write that
+   * fails quietly is the one failure the user never hears about.
+   *
+   * The queue of the writes survives a failure: the next write is chained
+   * onto a promise that resolves, not onto the rejection of this one.
+   * @param {object} patch the settings to merge into the document
+   * @returns {Promise<object>} the committed document
+   */
   async update(patch) {
     for (const ide of ['idea', 'webstorm', 'vscode']) {
       if (Object.hasOwn(patch, ide)) {
@@ -336,18 +366,65 @@ export class SettingsStore {
       }
     }
     await this.get()
-    this.value = deepMerge(this.value, patch)
-    const snapshot = structuredClone(this.value)
-    this.pending = this.pending.then(() => this.#write(snapshot)).catch(() => {})
-    await this.pending
+    // The patch is merged when its turn comes, and not before: the merge has
+    // to see the result of the writes that came before it, and a write that
+    // failed must not leave a value behind that the next one would build on.
+    const written = this.pending.then(async () => {
+      const next = deepMerge(this.value, patch)
+      await this.#write(structuredClone(next))
+      // The disk has the value now: the memory may follow.
+      this.value = next
+    })
+    // The queue must survive the failure: the next write is chained onto a
+    // promise that resolves. The rejection itself goes to the caller below.
+    this.pending = written.catch(() => {})
+    try {
+      await written
+    } catch (error) {
+      this.#reportWriteFailure(error)
+      throw error
+    }
     return this.value
   }
 
+  /**
+   * Write the document to the file of the profile, atomically.
+   *
+   * The document goes into a temporary file first and is renamed afterwards:
+   * a crash in the middle of the write may not leave a half-written settings
+   * document behind - the plugin would read it as a broken one and lose
+   * everything the user had configured.
+   * @param {object} snapshot the document to write
+   */
   async #write(snapshot) {
     const file = settingsFile()
     await mkdir(dirname(file), { recursive: true })
     const temp = `${file}.${process.pid}.tmp`
     await writeFile(temp, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8')
     await rename(temp, file)
+  }
+
+  /**
+   * Write a line into the log of the host.
+   *
+   * The settings document is the only durable place of the decisions of the
+   * user, so a write that fails has to leave a trace: without it the failure
+   * is silent in three places at once - the store, the route and the client.
+   *
+   * The store is built before the fiber is mounted, so the logger of the
+   * plugin is not always at hand: the warning goes to the console of the
+   * host process when there is no context, and to the log of the plugin when
+   * there is one.
+   * @param {unknown} error the error of the write
+   */
+  #reportWriteFailure(error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    try {
+      if (typeof this.ctx?.logger?.warn === 'function') {
+        this.ctx.logger.warn('dsh-ide-workbench: the settings document could not be written: %s', reason)
+        return
+      }
+      console.warn(`dsh-ide-workbench: the settings document could not be written: ${reason}`)
+    } catch { /* a broken logger may not take the host down */ }
   }
 }

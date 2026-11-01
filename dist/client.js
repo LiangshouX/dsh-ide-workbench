@@ -31902,6 +31902,11 @@ var en = {
   "lsp.diagnostics.memoryWorstCase": "Worst case",
   "lsp.diagnostics.memoryWorstText": "If this server takes its ceiling of {ceiling} MB, the machine will be left with {left} MB.",
   "lsp.diagnostics.memoryWorstHint": "The worst case: what the machine would be left with if the next language server grew into the ceiling it was granted. The number may be negative - that is the point of the row.",
+  // The pressure margin: the memory the machine has left when the running
+  // language servers are charged with their CONFIRMED footprint. It is the
+  // number the pressure valve works with, and it is smaller than the
+  // accounting above whenever a server may still grow.
+  "lsp.diagnostics.memorySafeAvailable": "Pressure margin",
   "lsp.diagnostics.rebuild": "Rebuild the index",
   "lsp.diagnostics.degrade": "Use the basic mode",
   "lsp.diagnostics.degradeHint": "Stop the language server and keep the basic mode (local completion and text search)",
@@ -32556,6 +32561,8 @@ var zh = {
   "lsp.diagnostics.memoryWorstCase": "\u6700\u574F\u60C5\u51B5",
   "lsp.diagnostics.memoryWorstText": "\u82E5\u8BE5\u670D\u52A1\u5668\u5403\u5230\u4E0A\u9650 {ceiling} MB\uFF0C\u673A\u5668\u5C06\u5269 {left} MB\u3002",
   "lsp.diagnostics.memoryWorstHint": "\u6700\u574F\u60C5\u51B5\uFF1A\u82E5\u4E0B\u4E00\u53F0\u8BED\u8A00\u670D\u52A1\u5668\u957F\u5230\u5B83\u88AB\u6388\u4E88\u7684\u4E0A\u9650\uFF0C\u673A\u5668\u5C06\u5269\u4E0B\u591A\u5C11\u5185\u5B58\u3002\u8BE5\u6570\u53EF\u80FD\u4E3A\u8D1F \u2014\u2014 \u8FD9\u6B63\u662F\u8FD9\u4E00\u884C\u7684\u610F\u4E49\u3002",
+  // 压力余量：按「确认过的占用」算出来的可用内存，比上面的账面口径更保守。
+  "lsp.diagnostics.memorySafeAvailable": "\u538B\u529B\u4F59\u91CF",
   "lsp.diagnostics.rebuild": "\u91CD\u65B0\u5EFA\u7ACB\u7D22\u5F15",
   "lsp.diagnostics.degrade": "\u4F7F\u7528\u57FA\u7840\u6A21\u5F0F",
   "lsp.diagnostics.degradeHint": "\u505C\u6B62\u8BED\u8A00\u670D\u52A1\u5668\uFF0C\u4FDD\u6301\u57FA\u7840\u6A21\u5F0F\uFF08\u672C\u5730\u8865\u5168 + \u6587\u672C\u67E5\u627E\uFF09",
@@ -39924,11 +39931,17 @@ var WorkbenchStore = class {
    * then keeps the basic mode while the user wonders why the button does
    * nothing, and nothing was written down (review N5).
    *
-   * So a failed write takes the change back: the section as it was before the
-   * change goes back into the store - a `set` wakes the subscribers, so the
-   * client session re-reads the decision and agrees with the host again - and
-   * the failure is logged. A silent inconsistency is worse than a visible
-   * failure.
+   * So a failed write takes the change back - and the rollback touches the
+   * maps of THIS write and nothing else. The whole section would take the
+   * changes of another round trip with it: the settings page moved the
+   * budget share while this write was in flight, and the user would see
+   * their own change disappear (review R3). A map that was not there before
+   * the write is removed again - the host does not know it either.
+   *
+   * The rollback still goes through a `set`, so the subscribers are woken
+   * and the client session re-reads the decision and agrees with the host
+   * again. The failure is logged: a silent inconsistency is worse than a
+   * visible failure.
    *
    * Both writes of the memory of the user go through this helper: the
    * workspace-scoped default and the memory answer are ONE decision in two
@@ -39944,7 +39957,16 @@ var WorkbenchStore = class {
     this.set({ settings: { ...this.state.settings, lsp: { ...lsp, ...patch } } });
     void call2("settings.update", { patch: { lsp: patch } }).catch((error) => {
       console.warn("[lsp] the settings of the semantic analysis could not be written:", error instanceof Error ? error.message : error);
-      this.set({ settings: { ...this.state.settings, lsp: previous ?? {} } });
+      const current = this.state.settings?.lsp ?? {};
+      const restored = { ...current };
+      for (const key of Object.keys(patch)) {
+        if (previous !== null && previous !== void 0 && Object.hasOwn(previous, key)) {
+          restored[key] = previous[key];
+          continue;
+        }
+        delete restored[key];
+      }
+      this.set({ settings: { ...this.state.settings, lsp: restored } });
     });
   }
   /**
@@ -40842,7 +40864,7 @@ var WorkbenchStore = class {
     };
     const resources = status.resources ?? null;
     const known = this.state.lsp.resources ?? null;
-    const memoryChanged = resources === null ? false : known === null || megabytesOf(known.availableBytes) !== megabytesOf(resources.availableBytes) || megabytesOf(known.reservedBytes) !== megabytesOf(resources.reservedBytes) || megabytesOf(known.measuredBytes) !== megabytesOf(resources.measuredBytes) || megabytesOf(known.worstCaseBytes) !== megabytesOf(resources.worstCaseBytes) || megabytesOf(known.budgetUsedBytes) !== megabytesOf(resources.budgetUsedBytes) || known.needMB !== resources.needMB || known.canIndex !== resources.canIndex || known.tight !== resources.tight;
+    const memoryChanged = resources === null ? false : known === null || megabytesOf(known.availableBytes) !== megabytesOf(resources.availableBytes) || megabytesOf(known.reservedBytes) !== megabytesOf(resources.reservedBytes) || megabytesOf(known.measuredBytes) !== megabytesOf(resources.measuredBytes) || megabytesOf(known.worstCaseBytes) !== megabytesOf(resources.worstCaseBytes) || megabytesOf(known.budgetUsedBytes) !== megabytesOf(resources.budgetUsedBytes) || megabytesOf(known.safeAvailableBytes) !== megabytesOf(resources.safeAvailableBytes) || known.needMB !== resources.needMB || known.canIndex !== resources.canIndex || known.tight !== resources.tight;
     if (memoryChanged) next.resources = resources;
     if (LSP_INDEX_STATES.includes(next.state)) {
       const index = await this.#lspIndex(root);
@@ -62437,7 +62459,7 @@ function showCancelButton(hostState, cancellable) {
 function memoryFacts(store, resources) {
   const t2 = store.t;
   if (resources === null || resources === void 0) {
-    return { availableMB: null, needMB: null, reservedMB: 0, text: "\u2014", worstMB: null, worstText: "" };
+    return { availableMB: null, needMB: null, reservedMB: 0, text: "\u2014", worstMB: null, worstText: "", safeAvailableMB: null };
   }
   const mib = 1024 * 1024;
   const availableMB = Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / mib);
@@ -62448,7 +62470,10 @@ function memoryFacts(store, resources) {
   const ceilingMB = Number.isFinite(resources.ceilingMB) ? resources.ceilingMB : null;
   const worstMB = worstBytes === null ? null : Math.round(worstBytes / mib);
   const worstText = worstMB === null || ceilingMB === null ? "" : interpolate5(t2("lsp.diagnostics.memoryWorstText"), { ceiling: ceilingMB, left: worstMB });
-  return { availableMB, needMB, reservedMB, text, worstMB, worstText };
+  const safeBytes = Number.isFinite(resources.safeAvailableBytes) ? resources.safeAvailableBytes : null;
+  const safeMB = safeBytes === null ? null : Math.round(safeBytes / mib);
+  const safeAvailableMB = safeMB !== null && safeMB < availableMB ? safeMB : null;
+  return { availableMB, needMB, reservedMB, text, worstMB, worstText, safeAvailableMB };
 }
 var HOST_CONNECTING_STATES = ["ready", "building"];
 function waitedSince(lsp) {
@@ -63123,6 +63148,17 @@ function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
             className: "iwb-lsp-diagnostics-value",
             title: t2("lsp.diagnostics.memoryWorstHint")
           }, memory.worstText)
+        ),
+        // The pressure margin: the machine has less memory left than the
+        // accounting above suggests, because the running servers may still
+        // grow into their ceiling. It is the number the pressure valve works
+        // with, and it appears only when it is smaller than the accounting
+        // one - otherwise the two rows would say the same thing twice.
+        memory.safeAvailableMB === null ? null : import_react19.default.createElement(
+          "div",
+          { className: "iwb-lsp-diagnostics-row" },
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-key" }, t2("lsp.diagnostics.memorySafeAvailable")),
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-value" }, `${memory.safeAvailableMB} MB`)
         ),
         import_react19.default.createElement(
           "div",

@@ -296,7 +296,9 @@ function indexScopePolicyOf(lsp) {
  * @param {any} ctx cordis host context
  */
 export function apply(ctx) {
-  const settings = new SettingsStore()
+  // The store takes the context: a settings document that cannot be written
+  // has to leave a trace in the log of the plugin (review R3).
+  const settings = new SettingsStore(ctx)
   /** Live terminal handles by session id, for the activity endpoint and unload. */
   const terminals = new Map()
 

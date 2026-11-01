@@ -2598,10 +2598,12 @@ export class LspManager {
    * 606 MB of its 2048 MB ceiling endangers the next server with 1442 MB -
    * and with the old formula it endangered it with 2048 MB.
    *
-   * The measured value is an upper bound of the real footprint (the method
-   * cannot say whose memory the machine lost), so the headroom is a lower
-   * bound: the account is a little too generous, and the pressure valve
-   * (MEM-12) watches the raw free memory as well.
+   * The measured value is an UPPER bound of the real footprint (the method
+   * cannot say whose memory the machine lost), so the headroom is a LOWER
+   * bound of the real headroom: the account is a little too generous. The
+   * pressure valve does NOT use this number - it uses the confirmed one
+   * (`#safeReservedBytes`), which a difference that may belong to another
+   * program cannot inflate (review R1).
    *
    * The reservation is given back on every path that ends a session:
    * `#terminateAndWait`, `#teardownSession` and `#onCrash`.
@@ -2611,6 +2613,38 @@ export class LspManager {
     let total = 0
     for (const session of this.#sessions) {
       if (session.reservedBytes > 0) total += session.reservedBytes
+    }
+    return total
+  }
+
+  /**
+   * The room the running language servers may still take, counted from the
+   * footprint that was CONFIRMED (bytes).
+   *
+   * The account of `#reservedBytes` is built on the measured footprint, and
+   * the periodic re-measurement books every difference of the machine on the
+   * servers - including the part that belonged to another program (MEM-06).
+   * The reservation is therefore too small, and the available memory of the
+   * account is too big: the pressure valve would not fire while the machine
+   * is really out of memory (review R1).
+   *
+   * THIS number is the room of the CONFIRMED footprint: the footprint that
+   * was measured while the server was starting - the one window in which the
+   * server itself was the main cause of the change. It is never inflated by
+   * a difference that may belong to another program, so the margin it leaves
+   * on the machine is the pessimistic one: the valve fires early, and never
+   * late.
+   *
+   * It is never bigger than the room of the account (the confirmed footprint
+   * is never bigger than the measured one), so the valve that watches it
+   * also covers the trigger of the account.
+   * @returns {number} the room in bytes
+   */
+  #safeReservedBytes() {
+    let total = 0
+    for (const session of this.#sessions) {
+      const room = Math.max(0, session.ceilingBytes - session.confirmedBytes)
+      total += room
     }
     return total
   }
@@ -2628,9 +2662,11 @@ export class LspManager {
    * the method measures the drop of the free memory of the machine, and a
    * drop that fits inside the room of the servers may belong to another
    * program. The difference that does NOT fit is never counted, so the
-   * bound is conservative in the direction that matters for the gate (the
-   * reservation stays big), and the pressure valve watches the raw free
-   * memory as well (MEM-12).
+   * bound is one-sided: the measured value is too big, the reservation is
+   * too small, and the account is too generous. The pressure valve does not
+   * use this number - it uses the confirmed footprint of the spawn window
+   * (`#safeReservedBytes`), which no difference of a later round can
+   * inflate (review R1).
    * @returns {number} the measured memory in bytes
    */
   #measuredBytes() {
@@ -2692,6 +2728,8 @@ export class LspManager {
     session.reservedBytes = 0
     // The measurement belongs to the process: it is meaningless without it.
     session.measuredBytes = 0
+    // The confirmed footprint belongs to the process as well.
+    session.confirmedBytes = 0
   }
 
   /**
@@ -2771,6 +2809,13 @@ export class LspManager {
     const measuredBytes = this.#measuredBytes()
     const ceilingBytes = this.#ceilingBytes()
     const availableBytes = Math.max(0, freeBytes - reservedBytes)
+    // The margin the machine really has, counted from the CONFIRMED
+    // footprint of the servers (the spawn window) and not from the measured
+    // one: the difference of a later round may belong to another program,
+    // and the account must not become more optimistic because of it (review
+    // R1). The number is never bigger than the available memory of the
+    // account - it is the pessimistic view of the same machine.
+    const safeAvailableBytes = Math.max(0, freeBytes - this.#safeReservedBytes())
     // The worst band: the machine, if the new server grows to its ceiling.
     // The number may be negative - that is the point of it.
     const worstCaseBytes = availableBytes - limit * 1024 * 1024
@@ -2805,6 +2850,14 @@ export class LspManager {
       measuredBytes,
       measuredMB: toMb(measuredBytes),
       availableBytes,
+      /**
+       * The margin of the machine, counted from the confirmed footprint of
+       * the running servers. It is the number the pressure valve uses
+       * (MEM-12): the account may be too generous, and a valve that watches
+       * an optimistic number is a valve that does not fire.
+       */
+      safeAvailableBytes,
+      safeAvailableMB: toMb(safeAvailableBytes),
       thresholdBytes,
       memoryLimitMB: limit,
       /** The effective ceiling of the language server (MEM-11). */
@@ -2989,6 +3042,21 @@ export class LspManager {
        * of the whole ceiling.
        */
       measuredBytes: 0,
+      /**
+       * The footprint that was measured while the server was STARTING
+       * (bytes).
+       *
+       * The spawn window is the only window in which the language server
+       * itself is the main cause of the change of the free memory: it lasts
+       * seconds, and the server allocates in it. The periodic
+       * re-measurement cannot say that - its window is a minute long, and
+       * every program of the machine may have grown in it (review R1).
+       *
+       * The pressure valve books THIS number and not the measured one: the
+       * valve must not become more optimistic because a difference that may
+       * belong to another program was booked on the servers.
+       */
+      confirmedBytes: 0,
       /**
        * The moment of the last check of the memory pressure (ms).
        *
@@ -3592,8 +3660,13 @@ export class LspManager {
    * Without that bound the accounting is optimistic in the dangerous
    * direction: a foreign program that eats 7 GB would be booked on the
    * server, the reservation would collapse, the available memory would
-   * look huge - and the pressure valve (MEM-12), which watches the
-   * available memory, would never fire.
+   * look huge - and the gate would let the machine run into the swap.
+   *
+   * The bound is not enough on its own, and the reason is worth writing
+   * down: a difference that FITS the room of the server may still belong
+   * to another program. The spawn window is the last measurement that can
+   * be trusted (the server is the main cause of the change in it), so it is
+   * the footprint the pressure valve counts (review R1).
    *
    * @param {object} session the session
    * @param {number} freeBefore the free memory before the process started
@@ -3611,10 +3684,17 @@ export class LspManager {
       // The difference fits the room the server has left: it is its growth.
       // No clamp is needed - the bound is the capacity.
       session.measuredBytes = delta
+      // The spawn window is the ONE measurement the pressure valve may
+      // trust: the server itself is the main cause of the change, and the
+      // window lasts seconds instead of a minute (review R1).
+      session.confirmedBytes = delta
       return
     }
     const { baselineMB } = memoryEstimateOf(session.languageId, session.lsp ?? DEFAULT_LSP_SETTINGS)
     session.measuredBytes = Math.max(0, baselineMB) * 1024 * 1024
+    // The estimate is not a measurement, but it is the only number there is:
+    // the valve books it as well (review R1).
+    session.confirmedBytes = session.measuredBytes
     let reason
     if (delta <= MEASURE_NOISE_MAX_MB * 1024 * 1024) {
       reason = delta < MEASURE_NOISE_MIN_MB * 1024 * 1024
@@ -3677,8 +3757,15 @@ export class LspManager {
    *     room, and the available memory an UPPER bound - too optimistic by
    *     the part that belonged to somebody else.
    *
-   * That is why the pressure valve (MEM-12) watches the raw free memory of
-   * the machine as well: the account cannot be fooled that way.
+   * That optimism cannot be closed inside this method: a minute of the
+   * machine does not say whose growth it was, and the difference of the
+   * machine is ONE number. It is closed where it hurts: the pressure valve
+   * (MEM-12) does NOT watch the account - it watches the CONFIRMED margin
+   * of the machine (`safeAvailableBytes`), which is counted from the
+   * footprint of the spawn window and can never be inflated by a difference
+   * of a later round (review R1). The account stays the number of the gate
+   * and of the panel, and it is the honest one for the question they ask:
+   * "how much may the NEXT server take".
    *
    * A session without room is not a candidate: the difference it cannot
    * take is left to the others (and to the next round).
@@ -3738,6 +3825,15 @@ export class LspManager {
         grower.session.measuredBytes += attributed
         grower.session.reservedBytes = Math.max(0, grower.session.ceilingBytes - grower.session.measuredBytes)
       }
+      // The difference was booked on the servers - and the method cannot say
+      // whose growth it was. The trace matters: without it the account can
+      // grow too kind without anybody noticing, and the panel would show a
+      // number that the machine does not have (review R1).
+      this.#ctx?.logger?.info?.(
+        'lsp: the machine lost %d MB and it was booked on %d language server(s) - the method cannot say whose growth it was, and the pressure valve counts the confirmed footprint instead',
+        Math.round(delta / (1024 * 1024)),
+        growers.length,
+      )
     } catch (error) {
       // The measurement runs in an interval: a throw here is an uncaught
       // exception and would end the DSH host process.
@@ -4224,34 +4320,31 @@ export class LspManager {
    * `suspended`, not in `degraded` (CONC-04): the machine did not break,
    * it asked for its memory back.
    *
-   * The trigger is BOTH numbers, and the reason of the second one is the
-   * method of the measurement (MEM-06):
+   * The trigger is the CONFIRMED margin of the machine: the free memory
+   * minus the room the running servers may still take, counted from the
+   * footprint that was measured while they were starting.
    *
-   *   - the AVAILABLE memory is the ACCOUNT: the free memory of the machine
-   *     minus what the running servers may still take. It is the number the
-   *     gate decides with, and it reacts while the books are already
-   *     overspent - the bare free number would not (PRD-v5.1 §3.8).
-   *   - the RAW FREE memory is the PHYSICAL TRUTH: it cannot be fooled by
-   *     an account that is too optimistic. The difference method cannot say
-   *     whose memory the machine lost, so a difference that FITS inside the
-   *     room of the servers may well be another program's - and then the
-   *     account says "there is room" while the machine is out of memory.
+   * Why not the available memory of the account? Because the account may be
+   * too generous, and the difference method cannot say whose memory the
+   * machine lost: the periodic re-measurement books a difference that FITS
+   * inside the room of the servers on them, and part of that difference may
+   * have belonged to another program. Every booked difference shrinks the
+   * reservations and grows the available memory of the account - so a
+   * machine that is really out of memory can look like a machine with
+   * gigabytes to spare, and a valve that watches that number never fires
+   * (review R1).
    *
-   * The two are not checked side by side, because the account is DERIVED from
-   * the physical truth: `availableBytes` is `freeBytes` minus the
-   * reservations, and a reservation is never negative, so
+   * The confirmed margin is never BIGGER than the available memory of the
+   * account - the confirmed footprint is never bigger than the measured one
+   * - so the trigger below also covers the trigger of the account: a
+   * machine that is below the hard floor on the account is below it here as
+   * well. One number, one trigger, and the pessimistic one.
    *
-   *     availableBytes <= freeBytes     ALWAYS.
-   *
-   * A machine that is physically out of memory is therefore below the hard
-   * floor on the account as well, and the check on the account alone already
-   * covers it. A second condition on the raw free memory would be dead code
-   * today (the second round of the review asked for it; the first layer of
-   * that round - the attribution bounded by the room - is what actually
-   * keeps the account honest). The INVARIANT is what has to hold: if a later
-   * change ever makes `availableBytes` independent of `freeBytes` (a term
-   * that is not subtracted from the free memory, say), this trigger has to
-   * grow a second condition.
+   * It fires EARLY and never late. The confirmed footprint is an upper
+   * bound of the real one, and the measurement that could tell more is
+   * exactly the measurement that cannot be trusted: a server that really
+   * grew is not credited, so the margin is that much too low and the valve
+   * gives the memory back a little earlier than the truth would ask for.
    *
    * The victim is chosen by the LRU order of CONC-03 - the machine is not
    * asked which server may go, and the server that builds its program is
@@ -4277,9 +4370,20 @@ export class LspManager {
       session.lastPressureAt = now
       const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
       const hardFloorBytes = resources.hardFloorMB * 1024 * 1024
-      // `availableBytes <= freeBytes` (see above), so this one comparison
-      // covers the account AND the physical truth.
-      if (resources.availableBytes >= hardFloorBytes) return
+      // The CONFIRMED margin, not the available memory of the account: the
+      // account may be too optimistic, and a valve that watches an
+      // optimistic number is a valve that does not fire (review R1). The
+      // confirmed margin is never bigger than the available memory of the
+      // account, so this trigger also covers the trigger of the account.
+      if (resources.safeAvailableBytes >= hardFloorBytes) return
+      // The two numbers are logged together: the account may still say that
+      // there is room, and the operator has to see WHY the machine gave the
+      // memory back (review R1: the account used to be inflated silently).
+      this.#ctx?.logger?.warn?.(
+        'lsp: the machine is below the hard floor: the confirmed margin is %d MB, the account says %d MB - the least used language server is released',
+        Math.round(resources.safeAvailableBytes / (1024 * 1024)),
+        Math.round(resources.availableBytes / (1024 * 1024)),
+      )
       this.#safely(this.#yieldUnderPressure(session), 'the memory pressure release')
     } catch (error) {
       // The check runs in an interval: a throw here is an uncaught

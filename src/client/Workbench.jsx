@@ -467,17 +467,26 @@ export function showCancelButton(hostState, cancellable) {
  * sides that compute the same thing differently give the user two different
  * answers.
  *
+ * The PRESSURE MARGIN is the third number of the host (`safeAvailableBytes`):
+ * the memory the machine has left when the running servers are charged with
+ * their CONFIRMED footprint - the share that was measured in the few seconds
+ * of the start window, without the increments of the later re-measurements
+ * (a minute-long window cannot tell which server grew). The pressure valve
+ * works with that number, the gate and the accounting with the other one.
+ * The row appears only when the two numbers differ: a row that says the
+ * same thing twice is noise.
+ *
  * The helper is exported so the numbers can be asserted without mounting the
  * whole dialog.
  *
  * @param {{t: (key: string) => string}} store the workbench store
  * @param {object | null} resources the memory snapshot of the host
- * @returns {{availableMB: number|null, needMB: number|null, reservedMB: number, text: string, worstMB: number|null, worstText: string}}
+ * @returns {{availableMB: number|null, needMB: number|null, reservedMB: number, text: string, worstMB: number|null, worstText: string, safeAvailableMB: number|null}}
  */
 export function memoryFacts(store, resources) {
   const t = store.t
   if (resources === null || resources === undefined) {
-    return { availableMB: null, needMB: null, reservedMB: 0, text: '—', worstMB: null, worstText: '' }
+    return { availableMB: null, needMB: null, reservedMB: 0, text: '—', worstMB: null, worstText: '', safeAvailableMB: null }
   }
   const mib = 1024 * 1024
   const availableMB = Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / mib)
@@ -494,7 +503,13 @@ export function memoryFacts(store, resources) {
   const worstText = worstMB === null || ceilingMB === null
     ? ''
     : interpolate(t('lsp.diagnostics.memoryWorstText'), { ceiling: ceilingMB, left: worstMB })
-  return { availableMB, needMB, reservedMB, text, worstMB, worstText }
+  // The pressure margin: the number of the host, read and not computed. The
+  // client must not derive it a second time - two sides that compute the
+  // same thing differently give the user two answers (MEM-09).
+  const safeBytes = Number.isFinite(resources.safeAvailableBytes) ? resources.safeAvailableBytes : null
+  const safeMB = safeBytes === null ? null : Math.round(safeBytes / mib)
+  const safeAvailableMB = safeMB !== null && safeMB < availableMB ? safeMB : null
+  return { availableMB, needMB, reservedMB, text, worstMB, worstText, safeAvailableMB }
 }
 
 /**
@@ -1322,6 +1337,17 @@ export function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
                 className: 'iwb-lsp-diagnostics-value',
                 title: t('lsp.diagnostics.memoryWorstHint'),
               }, memory.worstText),
+            ),
+        // The pressure margin: the machine has less memory left than the
+        // accounting above suggests, because the running servers may still
+        // grow into their ceiling. It is the number the pressure valve works
+        // with, and it appears only when it is smaller than the accounting
+        // one - otherwise the two rows would say the same thing twice.
+        memory.safeAvailableMB === null
+          ? null
+          : React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
+              React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.memorySafeAvailable')),
+              React.createElement('span', { className: 'iwb-lsp-diagnostics-value' }, `${memory.safeAvailableMB} MB`),
             ),
         React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
           React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.stderr')),

@@ -627,6 +627,11 @@ export const en = {
   'lsp.diagnostics.memoryWorstCase': 'Worst case',
   'lsp.diagnostics.memoryWorstText': 'If this server takes its ceiling of {ceiling} MB, the machine will be left with {left} MB.',
   'lsp.diagnostics.memoryWorstHint': 'The worst case: what the machine would be left with if the next language server grew into the ceiling it was granted. The number may be negative - that is the point of the row.',
+  // The pressure margin: the memory the machine has left when the running
+  // language servers are charged with their CONFIRMED footprint. It is the
+  // number the pressure valve works with, and it is smaller than the
+  // accounting above whenever a server may still grow.
+  'lsp.diagnostics.memorySafeAvailable': 'Pressure margin',
   'lsp.diagnostics.rebuild': 'Rebuild the index',
   'lsp.diagnostics.degrade': 'Use the basic mode',
   'lsp.diagnostics.degradeHint': 'Stop the language server and keep the basic mode (local completion and text search)',
@@ -1299,6 +1304,8 @@ export const zh = {
   'lsp.diagnostics.memoryWorstCase': '最坏情况',
   'lsp.diagnostics.memoryWorstText': '若该服务器吃到上限 {ceiling} MB，机器将剩 {left} MB。',
   'lsp.diagnostics.memoryWorstHint': '最坏情况：若下一台语言服务器长到它被授予的上限，机器将剩下多少内存。该数可能为负 —— 这正是这一行的意义。',
+  // 压力余量：按「确认过的占用」算出来的可用内存，比上面的账面口径更保守。
+  'lsp.diagnostics.memorySafeAvailable': '压力余量',
   'lsp.diagnostics.rebuild': '重新建立索引',
   'lsp.diagnostics.degrade': '使用基础模式',
   'lsp.diagnostics.degradeHint': '停止语言服务器，保持基础模式（本地补全 + 文本查找）',

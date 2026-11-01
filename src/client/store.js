@@ -1626,11 +1626,17 @@ export class WorkbenchStore {
    * then keeps the basic mode while the user wonders why the button does
    * nothing, and nothing was written down (review N5).
    *
-   * So a failed write takes the change back: the section as it was before the
-   * change goes back into the store - a `set` wakes the subscribers, so the
-   * client session re-reads the decision and agrees with the host again - and
-   * the failure is logged. A silent inconsistency is worse than a visible
-   * failure.
+   * So a failed write takes the change back - and the rollback touches the
+   * maps of THIS write and nothing else. The whole section would take the
+   * changes of another round trip with it: the settings page moved the
+   * budget share while this write was in flight, and the user would see
+   * their own change disappear (review R3). A map that was not there before
+   * the write is removed again - the host does not know it either.
+   *
+   * The rollback still goes through a `set`, so the subscribers are woken
+   * and the client session re-reads the decision and agrees with the host
+   * again. The failure is logged: a silent inconsistency is worse than a
+   * visible failure.
    *
    * Both writes of the memory of the user go through this helper: the
    * workspace-scoped default and the memory answer are ONE decision in two
@@ -1647,11 +1653,20 @@ export class WorkbenchStore {
     void call('settings.update', { patch: { lsp: patch } })
       .catch(error => {
         console.warn('[lsp] the settings of the semantic analysis could not be written:', error instanceof Error ? error.message : error)
-        // The document of the host did not take the change, so the store goes
-        // back to what that document says. The subscribers are woken by the
-        // `set`, so the client session reads the decision again and agrees
-        // with the host again.
-        this.set({ settings: { ...this.state.settings, lsp: previous ?? {} } })
+        // The document of the host did not take the change, so the maps of
+        // this write go back to what that document says. Every other field of
+        // the section keeps the value it has now - a change of another round
+        // trip is not the business of this write.
+        const current = this.state.settings?.lsp ?? {}
+        const restored = { ...current }
+        for (const key of Object.keys(patch)) {
+          if (previous !== null && previous !== undefined && Object.hasOwn(previous, key)) {
+            restored[key] = previous[key]
+            continue
+          }
+          delete restored[key]
+        }
+        this.set({ settings: { ...this.state.settings, lsp: restored } })
       })
   }
 
@@ -2752,6 +2767,12 @@ export class WorkbenchStore {
     // memory stays exactly the same, and a comparison of the available
     // memory alone froze the panel on the numbers of the first poll (review
     // A3). The worst case and the budget move with them.
+    //
+    // The pressure margin moves on its own too: it is the free memory of
+    // the machine minus the CONFIRMED footprint of the running servers, so it
+    // falls when the free memory falls - and the free memory is not one of
+    // the fields the panel shows. A field that is displayed and not watched
+    // freezes (the same defect as A3).
     const resources = status.resources ?? null
     const known = this.state.lsp.resources ?? null
     // The host carries the snapshot only when there IS a server: the estimate
@@ -2776,6 +2797,7 @@ export class WorkbenchStore {
         || megabytesOf(known.measuredBytes) !== megabytesOf(resources.measuredBytes)
         || megabytesOf(known.worstCaseBytes) !== megabytesOf(resources.worstCaseBytes)
         || megabytesOf(known.budgetUsedBytes) !== megabytesOf(resources.budgetUsedBytes)
+        || megabytesOf(known.safeAvailableBytes) !== megabytesOf(resources.safeAvailableBytes)
         || known.needMB !== resources.needMB
         || known.canIndex !== resources.canIndex
         || known.tight !== resources.tight)

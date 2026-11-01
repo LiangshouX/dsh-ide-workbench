@@ -90,8 +90,29 @@ tight = (decision === 'tight')        ← 与 decision 恒等，不允许有第�
 | `worstCase` | boolean，最坏档是否被突破（`available − ceiling_j < floor`） |
 | `ceilingMB` | number，本次判定所用的上限（MB） |
 | `measuredMB` | number，Σ 实测占用（MB） |
+| `safeAvailableBytes` | number，**确认口径**的余量（bytes），见 §2.1 |
+| `safeAvailableMB` | number，同上（MB） |
 
 > 这些字段是 §2 表格 4 个字段的**补充**，PRD 只点名了 4 个，但客户端要画「典型 / 最坏」两行就需要它们。**统一放在同一个快照对象里**，客户端不得二次计算。
+
+### 2.1 两个「可用」：账目口径与确认口径（第三轮检视 R1）
+
+快照里现在有**两个**可用内存的数。它们回答的是**两个不同的问题**，各有各的读者：
+
+| 数 | 口径 | 谁读它 | 方向 |
+|---|---|---|---|
+| `availableBytes` | **账目**：`free − Σ max(0, ceiling_i − measured_i)` | 闸门、判定档位、诊断面板、弹窗、宿主文案（MEM-05/MEM-09） | 偏乐观（真实值的**上界**） |
+| `safeAvailableBytes` | **确认口径**：`free − Σ max(0, ceiling_i − confirmed_i)` | **只有压力阀**（MEM-12） | 偏保守（真实值的**下界**） |
+
+- `measured_i` = 差值法**累计**的占用（MEM-06）；`confirmed_i` = **起服窗口**实测到的占用。
+  差值法分不清「谁长的」：每分钟一次复测会把别的程序长的那一段也记到服务器头上 ⇒ **账目偏乐观**。
+- **不变式**：`safeAvailableBytes ≤ availableBytes` **恒成立**（`confirmed_i ≤ measured_i`）⇒
+  压力阀改看确认口径之后，**触发只会更早，不会更晚**（账目已经低于硬地板时，确认口径一定也低于）。
+- 压力阀的触发条件因此是 `safeAvailableBytes < hardFloorBytes`。
+  规格 MEM-12 §3.8 要求 2 的字面写法是 `availableBytes < hardFloor` —— **本轮按 R1 收紧**，
+  理由（规格那条的前提是「`availableBytes` 是诚实的」，而它不是）与取舍见实施进展 §7.5.3。
+- 客户端**可以**显示 `safeAvailableMB`（诊断面板在它小于账目的可用时多一行「压力余量」），
+  但**不得**用它做任何判定 —— 判定只有一个口径（MEM-09）。
 
 ---
 
