@@ -405,7 +405,15 @@ test('the restored project starts nothing while the policy says "never"', async 
   assert.equal(host.starts().length, 0, 'the "never" policy starts no server')
 })
 
-test('a remembered "start anyway" starts the server of the restored project', async (t) => {
+test('a legacy "start anyway" does not force the restored project any more', async (t) => {
+  // The old document remembered a PERMISSION to force the start, and that
+  // permission was contagious: one click on "start anyway" made every later
+  // tight moment of that project start the server without asking - and the
+  // same happened on every workspace switch and every restart of DSH.
+  //
+  // The new semantics have no such memory (PRD-v5.1 MEM-10), so the legacy
+  // value is read as 'conservative': the project falls back to the basic
+  // mode instead of silently force-starting.
   const host = restoreStub(lspSettings({ memoryWarnedRoots: { [ROOT]: 'accepted' } }))
   const store = bootingStore()
   t.after(() => {
@@ -414,9 +422,8 @@ test('a remembered "start anyway" starts the server of the restored project', as
   })
   await store.init()
   await tick(30)
-  const starts = host.starts()
-  assert.equal(starts.length, 1, 'the remembered answer starts the server')
-  assert.equal(starts[0].body.force, true, 'the remembered answer forces the start')
+  assert.equal(host.starts().length, 0, 'the remembered permission starts nothing')
+  assert.equal(store.lspIndexDecision(ROOT), 'conservative')
 })
 
 test('a remembered "basic mode" keeps the restored project in the basic mode', async (t) => {

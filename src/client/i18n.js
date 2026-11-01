@@ -53,10 +53,15 @@ export const en = {
   'settings.lspEnabled': 'Build a code index',
   'settings.lspEnabledHint': 'With this off no language server is started: hovering, semantic completion and go to definition are unavailable, and the workbench does not ask when a project is opened. Turning it off ends the running index processes immediately and releases their memory.',
   'settings.lspIndexOnOpen': 'When opening an unindexed folder',
-  'settings.lspIndexOnOpenHint': 'The first build of a project can take one or two minutes',
+  'settings.lspIndexOnOpenHint': 'The first build of a project can take one or two minutes. The policy applies to every project; a project you put into the basic mode keeps it.',
   'settings.lspIndexAsk': 'Ask me',
-  'settings.lspIndexAlways': 'Always index',
+  // The global policy is NOT unconditional any more: the workspace-scoped
+  // default outranks it (PRD-v5.1 WS-04), so the row has to say so.
+  'settings.lspIndexAlways': 'Always index (unless the project is in the basic mode)',
   'settings.lspIndexNever': 'Never index (basic mode only)',
+  // The workspace-scoped default of PRD-v5.1 WS-04: the decision of the user
+  // about one project outranks the global policy, and it is remembered.
+  'settings.lspWorkspaceDefaultHint': 'This policy applies to every project. A project whose workspace you put into the basic mode keeps it - even with "always index". The choice is remembered per project and survives a restart.',
   'settings.lspMemoryLimit': 'Language server memory limit (MB)',
   // The global limit is a cap over EVERY language server, and a language
   // that carries its own ceiling keeps it. The user raised this value and
@@ -78,7 +83,7 @@ export const en = {
   'settings.lspRequestTimeoutShort': 'The limit of one request',
   'settings.lspMemoryNow': 'Available now: {available} MB · {language} is expected to need {need} MB ({state}) · the server does not start below {threshold} MB · hard floor {floor} MB',
   'settings.lspMemoryNowNoProject': 'Available now: {available} MB · no project is open, so there is no estimate yet',
-  'settings.lspMemoryReserved': 'The running language servers have reserved {reserved} MB of it - their ceiling, not the memory they actually use.',
+  'settings.lspMemoryReserved': 'The running language servers have reserved {reserved} MB of it - what they may still grow into (their ceiling minus what they already use), not what they already use.',
   'settings.lspMemoryState.ok': 'can start',
   'settings.lspMemoryState.tight': 'tight',
   'settings.lspMemoryState.low': 'not enough',
@@ -98,7 +103,25 @@ export const en = {
   'settings.lspIdlePolicyNever': 'Never exit',
   'settings.lspIdlePolicyAfter': 'Exit after the idle time below',
   'settings.lspIdlePolicyMemory': 'Only when the memory is tight',
+  // The fourth policy of PRD-v5.1: the idle timeout AND the memory pressure.
+  'settings.lspIdlePolicyAlways': 'Exit after the idle time and under memory pressure',
   'settings.lspIdlePolicyNeverWarning': 'A language server that never exits keeps about 1.8–2.2 GB of memory on a large project.',
+  // The machine-level budget of PRD-v5.1 MEM-08: the per-server gate answers
+  // "may the next server start", the budget answers "may they all grow".
+  'settings.lspBudgetGroup': 'Machine budget',
+  'settings.lspBudgetRatio': 'Share of the memory',
+  'settings.lspBudgetRatioShort': 'The share of the total memory the language servers may use together',
+  'settings.lspBudgetRatioHint': 'The budget of the machine is a share of its total memory (0.25 = a quarter) and the absolute cap below. The smaller of the two wins.',
+  'settings.lspBudgetCap': 'Budget limit',
+  'settings.lspBudgetCapShort': 'The absolute limit of the budget, in MB',
+  'settings.lspBudgetCapHint': 'No matter how much memory the machine has, the language servers may not claim more than this together. 4096 MB holds about four TypeScript indexes.',
+  'settings.lspMaxConcurrent': 'Indexes at the same time',
+  'settings.lspMaxConcurrentShort': '0 lets the budget decide',
+  'settings.lspMaxConcurrentHint': 'Your own limit on top of the budget: how many language servers may run at the same time. When both apply, the stricter one wins.',
+  // The switch of the memory-pressure valve of PRD-v5.1 MEM-12: it is armed
+  // by default, and this is the ONE way to switch it off.
+  'settings.lspPressureYield': 'Release on memory pressure',
+  'settings.lspPressureYieldHint': 'When the machine runs short of memory, the least active language server is released. This switch is the only way to turn the valve off.',
   'settings.lspIdleTimeout': 'Idle exit (minutes)',
   'settings.lspIdleTimeoutHint': 'The server exits after this much time without activity, and its memory is released',
   'settings.lspCancelAfter': 'Cancel button after (seconds)',
@@ -540,6 +563,11 @@ export const en = {
   // translate function does not interpolate.
   'project.indexed': 'Indexed',
   'project.indexedHint': 'This folder was indexed before. Reopening it is usually faster, but not free.',
+  // The second state of the badge (PRD-v5.1 CONC-05): the index was built,
+  // but the language server was reclaimed - so the folder is indexed and
+  // there is no server for it.
+  'project.indexedReclaimed': 'Indexed (reclaimed)',
+  'project.indexedReclaimedHint': 'This folder was indexed before, but no language server is running for it now. Rebuilding the index costs another full build.',
 
   'lsp.status.disabled': 'Semantic analysis: off',
   'lsp.status.missing': 'Semantic analysis: {language} not installed',
@@ -559,6 +587,9 @@ export const en = {
   'lsp.status.unknown': 'Semantic analysis: unknown (retrying…)',
   'lsp.status.crashed': 'Semantic analysis: crashed',
   'lsp.status.cancelled': 'Semantic analysis: cancelled (basic mode)',
+  // The state of a project whose workspace never turned the semantic
+  // analysis on (PRD-v5.1 WS-04): the basic mode, and the reason for it.
+  'lsp.status.workspaceOff': 'Semantic analysis: not enabled for this project',
   'lsp.status.unstable': 'Semantic analysis: unstable ({count} consecutive failures)',
   'lsp.status.unstableTimeout': 'Semantic analysis: unstable ({count} consecutive timeouts)',
   // The state of the CLIENT session: the link between the browser and the
@@ -589,7 +620,13 @@ export const en = {
   'lsp.diagnostics.memoryAvailable': 'Available',
   'lsp.diagnostics.memoryNeed': 'Needs',
   'lsp.diagnostics.memoryReserved': 'Reserved',
-  'lsp.diagnostics.memoryHint': 'Available: the free memory of the machine minus what the running language servers have reserved. Needs: the estimated memory of the next language server. Reserved: the ceiling every running language server was granted - not the memory it actually uses.',
+  'lsp.diagnostics.memoryHint': 'Available: the free memory of the machine minus what the running language servers may still grow into. Needs: the estimated memory of the next language server. Reserved: what the running language servers may still take - their ceiling minus what they already use, not their ceiling.',
+  // The worst case of PRD-v5.1 MEM-07: what the machine would be left with if
+  // the next language server grew into the ceiling it was granted. The
+  // number may be negative - that is the point of the row.
+  'lsp.diagnostics.memoryWorstCase': 'Worst case',
+  'lsp.diagnostics.memoryWorstText': 'If this server takes its ceiling of {ceiling} MB, the machine will be left with {left} MB.',
+  'lsp.diagnostics.memoryWorstHint': 'The worst case: what the machine would be left with if the next language server grew into the ceiling it was granted. The number may be negative - that is the point of the row.',
   'lsp.diagnostics.rebuild': 'Rebuild the index',
   'lsp.diagnostics.degrade': 'Use the basic mode',
   'lsp.diagnostics.degradeHint': 'Stop the language server and keep the basic mode (local completion and text search)',
@@ -605,6 +642,12 @@ export const en = {
   'lsp.memoryWarn.start': 'Start anyway',
   'lsp.memoryWarn.conservative': 'Use the basic mode',
   'lsp.memoryWarn.conservativeHint': 'Do not start the language server (local completion and text search)',
+  // The explanation of the workspace-scoped default (PRD-v5.1 WS-04): the
+  // workbench stays in the basic mode and says WHY, instead of leaving the
+  // user to wonder whether the feature is broken.
+  'lsp.workspaceBasicModeToast': 'This workspace has not turned on the semantic analysis. You can turn it on for a project.',
+  'lsp.workspaceConservativeToast': 'You chose the basic mode for this project. You can turn the semantic analysis on for it at any time.',
+  'lsp.workspaceOffHint': 'You chose the basic mode for this project. You can turn the semantic analysis on for it at any time.',
 
   'index.decision.title': 'Enable semantic analysis for {name}',
   'index.decision.body': 'Starts the {language} language server and builds the project index. It takes about {time}.',
@@ -638,7 +681,7 @@ export const en = {
   // the text must not promise a button that does not exist.
   'nav.semanticSessionConnecting': 'The semantic analysis session is still connecting.',
 
-  'lsp.lowMemory': 'Not enough free memory (needs {need} MB, {free} MB available)',
+  'lsp.lowMemory': 'Not enough available memory (needs {need} MB, {free} MB available)',
   'lsp.lowMemoryHint': 'Close the other programs, or use the basic mode for this language.',
   'lsp.crashedToast': 'The language server exited.',
   // A degradation is not always an exit: the server may be switched off in
@@ -701,10 +744,13 @@ export const zh = {
   'settings.lspEnabled': '构建代码索引',
   'settings.lspEnabledHint': '关闭后不启动任何语言服务器，悬浮提示、语义补全与跳转定义都不可用；切换项目时也不再询问。关闭会立即结束正在运行的索引进程并释放内存。',
   'settings.lspIndexOnOpen': '打开未索引目录时',
-  'settings.lspIndexOnOpenHint': '一个项目的首次构建可能需要一两分钟',
+  'settings.lspIndexOnOpenHint': '一个项目的首次构建可能需要一两分钟。该策略适用于所有项目；你选择过基础模式的项目会保持基础模式。',
   'settings.lspIndexAsk': '询问我',
-  'settings.lspIndexAlways': '总是索引',
+  'settings.lspIndexAlways': '总是索引（除非该项目处于基础模式）',
   'settings.lspIndexNever': '从不索引（仅保守版）',
+  // The workspace-scoped default of PRD-v5.1 WS-04: the decision of the user
+  // about one project outranks the global policy, and it is remembered.
+  'settings.lspWorkspaceDefaultHint': '该策略适用于所有项目。你选择过基础模式的项目会保持基础模式 —— 即使策略是「总是索引」。该选择按项目记住，重启后仍然有效。',
   'settings.lspMemoryLimit': '语言服务器内存上限 (MB)',
   // 全局上限是所有语言服务器共同的上限，而自带上限的语言保留自己的上限。
   // 用户调高了它却仍然看到旧值，所以这句话必须说清楚它真正的作用。
@@ -725,7 +771,7 @@ export const zh = {
   'settings.lspRequestTimeoutShort': '单次请求的上限',
   'settings.lspMemoryNow': '当前可用 {available} MB · {language} 预计需要 {need} MB（{state}）· 低于 {threshold} MB 不启动 · 硬下限 {floor} MB',
   'settings.lspMemoryNowNoProject': '当前可用 {available} MB · 尚未打开项目，暂无内存估算',
-  'settings.lspMemoryReserved': '运行中的语言服务器已预留了 {reserved} MB —— 按它们被授予的上限记的账，不是实际占用。',
+  'settings.lspMemoryReserved': '运行中的语言服务器已预留了 {reserved} MB —— 按它们「还可能再涨」的部分记的账（上限减去已实测占用），不是它们已经占用的内存。',
   'settings.lspMemoryState.ok': '可启动',
   'settings.lspMemoryState.tight': '内存紧张',
   'settings.lspMemoryState.low': '内存不足',
@@ -742,6 +788,22 @@ export const zh = {
   'settings.lspIdlePolicyNever': '永不退出',
   'settings.lspIdlePolicyAfter': '在下面的空闲时间后退出',
   'settings.lspIdlePolicyMemory': '仅在内存紧张时退出',
+  // The fourth policy of PRD-v5.1: the idle timeout AND the memory pressure.
+  'settings.lspIdlePolicyAlways': '空闲后退出，并在内存紧张时释放',
+  // The machine-level budget of PRD-v5.1 MEM-08.
+  'settings.lspBudgetGroup': '整机预算',
+  'settings.lspBudgetRatio': '内存占比',
+  'settings.lspBudgetRatioShort': '语言服务器合计可占用的内存比例',
+  'settings.lspBudgetRatioHint': '整机预算 = 总内存的该比例（0.25 = 四分之一）与下面的绝对上限，两者取更严者。',
+  'settings.lspBudgetCap': '预算上限',
+  'settings.lspBudgetCapShort': '预算的绝对上限（MB）',
+  'settings.lspBudgetCapHint': '无论机器有多少内存，语言服务器合计不得超过这个额度。4096 MB 大约容纳四个 TypeScript 索引。',
+  'settings.lspMaxConcurrent': '同时建立的索引',
+  'settings.lspMaxConcurrentShort': '0 表示由预算决定',
+  'settings.lspMaxConcurrentHint': '预算之外你自己的限制：最多同时运行多少台语言服务器。两者同时生效时取更严者。',
+  // The switch of the memory-pressure valve of PRD-v5.1 MEM-12.
+  'settings.lspPressureYield': '内存紧张时释放',
+  'settings.lspPressureYieldHint': '机器内存紧张时，释放最不活跃的语言服务器。该开关是关闭此保护阀的唯一方式。',
   'settings.lspIdlePolicyNeverWarning': '永不退出的语言服务器在大项目上会常驻约 1.8–2.2 GB 内存。',
   'settings.lspIdleTimeout': '空闲退出 (分钟)',
   'settings.lspIdleTimeoutHint': '服务器在这么久没有活动后退出，内存随之释放',
@@ -1183,6 +1245,9 @@ export const zh = {
   // 花括号里的占位符由调用方替换：harness 的 translate 函数不做插值。
   'project.indexed': '已索引',
   'project.indexedHint': '该目录此前建立过索引。重新打开通常更快，但并非零成本。',
+  // The second state of the badge (PRD-v5.1 CONC-05).
+  'project.indexedReclaimed': '已索引（已回收）',
+  'project.indexedReclaimedHint': '该目录此前建立过索引，但当前没有语言服务器在运行。重新建立索引需要再等一次完整构建。',
 
   'lsp.status.disabled': '语义分析：已关闭',
   'lsp.status.missing': '语义分析：未安装（{language}）',
@@ -1202,6 +1267,9 @@ export const zh = {
   'lsp.status.unknown': '语义分析：状态未知（正在重试…）',
   'lsp.status.crashed': '语义分析：已崩溃',
   'lsp.status.cancelled': '语义分析：已取消（保守版）',
+  // The state of a project whose workspace never turned the semantic
+  // analysis on (PRD-v5.1 WS-04).
+  'lsp.status.workspaceOff': '语义分析：本项目未开启',
   'lsp.status.unstable': '语义分析：不稳定（连续失败 {count} 次）',
   'lsp.status.unstableTimeout': '语义分析：不稳定（连续超时 {count} 次）',
   // 客户端会话的状态：浏览器与语言服务器之间的链路。宿主的状态只说明
@@ -1226,7 +1294,11 @@ export const zh = {
   'lsp.diagnostics.memoryAvailable': '可用',
   'lsp.diagnostics.memoryNeed': '需要',
   'lsp.diagnostics.memoryReserved': '已预留',
-  'lsp.diagnostics.memoryHint': '可用：整机空闲内存减去运行中的语言服务器已预留的部分。需要：下一台语言服务器的预估内存。已预留：每台运行中的语言服务器被授予的上限，不是它实际占用的内存。',
+  'lsp.diagnostics.memoryHint': '可用：整机空闲内存减去运行中的语言服务器「还可能再涨」的部分。需要：下一台语言服务器的预估内存。已预留：运行中的语言服务器还能再吃多少（上限减去已实测占用），不是它们已经占用的内存。',
+  // The worst case of PRD-v5.1 MEM-07.
+  'lsp.diagnostics.memoryWorstCase': '最坏情况',
+  'lsp.diagnostics.memoryWorstText': '若该服务器吃到上限 {ceiling} MB，机器将剩 {left} MB。',
+  'lsp.diagnostics.memoryWorstHint': '最坏情况：若下一台语言服务器长到它被授予的上限，机器将剩下多少内存。该数可能为负 —— 这正是这一行的意义。',
   'lsp.diagnostics.rebuild': '重新建立索引',
   'lsp.diagnostics.degrade': '使用基础模式',
   'lsp.diagnostics.degradeHint': '停止语言服务器，保持基础模式（本地补全 + 文本查找）',
@@ -1242,6 +1314,10 @@ export const zh = {
   'lsp.memoryWarn.start': '仍然启动',
   'lsp.memoryWarn.conservative': '使用基础模式',
   'lsp.memoryWarn.conservativeHint': '不启动语言服务器（本地补全 + 文本查找）',
+  // The explanation of the workspace-scoped default (PRD-v5.1 WS-04).
+  'lsp.workspaceBasicModeToast': '本工作区未开启语义分析（可在项目上开启）。',
+  'lsp.workspaceConservativeToast': '你为本项目选择了基础模式，随时可重新开启语义分析。',
+  'lsp.workspaceOffHint': '你为本项目选择了基础模式，随时可重新开启语义分析。',
 
   'index.decision.title': '为 {name} 启用语义分析',
   'index.decision.body': '将启动 {language} 语言服务器并建立项目索引，预计 {time}。',

@@ -216,6 +216,17 @@ let sessionScopeRoot = ''
  * @type {{client: any, promise: Promise<void>, resolve: () => void} | null}
  */
 let pendingConnection = null
+/**
+ * The client that waits for its turn to be connected.
+ *
+ * The connect is the request that makes the host start the language server,
+ * so a switch holds it back until the language server of the project that
+ * was left is really gone (WS-02). The client itself exists in the
+ * meantime - the editors ask for it, and the requests wait for the
+ * connection.
+ * @type {{client: any, config: any, root: string} | null}
+ */
+let pendingConfig = null
 /** Whether the error reports of the library were redirected already. */
 let reportErrorRedirected = false
 /** The timer of the next handshake retry. */
@@ -679,6 +690,10 @@ function redirectMappingPositions() {
  * call is not awaited - switching the feature off must not wait for the
  * host - and a failure is only logged: the client closes its socket either
  * way.
+ *
+ * This is the variant for the paths that do NOT care about the order. The
+ * path that starts a server right afterwards has to use
+ * {@link shutdownHostLspAwaited} instead (WS-02).
  * @param {string} root the project root
  */
 function shutdownHostLsp(root) {
@@ -686,6 +701,86 @@ function shutdownHostLsp(root) {
   void call('lsp.shutdown', { root }).catch(error => {
     console.warn('[lsp] the language server could not be stopped:', error instanceof Error ? error.message : error)
   })
+}
+
+/**
+ * The root the host was told about last.
+ *
+ * The focus moves with the editor, not with the millisecond, so the report
+ * is skipped when the root did not change.
+ */
+let focusRootReported = ''
+
+/**
+ * Report the root the user is looking at to the host (PRD-v5.1 §4.4, CONC-03).
+ *
+ * The host cannot see the focus of the browser: it knows which roots have a
+ * language server, but not which one the user is working in. The LRU order of
+ * the memory pressure yield needs that fact - the focused root is one of the
+ * LAST to go, because yielding it interrupts the user (and the user is about
+ * to press F12 in it).
+ *
+ * The call is fire-and-forget and a failure is only logged: the focus is a
+ * hint for the order of a yield, not a precondition of anything.
+ *
+ * @param {string} root the project root the user is looking at
+ * @returns {void}
+ */
+export function reportLspFocus(root) {
+  const next = typeof root === 'string' ? root : ''
+  if (next === focusRootReported) return
+  focusRootReported = next
+  void call('lsp.focus', { root: next }).catch(error => {
+    console.warn('[lsp] the focus could not be reported:', error instanceof Error ? error.message : error)
+  })
+}
+
+/**
+ * How long the client waits for the answer of the host when it stops a
+ * language server (WS-02).
+ *
+ * The host waits for the process to die before it answers (the reservation is
+ * given back at once, so the gate of the next server is not affected), so the
+ * answer takes a moment - a few hundred milliseconds. The limit is a safety
+ * net: a host that never answers must not keep the session from ever
+ * connecting again.
+ */
+const SHUTDOWN_TIMEOUT_MS = 10000
+
+/**
+ * Stop the language server of the host and WAIT for the answer.
+ *
+ * The plain {@link shutdownHostLsp} is fire-and-forget, and that is wrong
+ * for the one path that matters: the switch of a project. The old server is
+ * stopped asynchronously while the new one is started immediately - so for a
+ * moment two language servers exist (measured: 700-1100 MB), and, worse, the
+ * memory gate of the host reads the memory of the machine BEFORE the old
+ * server gave its reservation back. The gate then decides on a memory
+ * situation that does not exist (PRD-v5.1 §2.2, WS-02).
+ *
+ * Waiting for the answer costs one round trip on a project switch - the
+ * price is accepted (PRD-v5.1 §8 risk 5) - and buys the guarantee that the
+ * gate of the new server sees the memory the old server released.
+ *
+ * The promise never rejects: a host that does not answer must not break the
+ * switch. The failure is in the log and the new session starts anyway.
+ * @param {string} root the project root
+ * @returns {Promise<void>} resolves when the host answered (or failed)
+ */
+export async function shutdownHostLspAwaited(root) {
+  if (typeof root !== 'string' || root === '') return
+  const controller = new AbortController()
+  const timer = setTimeout(() => { controller.abort() }, SHUTDOWN_TIMEOUT_MS)
+  // A pending timeout must not keep a Node process alive (the tests import
+  // this module); in the browser the timer is a plain number.
+  if (typeof timer?.unref === 'function') timer.unref()
+  try {
+    await call('lsp.shutdown', { root }, controller.signal)
+  } catch (error) {
+    console.warn('[lsp] the language server could not be stopped:', error instanceof Error ? error.message : error)
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**
@@ -1150,8 +1245,17 @@ async function connectWithScope(client, config, root) {
  * as soon as it exists - but the handshake waits for the scope root of the
  * project: the `initialize` request carries the `rootUri`, and the `rootUri`
  * decides the program the language server builds (PRD-v5 §4.2).
+ *
+ * The CONNECT may wait as well: it is the connect that makes the host start
+ * the language server (the handshake of the client is the request the host
+ * answers with a server), so a switch waits for the stop of the server of the
+ * project that was left before the connect goes out (WS-02). The client
+ * exists in the meantime - the editors have their extensions, and the
+ * requests wait for the connection (they always did).
+ * @param {{ waitForShutdown?: boolean }} [options] `waitForShutdown` keeps the
+ *   client unconnected until the switch says so
  */
-function startLsp() {
+function startLsp(options = {}) {
   if (currentClient !== null) return
   const store = sessionStore
   if (store === null || store === undefined) return
@@ -1211,14 +1315,39 @@ function startLsp() {
   let resolveConnection = () => {}
   const connection = new Promise(resolve => { resolveConnection = resolve })
   pendingConnection = { client: currentClient, promise: connection, resolve: resolveConnection }
+  // The client waits for its turn: the connect is what the switch holds
+  // back (WS-02).
+  pendingConfig = { client: currentClient, config, root }
+  if (options.waitForShutdown === true) return
+  connectPendingClient()
+}
+
+/**
+ * Connect the client of the session.
+ *
+ * The connect is the request that makes the host start the language server:
+ * the handshake of the client is what the host answers with a server. So it
+ * may only go out when the language server of the project that was left is
+ * really gone - the memory gate of the host reads the memory of the machine,
+ * and it has to read the memory that the old server gave back (WS-02).
+ *
+ * A client that is not the current one any more is dropped: the session
+ * moved on while the client was waiting.
+ */
+function connectPendingClient() {
+  const pending = pendingConfig
+  if (pending === null) return
+  pendingConfig = null
+  const { client, config, root } = pending
+  if (currentClient !== client) return
   if (!hostIsReachable()) {
     // There is no host to ask: the workspace root is the scope root, and the
     // session starts right away.
-    connectClient(currentClient, config, root, root)
+    connectClient(client, config, root, root)
     return
   }
   // The handshake waits for the scope root of the project.
-  void connectWithScope(currentClient, config, root)
+  void connectWithScope(client, config, root)
 }
 
 /**
@@ -1365,6 +1494,13 @@ export function reconnectLsp() {
       startLsp()
       return
     }
+    if (pendingConfig !== null) {
+      // The client waits for its turn: the switch connects it when the
+      // language server of the project that was left is really gone (WS-02).
+      // A reconnect must not send the handshake before that - it would start
+      // the new server while the old one still holds its memory.
+      return
+    }
     reinitializeLsp()
   } catch (error) {
     console.warn('[lsp] the session could not be reconnected:', error instanceof Error ? error.message : error)
@@ -1485,6 +1621,9 @@ function stopLsp() {
   currentClient = null
   currentWorkspace = null
   currentTransport = null
+  // A client that waits for its turn goes with the session: it must not be
+  // connected later on.
+  pendingConfig = null
   // The requests that wait for the connection may go: the session is over.
   if (pendingConnection !== null) {
     pendingConnection.resolve()
@@ -1500,6 +1639,61 @@ function stopLsp() {
   // "starting" again when it is built.
   reportClientState('starting')
   bumpVersion()
+}
+
+/**
+ * The chain of the project switches.
+ *
+ * A switch is asynchronous (WS-02): the language server of the old project
+ * has to be stopped BEFORE the one of the new project is started, because the
+ * memory gate of the host reads the memory of the machine and it has to read
+ * the memory that the old server gave back. Two switches must not run at the
+ * same time - the second one would start its server while the first one is
+ * still waiting for the stop of the old one.
+ *
+ * The chain serialises them: every switch waits for the one before it. The
+ * chain never rejects - a switch that fails is logged and the next one still
+ * runs.
+ * @type {Promise<void>}
+ */
+let switchChain = Promise.resolve()
+
+/**
+ * How many switches are waiting in the chain.
+ *
+ * The session may only be started right away when nothing is waiting: a
+ * switch that is still running owns the start of the next session.
+ */
+let pendingSwitches = 0
+
+/**
+ * Run one project switch.
+ *
+ * The language server of the old project is stopped first, and the client of
+ * the new one is connected when the host confirmed the stop. The order is the
+ * whole point of the switch (WS-02): the gate of the new server has to see
+ * the memory that the old server released.
+ *
+ * The switch gives up when the state moved on while it was waiting: the
+ * session key is the truth, and the switch that owns the newer key connects
+ * the client. Without that check a stale switch would connect a client for a
+ * project that was left again in the meantime.
+ * @param {string} shutdownRoot the root whose language server has to go
+ * @param {string} key the session key this switch belongs to
+ */
+function enqueueSwitch(shutdownRoot, key) {
+  pendingSwitches += 1
+  switchChain = switchChain.then(async () => {
+    if (shutdownRoot !== '') await shutdownHostLspAwaited(shutdownRoot)
+    // The state moved on while the old server was stopping: the switch that
+    // owns the newer key connects the client, this one does not.
+    if (sessionKey !== key) return
+    connectPendingClient()
+  }).catch(error => {
+    console.warn('[lsp] the project switch failed:', error instanceof Error ? error.message : error)
+  }).finally(() => {
+    pendingSwitches -= 1
+  })
 }
 
 /** Apply the current settings to the session. */
@@ -1548,19 +1742,37 @@ function refreshLsp() {
     // Another project: the failures of the old language server say nothing
     // about the new one.
     resetLspHealth()
+    // The host needs to know which root the user is looking at: the LRU
+    // order of the memory pressure yield protects the focused root, and
+    // yielding it interrupts the user (CONC-03).
+    reportLspFocus(root)
   }
   if (wanted) {
     // A different project means a different server: the old client is
     // closed first, so its socket cannot outlive the project.
-    if (hadClient) {
-      // The old language server keeps running on the host until its idle
-      // timeout - ten minutes - and holds its memory all that time. The
-      // project was left, so the server has to go with it (SET-01 asks for
-      // the same when the feature is switched off).
-      if (previousRoot !== '' && previousRoot !== root) shutdownHostLsp(previousRoot)
-      stopLsp()
+    if (hadClient) stopLsp()
+    // The language server of the project that was left has to die on the
+    // host, and it has to die BEFORE the new one starts (WS-01, WS-02).
+    //
+    // The root is empty when the session never had a project - there is no
+    // server to stop then. It is the root of the new project when the
+    // session stayed in the same project (only the scope moved): that
+    // server belongs to the project and stays.
+    const shutdownRoot = previousRoot !== '' && previousRoot !== root ? previousRoot : ''
+    if (shutdownRoot === '' && pendingSwitches === 0) {
+      // There is nothing to wait for: the client is connected right away.
+      startLsp()
+    } else {
+      // The stop of the old server has to be confirmed before the new client
+      // connects - the connect is what makes the host start the language
+      // server, and its memory gate has to see the memory the old server gave
+      // back (WS-02).
+      //
+      // The client itself is created right away: the editors ask for it, and
+      // the requests wait for the connection.
+      startLsp({ waitForShutdown: true })
+      enqueueSwitch(shutdownRoot, key)
     }
-    startLsp(store)
   } else if (hadClient) {
     // The session is over: the language server of the host has to die now
     // and not after its ten minute idle timeout (SET-01). The call happens
@@ -1594,14 +1806,32 @@ export function configureLsp(store) {
     unsubscribeStore = null
   }
   sessionKey = null
-  sessionRoot = ''
-  // The scope root belongs to the client of the previous store: the new one
-  // asks the host again.
+  // `sessionRoot` is NOT reset here, and that is the fix of WS-01.
+  //
+  // The root of the session that is being replaced is the root whose
+  // language server has to be stopped on the host: the workspace was left,
+  // and its language server would keep running - and keep its reservation
+  // (2 GB for TypeScript) - until the idle timeout of the host takes it away
+  // ten minutes later. `refreshLsp()` reads `sessionRoot` as `previousRoot`
+  // and stops that server, but only when the root is still there. Blanking it
+  // here made the guard `previousRoot !== ''` false for ever, so
+  // `shutdownHostLsp()` was NEVER called on a workspace switch and the old
+  // server survived.
+  //
+  // The root is the truth about the project the session belongs to, so it is
+  // cleared where the session really ends: when the store is released
+  // (`releaseLspForStore`) and when the session is unbound.
+  //
+  // The scope root DOES belong to the client of the previous store: the new
+  // one asks the host again.
   sessionScopeRoot = ''
   // A new store is a new world for the client: it has not seen a language
   // server process yet, so the first process id it reads is the baseline of
   // the comparison and not a restart.
   lastProcessId = null
+  // The store is live again: a release that happened before (the store was
+  // evicted and came back) must not swallow the next one.
+  if (store !== null && store !== undefined) releasedStores.delete(store)
   if (typeof store?.subscribe === 'function') {
     // The settings and the project root arrive after the store was created,
     // so the session follows the state of the store.
@@ -1627,6 +1857,75 @@ export function configureLsp(store) {
 export function refreshLspSession() {
   sessionKey = null
   refreshLsp()
+}
+
+/**
+ * The stores whose session was released already.
+ *
+ * The release may come twice: once from the cache that drops the store and
+ * once from the store itself. The client-side work has to happen once - the
+ * second release would stop a session that belongs to a store that is live
+ * again in the meantime.
+ */
+const releasedStores = new WeakSet()
+
+/**
+ * Release the semantic-analysis session of one store.
+ *
+ * A store that is dropped from the cache of the workspaces is gone for good,
+ * and everything that belongs to it has to go with it (PRD-v5.1 §2.3,
+ * WS-03):
+ *
+ *   - the subscription of the session on the store: a store that nobody
+ *     watches any more cannot tell the session anything, and every update of
+ *     such a store would wake a session that belongs to a workspace nobody
+ *     looks at;
+ *   - the client socket of the session, when the store is the one the
+ *     session belongs to;
+ *   - the language server of the project on the host. The client never
+ *     starts a server on its own - the host starts one only when the client
+ *     asks for it, and the host's wake-up needs a session that already
+ *     exists (PRD-v5.1 §1.3 X1) - so the host has to be TOLD to stop the
+ *     server of the root. Without that the server keeps running (and keeps
+ *     its reservation) until the idle timeout of the host takes it away.
+ *
+ * The root of the running session is not touched: the session that is
+ * running owns its root, and a store that is dropped for good may well be
+ * the one of the workspace the user is looking at right now.
+ *
+ * The release is idempotent, and the store may have its own part of it: a
+ * store that knows how to release itself (`releaseLsp`) is asked to do so.
+ * @param {any} store the store that is released
+ * @returns {void}
+ */
+export function releaseLspForStore(store) {
+  if (store === null || store === undefined) return
+  if (releasedStores.has(store)) return
+  releasedStores.add(store)
+  const root = typeof store?.state?.root === 'string' ? store.state.root : ''
+  // The session belongs to this store: it goes with it.
+  if (store === sessionStore) {
+    if (unsubscribeStore !== null) {
+      unsubscribeStore()
+      unsubscribeStore = null
+    }
+    stopLsp()
+    sessionKey = null
+    sessionRoot = ''
+  }
+  // The language server of the project has to go on the host as well. The
+  // session that is running owns its root - that one is not touched.
+  if (root !== '' && root !== sessionRoot) shutdownHostLsp(root)
+  // The store may have a part of the release of its own (its poll timer).
+  // The method is optional: the release of the session must work with or
+  // without it.
+  if (typeof store?.releaseLsp === 'function') {
+    try {
+      store.releaseLsp()
+    } catch (error) {
+      console.warn('[lsp] the store could not release its session:', error instanceof Error ? error.message : error)
+    }
+  }
 }
 
 /**
@@ -1697,12 +1996,24 @@ export function setLspEnabled(enabled) {
 
 /**
  * Close the session and release everything it holds.
+ *
+ * The language server of the host belongs to the session: it has to go with
+ * it, or it keeps running on the host - and keeps its reservation - until
+ * the idle timeout of the host takes it away ten minutes later (SET-01).
+ * Closing the socket is not enough: the relay of the host only detaches
+ * itself when the socket dies, the server stays alive (PRD-v5.1 §1.3).
+ *
+ * The root is cleared as well: the session owns no project any more, so the
+ * next binding starts without a project to leave.
  */
 export function shutdownLsp() {
   sessionEnabled = false
   sessionKey = null
+  const root = sessionRoot
+  sessionRoot = ''
   stopLsp()
   editorViews.clear()
+  shutdownHostLsp(root)
 }
 
 /**

@@ -17,7 +17,7 @@ import {
 } from './workspace-scope.js'
 import { openInDefaultSidebar } from './file-link.js'
 import { registerChatInput } from './chat-bridge.js'
-import { configureLsp } from './lsp-session.js'
+import { configureLsp, releaseLspForStore } from './lsp-session.js'
 
 export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs', 'sessions']
 const PANEL_ID = 'ide-workbench'
@@ -295,6 +295,38 @@ export function apply(ctx) {
   // One store per workspace, at most three of them resident (PRD PERF-05).
   const stores = new StoreCache({ limit: 3, isMounted: isMountedSession })
   /**
+   * Tie the lifetime of the semantic-analysis session to the store.
+   *
+   * The cache drops the stores it does not need any more, and a dropped store
+   * must not leave a language server behind: the server of the host would
+   * keep running - and keep its memory reservation (2 GB for TypeScript) -
+   * until the idle timeout of the host takes it away ten minutes later
+   * (PRD-v5.1 §2.3, WS-03). Closing the socket of the client is not enough:
+   * the relay of the host only detaches itself when the socket dies, the
+   * server stays alive.
+   *
+   * The store is disposed when the cache drops it, so the release of the
+   * session is tied to the disposal. The store does not know the session -
+   * the session is a module of its own - so the two are tied together HERE,
+   * where the store is created.
+   *
+   * The wrapper is defensive: a store without a `dispose` (a test double) is
+   * left alone.
+   * @param {any} store the store of one workspace
+   */
+  const bindStoreLifecycle = (store) => {
+    if (store === null || typeof store !== 'object') return
+    const dispose = typeof store.dispose === 'function' ? store.dispose : null
+    const deactivate = typeof store.deactivate === 'function' ? store.deactivate : null
+    if (dispose === null && deactivate === null) return
+    store.dispose = function disposeStore() {
+      // The semantic-analysis session of the workbench goes with the store.
+      releaseLspForStore(store)
+      if (dispose !== null) return dispose.call(store)
+      return deactivate.call(store)
+    }
+  }
+  /**
    * Evict outside the render stack.
    *
    * Evicting deactivates a store, which notifies its subscribers and writes
@@ -321,7 +353,11 @@ export function apply(ctx) {
       return existing
     }
     // The eviction is deferred: `getStore` runs while React renders.
-    const store = stores.set(key, new WorkbenchStore(ctx, t, cwdOf(id)), id, { evict: false })
+    const store = new WorkbenchStore(ctx, t, cwdOf(id))
+    // The store and the session of the workbench have the same lifetime: a
+    // store that is evicted must not leave a session behind (WS-03).
+    bindStoreLifecycle(store)
+    stores.set(key, store, id, { evict: false })
     // The semantic-analysis session belongs to the store: it reads the
     // language-server status and the drafts from it, and it registers the
     // text version of Find Usages on it.

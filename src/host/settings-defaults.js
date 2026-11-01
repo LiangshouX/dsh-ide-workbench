@@ -30,16 +30,18 @@
 export const BUILD_REQUEST_TIMEOUT_MS = 600000
 
 /**
- * The idle policies of the `lsp` section (PRD-v5 §3.2).
+ * The idle policies of the `lsp` section (PRD-v5 §3.2, PRD-v5.1 §5).
  *
  * 'never' = the language server stays until the user stops it; 'after' = it
  * is released after `idleTimeoutMs` without a request; 'onMemoryPressure' =
- * it is released when the machine runs out of free memory.
+ * it is released when the machine runs out of free memory; 'always' = it is
+ * released in both cases - after the idle timeout *and* when the machine
+ * asks for the memory back.
  *
  * The list lives here and not in the host, because the settings page needs
- * it to offer the three choices - and a second copy would drift away.
+ * it to offer the choices - and a second copy would drift away.
  */
-export const IDLE_POLICIES = ['never', 'after', 'onMemoryPressure']
+export const IDLE_POLICIES = ['never', 'after', 'onMemoryPressure', 'always']
 
 /**
  * The index scopes of the `lsp` section (PRD-v5 §4.2).
@@ -67,19 +69,77 @@ export const DEFAULT_LSP_SETTINGS = {
   memoryHeadroom: 1.5,
   /** Free memory below which no language server starts at all (MB). */
   memoryHardFloorMB: 256,
+  /**
+   * The machine-level total budget, as a fraction of the total memory
+   * (PRD-v5.1 MEM-08).
+   *
+   * The per-server gate answers one question only: "may the next server
+   * start". It cannot answer "may three servers grow to their ceiling at the
+   * same time" - and that is the question that ends in the swap. The budget
+   * is the last gate: the sum of the ceilings of the running servers never
+   * exceeds `totalBytes × budgetRatio`.
+   *
+   * A quarter of the memory is the default: a machine that gives a quarter
+   * of its memory to the language servers still has room for the editor, the
+   * build and the agent - and on a large machine the absolute cap
+   * (`budgetCapMB`) takes over anyway.
+   */
+  budgetRatio: 0.25,
+  /**
+   * The absolute cap of the machine-level total budget (MB, MEM-08).
+   *
+   * The ratio alone would hand a 64 GB machine 16 GB of language servers,
+   * which is more than any machine needs. The cap is the ceiling of the
+   * budget: `min(totalBytes × budgetRatio, budgetCapMB)`. Four gigabytes
+   * hold about four TypeScript indexes of the default size, which is what
+   * the budget is meant to allow.
+   */
+  budgetCapMB: 4096,
+  /**
+   * The number of indexes that may run at the same time (0 = no limit).
+   *
+   * The budget decides how many servers fit into the machine; this setting
+   * is the user's own limit on top of it. When both apply, the stricter one
+   * wins: a limit of 1 keeps a single index even on a machine with room for
+   * four. 0 leaves the decision to the budget alone.
+   */
+  maxConcurrentIndexes: 0,
   /** Idle time after which the language server exits (ms). */
   idleTimeoutMs: 600000,
   /**
    * When an idle language server may release its memory (PRD-v5 §3.2).
    *
-   * 'never' = never on its own; 'after' = after `idleTimeoutMs` without a
-   * request; 'onMemoryPressure' = when the machine runs out of free memory.
+   * 'never' = never because of idleness; 'after' = after `idleTimeoutMs`
+   * without a request; 'onMemoryPressure' = only when the machine runs out
+   * of free memory; 'always' = the idle timeout *and* the pressure yield.
+   *
+   * The idle half of the policy never exempts the machine from the memory
+   * pressure: 'never' means "not because of idleness", not "not even when
+   * the machine is dying" (PRD-v5.1 MEM-12). The pressure valve has a
+   * switch of its own - `pressureYield` - and that is the only way to
+   * switch it off.
    *
    * `autoExit: false` still means "never" for the documents that were
    * written before this setting existed - the host honours the older
    * switch over the newer policy.
    */
   idlePolicy: 'after',
+  /**
+   * Whether a language server may be released when the machine runs out of
+   * memory (PRD-v5.1 MEM-12).
+   *
+   * The pressure valve is the last defence against the swap: when the
+   * available memory falls below the hard floor, the least active server is
+   * released and the machine gets its memory back. The valve is independent
+   * of `idlePolicy` - "never" means "never because of idleness", not "not
+   * even when the machine is dying" - and it is installed by default.
+   *
+   * `false` is the one and only way to switch the valve off: the host does
+   * not install the pressure timer at all. The user who switches it off
+   * gives up the protection against the swap, so the switch has to be an
+   * explicit one.
+   */
+  pressureYield: true,
   /**
    * The scope of the program the language server builds (PRD-v5 §4.2).
    *
@@ -114,4 +174,21 @@ export const DEFAULT_LSP_SETTINGS = {
   /** Project roots the user has already been warned about on a tight memory
    * budget: { [absPath]: true }. The same project is not asked twice. */
   memoryWarnedRoots: {},
+  /**
+   * The semantic-analysis default state of every workspace:
+   * `{ [scopePath]: 'build' | 'conservative' }` (PRD-v5.1 WS-04).
+   *
+   * `indexOnOpen` is the global policy, and this map outranks it: a
+   * workspace whose user once chose the basic mode stays in the basic mode
+   * even when `indexOnOpen` is 'always'. The decision of the user is
+   * persistent - it lives in the settings document, so it survives a
+   * workspace switch and a restart of DSH, which the memory of the client
+   * does not.
+   *
+   * Only a decision the user made belongs here. A decision the policy
+   * derived (the automatic start of the 'always' policy) stays in the
+   * memory of the client - written here it would take the choice away from
+   * the user, who could never turn the index of that workspace off again.
+   */
+  workspaceDefaults: {},
 }

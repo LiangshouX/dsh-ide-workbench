@@ -31341,10 +31341,15 @@ var en = {
   "settings.lspEnabled": "Build a code index",
   "settings.lspEnabledHint": "With this off no language server is started: hovering, semantic completion and go to definition are unavailable, and the workbench does not ask when a project is opened. Turning it off ends the running index processes immediately and releases their memory.",
   "settings.lspIndexOnOpen": "When opening an unindexed folder",
-  "settings.lspIndexOnOpenHint": "The first build of a project can take one or two minutes",
+  "settings.lspIndexOnOpenHint": "The first build of a project can take one or two minutes. The policy applies to every project; a project you put into the basic mode keeps it.",
   "settings.lspIndexAsk": "Ask me",
-  "settings.lspIndexAlways": "Always index",
+  // The global policy is NOT unconditional any more: the workspace-scoped
+  // default outranks it (PRD-v5.1 WS-04), so the row has to say so.
+  "settings.lspIndexAlways": "Always index (unless the project is in the basic mode)",
   "settings.lspIndexNever": "Never index (basic mode only)",
+  // The workspace-scoped default of PRD-v5.1 WS-04: the decision of the user
+  // about one project outranks the global policy, and it is remembered.
+  "settings.lspWorkspaceDefaultHint": 'This policy applies to every project. A project whose workspace you put into the basic mode keeps it - even with "always index". The choice is remembered per project and survives a restart.',
   "settings.lspMemoryLimit": "Language server memory limit (MB)",
   // The global limit is a cap over EVERY language server, and a language
   // that carries its own ceiling keeps it. The user raised this value and
@@ -31366,7 +31371,7 @@ var en = {
   "settings.lspRequestTimeoutShort": "The limit of one request",
   "settings.lspMemoryNow": "Available now: {available} MB \xB7 {language} is expected to need {need} MB ({state}) \xB7 the server does not start below {threshold} MB \xB7 hard floor {floor} MB",
   "settings.lspMemoryNowNoProject": "Available now: {available} MB \xB7 no project is open, so there is no estimate yet",
-  "settings.lspMemoryReserved": "The running language servers have reserved {reserved} MB of it - their ceiling, not the memory they actually use.",
+  "settings.lspMemoryReserved": "The running language servers have reserved {reserved} MB of it - what they may still grow into (their ceiling minus what they already use), not what they already use.",
   "settings.lspMemoryState.ok": "can start",
   "settings.lspMemoryState.tight": "tight",
   "settings.lspMemoryState.low": "not enough",
@@ -31386,7 +31391,25 @@ var en = {
   "settings.lspIdlePolicyNever": "Never exit",
   "settings.lspIdlePolicyAfter": "Exit after the idle time below",
   "settings.lspIdlePolicyMemory": "Only when the memory is tight",
+  // The fourth policy of PRD-v5.1: the idle timeout AND the memory pressure.
+  "settings.lspIdlePolicyAlways": "Exit after the idle time and under memory pressure",
   "settings.lspIdlePolicyNeverWarning": "A language server that never exits keeps about 1.8\u20132.2 GB of memory on a large project.",
+  // The machine-level budget of PRD-v5.1 MEM-08: the per-server gate answers
+  // "may the next server start", the budget answers "may they all grow".
+  "settings.lspBudgetGroup": "Machine budget",
+  "settings.lspBudgetRatio": "Share of the memory",
+  "settings.lspBudgetRatioShort": "The share of the total memory the language servers may use together",
+  "settings.lspBudgetRatioHint": "The budget of the machine is a share of its total memory (0.25 = a quarter) and the absolute cap below. The smaller of the two wins.",
+  "settings.lspBudgetCap": "Budget limit",
+  "settings.lspBudgetCapShort": "The absolute limit of the budget, in MB",
+  "settings.lspBudgetCapHint": "No matter how much memory the machine has, the language servers may not claim more than this together. 4096 MB holds about four TypeScript indexes.",
+  "settings.lspMaxConcurrent": "Indexes at the same time",
+  "settings.lspMaxConcurrentShort": "0 lets the budget decide",
+  "settings.lspMaxConcurrentHint": "Your own limit on top of the budget: how many language servers may run at the same time. When both apply, the stricter one wins.",
+  // The switch of the memory-pressure valve of PRD-v5.1 MEM-12: it is armed
+  // by default, and this is the ONE way to switch it off.
+  "settings.lspPressureYield": "Release on memory pressure",
+  "settings.lspPressureYieldHint": "When the machine runs short of memory, the least active language server is released. This switch is the only way to turn the valve off.",
   "settings.lspIdleTimeout": "Idle exit (minutes)",
   "settings.lspIdleTimeoutHint": "The server exits after this much time without activity, and its memory is released",
   "settings.lspCancelAfter": "Cancel button after (seconds)",
@@ -31817,6 +31840,11 @@ var en = {
   // translate function does not interpolate.
   "project.indexed": "Indexed",
   "project.indexedHint": "This folder was indexed before. Reopening it is usually faster, but not free.",
+  // The second state of the badge (PRD-v5.1 CONC-05): the index was built,
+  // but the language server was reclaimed - so the folder is indexed and
+  // there is no server for it.
+  "project.indexedReclaimed": "Indexed (reclaimed)",
+  "project.indexedReclaimedHint": "This folder was indexed before, but no language server is running for it now. Rebuilding the index costs another full build.",
   "lsp.status.disabled": "Semantic analysis: off",
   "lsp.status.missing": "Semantic analysis: {language} not installed",
   "lsp.status.starting": "Semantic analysis: starting\u2026",
@@ -31835,6 +31863,9 @@ var en = {
   "lsp.status.unknown": "Semantic analysis: unknown (retrying\u2026)",
   "lsp.status.crashed": "Semantic analysis: crashed",
   "lsp.status.cancelled": "Semantic analysis: cancelled (basic mode)",
+  // The state of a project whose workspace never turned the semantic
+  // analysis on (PRD-v5.1 WS-04): the basic mode, and the reason for it.
+  "lsp.status.workspaceOff": "Semantic analysis: not enabled for this project",
   "lsp.status.unstable": "Semantic analysis: unstable ({count} consecutive failures)",
   "lsp.status.unstableTimeout": "Semantic analysis: unstable ({count} consecutive timeouts)",
   // The state of the CLIENT session: the link between the browser and the
@@ -31864,7 +31895,13 @@ var en = {
   "lsp.diagnostics.memoryAvailable": "Available",
   "lsp.diagnostics.memoryNeed": "Needs",
   "lsp.diagnostics.memoryReserved": "Reserved",
-  "lsp.diagnostics.memoryHint": "Available: the free memory of the machine minus what the running language servers have reserved. Needs: the estimated memory of the next language server. Reserved: the ceiling every running language server was granted - not the memory it actually uses.",
+  "lsp.diagnostics.memoryHint": "Available: the free memory of the machine minus what the running language servers may still grow into. Needs: the estimated memory of the next language server. Reserved: what the running language servers may still take - their ceiling minus what they already use, not their ceiling.",
+  // The worst case of PRD-v5.1 MEM-07: what the machine would be left with if
+  // the next language server grew into the ceiling it was granted. The
+  // number may be negative - that is the point of the row.
+  "lsp.diagnostics.memoryWorstCase": "Worst case",
+  "lsp.diagnostics.memoryWorstText": "If this server takes its ceiling of {ceiling} MB, the machine will be left with {left} MB.",
+  "lsp.diagnostics.memoryWorstHint": "The worst case: what the machine would be left with if the next language server grew into the ceiling it was granted. The number may be negative - that is the point of the row.",
   "lsp.diagnostics.rebuild": "Rebuild the index",
   "lsp.diagnostics.degrade": "Use the basic mode",
   "lsp.diagnostics.degradeHint": "Stop the language server and keep the basic mode (local completion and text search)",
@@ -31879,6 +31916,12 @@ var en = {
   "lsp.memoryWarn.start": "Start anyway",
   "lsp.memoryWarn.conservative": "Use the basic mode",
   "lsp.memoryWarn.conservativeHint": "Do not start the language server (local completion and text search)",
+  // The explanation of the workspace-scoped default (PRD-v5.1 WS-04): the
+  // workbench stays in the basic mode and says WHY, instead of leaving the
+  // user to wonder whether the feature is broken.
+  "lsp.workspaceBasicModeToast": "This workspace has not turned on the semantic analysis. You can turn it on for a project.",
+  "lsp.workspaceConservativeToast": "You chose the basic mode for this project. You can turn the semantic analysis on for it at any time.",
+  "lsp.workspaceOffHint": "You chose the basic mode for this project. You can turn the semantic analysis on for it at any time.",
   "index.decision.title": "Enable semantic analysis for {name}",
   "index.decision.body": "Starts the {language} language server and builds the project index. It takes about {time}.",
   "index.decision.bodyUnknown": "Starts the language server and builds the project index. It takes about {time}.",
@@ -31909,7 +31952,7 @@ var en = {
   // The session is still connecting: there is nothing to reconnect yet, and
   // the text must not promise a button that does not exist.
   "nav.semanticSessionConnecting": "The semantic analysis session is still connecting.",
-  "lsp.lowMemory": "Not enough free memory (needs {need} MB, {free} MB available)",
+  "lsp.lowMemory": "Not enough available memory (needs {need} MB, {free} MB available)",
   "lsp.lowMemoryHint": "Close the other programs, or use the basic mode for this language.",
   "lsp.crashedToast": "The language server exited.",
   // A degradation is not always an exit: the server may be switched off in
@@ -31971,10 +32014,13 @@ var zh = {
   "settings.lspEnabled": "\u6784\u5EFA\u4EE3\u7801\u7D22\u5F15",
   "settings.lspEnabledHint": "\u5173\u95ED\u540E\u4E0D\u542F\u52A8\u4EFB\u4F55\u8BED\u8A00\u670D\u52A1\u5668\uFF0C\u60AC\u6D6E\u63D0\u793A\u3001\u8BED\u4E49\u8865\u5168\u4E0E\u8DF3\u8F6C\u5B9A\u4E49\u90FD\u4E0D\u53EF\u7528\uFF1B\u5207\u6362\u9879\u76EE\u65F6\u4E5F\u4E0D\u518D\u8BE2\u95EE\u3002\u5173\u95ED\u4F1A\u7ACB\u5373\u7ED3\u675F\u6B63\u5728\u8FD0\u884C\u7684\u7D22\u5F15\u8FDB\u7A0B\u5E76\u91CA\u653E\u5185\u5B58\u3002",
   "settings.lspIndexOnOpen": "\u6253\u5F00\u672A\u7D22\u5F15\u76EE\u5F55\u65F6",
-  "settings.lspIndexOnOpenHint": "\u4E00\u4E2A\u9879\u76EE\u7684\u9996\u6B21\u6784\u5EFA\u53EF\u80FD\u9700\u8981\u4E00\u4E24\u5206\u949F",
+  "settings.lspIndexOnOpenHint": "\u4E00\u4E2A\u9879\u76EE\u7684\u9996\u6B21\u6784\u5EFA\u53EF\u80FD\u9700\u8981\u4E00\u4E24\u5206\u949F\u3002\u8BE5\u7B56\u7565\u9002\u7528\u4E8E\u6240\u6709\u9879\u76EE\uFF1B\u4F60\u9009\u62E9\u8FC7\u57FA\u7840\u6A21\u5F0F\u7684\u9879\u76EE\u4F1A\u4FDD\u6301\u57FA\u7840\u6A21\u5F0F\u3002",
   "settings.lspIndexAsk": "\u8BE2\u95EE\u6211",
-  "settings.lspIndexAlways": "\u603B\u662F\u7D22\u5F15",
+  "settings.lspIndexAlways": "\u603B\u662F\u7D22\u5F15\uFF08\u9664\u975E\u8BE5\u9879\u76EE\u5904\u4E8E\u57FA\u7840\u6A21\u5F0F\uFF09",
   "settings.lspIndexNever": "\u4ECE\u4E0D\u7D22\u5F15\uFF08\u4EC5\u4FDD\u5B88\u7248\uFF09",
+  // The workspace-scoped default of PRD-v5.1 WS-04: the decision of the user
+  // about one project outranks the global policy, and it is remembered.
+  "settings.lspWorkspaceDefaultHint": "\u8BE5\u7B56\u7565\u9002\u7528\u4E8E\u6240\u6709\u9879\u76EE\u3002\u4F60\u9009\u62E9\u8FC7\u57FA\u7840\u6A21\u5F0F\u7684\u9879\u76EE\u4F1A\u4FDD\u6301\u57FA\u7840\u6A21\u5F0F \u2014\u2014 \u5373\u4F7F\u7B56\u7565\u662F\u300C\u603B\u662F\u7D22\u5F15\u300D\u3002\u8BE5\u9009\u62E9\u6309\u9879\u76EE\u8BB0\u4F4F\uFF0C\u91CD\u542F\u540E\u4ECD\u7136\u6709\u6548\u3002",
   "settings.lspMemoryLimit": "\u8BED\u8A00\u670D\u52A1\u5668\u5185\u5B58\u4E0A\u9650 (MB)",
   // 全局上限是所有语言服务器共同的上限，而自带上限的语言保留自己的上限。
   // 用户调高了它却仍然看到旧值，所以这句话必须说清楚它真正的作用。
@@ -31995,7 +32041,7 @@ var zh = {
   "settings.lspRequestTimeoutShort": "\u5355\u6B21\u8BF7\u6C42\u7684\u4E0A\u9650",
   "settings.lspMemoryNow": "\u5F53\u524D\u53EF\u7528 {available} MB \xB7 {language} \u9884\u8BA1\u9700\u8981 {need} MB\uFF08{state}\uFF09\xB7 \u4F4E\u4E8E {threshold} MB \u4E0D\u542F\u52A8 \xB7 \u786C\u4E0B\u9650 {floor} MB",
   "settings.lspMemoryNowNoProject": "\u5F53\u524D\u53EF\u7528 {available} MB \xB7 \u5C1A\u672A\u6253\u5F00\u9879\u76EE\uFF0C\u6682\u65E0\u5185\u5B58\u4F30\u7B97",
-  "settings.lspMemoryReserved": "\u8FD0\u884C\u4E2D\u7684\u8BED\u8A00\u670D\u52A1\u5668\u5DF2\u9884\u7559\u4E86 {reserved} MB \u2014\u2014 \u6309\u5B83\u4EEC\u88AB\u6388\u4E88\u7684\u4E0A\u9650\u8BB0\u7684\u8D26\uFF0C\u4E0D\u662F\u5B9E\u9645\u5360\u7528\u3002",
+  "settings.lspMemoryReserved": "\u8FD0\u884C\u4E2D\u7684\u8BED\u8A00\u670D\u52A1\u5668\u5DF2\u9884\u7559\u4E86 {reserved} MB \u2014\u2014 \u6309\u5B83\u4EEC\u300C\u8FD8\u53EF\u80FD\u518D\u6DA8\u300D\u7684\u90E8\u5206\u8BB0\u7684\u8D26\uFF08\u4E0A\u9650\u51CF\u53BB\u5DF2\u5B9E\u6D4B\u5360\u7528\uFF09\uFF0C\u4E0D\u662F\u5B83\u4EEC\u5DF2\u7ECF\u5360\u7528\u7684\u5185\u5B58\u3002",
   "settings.lspMemoryState.ok": "\u53EF\u542F\u52A8",
   "settings.lspMemoryState.tight": "\u5185\u5B58\u7D27\u5F20",
   "settings.lspMemoryState.low": "\u5185\u5B58\u4E0D\u8DB3",
@@ -32012,6 +32058,22 @@ var zh = {
   "settings.lspIdlePolicyNever": "\u6C38\u4E0D\u9000\u51FA",
   "settings.lspIdlePolicyAfter": "\u5728\u4E0B\u9762\u7684\u7A7A\u95F2\u65F6\u95F4\u540E\u9000\u51FA",
   "settings.lspIdlePolicyMemory": "\u4EC5\u5728\u5185\u5B58\u7D27\u5F20\u65F6\u9000\u51FA",
+  // The fourth policy of PRD-v5.1: the idle timeout AND the memory pressure.
+  "settings.lspIdlePolicyAlways": "\u7A7A\u95F2\u540E\u9000\u51FA\uFF0C\u5E76\u5728\u5185\u5B58\u7D27\u5F20\u65F6\u91CA\u653E",
+  // The machine-level budget of PRD-v5.1 MEM-08.
+  "settings.lspBudgetGroup": "\u6574\u673A\u9884\u7B97",
+  "settings.lspBudgetRatio": "\u5185\u5B58\u5360\u6BD4",
+  "settings.lspBudgetRatioShort": "\u8BED\u8A00\u670D\u52A1\u5668\u5408\u8BA1\u53EF\u5360\u7528\u7684\u5185\u5B58\u6BD4\u4F8B",
+  "settings.lspBudgetRatioHint": "\u6574\u673A\u9884\u7B97 = \u603B\u5185\u5B58\u7684\u8BE5\u6BD4\u4F8B\uFF080.25 = \u56DB\u5206\u4E4B\u4E00\uFF09\u4E0E\u4E0B\u9762\u7684\u7EDD\u5BF9\u4E0A\u9650\uFF0C\u4E24\u8005\u53D6\u66F4\u4E25\u8005\u3002",
+  "settings.lspBudgetCap": "\u9884\u7B97\u4E0A\u9650",
+  "settings.lspBudgetCapShort": "\u9884\u7B97\u7684\u7EDD\u5BF9\u4E0A\u9650\uFF08MB\uFF09",
+  "settings.lspBudgetCapHint": "\u65E0\u8BBA\u673A\u5668\u6709\u591A\u5C11\u5185\u5B58\uFF0C\u8BED\u8A00\u670D\u52A1\u5668\u5408\u8BA1\u4E0D\u5F97\u8D85\u8FC7\u8FD9\u4E2A\u989D\u5EA6\u30024096 MB \u5927\u7EA6\u5BB9\u7EB3\u56DB\u4E2A TypeScript \u7D22\u5F15\u3002",
+  "settings.lspMaxConcurrent": "\u540C\u65F6\u5EFA\u7ACB\u7684\u7D22\u5F15",
+  "settings.lspMaxConcurrentShort": "0 \u8868\u793A\u7531\u9884\u7B97\u51B3\u5B9A",
+  "settings.lspMaxConcurrentHint": "\u9884\u7B97\u4E4B\u5916\u4F60\u81EA\u5DF1\u7684\u9650\u5236\uFF1A\u6700\u591A\u540C\u65F6\u8FD0\u884C\u591A\u5C11\u53F0\u8BED\u8A00\u670D\u52A1\u5668\u3002\u4E24\u8005\u540C\u65F6\u751F\u6548\u65F6\u53D6\u66F4\u4E25\u8005\u3002",
+  // The switch of the memory-pressure valve of PRD-v5.1 MEM-12.
+  "settings.lspPressureYield": "\u5185\u5B58\u7D27\u5F20\u65F6\u91CA\u653E",
+  "settings.lspPressureYieldHint": "\u673A\u5668\u5185\u5B58\u7D27\u5F20\u65F6\uFF0C\u91CA\u653E\u6700\u4E0D\u6D3B\u8DC3\u7684\u8BED\u8A00\u670D\u52A1\u5668\u3002\u8BE5\u5F00\u5173\u662F\u5173\u95ED\u6B64\u4FDD\u62A4\u9600\u7684\u552F\u4E00\u65B9\u5F0F\u3002",
   "settings.lspIdlePolicyNeverWarning": "\u6C38\u4E0D\u9000\u51FA\u7684\u8BED\u8A00\u670D\u52A1\u5668\u5728\u5927\u9879\u76EE\u4E0A\u4F1A\u5E38\u9A7B\u7EA6 1.8\u20132.2 GB \u5185\u5B58\u3002",
   "settings.lspIdleTimeout": "\u7A7A\u95F2\u9000\u51FA (\u5206\u949F)",
   "settings.lspIdleTimeoutHint": "\u670D\u52A1\u5668\u5728\u8FD9\u4E48\u4E45\u6CA1\u6709\u6D3B\u52A8\u540E\u9000\u51FA\uFF0C\u5185\u5B58\u968F\u4E4B\u91CA\u653E",
@@ -32442,6 +32504,9 @@ var zh = {
   // 花括号里的占位符由调用方替换：harness 的 translate 函数不做插值。
   "project.indexed": "\u5DF2\u7D22\u5F15",
   "project.indexedHint": "\u8BE5\u76EE\u5F55\u6B64\u524D\u5EFA\u7ACB\u8FC7\u7D22\u5F15\u3002\u91CD\u65B0\u6253\u5F00\u901A\u5E38\u66F4\u5FEB\uFF0C\u4F46\u5E76\u975E\u96F6\u6210\u672C\u3002",
+  // The second state of the badge (PRD-v5.1 CONC-05).
+  "project.indexedReclaimed": "\u5DF2\u7D22\u5F15\uFF08\u5DF2\u56DE\u6536\uFF09",
+  "project.indexedReclaimedHint": "\u8BE5\u76EE\u5F55\u6B64\u524D\u5EFA\u7ACB\u8FC7\u7D22\u5F15\uFF0C\u4F46\u5F53\u524D\u6CA1\u6709\u8BED\u8A00\u670D\u52A1\u5668\u5728\u8FD0\u884C\u3002\u91CD\u65B0\u5EFA\u7ACB\u7D22\u5F15\u9700\u8981\u518D\u7B49\u4E00\u6B21\u5B8C\u6574\u6784\u5EFA\u3002",
   "lsp.status.disabled": "\u8BED\u4E49\u5206\u6790\uFF1A\u5DF2\u5173\u95ED",
   "lsp.status.missing": "\u8BED\u4E49\u5206\u6790\uFF1A\u672A\u5B89\u88C5\uFF08{language}\uFF09",
   "lsp.status.starting": "\u8BED\u4E49\u5206\u6790\uFF1A\u542F\u52A8\u4E2D\u2026",
@@ -32460,6 +32525,9 @@ var zh = {
   "lsp.status.unknown": "\u8BED\u4E49\u5206\u6790\uFF1A\u72B6\u6001\u672A\u77E5\uFF08\u6B63\u5728\u91CD\u8BD5\u2026\uFF09",
   "lsp.status.crashed": "\u8BED\u4E49\u5206\u6790\uFF1A\u5DF2\u5D29\u6E83",
   "lsp.status.cancelled": "\u8BED\u4E49\u5206\u6790\uFF1A\u5DF2\u53D6\u6D88\uFF08\u4FDD\u5B88\u7248\uFF09",
+  // The state of a project whose workspace never turned the semantic
+  // analysis on (PRD-v5.1 WS-04).
+  "lsp.status.workspaceOff": "\u8BED\u4E49\u5206\u6790\uFF1A\u672C\u9879\u76EE\u672A\u5F00\u542F",
   "lsp.status.unstable": "\u8BED\u4E49\u5206\u6790\uFF1A\u4E0D\u7A33\u5B9A\uFF08\u8FDE\u7EED\u5931\u8D25 {count} \u6B21\uFF09",
   "lsp.status.unstableTimeout": "\u8BED\u4E49\u5206\u6790\uFF1A\u4E0D\u7A33\u5B9A\uFF08\u8FDE\u7EED\u8D85\u65F6 {count} \u6B21\uFF09",
   // 客户端会话的状态：浏览器与语言服务器之间的链路。宿主的状态只说明
@@ -32483,7 +32551,11 @@ var zh = {
   "lsp.diagnostics.memoryAvailable": "\u53EF\u7528",
   "lsp.diagnostics.memoryNeed": "\u9700\u8981",
   "lsp.diagnostics.memoryReserved": "\u5DF2\u9884\u7559",
-  "lsp.diagnostics.memoryHint": "\u53EF\u7528\uFF1A\u6574\u673A\u7A7A\u95F2\u5185\u5B58\u51CF\u53BB\u8FD0\u884C\u4E2D\u7684\u8BED\u8A00\u670D\u52A1\u5668\u5DF2\u9884\u7559\u7684\u90E8\u5206\u3002\u9700\u8981\uFF1A\u4E0B\u4E00\u53F0\u8BED\u8A00\u670D\u52A1\u5668\u7684\u9884\u4F30\u5185\u5B58\u3002\u5DF2\u9884\u7559\uFF1A\u6BCF\u53F0\u8FD0\u884C\u4E2D\u7684\u8BED\u8A00\u670D\u52A1\u5668\u88AB\u6388\u4E88\u7684\u4E0A\u9650\uFF0C\u4E0D\u662F\u5B83\u5B9E\u9645\u5360\u7528\u7684\u5185\u5B58\u3002",
+  "lsp.diagnostics.memoryHint": "\u53EF\u7528\uFF1A\u6574\u673A\u7A7A\u95F2\u5185\u5B58\u51CF\u53BB\u8FD0\u884C\u4E2D\u7684\u8BED\u8A00\u670D\u52A1\u5668\u300C\u8FD8\u53EF\u80FD\u518D\u6DA8\u300D\u7684\u90E8\u5206\u3002\u9700\u8981\uFF1A\u4E0B\u4E00\u53F0\u8BED\u8A00\u670D\u52A1\u5668\u7684\u9884\u4F30\u5185\u5B58\u3002\u5DF2\u9884\u7559\uFF1A\u8FD0\u884C\u4E2D\u7684\u8BED\u8A00\u670D\u52A1\u5668\u8FD8\u80FD\u518D\u5403\u591A\u5C11\uFF08\u4E0A\u9650\u51CF\u53BB\u5DF2\u5B9E\u6D4B\u5360\u7528\uFF09\uFF0C\u4E0D\u662F\u5B83\u4EEC\u5DF2\u7ECF\u5360\u7528\u7684\u5185\u5B58\u3002",
+  // The worst case of PRD-v5.1 MEM-07.
+  "lsp.diagnostics.memoryWorstCase": "\u6700\u574F\u60C5\u51B5",
+  "lsp.diagnostics.memoryWorstText": "\u82E5\u8BE5\u670D\u52A1\u5668\u5403\u5230\u4E0A\u9650 {ceiling} MB\uFF0C\u673A\u5668\u5C06\u5269 {left} MB\u3002",
+  "lsp.diagnostics.memoryWorstHint": "\u6700\u574F\u60C5\u51B5\uFF1A\u82E5\u4E0B\u4E00\u53F0\u8BED\u8A00\u670D\u52A1\u5668\u957F\u5230\u5B83\u88AB\u6388\u4E88\u7684\u4E0A\u9650\uFF0C\u673A\u5668\u5C06\u5269\u4E0B\u591A\u5C11\u5185\u5B58\u3002\u8BE5\u6570\u53EF\u80FD\u4E3A\u8D1F \u2014\u2014 \u8FD9\u6B63\u662F\u8FD9\u4E00\u884C\u7684\u610F\u4E49\u3002",
   "lsp.diagnostics.rebuild": "\u91CD\u65B0\u5EFA\u7ACB\u7D22\u5F15",
   "lsp.diagnostics.degrade": "\u4F7F\u7528\u57FA\u7840\u6A21\u5F0F",
   "lsp.diagnostics.degradeHint": "\u505C\u6B62\u8BED\u8A00\u670D\u52A1\u5668\uFF0C\u4FDD\u6301\u57FA\u7840\u6A21\u5F0F\uFF08\u672C\u5730\u8865\u5168 + \u6587\u672C\u67E5\u627E\uFF09",
@@ -32498,6 +32570,10 @@ var zh = {
   "lsp.memoryWarn.start": "\u4ECD\u7136\u542F\u52A8",
   "lsp.memoryWarn.conservative": "\u4F7F\u7528\u57FA\u7840\u6A21\u5F0F",
   "lsp.memoryWarn.conservativeHint": "\u4E0D\u542F\u52A8\u8BED\u8A00\u670D\u52A1\u5668\uFF08\u672C\u5730\u8865\u5168 + \u6587\u672C\u67E5\u627E\uFF09",
+  // The explanation of the workspace-scoped default (PRD-v5.1 WS-04).
+  "lsp.workspaceBasicModeToast": "\u672C\u5DE5\u4F5C\u533A\u672A\u5F00\u542F\u8BED\u4E49\u5206\u6790\uFF08\u53EF\u5728\u9879\u76EE\u4E0A\u5F00\u542F\uFF09\u3002",
+  "lsp.workspaceConservativeToast": "\u4F60\u4E3A\u672C\u9879\u76EE\u9009\u62E9\u4E86\u57FA\u7840\u6A21\u5F0F\uFF0C\u968F\u65F6\u53EF\u91CD\u65B0\u5F00\u542F\u8BED\u4E49\u5206\u6790\u3002",
+  "lsp.workspaceOffHint": "\u4F60\u4E3A\u672C\u9879\u76EE\u9009\u62E9\u4E86\u57FA\u7840\u6A21\u5F0F\uFF0C\u968F\u65F6\u53EF\u91CD\u65B0\u5F00\u542F\u8BED\u4E49\u5206\u6790\u3002",
   "index.decision.title": "\u4E3A {name} \u542F\u7528\u8BED\u4E49\u5206\u6790",
   "index.decision.body": "\u5C06\u542F\u52A8 {language} \u8BED\u8A00\u670D\u52A1\u5668\u5E76\u5EFA\u7ACB\u9879\u76EE\u7D22\u5F15\uFF0C\u9884\u8BA1 {time}\u3002",
   "index.decision.bodyUnknown": "\u5C06\u542F\u52A8\u8BED\u8A00\u670D\u52A1\u5668\u5E76\u5EFA\u7ACB\u9879\u76EE\u7D22\u5F15\uFF0C\u9884\u8BA1 {time}\u3002",
@@ -37686,19 +37762,77 @@ var DEFAULT_LSP_SETTINGS = {
   memoryHeadroom: 1.5,
   /** Free memory below which no language server starts at all (MB). */
   memoryHardFloorMB: 256,
+  /**
+   * The machine-level total budget, as a fraction of the total memory
+   * (PRD-v5.1 MEM-08).
+   *
+   * The per-server gate answers one question only: "may the next server
+   * start". It cannot answer "may three servers grow to their ceiling at the
+   * same time" - and that is the question that ends in the swap. The budget
+   * is the last gate: the sum of the ceilings of the running servers never
+   * exceeds `totalBytes × budgetRatio`.
+   *
+   * A quarter of the memory is the default: a machine that gives a quarter
+   * of its memory to the language servers still has room for the editor, the
+   * build and the agent - and on a large machine the absolute cap
+   * (`budgetCapMB`) takes over anyway.
+   */
+  budgetRatio: 0.25,
+  /**
+   * The absolute cap of the machine-level total budget (MB, MEM-08).
+   *
+   * The ratio alone would hand a 64 GB machine 16 GB of language servers,
+   * which is more than any machine needs. The cap is the ceiling of the
+   * budget: `min(totalBytes × budgetRatio, budgetCapMB)`. Four gigabytes
+   * hold about four TypeScript indexes of the default size, which is what
+   * the budget is meant to allow.
+   */
+  budgetCapMB: 4096,
+  /**
+   * The number of indexes that may run at the same time (0 = no limit).
+   *
+   * The budget decides how many servers fit into the machine; this setting
+   * is the user's own limit on top of it. When both apply, the stricter one
+   * wins: a limit of 1 keeps a single index even on a machine with room for
+   * four. 0 leaves the decision to the budget alone.
+   */
+  maxConcurrentIndexes: 0,
   /** Idle time after which the language server exits (ms). */
   idleTimeoutMs: 6e5,
   /**
    * When an idle language server may release its memory (PRD-v5 §3.2).
    *
-   * 'never' = never on its own; 'after' = after `idleTimeoutMs` without a
-   * request; 'onMemoryPressure' = when the machine runs out of free memory.
+   * 'never' = never because of idleness; 'after' = after `idleTimeoutMs`
+   * without a request; 'onMemoryPressure' = only when the machine runs out
+   * of free memory; 'always' = the idle timeout *and* the pressure yield.
+   *
+   * The idle half of the policy never exempts the machine from the memory
+   * pressure: 'never' means "not because of idleness", not "not even when
+   * the machine is dying" (PRD-v5.1 MEM-12). The pressure valve has a
+   * switch of its own - `pressureYield` - and that is the only way to
+   * switch it off.
    *
    * `autoExit: false` still means "never" for the documents that were
    * written before this setting existed - the host honours the older
    * switch over the newer policy.
    */
   idlePolicy: "after",
+  /**
+   * Whether a language server may be released when the machine runs out of
+   * memory (PRD-v5.1 MEM-12).
+   *
+   * The pressure valve is the last defence against the swap: when the
+   * available memory falls below the hard floor, the least active server is
+   * released and the machine gets its memory back. The valve is independent
+   * of `idlePolicy` - "never" means "never because of idleness", not "not
+   * even when the machine is dying" - and it is installed by default.
+   *
+   * `false` is the one and only way to switch the valve off: the host does
+   * not install the pressure timer at all. The user who switches it off
+   * gives up the protection against the swap, so the switch has to be an
+   * explicit one.
+   */
+  pressureYield: true,
   /**
    * The scope of the program the language server builds (PRD-v5 §4.2).
    *
@@ -37732,7 +37866,24 @@ var DEFAULT_LSP_SETTINGS = {
   indexedRoots: {},
   /** Project roots the user has already been warned about on a tight memory
    * budget: { [absPath]: true }. The same project is not asked twice. */
-  memoryWarnedRoots: {}
+  memoryWarnedRoots: {},
+  /**
+   * The semantic-analysis default state of every workspace:
+   * `{ [scopePath]: 'build' | 'conservative' }` (PRD-v5.1 WS-04).
+   *
+   * `indexOnOpen` is the global policy, and this map outranks it: a
+   * workspace whose user once chose the basic mode stays in the basic mode
+   * even when `indexOnOpen` is 'always'. The decision of the user is
+   * persistent - it lives in the settings document, so it survives a
+   * workspace switch and a restart of DSH, which the memory of the client
+   * does not.
+   *
+   * Only a decision the user made belongs here. A decision the policy
+   * derived (the automatic start of the 'always' policy) stays in the
+   * memory of the client - written here it would take the choice away from
+   * the user, who could never turn the index of that workspace off again.
+   */
+  workspaceDefaults: {}
 };
 
 // src/host/semantic-methods.js
@@ -37786,6 +37937,7 @@ var sessionKey = null;
 var sessionRoot = "";
 var sessionScopeRoot = "";
 var pendingConnection = null;
+var pendingConfig = null;
 var reportErrorRedirected = false;
 var handshakeTimer = null;
 var handshakeRetries = 0;
@@ -37953,6 +38105,31 @@ function shutdownHostLsp(root) {
   void call("lsp.shutdown", { root }).catch((error) => {
     console.warn("[lsp] the language server could not be stopped:", error instanceof Error ? error.message : error);
   });
+}
+var focusRootReported = "";
+function reportLspFocus(root) {
+  const next = typeof root === "string" ? root : "";
+  if (next === focusRootReported) return;
+  focusRootReported = next;
+  void call("lsp.focus", { root: next }).catch((error) => {
+    console.warn("[lsp] the focus could not be reported:", error instanceof Error ? error.message : error);
+  });
+}
+var SHUTDOWN_TIMEOUT_MS = 1e4;
+async function shutdownHostLspAwaited(root) {
+  if (typeof root !== "string" || root === "") return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, SHUTDOWN_TIMEOUT_MS);
+  if (typeof timer?.unref === "function") timer.unref();
+  try {
+    await call("lsp.shutdown", { root }, controller.signal);
+  } catch (error) {
+    console.warn("[lsp] the language server could not be stopped:", error instanceof Error ? error.message : error);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 function bumpVersion() {
   sessionVersion += 1;
@@ -38146,7 +38323,7 @@ async function connectWithScope(client, config2, root) {
   }
   connectClient(client, config2, root, scopeRoot);
 }
-function startLsp() {
+function startLsp(options2 = {}) {
   if (currentClient !== null) return;
   const store = sessionStore;
   if (store === null || store === void 0) return;
@@ -38198,11 +38375,21 @@ function startLsp() {
     resolveConnection = resolve;
   });
   pendingConnection = { client: currentClient, promise: connection, resolve: resolveConnection };
+  pendingConfig = { client: currentClient, config: config2, root };
+  if (options2.waitForShutdown === true) return;
+  connectPendingClient();
+}
+function connectPendingClient() {
+  const pending = pendingConfig;
+  if (pending === null) return;
+  pendingConfig = null;
+  const { client, config: config2, root } = pending;
+  if (currentClient !== client) return;
   if (!hostIsReachable()) {
-    connectClient(currentClient, config2, root, root);
+    connectClient(client, config2, root, root);
     return;
   }
-  void connectWithScope(currentClient, config2, root);
+  void connectWithScope(client, config2, root);
 }
 var MAX_HANDSHAKE_RETRIES = 3;
 function watchHandshake(client) {
@@ -38268,6 +38455,9 @@ function reconnectLsp() {
       startLsp();
       return;
     }
+    if (pendingConfig !== null) {
+      return;
+    }
     reinitializeLsp();
   } catch (error) {
     console.warn("[lsp] the session could not be reconnected:", error instanceof Error ? error.message : error);
@@ -38317,6 +38507,7 @@ function stopLsp() {
   currentClient = null;
   currentWorkspace = null;
   currentTransport = null;
+  pendingConfig = null;
   if (pendingConnection !== null) {
     pendingConnection.resolve();
     pendingConnection = null;
@@ -38324,6 +38515,20 @@ function stopLsp() {
   resetLspHealth();
   reportClientState("starting");
   bumpVersion();
+}
+var switchChain = Promise.resolve();
+var pendingSwitches = 0;
+function enqueueSwitch(shutdownRoot, key) {
+  pendingSwitches += 1;
+  switchChain = switchChain.then(async () => {
+    if (shutdownRoot !== "") await shutdownHostLspAwaited(shutdownRoot);
+    if (sessionKey !== key) return;
+    connectPendingClient();
+  }).catch((error) => {
+    console.warn("[lsp] the project switch failed:", error instanceof Error ? error.message : error);
+  }).finally(() => {
+    pendingSwitches -= 1;
+  });
 }
 function refreshLsp() {
   publishHealth();
@@ -38350,13 +38555,17 @@ function refreshLsp() {
   sessionRoot = root;
   if (previousRoot !== root) {
     resetLspHealth();
+    reportLspFocus(root);
   }
   if (wanted) {
-    if (hadClient) {
-      if (previousRoot !== "" && previousRoot !== root) shutdownHostLsp(previousRoot);
-      stopLsp();
+    if (hadClient) stopLsp();
+    const shutdownRoot = previousRoot !== "" && previousRoot !== root ? previousRoot : "";
+    if (shutdownRoot === "" && pendingSwitches === 0) {
+      startLsp();
+    } else {
+      startLsp({ waitForShutdown: true });
+      enqueueSwitch(shutdownRoot, key);
     }
-    startLsp(store);
   } else if (hadClient) {
     shutdownHostLsp(previousRoot);
     stopLsp();
@@ -38369,9 +38578,9 @@ function configureLsp(store) {
     unsubscribeStore = null;
   }
   sessionKey = null;
-  sessionRoot = "";
   sessionScopeRoot = "";
   lastProcessId = null;
+  if (store !== null && store !== void 0) releasedStores.delete(store);
   if (typeof store?.subscribe === "function") {
     unsubscribeStore = store.subscribe(() => {
       watchServerProcess(store);
@@ -38379,6 +38588,30 @@ function configureLsp(store) {
     });
   }
   refreshLsp();
+}
+var releasedStores = /* @__PURE__ */ new WeakSet();
+function releaseLspForStore(store) {
+  if (store === null || store === void 0) return;
+  if (releasedStores.has(store)) return;
+  releasedStores.add(store);
+  const root = typeof store?.state?.root === "string" ? store.state.root : "";
+  if (store === sessionStore) {
+    if (unsubscribeStore !== null) {
+      unsubscribeStore();
+      unsubscribeStore = null;
+    }
+    stopLsp();
+    sessionKey = null;
+    sessionRoot = "";
+  }
+  if (root !== "" && root !== sessionRoot) shutdownHostLsp(root);
+  if (typeof store?.releaseLsp === "function") {
+    try {
+      store.releaseLsp();
+    } catch (error) {
+      console.warn("[lsp] the store could not release its session:", error instanceof Error ? error.message : error);
+    }
+  }
 }
 function lspClient() {
   return currentClient;
@@ -38612,6 +38845,20 @@ function initialState() {
       cancellable: false,
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
+      /**
+       * The roots a language server runs for RIGHT NOW (`lsp.status`).
+       *
+       * `indexedRoots` is a historical fact ("this root completed a first
+       * build"), this list is the live one ("a server runs for this root
+       * now"). The badge of the project picker needs both: a root that was
+       * indexed once and whose server was reclaimed is NOT the same as a
+       * root whose server is running (PRD-v5.1 CONC-05).
+       *
+       * It is an empty array when the host does not report it (an older
+       * host) - the client then falls back to the state of the project it
+       * is on, which is the one root it talks to.
+       */
+      liveRoots: [],
       /**
        * The state of the CLIENT session: 'starting' | 'ready' | 'failed'.
        *
@@ -39357,7 +39604,9 @@ var WorkbenchStore = class {
     const projectRoots = { ...this.state.settings?.projectRoots ?? {}, [workspaceRoot]: projectRoot };
     this.state.settings = { ...this.state.settings ?? {}, projectRoots };
     void call2("settings.update", { patch: { projectRoots: { [workspaceRoot]: projectRoot } } }).then((result) => {
-      this.state.settings = result.value;
+      if (result !== null && typeof result === "object" && result.value !== null && typeof result.value === "object") {
+        this.state.settings = result.value;
+      }
     }).catch(() => {
     });
   }
@@ -39379,6 +39628,7 @@ var WorkbenchStore = class {
     await this.#switchWorkspace(workspaceRoot);
   }
   async #switchWorkspace(workspaceRoot) {
+    const previousRoot = this.state.root;
     await this.loadProjects(workspaceRoot);
     const projectRoot = this.#projectRootFor(workspaceRoot);
     this.set({
@@ -39407,6 +39657,9 @@ var WorkbenchStore = class {
       // (PRD-v4 §3.2): it must not survive the switch.
       commit: this.#resetCommitSelection()
     });
+    if (previousRoot !== "" && !sameScopePath(previousRoot, projectRoot)) {
+      await shutdownHostLspAwaited(previousRoot);
+    }
     void this.#startLspForRestored(projectRoot);
     this.#rememberProjectRoot(projectRoot);
     this.#restoreWorkspace(projectRoot);
@@ -39478,61 +39731,122 @@ var WorkbenchStore = class {
    * @returns {Promise<boolean>} whether the project was switched
    */
   async #switchProjectWithIndex(project, ask = true) {
-    const choice = await this.#decideIndex(project, ask);
-    if (choice === "cancel") return false;
-    this.#rememberIndexDecision(project.path, choice);
+    const decision = await this.#decideIndex(project, { ask });
+    if (decision.choice === "cancel") return false;
+    if (decision.remember === "workspace" || decision.remember === "both") {
+      this.#rememberWorkspaceDecision(project.path, decision.choice);
+    }
+    if (decision.remember === "memory" || decision.remember === "both") {
+      this.#rememberMemoryAnswer(project.path, "conservative");
+    }
+    this.#rememberIndexDecision(project.path, decision.choice);
     await this.#switchProject(project.path);
-    if (choice === "build") await this.#startLsp(project.path);
-    if (choice === "build-forced") await this.#startLsp(project.path, { force: true });
+    if (decision.choice === "build") await this.#startLsp(project.path);
+    if (decision.choice === "build-forced") await this.#startLsp(project.path, { force: true });
     return true;
   }
   /**
-   * The index decision for one project root (PRD-v5 §2.3).
+   * The one decision about a project root: does the workbench want a language
+   * server for it?
    *
-   * Resolves with `'build'` (start the language server), `'build-forced'`
-   * (start it although the memory is tight - the user said so),
-   * `'conservative'` (stay in the basic mode) or `'cancel'` (do not switch
-   * the project).
+   * Both paths that can start a server go through this method - the project
+   * switch (`ask: true`, the user may be asked) and the restore path
+   * (`ask: false`, nothing is asked: a dialog at every start of DSH would be
+   * unbearable). The last time the meaning of `force` changed, the host was
+   * fixed first and the memory logic of the client was patched afterwards -
+   * and one place was missed (PRD-v5.1 MEM-10). One helper, two callers, one
+   * meaning:
+   *
+   *   - `force` belongs to ONE start. It is true only when the user answered
+   *     the memory question of THIS start, and it is never remembered.
+   *   - a decision the USER made is written to the settings
+   *     (`lsp.workspaceDefaults`), so it survives a workspace switch and a
+   *     restart of DSH.
+   *   - a decision the POLICY derived stays in the memory of the store
+   *     (`lspIndexDecisions`). Written to the document it would be
+   *     indistinguishable from a decision of the user - and the user could
+   *     never switch the index of that project off again (PRD-v5.1 WS-04
+   *     requirement 4).
+   *
+   * The hierarchy (PRD-v5.1 WS-04 requirement 2):
+   *
+   *   1. the master switch (`lsp.enabled === false`) - the feature is off;
+   *   2. the workspace-scoped default (`lsp.workspaceDefaults[scope]`) - it
+   *      OUTRANKS the global policy `lsp.indexOnOpen`: a project whose user
+   *      chose the basic mode stays in the basic mode even under
+   *      `indexOnOpen: 'always'`, and a project whose user turned the
+   *      semantic analysis on is not asked again;
+   *   3. the global policy `lsp.indexOnOpen`;
+   *   4. the memory answer of the user (`lsp.memoryWarnedRoots`) - it says
+   *      "do not ask me again", never "you may force".
+   *
+   * Every answer of the user about the semantic analysis of a project is
+   * written to the workspace-scoped default, and the memory answer only adds
+   * the "do not ask me again" to it. The two can therefore never contradict
+   * each other: the workspace-scoped default is the more recent word of the
+   * user, and it is the one the client session asks about.
+   *
    * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
-   * @param {boolean} [ask] false skips the dialog and stays conservative
-   * @returns {Promise<'build'|'build-forced'|'conservative'|'cancel'>}
+   * @param {{ask?: boolean}} [options] `ask: false` skips the dialogs: a
+   *   decision the restore path cannot ask for is a decision it does not take.
+   * @returns {Promise<{choice: 'build'|'build-forced'|'conservative'|'cancel', remember: 'workspace'|'memory'|'both'|null}>}
    */
-  async #decideIndex(project, ask = true) {
+  async #decideIndex(project, options2 = {}) {
+    const ask = options2.ask !== false;
     const lsp = this.state.settings?.lsp;
-    if (lsp === null || lsp === void 0 || typeof lsp !== "object") return "conservative";
-    if (lsp.enabled === false) return "conservative";
-    if ((lsp.indexOnOpen ?? "ask") === "never") return "conservative";
-    const resources = await this.#lspResources(project.path);
-    const decision = resources === null ? "ok" : resources.decision ?? (resources.tight === true ? "tight" : resources.canIndex === false ? "low" : "ok");
-    const answered = this.#memoryAnswer(project.path);
-    if (decision === "tight" && answered === "") {
-      const choice = await this.#askMemoryDecision(project, resources);
-      this.#rememberMemoryAnswer(project.path, choice === "start" ? "accepted" : "conservative");
-      if (choice === "conservative") return "conservative";
-      return "build-forced";
+    if (lsp === null || lsp === void 0 || typeof lsp !== "object") {
+      return { choice: "conservative", remember: null };
     }
-    if (decision === "tight" && answered === "accepted") return "build-forced";
-    if (decision === "tight" && answered === "conservative") return "conservative";
-    if (decision === "low") {
-      const need = Math.round((resources.thresholdBytes ?? 0) / (1024 * 1024));
-      const free = Math.round((resources.freeBytes ?? 0) / (1024 * 1024));
-      this.toast("error", this.#tpl("lsp.lowMemory", { need, free }), this.t("lsp.lowMemoryHint"));
-      return "conservative";
+    if (lsp.enabled === false) return { choice: "conservative", remember: null };
+    const workspace = this.#workspaceDefault(project.path);
+    if (workspace === "conservative") return { choice: "conservative", remember: null };
+    if ((lsp.indexOnOpen ?? "ask") === "never") return { choice: "conservative", remember: null };
+    if (!ask && this.lspIndexDecision(project.path) === "conservative") {
+      return { choice: "conservative", remember: null };
     }
-    if (this.#isIndexed(project)) return "build";
-    if ((lsp.indexOnOpen ?? "ask") === "always") return "build";
-    if (ask === false) return "conservative";
-    return this.#askIndexDecision(project, resources);
+    let resources = null;
+    if (ask) {
+      resources = await this.#lspResources(project.path);
+      const decision = resources === null ? "ok" : resources.decision ?? (resources.tight === true ? "tight" : resources.canIndex === false ? "low" : "ok");
+      if (decision === "low") {
+        const need = Math.round((resources.thresholdBytes ?? 0) / (1024 * 1024));
+        const free = Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024));
+        this.toast("error", this.#tpl("lsp.lowMemory", { need, free }), this.t("lsp.lowMemoryHint"));
+        return { choice: "conservative", remember: null };
+      }
+      if (decision === "tight") {
+        if (workspace !== "build" && this.#memoryAnswer(project.path) === "conservative") {
+          return { choice: "conservative", remember: null };
+        }
+        const choice2 = await this.#askMemoryDecision(project, resources);
+        if (choice2 === "conservative") return { choice: "conservative", remember: "both" };
+        return { choice: "build-forced", remember: "workspace" };
+      }
+    }
+    if (workspace === "build") return { choice: "build", remember: null };
+    if (this.#isIndexed(project)) return { choice: "build", remember: null };
+    if ((lsp.indexOnOpen ?? "ask") === "always") return { choice: "build", remember: null };
+    if (!ask) return { choice: "conservative", remember: null };
+    const choice = await this.#askIndexDecision(project, resources);
+    return { choice, remember: choice === "cancel" ? null : "workspace" };
   }
   /**
    * What the user answered the last time this project was tight.
    *
-   * The answer is a decision, not a question: 'accepted' (the user wants the
-   * language server even though the memory is tight) or 'conservative' (the
-   * user wants the basic mode). An empty string means the user was never
-   * asked.
+   * The map remembers ONE thing: "do not ask me again". The answer is
+   * therefore either 'conservative' (the user wants the basic mode) or an
+   * empty string (the user was never asked).
+   *
+   * A legacy 'accepted' (a document written before PRD-v5.1) is read as
+   * 'conservative'. The old semantics remembered a PERMISSION to force the
+   * start, and that permission was contagious: one click on "start anyway"
+   * made every later tight moment of that project start the server without
+   * asking - and the same happened on every workspace switch and every
+   * restart of DSH. The new semantics have no such permission (MEM-10), so
+   * the old value degrades to the safe one: the project falls back to the
+   * basic mode instead of silently force-starting.
    * @param {string} root the project root
-   * @returns {string} 'accepted', 'conservative' or ''
+   * @returns {'conservative'|''}
    */
   #memoryAnswer(root) {
     const warned2 = this.state.settings?.lsp?.memoryWarnedRoots;
@@ -39540,7 +39854,52 @@ var WorkbenchStore = class {
     const key = Object.keys(warned2).find((entry) => sameScopePath(entry, root));
     if (key === void 0) return "";
     const answer = warned2[key];
-    return answer === "accepted" || answer === "conservative" ? answer : "";
+    if (answer === "conservative") return "conservative";
+    if (answer === "accepted") return "conservative";
+    return "";
+  }
+  /**
+   * The workspace-scoped default of one project root (PRD-v5.1 WS-04).
+   *
+   * The map lives in the settings document (`lsp.workspaceDefaults`), next to
+   * `indexedRoots` and `memoryWarnedRoots`, and it holds what the USER
+   * decided about the semantic analysis of that root: 'build' (the user
+   * turned it on) or 'conservative' (the user chose the basic mode).
+   *
+   * `null` means "the user never decided" - the global policy then decides.
+   * @param {string} root the project root
+   * @returns {'build'|'conservative'|null}
+   */
+  #workspaceDefault(root) {
+    const defaults3 = this.state.settings?.lsp?.workspaceDefaults;
+    if (defaults3 === null || defaults3 === void 0 || typeof defaults3 !== "object") return null;
+    const key = Object.keys(defaults3).find((entry) => sameScopePath(entry, root));
+    if (key === void 0) return null;
+    const value = defaults3[key];
+    return value === "build" || value === "conservative" ? value : null;
+  }
+  /**
+   * Write the decision of the user about the semantic analysis of one root.
+   *
+   * The decision is written to the settings document, so it survives a
+   * workspace switch and a restart of DSH - the memory of the client does
+   * not (the store is evicted after three workspaces). A failure is not
+   * fatal: the user is asked again next time.
+   *
+   * Only a decision the USER made belongs here. A decision the policy
+   * derived (the automatic start of the 'always' policy) stays in the memory
+   * of the store: written here it would take the choice away from the user,
+   * who could never switch the index of that project off again.
+   * @param {string} root the project root
+   * @param {'build'|'build-forced'|'conservative'} choice the answer of the user
+   */
+  #rememberWorkspaceDecision(root, choice) {
+    const decision = choice === "build" || choice === "build-forced" ? "build" : "conservative";
+    const defaults3 = this.state.settings?.lsp?.workspaceDefaults;
+    const next = { ...defaults3 !== null && typeof defaults3 === "object" ? defaults3 : {}, [root]: decision };
+    this.set({ settings: { ...this.state.settings, lsp: { ...this.state.settings.lsp, workspaceDefaults: next } } });
+    void call2("settings.update", { patch: { lsp: { workspaceDefaults: next } } }).catch(() => {
+    });
   }
   /**
    * What the workbench decided about the language server of one project.
@@ -39554,6 +39913,12 @@ var WorkbenchStore = class {
    * The answer is 'build' (a language server is wanted), 'conservative' (the
    * basic mode: no server) or 'unknown' (this session made no decision - the
    * caller decides then).
+   *
+   * The order of the sources is the hierarchy of PRD-v5.1 WS-04: the
+   * workspace-scoped default of the user outranks the global policy
+   * `lsp.indexOnOpen`. Before it, the global policy outranked everything and
+   * a project the user had put into the basic mode was indexed behind their
+   * back as soon as the policy said "always".
    * @param {string} root the project root
    * @returns {'build'|'conservative'|'unknown'}
    */
@@ -39562,11 +39927,27 @@ var WorkbenchStore = class {
     const lsp = this.state.settings?.lsp;
     if (lsp === null || lsp === void 0 || typeof lsp !== "object") return "unknown";
     if (lsp.enabled === false) return "conservative";
+    const workspace = this.#workspaceDefault(root);
+    if (workspace === "conservative") return "conservative";
+    if (workspace === "build") return "build";
     if ((lsp.indexOnOpen ?? "ask") === "never") return "conservative";
     if (this.#memoryAnswer(root) === "conservative") return "conservative";
     const recorded = this.#recordedIndexDecision(root);
     if (recorded !== null) return recorded;
     return "unknown";
+  }
+  /**
+   * The workspace-scoped default of one project root (PRD-v5.1 WS-04).
+   *
+   * The public face of the private helper: the user interface asks it to
+   * tell "the user chose the basic mode for this project" from "the host
+   * simply has no server running".
+   * @param {string} root the project root
+   * @returns {'build'|'conservative'|null}
+   */
+  lspWorkspaceDefault(root) {
+    if (typeof root !== "string" || root === "") return null;
+    return this.#workspaceDefault(root);
   }
   /**
    * The index decision this session made for one project root.
@@ -39597,10 +39978,16 @@ var WorkbenchStore = class {
   /**
    * Remember what the user answered for one project.
    *
+   * The map remembers ONE thing: "do not ask me again". Only the answer
+   * 'conservative' is written - the answer "start anyway" belongs to ONE
+   * start and is never remembered, because a remembered permission to force
+   * the start would make every later tight moment of that project start the
+   * server without asking (PRD-v5.1 MEM-10).
+   *
    * The answer is written to the settings, so it survives a restart of the
    * workbench. A failure is not fatal: the user is asked again next time.
    * @param {string} root the project root
-   * @param {'accepted'|'conservative'} answer the answer of the user
+   * @param {'conservative'} answer the answer of the user
    */
   #rememberMemoryAnswer(root, answer) {
     const warned2 = this.state.settings?.lsp?.memoryWarnedRoots;
@@ -39614,8 +40001,15 @@ var WorkbenchStore = class {
    *
    * The host refuses to start a language server on a tight budget unless the
    * start is forced, so this dialog is the only way out of the "tight" band.
+   *
+   * The number of the dialog is the one the gate judged by
+   * (`availableBytes`): the popup said "2648 MB available" while the gate
+   * decided with 600 MB, so the same question got two opposite answers on
+   * two screens (PRD-v5.1 MEM-09). The fallback to `freeBytes` is only for a
+   * snapshot of a host that does not know the number yet - it is never
+   * preferred over the number the gate used.
    * @param {{path: string, name?: string}} project
-   * @param {{needMB?: number, freeBytes?: number, languageId?: string}} resources
+   * @param {{needMB?: number, availableBytes?: number, freeBytes?: number, languageId?: string}} resources
    * @returns {Promise<'start'|'conservative'>}
    */
   #askMemoryDecision(project, resources) {
@@ -39629,7 +40023,9 @@ var WorkbenchStore = class {
           name: typeof project.name === "string" && project.name !== "" ? project.name : baseName(project.path),
           language: language2,
           needMB: Math.round(resources.needMB ?? 0),
-          freeMB: Math.round((resources.freeBytes ?? 0) / (1024 * 1024))
+          // The field keeps its name: the dialog renders it, and the field
+          // name is not worth a second wave through the renderer.
+          freeMB: Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024))
         }
       });
     });
@@ -39657,6 +40053,54 @@ var WorkbenchStore = class {
     const roots = this.state.settings?.lsp?.indexedRoots;
     if (roots === null || roots === void 0 || typeof roots !== "object") return false;
     return Object.keys(roots).some((key) => sameScopePath(key, project.path));
+  }
+  /**
+   * Whether a language server runs for one project root right now.
+   *
+   * `indexedRoots` is a historical fact ("this root completed a first
+   * build"), this question is the live one ("a server runs for this root
+   * now"). The host answers it in the status snapshot (`liveRoots`); a host
+   * that does not know the field yet leaves the client with the state of the
+   * project it is on - the one root the client talks to (the client holds a
+   * single session, PRD-v5 §1.4).
+   * @param {string} root the project root
+   * @returns {boolean}
+   */
+  lspRootIsLive(root) {
+    if (typeof root !== "string" || root === "") return false;
+    const live = this.state.lsp?.liveRoots;
+    if (Array.isArray(live) && live.length > 0) {
+      return live.some((entry) => typeof entry === "string" && sameScopePath(entry, root));
+    }
+    if (!sameScopePath(root, this.state.root)) return false;
+    const state = this.state.lsp?.state;
+    return state === "starting" || state === "building" || state === "ready" || state === "restarting";
+  }
+  /**
+   * The badge of one project in the project picker (PRD-v5.1 CONC-05).
+   *
+   * `indexedRoots` records a HISTORICAL fact: the folder completed a first
+   * program build at some point in this profile. The badge said "indexed"
+   * even after the server was reclaimed - and the user read it as "the index
+   * is there", while a rebuild costs another full build.
+   *
+   * The two states are therefore:
+   *
+   *   - 'indexed'          the folder completed a first build AND a server
+   *                        runs for it right now;
+   *   - 'indexed-reclaimed' the folder completed a first build, but its
+   *                        server was reclaimed (the host released it to give
+   *                        the memory back).
+   *
+   * `null` means the folder carries no badge at all.
+   * @param {{path: string, indexState?: string}} project
+   * @returns {'indexed'|'indexed-reclaimed'|null}
+   */
+  indexBadgeState(project) {
+    if (project === null || typeof project !== "object") return null;
+    if (project.indexState === "indexed-reclaimed") return "indexed-reclaimed";
+    if (project.indexState !== "indexed") return null;
+    return this.lspRootIsLive(project.path) ? "indexed" : "indexed-reclaimed";
   }
   /**
    * Show the index decision and wait for the user's answer.
@@ -39739,31 +40183,69 @@ var WorkbenchStore = class {
    * start of DSH would be unbearable. But a decision the user has already
    * expressed must be honoured there too:
    *
-   *   - `indexOnOpen: 'always'` says "always index";
-   *   - a remembered memory answer of 'accepted' says "start it anyway
-   *     although the memory is tight" - and that question is only asked
-   *     after the index decision said "build", so it means the same thing.
+   *   - the workspace-scoped default of the user says "index this project"
+   *     (or "keep it in the basic mode");
+   *   - `indexOnOpen: 'always'` says "always index".
    *
-   * The decision of the workbench has the last word: a project the user put
-   * into the basic mode (a remembered 'conservative', `indexOnOpen: 'never'`,
-   * the master switch off) gets no server - not even here.
+   * The decision comes from the SAME helper the project switch uses
+   * (`#decideIndex` with `ask: false`), so the two paths cannot drift apart
+   * - the last time the semantics of `force` changed, the host was fixed
+   * first and the memory logic of the client was patched afterwards, and one
+   * place was missed (PRD-v5.1 MEM-10).
    *
-   * The host's own memory gate still applies: a machine that cannot afford
-   * the server does not get one (the hard floor is never skipped), and the
-   * tight band is skipped only for a project the user has already answered
-   * for.
+   * Two rules of that helper matter here:
+   *
+   *   - the start is NEVER forced. The restore path cannot ask the user, so
+   *     it has no permission to skip the tight band of the gate; the gate of
+   *     the host decides (a tight machine degrades the session, a machine
+   *     below the floor refuses the start).
+   *   - a decision the policy derived stays in the memory of the store. The
+   *     automatic start of the 'always' policy is NOT a decision of the user,
+   *     and writing it to the settings would take the choice away from the
+   *     user for ever (PRD-v5.1 WS-04 requirement 4).
+   *
+   * When nothing starts, the user gets an explanation: the workbench is in
+   * the basic mode, and silence would look like a broken feature.
    * @param {string} root the project root
    * @returns {Promise<void>}
    */
   async #startLspForRestored(root) {
     if (typeof root !== "string" || root === "") return;
+    const decision = await this.#decideIndex({ path: root }, { ask: false });
+    if (decision.choice !== "build" && decision.choice !== "build-forced") {
+      this.#explainBasicMode(root);
+      return;
+    }
+    this.#rememberIndexDecision(root, decision.choice);
+    await this.#startLsp(root, { force: false });
+  }
+  /**
+   * Explain why the workbench is in the basic mode (PRD-v5.1 WS-04).
+   *
+   * The restore path does not ask anything, so the user sees the basic mode
+   * without a reason - and a feature that is silent looks broken (the
+   * symptom the PRD reports: "the user sees the basic mode with no
+   * explanation").
+   *
+   * The explanation differs in the two cases:
+   *
+   *   - the user chose the basic mode for this project: the workbench says
+   *     so, and says that the choice can be undone;
+   *   - the user never decided: the workbench is in the basic mode because
+   *     this workspace never turned the semantic analysis on - and it can be
+   *     turned on for a project.
+   *
+   * The master switch is not explained here: the feature is off in every
+   * project, and that is a setting the user made on purpose.
+   * @param {string} root the project root
+   * @returns {void}
+   */
+  #explainBasicMode(root) {
     const lsp = this.state.settings?.lsp;
-    const always = lsp !== null && lsp !== void 0 && typeof lsp === "object" && (lsp.indexOnOpen ?? "ask") === "always";
-    const accepted = this.#memoryAnswer(root) === "accepted";
-    if (!always && !accepted) return;
-    if (this.lspIndexDecision(root) === "conservative") return;
-    this.#rememberIndexDecision(root, "build");
-    await this.#startLsp(root, { force: accepted });
+    if (lsp === null || lsp === void 0 || typeof lsp !== "object") return;
+    if (lsp.enabled === false) return;
+    const chosen = this.#workspaceDefault(root) === "conservative";
+    this.toast("info", this.t(chosen ? "lsp.workspaceConservativeToast" : "lsp.workspaceBasicModeToast"));
   }
   /**
    * Rebuild the index of the current project.
@@ -39780,11 +40262,19 @@ var WorkbenchStore = class {
    * warning («仍然启动» = start anyway, PRD-v5 §2.3). A degradation caused
    * by a missing server or by a crash must not bypass the memory gate, so
    * the force is limited to the tight band.
+   *
+   * The button is also the way OUT of the basic mode of a workspace: the user
+   * asks for a language server here, so the workspace-scoped default of the
+   * project is written - from now on the workbench starts the server of this
+   * project on its own (PRD-v5.1 WS-04). Without it a project the user put
+   * into the basic mode would stay there for ever.
    * @returns {Promise<void>}
    */
   async restartLsp() {
     const root = this.state.root;
     if (root === "") return;
+    this.#rememberWorkspaceDecision(root, "build");
+    this.#rememberIndexDecision(root, "build");
     this.patch("lsp", { rebuilding: true });
     try {
       await call2("lsp.shutdown", { root });
@@ -40072,7 +40562,8 @@ var WorkbenchStore = class {
       };
       if (state.active === true) patch.lastRoot = state.workspaceRoot;
       const result = await call2("settings.update", { patch });
-      const next = { ...state.settings, ...result.value };
+      const answer = result !== null && typeof result === "object" && result.value !== null && typeof result.value === "object" ? result.value : null;
+      const next = answer === null ? { ...state.settings ?? {} } : { ...state.settings ?? {}, ...answer };
       this.state.settings = next;
     } catch {
     }
@@ -40117,6 +40608,41 @@ var WorkbenchStore = class {
       this.restoredTimer = null;
     }
     void this.persistNow();
+  }
+  /**
+   * Release the semantic session of this store (PRD-v5.1 §2.3, WS-03).
+   *
+   * The store of a workspace that is not the active one any more still holds
+   * a mirrored status: the two-second poll of the language server went on,
+   * and the status bar of that store said "语义分析：就绪" long after the
+   * workspace was left. The user came back and saw a state that belonged to
+   * a server nobody talks to any more.
+   *
+   * The release has two halves:
+   *
+   *   - the poll of the language-server status stops. A store that nobody
+   *     watches must not keep asking the host every two seconds;
+   *   - the mirrored status is cleared, so the status line of that store says
+   *     "idle" instead of a state that is not true any more.
+   *
+   * The session itself is released by `releaseLspForStore` of the session
+   * module - it closes the socket and asks the host to stop the server. This
+   * method is the store-side half of it, and the session module calls it
+   * when the method exists.
+   *
+   * The method is idempotent: the release may come twice (once from the
+   * cache that drops the store, once from the store itself), and a second
+   * call must not clear a state that was filled again in between.
+   * @returns {void}
+   */
+  releaseLsp() {
+    if (this.lspPollTimer !== null) {
+      clearInterval(this.lspPollTimer);
+      this.lspPollTimer = null;
+    }
+    this.patch("lsp", { ...initialState().lsp, servers: this.state.lsp?.servers ?? { available: [], missing: [] } });
+    this.lspFaultNotified = false;
+    this.lspSessionFaultNotified = false;
   }
   /**
    * Drop the store for good.
@@ -40209,11 +40735,17 @@ var WorkbenchStore = class {
       // Whether the program of the project is still being built. The state of
       // the session says "ready" long before that is over, so the status bar
       // needs the flag to tell the user what it waits for (review T7).
-      buildingProgram: status.buildingProgram === true
+      buildingProgram: status.buildingProgram === true,
+      // The roots a language server runs for RIGHT NOW. The badge of the
+      // project picker needs it to tell "indexed and running" from "indexed
+      // and reclaimed" (PRD-v5.1 CONC-05). A host that does not report the
+      // field leaves the list empty, and the client falls back to the state
+      // of the project it is on.
+      liveRoots: Array.isArray(status.liveRoots) ? status.liveRoots.filter((entry) => typeof entry === "string") : this.state.lsp.liveRoots
     };
     const resources = status.resources ?? null;
     const known = this.state.lsp.resources ?? null;
-    const memoryChanged = resources === null ? known !== null : known === null || Math.round(known.freeBytes / (1024 * 1024)) !== Math.round(resources.freeBytes / (1024 * 1024)) || known.needMB !== resources.needMB || known.canIndex !== resources.canIndex || known.tight !== resources.tight;
+    const memoryChanged = resources === null ? known !== null : known === null || Math.round((known.availableBytes ?? known.freeBytes ?? 0) / (1024 * 1024)) !== Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024)) || known.needMB !== resources.needMB || known.canIndex !== resources.canIndex || known.tight !== resources.tight;
     if (memoryChanged) next.resources = resources;
     if (LSP_INDEX_STATES.includes(next.state)) {
       const index = await this.#lspIndex(root);
@@ -40228,7 +40760,7 @@ var WorkbenchStore = class {
       next.cancellable = false;
     }
     const current = this.state.lsp;
-    const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled || current.processId !== next.processId || current.buildingProgram !== next.buildingProgram || current.scopeRoot !== next.scopeRoot || memoryChanged;
+    const changed = current.state !== next.state || current.languageId !== next.languageId || current.serverId !== next.serverId || current.source !== next.source || current.detail !== next.detail || current.progress !== next.progress || current.startedAt !== next.startedAt || current.cancellable !== next.cancellable || current.enabled !== next.enabled || current.processId !== next.processId || current.buildingProgram !== next.buildingProgram || current.scopeRoot !== next.scopeRoot || JSON.stringify(current.liveRoots) !== JSON.stringify(next.liveRoots) || memoryChanged;
     const patch = { lspStatusStale: false };
     if (changed) patch.lsp = next;
     this.set(patch);
@@ -41296,6 +41828,7 @@ ${target}`,
     this.set({ activeId: id2 });
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3?.kind === "file") this.setSelectedPath(tab3.path);
+    reportLspFocus(this.state.root);
     void this.ensureTabContent(id2);
     this.persist();
   }
@@ -60228,7 +60761,13 @@ function resetPatch() {
     delete: { useRecycleBin: true },
     editor: { fontSize: 13, highlight: true, openMode: "auto", editableMaxBytes: 1 << 20, markdownPreview: true },
     links: { chatFiles: "ide" },
-    lsp: { ...DEFAULT_LSP_SETTINGS, servers: null, indexedRoots: null, memoryWarnedRoots: null },
+    lsp: {
+      ...DEFAULT_LSP_SETTINGS,
+      servers: null,
+      indexedRoots: null,
+      memoryWarnedRoots: null,
+      workspaceDefaults: null
+    },
     shortcuts: {
       project: "Alt+1",
       commit: "Alt+0",
@@ -60682,6 +61221,12 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           import_react16.default.createElement("option", { value: "never" }, t2("settings.lspIndexNever"))
         )
       ),
+      // The hierarchy of PRD-v5.1 WS-04, in one sentence: the row above is a
+      // GLOBAL policy, and the workspace-scoped default of the user outranks
+      // it. A project whose user chose the basic mode stays in the basic mode
+      // even when the policy says "always index" - that is the behaviour
+      // change of WS-04, so the page has to say it out loud.
+      import_react16.default.createElement("div", { className: "iwb-settings-hint" }, t2("settings.lspWorkspaceDefaultHint")),
       // The four memory numbers are one topic, so they are one block: each
       // number keeps its own label, and the block takes a third of the
       // height of four separate rows.
@@ -60737,6 +61282,71 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           })
         )
       ),
+      // The machine-level budget of PRD-v5.1 MEM-08.
+      //
+      // The per-server gate answers one question only: "may the next server
+      // start". It cannot answer "may three servers grow to their ceiling at
+      // the same time" - and that is the question that ends in the swap. The
+      // budget is the last gate: the sum of the ceilings of the running
+      // servers never exceeds it.
+      import_react16.default.createElement(
+        SubGroup,
+        { title: t2("settings.lspBudgetGroup") },
+        import_react16.default.createElement(
+          Field,
+          { label: t2("settings.lspBudgetRatio"), hint: t2("settings.lspBudgetRatioShort"), title: t2("settings.lspBudgetRatioHint") },
+          import_react16.default.createElement("input", {
+            type: "number",
+            min: 0,
+            max: 1,
+            step: 0.05,
+            value: Number.isFinite(draft.lsp?.budgetRatio) ? draft.lsp.budgetRatio : 0.25,
+            onChange: (event) => {
+              const raw = String(event.target.value ?? "").trim();
+              const parsed = Number(raw);
+              update({ lsp: { budgetRatio: raw === "" ? 0.25 : Number.isFinite(parsed) ? parsed : 0.25 } });
+            }
+          })
+        ),
+        import_react16.default.createElement(
+          Field,
+          { label: t2("settings.lspBudgetCap"), hint: t2("settings.lspBudgetCapShort"), title: t2("settings.lspBudgetCapHint") },
+          import_react16.default.createElement("input", {
+            type: "number",
+            min: 256,
+            max: 32768,
+            step: 256,
+            value: draft.lsp?.budgetCapMB ?? 4096,
+            onChange: (event) => update({ lsp: { budgetCapMB: Number(event.target.value) || 4096 } })
+          })
+        ),
+        // The user's own limit on top of the budget: when both apply, the
+        // stricter one wins.
+        import_react16.default.createElement(
+          Field,
+          { label: t2("settings.lspMaxConcurrent"), hint: t2("settings.lspMaxConcurrentShort"), title: t2("settings.lspMaxConcurrentHint") },
+          import_react16.default.createElement("input", {
+            type: "number",
+            min: 0,
+            max: 16,
+            step: 1,
+            value: draft.lsp?.maxConcurrentIndexes ?? 0,
+            onChange: (event) => update({ lsp: { maxConcurrentIndexes: Number(event.target.value) || 0 } })
+          })
+        )
+      ),
+      // The pressure valve is the last defence against the swap, and it is on
+      // by default (PRD-v5.1 MEM-12). The switch is the only way to turn it
+      // off, so it gets a row of its own.
+      import_react16.default.createElement(
+        Row,
+        { label: t2("settings.lspPressureYield"), hint: t2("settings.lspPressureYieldHint") },
+        import_react16.default.createElement("input", {
+          type: "checkbox",
+          checked: draft.lsp?.pressureYield !== false,
+          onChange: (event) => update({ lsp: { pressureYield: event.target.checked } })
+        })
+      ),
       // The idle policy replaces the old "exit the server when idle" switch
       // (PRD-v5 §3.2): one dropdown says *when* the server lets go, and the
       // minutes below it are the length of the "after an idle time" option.
@@ -60758,7 +61368,11 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           },
           import_react16.default.createElement("option", { value: "never" }, t2("settings.lspIdlePolicyNever")),
           import_react16.default.createElement("option", { value: "after" }, t2("settings.lspIdlePolicyAfter")),
-          import_react16.default.createElement("option", { value: "onMemoryPressure" }, t2("settings.lspIdlePolicyMemory"))
+          import_react16.default.createElement("option", { value: "onMemoryPressure" }, t2("settings.lspIdlePolicyMemory")),
+          // 'always' = the idle timeout AND the memory pressure. It is the
+          // explicit spelling of the default of PRD-v5.1 MEM-12, which the
+          // pressure valve made the default.
+          import_react16.default.createElement("option", { value: "always" }, t2("settings.lspIdlePolicyAlways"))
         )
       ),
       // "Never exit" is the one option with a price the user has to know:
@@ -61691,14 +62305,18 @@ function showCancelButton(hostState, cancellable) {
 function memoryFacts(store, resources) {
   const t2 = store.t;
   if (resources === null || resources === void 0) {
-    return { availableMB: null, needMB: null, reservedMB: 0, text: "\u2014" };
+    return { availableMB: null, needMB: null, reservedMB: 0, text: "\u2014", worstMB: null, worstText: "" };
   }
   const mib = 1024 * 1024;
   const availableMB = Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / mib);
   const needMB = Math.round(resources.needMB ?? 0);
   const reservedMB = Math.round((resources.reservedBytes ?? 0) / mib);
   const text = `${t2("lsp.diagnostics.memoryAvailable")} ${availableMB} MB \xB7 ${t2("lsp.diagnostics.memoryNeed")} ${needMB} MB` + (reservedMB > 0 ? ` \xB7 ${t2("lsp.diagnostics.memoryReserved")} ${reservedMB} MB` : "");
-  return { availableMB, needMB, reservedMB, text };
+  const worstBytes = Number.isFinite(resources.worstCaseBytes) ? resources.worstCaseBytes : null;
+  const ceilingMB = Number.isFinite(resources.ceilingMB) ? resources.ceilingMB : null;
+  const worstMB = worstBytes === null ? null : Math.round(worstBytes / mib);
+  const worstText = worstMB === null || ceilingMB === null ? "" : interpolate5(t2("lsp.diagnostics.memoryWorstText"), { ceiling: ceilingMB, left: worstMB });
+  return { availableMB, needMB, reservedMB, text, worstMB, worstText };
 }
 var HOST_CONNECTING_STATES = ["ready", "building"];
 function waitedSince(lsp) {
@@ -61806,6 +62424,16 @@ function lspStatusView(store, state) {
     case "failed":
       return { ...base2, key: "failed", text: t2("lsp.status.failed"), tone: "error", action: "diagnostics" };
     case "idle":
+      if (typeof store.lspWorkspaceDefault === "function" && store.lspWorkspaceDefault(state?.root) === "conservative") {
+        return {
+          ...base2,
+          key: "workspaceOff",
+          text: t2("lsp.status.workspaceOff"),
+          tone: "idle",
+          action: "diagnostics",
+          detail: t2("lsp.workspaceOffHint")
+        };
+      }
       return { ...base2, key: "idle", text: t2("lsp.status.idle"), tone: "idle", action: "diagnostics" };
     case "suspended":
       return { ...base2, key: "suspended", text: t2("lsp.status.suspended"), tone: "idle", action: "diagnostics" };
@@ -61994,6 +62622,19 @@ function ProjectPicker({ store, state }) {
   const projects = Array.isArray(state.projects) ? state.projects : [];
   const root = projects.filter((project) => project.isRoot === true);
   const children = projects.filter((project) => project.isRoot !== true);
+  const indexBadge = (project) => {
+    const badge = typeof store.indexBadgeState === "function" ? store.indexBadgeState(project) : null;
+    if (badge === "indexed") {
+      return import_react19.default.createElement("span", { className: "iwb-project-index-badge", title: t2("project.indexedHint") }, t2("project.indexed"));
+    }
+    if (badge === "indexed-reclaimed") {
+      return import_react19.default.createElement("span", {
+        className: "iwb-project-index-badge iwb-project-index-badge-reclaimed",
+        title: t2("project.indexedReclaimedHint")
+      }, t2("project.indexedReclaimed"));
+    }
+    return null;
+  };
   const choice = (project) => import_react19.default.createElement(
     "button",
     {
@@ -62019,7 +62660,7 @@ function ProjectPicker({ store, state }) {
     project.isRepo === true ? import_react19.default.createElement("span", { className: "iwb-project-repo-badge" }, t2("project.gitRepo")) : null,
     // The badge order is fixed: [Git] → [Indexed] → [Current]. The three can
     // coexist; none of them replaces another (PRD-v5 §2.1).
-    project.indexState === "indexed" ? import_react19.default.createElement("span", { className: "iwb-project-index-badge", title: t2("project.indexedHint") }, t2("project.indexed")) : null,
+    indexBadge(project),
     project.path === state.root ? import_react19.default.createElement("span", { className: "iwb-project-current-badge" }, t2("project.current")) : null
   );
   return import_react19.default.createElement(
@@ -62262,7 +62903,8 @@ function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
   const timeouts = Number.isFinite(lsp.consecutiveTimeouts) ? lsp.consecutiveTimeouts : 0;
   const lastFailure = lsp.lastFailure ?? null;
   const view = lspStatusView(store, state);
-  const memoryText = memoryFacts(store, resources).text;
+  const memory = memoryFacts(store, resources);
+  const memoryText = memory.text;
   return import_react19.default.createElement(
     "div",
     {
@@ -62335,6 +62977,20 @@ function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
           { className: "iwb-lsp-diagnostics-row" },
           import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-key" }, t2("lsp.diagnostics.memory")),
           import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-value", title: t2("lsp.diagnostics.memoryHint") }, memoryText)
+        ),
+        // The worst band (PRD-v5.1 MEM-07). The row above is the typical
+        // case; this one says what happens if the server grows into its
+        // ceiling. It is a fact, not a rejection: the budget of the machine
+        // (MEM-08) and the pressure valve (MEM-12) are what keep the machine
+        // out of the swap.
+        memory.worstText === "" ? null : import_react19.default.createElement(
+          "div",
+          { className: "iwb-lsp-diagnostics-row" },
+          import_react19.default.createElement("span", { className: "iwb-lsp-diagnostics-key" }, t2("lsp.diagnostics.memoryWorstCase")),
+          import_react19.default.createElement("span", {
+            className: "iwb-lsp-diagnostics-value",
+            title: t2("lsp.diagnostics.memoryWorstHint")
+          }, memory.worstText)
         ),
         import_react19.default.createElement(
           "div",
@@ -63528,6 +64184,11 @@ var CSS2 = `
 .iwb-project-choice-path { color: var(--iwb-muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-repo-badge { font-size: 9.5px; color: var(--iwb-git-add, #57a86b); border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
 .iwb-project-index-badge { font-size: 9.5px; color: #8b7cf6; border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
+/* The second state of the badge (PRD-v5.1 CONC-05): the folder WAS indexed,
+   but the language server was reclaimed - so the index is not there any more
+   and a rebuild costs another full build. The grey tone is the one of a
+   released server, not the yellow of a failure. */
+.iwb-project-index-badge-reclaimed { color: var(--iwb-muted); }
 .iwb-project-current-badge { font-size: 9.5px; color: var(--iwb-accent); border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
 .iwb-project-empty { padding: 10px 8px; color: var(--iwb-muted); font-size: 11.5px; }
 .iwb-sidebar-open {
@@ -64241,6 +64902,17 @@ function apply(ctx) {
   };
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === "function";
   const stores = new StoreCache({ limit: 3, isMounted: isMountedSession });
+  const bindStoreLifecycle = (store) => {
+    if (store === null || typeof store !== "object") return;
+    const dispose = typeof store.dispose === "function" ? store.dispose : null;
+    const deactivate = typeof store.deactivate === "function" ? store.deactivate : null;
+    if (dispose === null && deactivate === null) return;
+    store.dispose = function disposeStore() {
+      releaseLspForStore(store);
+      if (dispose !== null) return dispose.call(store);
+      return deactivate.call(store);
+    };
+  };
   let evictTimer = null;
   const scheduleEvict = () => {
     if (evictTimer !== null) return;
@@ -64257,7 +64929,9 @@ function apply(ctx) {
       stores.claim(key, id2);
       return existing;
     }
-    const store = stores.set(key, new WorkbenchStore(ctx, t2, cwdOf(id2)), id2, { evict: false });
+    const store = new WorkbenchStore(ctx, t2, cwdOf(id2));
+    bindStoreLifecycle(store);
+    stores.set(key, store, id2, { evict: false });
     configureLsp(store);
     scheduleEvict();
     return store;

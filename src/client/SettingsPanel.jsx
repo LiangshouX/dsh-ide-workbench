@@ -101,6 +101,11 @@ function SubGroup({ title, children }) {
  * instead of replacing them - the old switches would survive the reset. A
  * null replaces the whole map, and the migration of the document turns it
  * back into an empty map.
+ *
+ * `workspaceDefaults` is one of them (PRD-v5.1 WS-04): the workspace-scoped
+ * default state is kept by the workbench, not by the user, so a reset has to
+ * clear it as well - otherwise the projects the user put into the basic mode
+ * would stay there after a reset that promised a fresh start.
  * @returns {object} the patch the host merges into the document
  */
 export function resetPatch() {
@@ -115,7 +120,13 @@ export function resetPatch() {
     delete: { useRecycleBin: true },
     editor: { fontSize: 13, highlight: true, openMode: 'auto', editableMaxBytes: 1 << 20, markdownPreview: true },
     links: { chatFiles: 'ide' },
-    lsp: { ...DEFAULT_LSP_SETTINGS, servers: null, indexedRoots: null, memoryWarnedRoots: null },
+    lsp: {
+      ...DEFAULT_LSP_SETTINGS,
+      servers: null,
+      indexedRoots: null,
+      memoryWarnedRoots: null,
+      workspaceDefaults: null,
+    },
     shortcuts: {
       project: 'Alt+1', commit: 'Alt+0', git: 'Alt+9', terminal: 'Alt+F12',
       focusCommit: 'Ctrl+K', push: 'Ctrl+Shift+K', findInFiles: 'Ctrl+Shift+R', findInFilesAlt: 'Ctrl+Alt+F', openCommitDetail: 'Ctrl+Alt+D', quickOpen: 'Ctrl+Shift+N',
@@ -582,6 +593,12 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
           React.createElement('option', { value: 'never' }, t('settings.lspIndexNever')),
         ),
       ),
+      // The hierarchy of PRD-v5.1 WS-04, in one sentence: the row above is a
+      // GLOBAL policy, and the workspace-scoped default of the user outranks
+      // it. A project whose user chose the basic mode stays in the basic mode
+      // even when the policy says "always index" - that is the behaviour
+      // change of WS-04, so the page has to say it out loud.
+      React.createElement('div', { className: 'iwb-settings-hint' }, t('settings.lspWorkspaceDefaultHint')),
       // The four memory numbers are one topic, so they are one block: each
       // number keeps its own label, and the block takes a third of the
       // height of four separate rows.
@@ -615,6 +632,52 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
           }),
         ),
       ),
+      // The machine-level budget of PRD-v5.1 MEM-08.
+      //
+      // The per-server gate answers one question only: "may the next server
+      // start". It cannot answer "may three servers grow to their ceiling at
+      // the same time" - and that is the question that ends in the swap. The
+      // budget is the last gate: the sum of the ceilings of the running
+      // servers never exceeds it.
+      React.createElement(SubGroup, { title: t('settings.lspBudgetGroup') },
+        React.createElement(Field, { label: t('settings.lspBudgetRatio'), hint: t('settings.lspBudgetRatioShort'), title: t('settings.lspBudgetRatioHint') },
+          React.createElement('input', {
+            type: 'number', min: 0, max: 1, step: 0.05,
+            value: Number.isFinite(draft.lsp?.budgetRatio) ? draft.lsp.budgetRatio : 0.25,
+            onChange: event => {
+              const raw = String(event.target.value ?? '').trim()
+              const parsed = Number(raw)
+              update({ lsp: { budgetRatio: raw === '' ? 0.25 : (Number.isFinite(parsed) ? parsed : 0.25) } })
+            },
+          }),
+        ),
+        React.createElement(Field, { label: t('settings.lspBudgetCap'), hint: t('settings.lspBudgetCapShort'), title: t('settings.lspBudgetCapHint') },
+          React.createElement('input', {
+            type: 'number', min: 256, max: 32768, step: 256,
+            value: draft.lsp?.budgetCapMB ?? 4096,
+            onChange: event => update({ lsp: { budgetCapMB: Number(event.target.value) || 4096 } }),
+          }),
+        ),
+        // The user's own limit on top of the budget: when both apply, the
+        // stricter one wins.
+        React.createElement(Field, { label: t('settings.lspMaxConcurrent'), hint: t('settings.lspMaxConcurrentShort'), title: t('settings.lspMaxConcurrentHint') },
+          React.createElement('input', {
+            type: 'number', min: 0, max: 16, step: 1,
+            value: draft.lsp?.maxConcurrentIndexes ?? 0,
+            onChange: event => update({ lsp: { maxConcurrentIndexes: Number(event.target.value) || 0 } }),
+          }),
+        ),
+      ),
+      // The pressure valve is the last defence against the swap, and it is on
+      // by default (PRD-v5.1 MEM-12). The switch is the only way to turn it
+      // off, so it gets a row of its own.
+      React.createElement(Row, { label: t('settings.lspPressureYield'), hint: t('settings.lspPressureYieldHint') },
+        React.createElement('input', {
+          type: 'checkbox',
+          checked: draft.lsp?.pressureYield !== false,
+          onChange: event => update({ lsp: { pressureYield: event.target.checked } }),
+        }),
+      ),
       // The idle policy replaces the old "exit the server when idle" switch
       // (PRD-v5 §3.2): one dropdown says *when* the server lets go, and the
       // minutes below it are the length of the "after an idle time" option.
@@ -633,6 +696,10 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
           React.createElement('option', { value: 'never' }, t('settings.lspIdlePolicyNever')),
           React.createElement('option', { value: 'after' }, t('settings.lspIdlePolicyAfter')),
           React.createElement('option', { value: 'onMemoryPressure' }, t('settings.lspIdlePolicyMemory')),
+          // 'always' = the idle timeout AND the memory pressure. It is the
+          // explicit spelling of the default of PRD-v5.1 MEM-12, which the
+          // pressure valve made the default.
+          React.createElement('option', { value: 'always' }, t('settings.lspIdlePolicyAlways')),
         ),
       ),
       // "Never exit" is the one option with a price the user has to know:

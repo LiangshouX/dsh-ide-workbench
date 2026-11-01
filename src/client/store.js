@@ -24,7 +24,7 @@ import { isPathWithin, relativePathWithin, sameScopePath, sessionCwdOf } from '.
 // analysis: the host knows whether the language server PROCESS is up, the
 // client knows whether the link to it works. The import graph is acyclic -
 // `lsp-session.js` imports the workspace and the API, not the store.
-import { LSP_HOST_HEALTHY_STATES, reconnectLsp as reconnectLspSession } from './lsp-session.js'
+import { LSP_HOST_HEALTHY_STATES, reconnectLsp as reconnectLspSession, reportLspFocus, shutdownHostLspAwaited } from './lsp-session.js'
 
 let sequence = 0
 
@@ -274,6 +274,20 @@ function initialState() {
       cancellable: false,
       /** The roots the host knows about, as reported by `lsp.status`. */
       indexedRoots: [],
+      /**
+       * The roots a language server runs for RIGHT NOW (`lsp.status`).
+       *
+       * `indexedRoots` is a historical fact ("this root completed a first
+       * build"), this list is the live one ("a server runs for this root
+       * now"). The badge of the project picker needs both: a root that was
+       * indexed once and whose server was reclaimed is NOT the same as a
+       * root whose server is running (PRD-v5.1 CONC-05).
+       *
+       * It is an empty array when the host does not report it (an older
+       * host) - the client then falls back to the state of the project it
+       * is on, which is the one root it talks to.
+       */
+      liveRoots: [],
       /**
        * The state of the CLIENT session: 'starting' | 'ready' | 'failed'.
        *
@@ -1179,7 +1193,14 @@ export class WorkbenchStore {
     const projectRoots = { ...(this.state.settings?.projectRoots ?? {}), [workspaceRoot]: projectRoot }
     this.state.settings = { ...(this.state.settings ?? {}), projectRoots }
     void call('settings.update', { patch: { projectRoots: { [workspaceRoot]: projectRoot } } })
-      .then((result) => { this.state.settings = result.value })
+      .then((result) => {
+        // The host answers with the whole document. An answer without one
+        // must not empty the settings of the store - the decision of the
+        // workbench about the semantic analysis lives in them.
+        if (result !== null && typeof result === 'object' && result.value !== null && typeof result.value === 'object') {
+          this.state.settings = result.value
+        }
+      })
       .catch(() => {})
   }
 
@@ -1200,6 +1221,11 @@ export class WorkbenchStore {
   }
 
   async #switchWorkspace(workspaceRoot) {
+    // The root that is left. Its language server has to go before the new one
+    // starts (WS-02): the gate of the host judges the start by the memory
+    // that is really available, and a server that is still running holds a
+    // reservation the new server would be charged for.
+    const previousRoot = this.state.root
     await this.loadProjects(workspaceRoot)
     const projectRoot = this.#projectRootFor(workspaceRoot)
     this.set({
@@ -1231,6 +1257,16 @@ export class WorkbenchStore {
     // The workspace was switched, not the project: the index decision does
     // not run here. A decision the user has already expressed still does
     // (review R7-1).
+    //
+    // The old server goes first, and the answer of the host is awaited
+    // (WS-02): the gate of the new server must not see the reservation of a
+    // server that is still running. The switch of the client session does
+    // the same for the project switch - both paths have to close the old
+    // server before the new one starts, or the machine pays for two servers
+    // at once.
+    if (previousRoot !== '' && !sameScopePath(previousRoot, projectRoot)) {
+      await shutdownHostLspAwaited(previousRoot)
+    }
     void this.#startLspForRestored(projectRoot)
     this.#rememberProjectRoot(projectRoot)
     this.#restoreWorkspace(projectRoot)
@@ -1303,41 +1339,105 @@ export class WorkbenchStore {
    * @returns {Promise<boolean>} whether the project was switched
    */
   async #switchProjectWithIndex(project, ask = true) {
-    const choice = await this.#decideIndex(project, ask)
-    if (choice === 'cancel') return false
+    const decision = await this.#decideIndex(project, { ask })
+    if (decision.choice === 'cancel') return false
     // The decision is recorded BEFORE the switch: the switch changes the root
     // and wakes the subscribers, and the client session asks the decision for
     // the new root right away (review P1-2).
-    this.#rememberIndexDecision(project.path, choice)
+    //
+    // A decision the USER made is written to the settings document, so it
+    // survives a workspace switch and a restart of DSH (PRD-v5.1 WS-04). A
+    // decision the POLICY derived stays in the memory of the store - written
+    // to the document it would take the choice away from the user, who could
+    // never switch the index of that project off again.
+    if (decision.remember === 'workspace' || decision.remember === 'both') {
+      this.#rememberWorkspaceDecision(project.path, decision.choice)
+    }
+    if (decision.remember === 'memory' || decision.remember === 'both') {
+      this.#rememberMemoryAnswer(project.path, 'conservative')
+    }
+    this.#rememberIndexDecision(project.path, decision.choice)
     await this.#switchProject(project.path)
-    if (choice === 'build') await this.#startLsp(project.path)
-    if (choice === 'build-forced') await this.#startLsp(project.path, { force: true })
+    if (decision.choice === 'build') await this.#startLsp(project.path)
+    if (decision.choice === 'build-forced') await this.#startLsp(project.path, { force: true })
     return true
   }
 
   /**
-   * The index decision for one project root (PRD-v5 §2.3).
+   * The one decision about a project root: does the workbench want a language
+   * server for it?
    *
-   * Resolves with `'build'` (start the language server), `'build-forced'`
-   * (start it although the memory is tight - the user said so),
-   * `'conservative'` (stay in the basic mode) or `'cancel'` (do not switch
-   * the project).
+   * Both paths that can start a server go through this method - the project
+   * switch (`ask: true`, the user may be asked) and the restore path
+   * (`ask: false`, nothing is asked: a dialog at every start of DSH would be
+   * unbearable). The last time the meaning of `force` changed, the host was
+   * fixed first and the memory logic of the client was patched afterwards -
+   * and one place was missed (PRD-v5.1 MEM-10). One helper, two callers, one
+   * meaning:
+   *
+   *   - `force` belongs to ONE start. It is true only when the user answered
+   *     the memory question of THIS start, and it is never remembered.
+   *   - a decision the USER made is written to the settings
+   *     (`lsp.workspaceDefaults`), so it survives a workspace switch and a
+   *     restart of DSH.
+   *   - a decision the POLICY derived stays in the memory of the store
+   *     (`lspIndexDecisions`). Written to the document it would be
+   *     indistinguishable from a decision of the user - and the user could
+   *     never switch the index of that project off again (PRD-v5.1 WS-04
+   *     requirement 4).
+   *
+   * The hierarchy (PRD-v5.1 WS-04 requirement 2):
+   *
+   *   1. the master switch (`lsp.enabled === false`) - the feature is off;
+   *   2. the workspace-scoped default (`lsp.workspaceDefaults[scope]`) - it
+   *      OUTRANKS the global policy `lsp.indexOnOpen`: a project whose user
+   *      chose the basic mode stays in the basic mode even under
+   *      `indexOnOpen: 'always'`, and a project whose user turned the
+   *      semantic analysis on is not asked again;
+   *   3. the global policy `lsp.indexOnOpen`;
+   *   4. the memory answer of the user (`lsp.memoryWarnedRoots`) - it says
+   *      "do not ask me again", never "you may force".
+   *
+   * Every answer of the user about the semantic analysis of a project is
+   * written to the workspace-scoped default, and the memory answer only adds
+   * the "do not ask me again" to it. The two can therefore never contradict
+   * each other: the workspace-scoped default is the more recent word of the
+   * user, and it is the one the client session asks about.
+   *
    * @param {{path: string, name?: string, isRoot?: boolean, isRepo?: boolean}} project
-   * @param {boolean} [ask] false skips the dialog and stays conservative
-   * @returns {Promise<'build'|'build-forced'|'conservative'|'cancel'>}
+   * @param {{ask?: boolean}} [options] `ask: false` skips the dialogs: a
+   *   decision the restore path cannot ask for is a decision it does not take.
+   * @returns {Promise<{choice: 'build'|'build-forced'|'conservative'|'cancel', remember: 'workspace'|'memory'|'both'|null}>}
    */
-  async #decideIndex(project, ask = true) {
+  async #decideIndex(project, options = {}) {
+    const ask = options.ask !== false
     const lsp = this.state.settings?.lsp
     // A profile without the semantic-analysis section (a settings document
     // written before schema 3, or a host without the feature) has nothing to
     // start: the workbench stays in the conservative mode.
-    if (lsp === null || lsp === undefined || typeof lsp !== 'object') return 'conservative'
-    // The master switch and the "never index" policy both keep the workbench
-    // in the conservative mode: no language server is started at all.
-    if (lsp.enabled === false) return 'conservative'
-    if ((lsp.indexOnOpen ?? 'ask') === 'never') return 'conservative'
-    // The memory pre-check runs before every start (PRD-v5 §2.2). It has
-    // three bands now:
+    if (lsp === null || lsp === undefined || typeof lsp !== 'object') {
+      return { choice: 'conservative', remember: null }
+    }
+    // The master switch: the feature is off, so no language server is
+    // started at all.
+    if (lsp.enabled === false) return { choice: 'conservative', remember: null }
+    // The workspace-scoped default of the user (PRD-v5.1 WS-04). It outranks
+    // the global policy - this is the behaviour change of WS-04: before it,
+    // the global 'always' outranked everything, and a project the user had
+    // put into the basic mode was indexed behind their back.
+    const workspace = this.#workspaceDefault(project.path)
+    if (workspace === 'conservative') return { choice: 'conservative', remember: null }
+    // The "never index" policy keeps the workbench in the conservative mode.
+    if ((lsp.indexOnOpen ?? 'ask') === 'never') return { choice: 'conservative', remember: null }
+    // The restore path cannot ask the user, so the decision of the workbench
+    // has the last word: a project the user refused gets no server - not even
+    // here. The client session asks the same question and must get the same
+    // answer, or it would wait for a server that never comes.
+    if (!ask && this.lspIndexDecision(project.path) === 'conservative') {
+      return { choice: 'conservative', remember: null }
+    }
+    // The memory pre-check runs before every start the user is asked about
+    // (PRD-v5 §2.2). It has three bands:
     //
     //   - enough memory      -> start
     //   - tight              -> ask the user (the host refuses to start
@@ -1346,60 +1446,87 @@ export class WorkbenchStore {
     //
     // The old model had a single gate of 2 GB, so a YAML project on a
     // machine with 300 MB free could never start its server.
-    const resources = await this.#lspResources(project.path)
-    // The host judges the snapshot and sends its answer with it. The client
-    // renders that answer instead of judging the numbers a second time - two
-    // sides that judge the same snapshot differently give the user two
-    // different answers.
-    const decision = resources === null
-      ? 'ok'
-      : (resources.decision ?? (resources.tight === true ? 'tight' : (resources.canIndex === false ? 'low' : 'ok')))
-    // What the user answered the last time this project was tight.
-    const answered = this.#memoryAnswer(project.path)
-    if (decision === 'tight' && answered === '') {
-      const choice = await this.#askMemoryDecision(project, resources)
-      // The answer is remembered: the same project is not asked again, and
-      // the next time the same answer applies (the user said "start anyway"
-      // or the user said "the basic mode" - both are a decision, not a
-      // question).
-      this.#rememberMemoryAnswer(project.path, choice === 'start' ? 'accepted' : 'conservative')
-      if (choice === 'conservative') return 'conservative'
-      return 'build-forced'
+    //
+    // The restore path does not ask, so it does not pre-check either: the
+    // gate of the host is the authority there (a tight machine degrades the
+    // session, a machine below the floor refuses the start), and the restore
+    // path never forces anything.
+    let resources = null
+    if (ask) {
+      resources = await this.#lspResources(project.path)
+      // The host judges the snapshot and sends its answer with it. The client
+      // renders that answer instead of judging the numbers a second time - two
+      // sides that judge the same snapshot differently give the user two
+      // different answers.
+      const decision = resources === null
+        ? 'ok'
+        : (resources.decision ?? (resources.tight === true ? 'tight' : (resources.canIndex === false ? 'low' : 'ok')))
+      if (decision === 'low') {
+        // The threshold is the number the machine has to reach, not the
+        // estimate of the language: "needs 96 MB, 200 MB available" reads
+        // like a mistake, because the real gate is the hard floor.
+        const need = Math.round((resources.thresholdBytes ?? 0) / (1024 * 1024))
+        // The number of the toast is the one the gate judged by
+        // (`availableBytes`, PRD-v5.1 MEM-09): the free memory of the
+        // machine alone would say "plenty" while the gate says "not enough".
+        const free = Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024))
+        this.toast('error', this.#tpl('lsp.lowMemory', { need, free }), this.t('lsp.lowMemoryHint'))
+        return { choice: 'conservative', remember: null }
+      }
+      if (decision === 'tight') {
+        // The memory answer of the user: "do not ask me again" means the
+        // basic mode. It NEVER means "you may force" - a remembered
+        // permission to force would start the server on every tight moment,
+        // for ever (PRD-v5.1 MEM-10).
+        //
+        // A project whose user wants the semantic analysis ('build') is asked
+        // again: the permission to force is gone, and the tight band is the
+        // one place where the user may overrule the gate.
+        if (workspace !== 'build' && this.#memoryAnswer(project.path) === 'conservative') {
+          return { choice: 'conservative', remember: null }
+        }
+        // The answer is not remembered as a permission: the next tight moment
+        // asks again (PRD-v5.1 MEM-10). The trade-off is deliberate - the
+        // "conservative" memory of the same map keeps the question from
+        // becoming a nuisance.
+        const choice = await this.#askMemoryDecision(project, resources)
+        // The user wants the basic mode: that is a decision about the
+        // semantic analysis of this project, and it is remembered as such.
+        if (choice === 'conservative') return { choice: 'conservative', remember: 'both' }
+        return { choice: 'build-forced', remember: 'workspace' }
+      }
     }
-    // The user already answered for this project: the answer is applied
-    // without asking again. An "accepted" starts the server (the memory is
-    // still tight, so the start is forced); a "conservative" keeps the basic
-    // mode - and says so, instead of letting the host refuse the start of
-    // the index dialog later.
-    if (decision === 'tight' && answered === 'accepted') return 'build-forced'
-    if (decision === 'tight' && answered === 'conservative') return 'conservative'
-    if (decision === 'low') {
-      // The threshold is the number the machine has to reach, not the
-      // estimate of the language: "needs 96 MB, 200 MB available" reads
-      // like a mistake, because the real gate is the hard floor.
-      const need = Math.round((resources.thresholdBytes ?? 0) / (1024 * 1024))
-      const free = Math.round((resources.freeBytes ?? 0) / (1024 * 1024))
-      this.toast('error', this.#tpl('lsp.lowMemory', { need, free }), this.t('lsp.lowMemoryHint'))
-      return 'conservative'
-    }
+    // The workspace-scoped default says "index this project": the user said
+    // so once, and the question is not asked again.
+    if (workspace === 'build') return { choice: 'build', remember: null }
     // An already indexed folder needs no question: the language server is
     // started right away (risk #26: the indexed path has no extra step).
-    if (this.#isIndexed(project)) return 'build'
-    if ((lsp.indexOnOpen ?? 'ask') === 'always') return 'build'
+    if (this.#isIndexed(project)) return { choice: 'build', remember: null }
+    // The global policy: "always index" starts the server without a question.
+    if ((lsp.indexOnOpen ?? 'ask') === 'always') return { choice: 'build', remember: null }
     // Without a dialog to answer it, the workbench stays conservative.
-    if (ask === false) return 'conservative'
-    return this.#askIndexDecision(project, resources)
+    if (!ask) return { choice: 'conservative', remember: null }
+    const choice = await this.#askIndexDecision(project, resources)
+    return { choice, remember: choice === 'cancel' ? null : 'workspace' }
   }
 
   /**
    * What the user answered the last time this project was tight.
    *
-   * The answer is a decision, not a question: 'accepted' (the user wants the
-   * language server even though the memory is tight) or 'conservative' (the
-   * user wants the basic mode). An empty string means the user was never
-   * asked.
+   * The map remembers ONE thing: "do not ask me again". The answer is
+   * therefore either 'conservative' (the user wants the basic mode) or an
+   * empty string (the user was never asked).
+   *
+   * A legacy 'accepted' (a document written before PRD-v5.1) is read as
+   * 'conservative'. The old semantics remembered a PERMISSION to force the
+   * start, and that permission was contagious: one click on "start anyway"
+   * made every later tight moment of that project start the server without
+   * asking - and the same happened on every workspace switch and every
+   * restart of DSH. The new semantics have no such permission (MEM-10), so
+   * the old value degrades to the safe one: the project falls back to the
+   * basic mode instead of silently force-starting.
    * @param {string} root the project root
-   * @returns {string} 'accepted', 'conservative' or ''
+   * @returns {'conservative'|''}
    */
   #memoryAnswer(root) {
     const warned = this.state.settings?.lsp?.memoryWarnedRoots
@@ -1407,7 +1534,54 @@ export class WorkbenchStore {
     const key = Object.keys(warned).find(entry => sameScopePath(entry, root))
     if (key === undefined) return ''
     const answer = warned[key]
-    return answer === 'accepted' || answer === 'conservative' ? answer : ''
+    if (answer === 'conservative') return 'conservative'
+    // The legacy 'accepted' - see the note above.
+    if (answer === 'accepted') return 'conservative'
+    return ''
+  }
+
+  /**
+   * The workspace-scoped default of one project root (PRD-v5.1 WS-04).
+   *
+   * The map lives in the settings document (`lsp.workspaceDefaults`), next to
+   * `indexedRoots` and `memoryWarnedRoots`, and it holds what the USER
+   * decided about the semantic analysis of that root: 'build' (the user
+   * turned it on) or 'conservative' (the user chose the basic mode).
+   *
+   * `null` means "the user never decided" - the global policy then decides.
+   * @param {string} root the project root
+   * @returns {'build'|'conservative'|null}
+   */
+  #workspaceDefault(root) {
+    const defaults = this.state.settings?.lsp?.workspaceDefaults
+    if (defaults === null || defaults === undefined || typeof defaults !== 'object') return null
+    const key = Object.keys(defaults).find(entry => sameScopePath(entry, root))
+    if (key === undefined) return null
+    const value = defaults[key]
+    return value === 'build' || value === 'conservative' ? value : null
+  }
+
+  /**
+   * Write the decision of the user about the semantic analysis of one root.
+   *
+   * The decision is written to the settings document, so it survives a
+   * workspace switch and a restart of DSH - the memory of the client does
+   * not (the store is evicted after three workspaces). A failure is not
+   * fatal: the user is asked again next time.
+   *
+   * Only a decision the USER made belongs here. A decision the policy
+   * derived (the automatic start of the 'always' policy) stays in the memory
+   * of the store: written here it would take the choice away from the user,
+   * who could never switch the index of that project off again.
+   * @param {string} root the project root
+   * @param {'build'|'build-forced'|'conservative'} choice the answer of the user
+   */
+  #rememberWorkspaceDecision(root, choice) {
+    const decision = choice === 'build' || choice === 'build-forced' ? 'build' : 'conservative'
+    const defaults = this.state.settings?.lsp?.workspaceDefaults
+    const next = { ...(defaults !== null && typeof defaults === 'object' ? defaults : {}), [root]: decision }
+    this.set({ settings: { ...this.state.settings, lsp: { ...this.state.settings.lsp, workspaceDefaults: next } } })
+    void call('settings.update', { patch: { lsp: { workspaceDefaults: next } } }).catch(() => {})
   }
 
   /**
@@ -1422,6 +1596,12 @@ export class WorkbenchStore {
    * The answer is 'build' (a language server is wanted), 'conservative' (the
    * basic mode: no server) or 'unknown' (this session made no decision - the
    * caller decides then).
+   *
+   * The order of the sources is the hierarchy of PRD-v5.1 WS-04: the
+   * workspace-scoped default of the user outranks the global policy
+   * `lsp.indexOnOpen`. Before it, the global policy outranked everything and
+   * a project the user had put into the basic mode was indexed behind their
+   * back as soon as the policy said "always".
    * @param {string} root the project root
    * @returns {'build'|'conservative'|'unknown'}
    */
@@ -1433,9 +1613,15 @@ export class WorkbenchStore {
     // decides then. (In a real profile the section always exists - the
     // settings defaults fill it.)
     if (lsp === null || lsp === undefined || typeof lsp !== 'object') return 'unknown'
-    // The master switch and the "never index" policy both keep the workbench
-    // in the conservative mode: no language server is started at all.
+    // The master switch: the feature is off, so no language server is
+    // started at all.
     if (lsp.enabled === false) return 'conservative'
+    // The workspace-scoped default of the user - it outranks the global
+    // policy in both directions (PRD-v5.1 WS-04 requirement 2).
+    const workspace = this.#workspaceDefault(root)
+    if (workspace === 'conservative') return 'conservative'
+    if (workspace === 'build') return 'build'
+    // The "never index" policy keeps the workbench in the conservative mode.
     if ((lsp.indexOnOpen ?? 'ask') === 'never') return 'conservative'
     // The user sent this project to the basic mode the last time the memory
     // was tight: the answer is remembered in the settings.
@@ -1446,6 +1632,20 @@ export class WorkbenchStore {
     if (recorded !== null) return recorded
     // No decision was made in this session.
     return 'unknown'
+  }
+
+  /**
+   * The workspace-scoped default of one project root (PRD-v5.1 WS-04).
+   *
+   * The public face of the private helper: the user interface asks it to
+   * tell "the user chose the basic mode for this project" from "the host
+   * simply has no server running".
+   * @param {string} root the project root
+   * @returns {'build'|'conservative'|null}
+   */
+  lspWorkspaceDefault(root) {
+    if (typeof root !== 'string' || root === '') return null
+    return this.#workspaceDefault(root)
   }
 
   /**
@@ -1479,10 +1679,16 @@ export class WorkbenchStore {
   /**
    * Remember what the user answered for one project.
    *
+   * The map remembers ONE thing: "do not ask me again". Only the answer
+   * 'conservative' is written - the answer "start anyway" belongs to ONE
+   * start and is never remembered, because a remembered permission to force
+   * the start would make every later tight moment of that project start the
+   * server without asking (PRD-v5.1 MEM-10).
+   *
    * The answer is written to the settings, so it survives a restart of the
    * workbench. A failure is not fatal: the user is asked again next time.
    * @param {string} root the project root
-   * @param {'accepted'|'conservative'} answer the answer of the user
+   * @param {'conservative'} answer the answer of the user
    */
   #rememberMemoryAnswer(root, answer) {
     const warned = this.state.settings?.lsp?.memoryWarnedRoots
@@ -1496,8 +1702,15 @@ export class WorkbenchStore {
    *
    * The host refuses to start a language server on a tight budget unless the
    * start is forced, so this dialog is the only way out of the "tight" band.
+   *
+   * The number of the dialog is the one the gate judged by
+   * (`availableBytes`): the popup said "2648 MB available" while the gate
+   * decided with 600 MB, so the same question got two opposite answers on
+   * two screens (PRD-v5.1 MEM-09). The fallback to `freeBytes` is only for a
+   * snapshot of a host that does not know the number yet - it is never
+   * preferred over the number the gate used.
    * @param {{path: string, name?: string}} project
-   * @param {{needMB?: number, freeBytes?: number, languageId?: string}} resources
+   * @param {{needMB?: number, availableBytes?: number, freeBytes?: number, languageId?: string}} resources
    * @returns {Promise<'start'|'conservative'>}
    */
   #askMemoryDecision(project, resources) {
@@ -1515,7 +1728,9 @@ export class WorkbenchStore {
           name: typeof project.name === 'string' && project.name !== '' ? project.name : baseName(project.path),
           language,
           needMB: Math.round(resources.needMB ?? 0),
-          freeMB: Math.round((resources.freeBytes ?? 0) / (1024 * 1024)),
+          // The field keeps its name: the dialog renders it, and the field
+          // name is not worth a second wave through the renderer.
+          freeMB: Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024)),
         },
       })
     })
@@ -1545,6 +1760,60 @@ export class WorkbenchStore {
     const roots = this.state.settings?.lsp?.indexedRoots
     if (roots === null || roots === undefined || typeof roots !== 'object') return false
     return Object.keys(roots).some(key => sameScopePath(key, project.path))
+  }
+
+  /**
+   * Whether a language server runs for one project root right now.
+   *
+   * `indexedRoots` is a historical fact ("this root completed a first
+   * build"), this question is the live one ("a server runs for this root
+   * now"). The host answers it in the status snapshot (`liveRoots`); a host
+   * that does not know the field yet leaves the client with the state of the
+   * project it is on - the one root the client talks to (the client holds a
+   * single session, PRD-v5 §1.4).
+   * @param {string} root the project root
+   * @returns {boolean}
+   */
+  lspRootIsLive(root) {
+    if (typeof root !== 'string' || root === '') return false
+    const live = this.state.lsp?.liveRoots
+    if (Array.isArray(live) && live.length > 0) {
+      return live.some(entry => typeof entry === 'string' && sameScopePath(entry, root))
+    }
+    // The fallback: the project the workbench is on. Its state says whether
+    // a server runs for it.
+    if (!sameScopePath(root, this.state.root)) return false
+    const state = this.state.lsp?.state
+    return state === 'starting' || state === 'building' || state === 'ready' || state === 'restarting'
+  }
+
+  /**
+   * The badge of one project in the project picker (PRD-v5.1 CONC-05).
+   *
+   * `indexedRoots` records a HISTORICAL fact: the folder completed a first
+   * program build at some point in this profile. The badge said "indexed"
+   * even after the server was reclaimed - and the user read it as "the index
+   * is there", while a rebuild costs another full build.
+   *
+   * The two states are therefore:
+   *
+   *   - 'indexed'          the folder completed a first build AND a server
+   *                        runs for it right now;
+   *   - 'indexed-reclaimed' the folder completed a first build, but its
+   *                        server was reclaimed (the host released it to give
+   *                        the memory back).
+   *
+   * `null` means the folder carries no badge at all.
+   * @param {{path: string, indexState?: string}} project
+   * @returns {'indexed'|'indexed-reclaimed'|null}
+   */
+  indexBadgeState(project) {
+    if (project === null || typeof project !== 'object') return null
+    // A host that reports the two states itself wins: it knows which of its
+    // sessions are alive, and the client only draws the badge.
+    if (project.indexState === 'indexed-reclaimed') return 'indexed-reclaimed'
+    if (project.indexState !== 'indexed') return null
+    return this.lspRootIsLive(project.path) ? 'indexed' : 'indexed-reclaimed'
   }
 
   /**
@@ -1635,37 +1904,73 @@ export class WorkbenchStore {
    * start of DSH would be unbearable. But a decision the user has already
    * expressed must be honoured there too:
    *
-   *   - `indexOnOpen: 'always'` says "always index";
-   *   - a remembered memory answer of 'accepted' says "start it anyway
-   *     although the memory is tight" - and that question is only asked
-   *     after the index decision said "build", so it means the same thing.
+   *   - the workspace-scoped default of the user says "index this project"
+   *     (or "keep it in the basic mode");
+   *   - `indexOnOpen: 'always'` says "always index".
    *
-   * The decision of the workbench has the last word: a project the user put
-   * into the basic mode (a remembered 'conservative', `indexOnOpen: 'never'`,
-   * the master switch off) gets no server - not even here.
+   * The decision comes from the SAME helper the project switch uses
+   * (`#decideIndex` with `ask: false`), so the two paths cannot drift apart
+   * - the last time the semantics of `force` changed, the host was fixed
+   * first and the memory logic of the client was patched afterwards, and one
+   * place was missed (PRD-v5.1 MEM-10).
    *
-   * The host's own memory gate still applies: a machine that cannot afford
-   * the server does not get one (the hard floor is never skipped), and the
-   * tight band is skipped only for a project the user has already answered
-   * for.
+   * Two rules of that helper matter here:
+   *
+   *   - the start is NEVER forced. The restore path cannot ask the user, so
+   *     it has no permission to skip the tight band of the gate; the gate of
+   *     the host decides (a tight machine degrades the session, a machine
+   *     below the floor refuses the start).
+   *   - a decision the policy derived stays in the memory of the store. The
+   *     automatic start of the 'always' policy is NOT a decision of the user,
+   *     and writing it to the settings would take the choice away from the
+   *     user for ever (PRD-v5.1 WS-04 requirement 4).
+   *
+   * When nothing starts, the user gets an explanation: the workbench is in
+   * the basic mode, and silence would look like a broken feature.
    * @param {string} root the project root
    * @returns {Promise<void>}
    */
   async #startLspForRestored(root) {
     if (typeof root !== 'string' || root === '') return
-    const lsp = this.state.settings?.lsp
-    const always = lsp !== null && lsp !== undefined && typeof lsp === 'object'
-      && (lsp.indexOnOpen ?? 'ask') === 'always'
-    const accepted = this.#memoryAnswer(root) === 'accepted'
-    // The 'ask' policy stays exactly as it is: no dialog, no server.
-    if (!always && !accepted) return
-    // The decision of the workbench has the last word: the user refused this
-    // project, so it gets no server - not even here.
-    if (this.lspIndexDecision(root) === 'conservative') return
+    const decision = await this.#decideIndex({ path: root }, { ask: false })
+    if (decision.choice !== 'build' && decision.choice !== 'build-forced') {
+      this.#explainBasicMode(root)
+      return
+    }
     // The store and the client session have to agree: the project wants a
-    // server.
-    this.#rememberIndexDecision(root, 'build')
-    await this.#startLsp(root, { force: accepted })
+    // server. The decision stays in the memory of the store - it is the
+    // policy that derived it, not the user.
+    this.#rememberIndexDecision(root, decision.choice)
+    await this.#startLsp(root, { force: false })
+  }
+
+  /**
+   * Explain why the workbench is in the basic mode (PRD-v5.1 WS-04).
+   *
+   * The restore path does not ask anything, so the user sees the basic mode
+   * without a reason - and a feature that is silent looks broken (the
+   * symptom the PRD reports: "the user sees the basic mode with no
+   * explanation").
+   *
+   * The explanation differs in the two cases:
+   *
+   *   - the user chose the basic mode for this project: the workbench says
+   *     so, and says that the choice can be undone;
+   *   - the user never decided: the workbench is in the basic mode because
+   *     this workspace never turned the semantic analysis on - and it can be
+   *     turned on for a project.
+   *
+   * The master switch is not explained here: the feature is off in every
+   * project, and that is a setting the user made on purpose.
+   * @param {string} root the project root
+   * @returns {void}
+   */
+  #explainBasicMode(root) {
+    const lsp = this.state.settings?.lsp
+    if (lsp === null || lsp === undefined || typeof lsp !== 'object') return
+    if (lsp.enabled === false) return
+    const chosen = this.#workspaceDefault(root) === 'conservative'
+    this.toast('info', this.t(chosen ? 'lsp.workspaceConservativeToast' : 'lsp.workspaceBasicModeToast'))
   }
 
   /**
@@ -1683,11 +1988,21 @@ export class WorkbenchStore {
    * warning («仍然启动» = start anyway, PRD-v5 §2.3). A degradation caused
    * by a missing server or by a crash must not bypass the memory gate, so
    * the force is limited to the tight band.
+   *
+   * The button is also the way OUT of the basic mode of a workspace: the user
+   * asks for a language server here, so the workspace-scoped default of the
+   * project is written - from now on the workbench starts the server of this
+   * project on its own (PRD-v5.1 WS-04). Without it a project the user put
+   * into the basic mode would stay there for ever.
    * @returns {Promise<void>}
    */
   async restartLsp() {
     const root = this.state.root
     if (root === '') return
+    // The user asked for a language server: the decision is theirs, so it is
+    // remembered in the settings document.
+    this.#rememberWorkspaceDecision(root, 'build')
+    this.#rememberIndexDecision(root, 'build')
     this.patch('lsp', { rebuilding: true })
     try {
       await call('lsp.shutdown', { root })
@@ -2031,7 +2346,14 @@ export class WorkbenchStore {
       // only the visible workbench updates it.
       if (state.active === true) patch.lastRoot = state.workspaceRoot
       const result = await call('settings.update', { patch })
-      const next = { ...state.settings, ...result.value }
+      // The host answers with the WHOLE document. An answer without a
+      // document must not empty the settings of the store: the decision of
+      // the workbench about the semantic analysis lives in them, and a
+      // store without them would decide everything again from scratch.
+      const answer = result !== null && typeof result === 'object' && result.value !== null && typeof result.value === 'object'
+        ? result.value
+        : null
+      const next = answer === null ? { ...(state.settings ?? {}) } : { ...(state.settings ?? {}), ...answer }
       // Keep the in-memory document in sync without a render (the tree reads
       // settings.project.showHidden on every list call).
       this.state.settings = next
@@ -2099,6 +2421,46 @@ export class WorkbenchStore {
       this.restoredTimer = null
     }
     void this.persistNow()
+  }
+
+  /**
+   * Release the semantic session of this store (PRD-v5.1 §2.3, WS-03).
+   *
+   * The store of a workspace that is not the active one any more still holds
+   * a mirrored status: the two-second poll of the language server went on,
+   * and the status bar of that store said "语义分析：就绪" long after the
+   * workspace was left. The user came back and saw a state that belonged to
+   * a server nobody talks to any more.
+   *
+   * The release has two halves:
+   *
+   *   - the poll of the language-server status stops. A store that nobody
+   *     watches must not keep asking the host every two seconds;
+   *   - the mirrored status is cleared, so the status line of that store says
+   *     "idle" instead of a state that is not true any more.
+   *
+   * The session itself is released by `releaseLspForStore` of the session
+   * module - it closes the socket and asks the host to stop the server. This
+   * method is the store-side half of it, and the session module calls it
+   * when the method exists.
+   *
+   * The method is idempotent: the release may come twice (once from the
+   * cache that drops the store, once from the store itself), and a second
+   * call must not clear a state that was filled again in between.
+   * @returns {void}
+   */
+  releaseLsp() {
+    if (this.lspPollTimer !== null) {
+      clearInterval(this.lspPollTimer)
+      this.lspPollTimer = null
+    }
+    // The mirrored status of a store that is not looked at any more would
+    // keep the last state of a server that is gone.
+    this.patch('lsp', { ...initialState().lsp, servers: this.state.lsp?.servers ?? { available: [], missing: [] } })
+    // The fault episodes belong to the session that is gone: a new one must
+    // not inherit the flag and stay silent about its first failure.
+    this.lspFaultNotified = false
+    this.lspSessionFaultNotified = false
   }
 
   /**
@@ -2213,18 +2575,32 @@ export class WorkbenchStore {
       // the session says "ready" long before that is over, so the status bar
       // needs the flag to tell the user what it waits for (review T7).
       buildingProgram: status.buildingProgram === true,
+      // The roots a language server runs for RIGHT NOW. The badge of the
+      // project picker needs it to tell "indexed and running" from "indexed
+      // and reclaimed" (PRD-v5.1 CONC-05). A host that does not report the
+      // field leaves the list empty, and the client falls back to the state
+      // of the project it is on.
+      liveRoots: Array.isArray(status.liveRoots)
+        ? status.liveRoots.filter(entry => typeof entry === 'string')
+        : this.state.lsp.liveRoots,
     }
     // The memory snapshot travels with the status (the host reads it in the
     // same call), so the numbers are live without a second request. It is
     // compared in megabytes: the free memory changes in bytes every time,
     // and a new object on every poll would wake the whole workbench every
     // two seconds for a number that did not move.
+    //
+    // The comparison watches the AVAILABLE memory - the number the gate of
+    // the host judges the start by (PRD-v5.1 MEM-09). The free memory of the
+    // machine can stay the same while the available memory drops, and that
+    // is the change the user has to see.
     const resources = status.resources ?? null
     const known = this.state.lsp.resources ?? null
     const memoryChanged = resources === null
       ? known !== null
       : (known === null
-        || Math.round(known.freeBytes / (1024 * 1024)) !== Math.round(resources.freeBytes / (1024 * 1024))
+        || Math.round((known.availableBytes ?? known.freeBytes ?? 0) / (1024 * 1024))
+          !== Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / (1024 * 1024))
         || known.needMB !== resources.needMB
         || known.canIndex !== resources.canIndex
         || known.tight !== resources.tight)
@@ -2262,6 +2638,9 @@ export class WorkbenchStore {
       || current.processId !== next.processId
       || current.buildingProgram !== next.buildingProgram
       || current.scopeRoot !== next.scopeRoot
+      // The live roots change when a server is released, and the badge of
+      // the project picker follows them (PRD-v5.1 CONC-05).
+      || JSON.stringify(current.liveRoots) !== JSON.stringify(next.liveRoots)
       || memoryChanged
     // The status answered, so the mirrored snapshot is current again.
     const patch = { lspStatusStale: false }
@@ -3462,6 +3841,10 @@ export class WorkbenchStore {
     this.set({ activeId: id })
     const tab = this.state.tabs.find(item => item.id === id)
     if (tab?.kind === 'file') this.setSelectedPath(tab.path)
+    // The host cannot see which editor the user is in: the LRU order of the
+    // memory pressure yield needs that fact, because yielding the focused
+    // root interrupts the user (PRD-v5.1 §4.4, CONC-03).
+    reportLspFocus(this.state.root)
     // A restored tab is read from disk when it is focused for the first time
     // (PRD-v4 §1.2 PERF-07).
     void this.ensureTabContent(id)

@@ -194,7 +194,8 @@ export function migrateLegacyShortcuts(value) {
 }
 
 /**
- * Fill in the `lsp` section of a document written before schema 4 or 5.
+ * Fill in the `lsp` section of a document written before schema 4, 5 or the
+ * PRD-v5.1 additions.
  *
  * The migration only touches the `lsp` section: every other setting the user
  * made survives untouched, which is the whole point of the schema bump. A
@@ -210,6 +211,11 @@ export function migrateLegacyShortcuts(value) {
  * Schema 5 added the idle policy and the index scope. A document that does
  * not carry them keeps the behaviour it had: the server is released after
  * the idle timeout, and the program is built for the whole root.
+ *
+ * PRD-v5.1 added the machine-level budget (MEM-08), the pressure valve
+ * (MEM-12) and the workspace-level default state (WS-04). A document written
+ * before them gets the defaults - the missing keys are filled in by the
+ * merge over `DEFAULT_SETTINGS.lsp` - and a value the user chose survives.
  * @param {any} value the merged settings document
  * @returns {any} the same document, migrated in place
  */
@@ -243,6 +249,39 @@ export function migrateLspSettings(value) {
   // back to the conservative default.
   if (!INDEX_SCOPES.includes(migrated.indexScope)) {
     migrated.indexScope = DEFAULT_SETTINGS.lsp.indexScope
+  }
+  // The machine-level budget of PRD-v5.1 (MEM-08). A ratio or a cap that is
+  // not a finite number - a hand-edited document, a value that came from a
+  // form as a string - would make the budget of the host meaningless, so it
+  // falls back to the default. A number the user chose survives.
+  if (!Number.isFinite(migrated.budgetRatio) || migrated.budgetRatio < 0) {
+    migrated.budgetRatio = DEFAULT_SETTINGS.lsp.budgetRatio
+  }
+  if (!Number.isFinite(migrated.budgetCapMB) || migrated.budgetCapMB < 0) {
+    migrated.budgetCapMB = DEFAULT_SETTINGS.lsp.budgetCapMB
+  }
+  // The number of indexes at the same time: 0 means "the budget decides", a
+  // negative number means nothing at all.
+  if (!Number.isFinite(migrated.maxConcurrentIndexes) || migrated.maxConcurrentIndexes < 0) {
+    migrated.maxConcurrentIndexes = DEFAULT_SETTINGS.lsp.maxConcurrentIndexes
+  }
+  // The pressure valve of PRD-v5.1 (MEM-12) is a switch, so only a boolean
+  // is a valid value. The default is "on" - the valve is what keeps the
+  // machine out of the swap.
+  if (typeof migrated.pressureYield !== 'boolean') {
+    migrated.pressureYield = DEFAULT_SETTINGS.lsp.pressureYield
+  }
+  // The workspace-level default state of PRD-v5.1 (WS-04) is a map from the
+  // scope path to 'build' or 'conservative'. A document that carries
+  // something else there has no decision to keep, so the empty map takes its
+  // place.
+  if (!isPlainObject(migrated.workspaceDefaults)) {
+    migrated.workspaceDefaults = {}
+  } else {
+    // The map is copied into a fresh object: the default object is shared by
+    // every document this process loads, and a client that writes into it
+    // would change the defaults of every later document.
+    migrated.workspaceDefaults = { ...migrated.workspaceDefaults }
   }
   value.lsp = migrated
   return value

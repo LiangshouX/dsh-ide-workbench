@@ -154,6 +154,82 @@ export const MEMORY_SOFT_FACTOR = 2.0
 export const MEMORY_HARD_FLOOR_MB = 256
 
 /**
+ * The ceiling tiers of a language server (PRD-v5.1 §3.7, MEM-11).
+ *
+ * The ceiling of a server is a PERMISSION (`maxTsServerMemory`), not an
+ * expectation: the measured footprint of a TypeScript index is 434 MB (the
+ * median of PRD-v5 §5.2) and 606 MB for a big project, while the flat
+ * 2048 MB of the registry was the worst case of the worst case. A number
+ * that was never going to be reached cannot be the unit of the accounting
+ * (MEM-05), the base of the worst case (MEM-07) and the exposure of the
+ * machine at the same time.
+ *
+ * The tiers are the ceiling a project of that size gets:
+ *
+ *   small  (<= 400 source files)   1024 MB - still 2.3x the measured 434 MB
+ *   medium (<= 1000 source files)  1536 MB
+ *   large  (> 1000 source files)   2048 MB - the old flat value
+ *
+ * The tier only LOWERS a ceiling, it never raises one: the effective
+ * ceiling is `min(tier, the ceiling of the language, the global limit)`.
+ */
+export const CEILING_TIERS = [
+  { name: 'small', maxSourceFiles: 400, memoryLimitMB: 1024 },
+  { name: 'medium', maxSourceFiles: 1000, memoryLimitMB: 1536 },
+]
+
+/**
+ * The ceiling of a project that is too big for the tiers (MB).
+ *
+ * It is also the ceiling of a project whose size could not be measured: an
+ * unknown size is not evidence of a small project (PRD-v5.1 §8 risk 2), and
+ * lowering the ceiling without knowing why is how a big project ends up
+ * without an index.
+ */
+export const LARGE_CEILING_MB = 2048
+
+/**
+ * The biggest difference between two readings of the free memory that is
+ * still noise (MB).
+ *
+ * The difference method of MEM-06 measures the footprint of a language
+ * server as the difference of two readings of `os.freemem()`. A difference
+ * of a few megabytes is not a language server - it is the machine doing
+ * something else at the same time. Above this value the difference is
+ * taken as the footprint of the server.
+ */
+export const MEASURE_NOISE_MAX_MB = 8
+
+/**
+ * The biggest negative difference between two readings of the free memory
+ * that is still noise (MB).
+ *
+ * A negative difference means that the machine gave memory away while the
+ * server was started. The measurement cannot be attributed to the server
+ * then, so it is void.
+ */
+export const MEASURE_NOISE_MIN_MB = -64
+
+/**
+ * How often the footprint of a running language server is measured again (ms).
+ *
+ * The first measurement happens while the process starts - the program of
+ * the project is not built yet, so the server is still small. It grows
+ * while the program is built, and the gate has to know that: a server that
+ * grew to 900 MB has 900 MB less headroom.
+ */
+export const MEASURE_INTERVAL_MS = 60000
+
+/**
+ * The message of a release under memory pressure (the LRU yield).
+ *
+ * The machine needs the memory more than the projects need their indexes,
+ * and the server that was released is the one that was used the least. It
+ * is not a failure: the first request starts the server again (IDLE-02).
+ */
+export const PRESSURE_YIELD_DETAIL = 'the machine ran out of memory, so the least used language server was released to reclaim it (this is not a failure)'
+
+/**
  * The defaults of the `lsp` settings section (PRD §6.1).
  *
  * The numbers live in `settings-defaults.js`: the client needs them too (the
@@ -263,6 +339,22 @@ const PRESSURE_CHECK_MIN_MS = 250
 const PRESSURE_CHECK_MAX_MS = 30000
 
 /**
+ * The interval of the memory pressure check (ms).
+ *
+ * The check reads the free memory of the machine and walks the sessions of
+ * the manager: it is cheap, and the machine must not wait long for the
+ * memory it asks for (MEM-12).
+ *
+ * The interval does NOT depend on the idle timeout: the two are unrelated
+ * questions ("how long may an unused server live" and "how fast does the
+ * machine ask for its memory back"), and one of them must not slow the
+ * other down. The old implementation derived the interval from the idle
+ * timeout, so a machine with a ten-minute idle timeout only noticed the
+ * pressure every thirty seconds.
+ */
+const PRESSURE_CHECK_INTERVAL_MS = 1000
+
+/**
  * How many client payloads may wait for a language server.
  *
  * The browser connects its socket long before the server exists, so its
@@ -292,6 +384,9 @@ const WAKE_BACKOFF_MS = 60000
  *
  *   - 'memory': the memory gate refused the start (the tight band or the
  *     hard floor). Worth a retry.
+ *   - 'budget': the machine-level total budget of the language servers is
+ *     used up (MEM-08). Worth a retry: the budget frees up as soon as a
+ *     server is released.
  *   - 'not-installed': the language server is not installed. The user has
  *     to install something first.
  *   - 'turned-off': the language is switched off in the settings.
@@ -300,6 +395,7 @@ const WAKE_BACKOFF_MS = 60000
  */
 export const DEGRADE_CAUSES = {
   memory: 'memory',
+  budget: 'budget',
   notInstalled: 'not-installed',
   turnedOff: 'turned-off',
   crash: 'crash',
@@ -308,12 +404,13 @@ export const DEGRADE_CAUSES = {
 /**
  * The degradations a later payload may try again (IDLE-02).
  *
- * Only the memory is worth a retry: the situation of the machine changes,
- * and the user may free some of it. A server that is not installed, a
+ * Only the memory and the budget are worth a retry: the situation of the
+ * machine changes, and the user may free some of it - a released server
+ * gives its share of the budget back. A server that is not installed, a
  * language that is switched off and an exhausted crash budget need the
  * user - a retry would only repeat the same refusal.
  */
-const RETRYABLE_DEGRADE_CAUSES = new Set([DEGRADE_CAUSES.memory])
+const RETRYABLE_DEGRADE_CAUSES = new Set([DEGRADE_CAUSES.memory, DEGRADE_CAUSES.budget])
 
 /**
  * The states that end a degradation episode.
@@ -472,6 +569,25 @@ function idlePolicyOf(lsp) {
   const section = isPlainObject(lsp) ? lsp : {}
   if (section.autoExit === false) return 'never'
   return IDLE_POLICIES.includes(section.idlePolicy) ? section.idlePolicy : DEFAULT_LSP_SETTINGS.idlePolicy
+}
+
+/**
+ * Whether the memory pressure valve may release a language server
+ * (PRD-v5.1 §3.8, MEM-12).
+ *
+ * The valve is the last defence against the swap, and it is ON by default.
+ * It is independent of the idle policy: `idlePolicy: 'never'` means "not
+ * because of idleness", not "not even when the machine is dying".
+ *
+ * `pressureYield: false` is the one and only way to switch it off - the
+ * user who does that gives up the protection, so it has to be explicit.
+ *
+ * @param {object} lsp the `lsp` section of the settings
+ * @returns {boolean}
+ */
+function pressureYieldOf(lsp) {
+  const section = isPlainObject(lsp) ? lsp : DEFAULT_LSP_SETTINGS
+  return section.pressureYield !== false
 }
 
 /**
@@ -730,6 +846,161 @@ function sourceCountOf(directory) {
 }
 
 /**
+ * The biggest number of source files the size estimate counts (files).
+ *
+ * The estimate answers one question - "is this a small project or a big
+ * one?" - and the tiers of the ceiling (MEM-11) only have three answers. A
+ * project with more than 2000 source files is a big one whatever the exact
+ * number is, so the scan stops there.
+ */
+const PROJECT_SIZE_CAP = 2000
+
+/**
+ * How long a size estimate is reused (ms).
+ *
+ * The estimate is a scan of the file tree, and the resources snapshot is
+ * polled every two seconds by the client. The size of a project does not
+ * change from second to second, so the result is kept for a while.
+ */
+const PROJECT_SIZE_TTL_MS = 300000
+
+/**
+ * The size estimates of the projects, by their normalized path.
+ * @type {Map<string, { count: number, at: number }>}
+ */
+const PROJECT_SIZES = new Map()
+
+/**
+ * How many source files one project has (bounded scan for the ceiling tier).
+ *
+ * This is a SECOND scan, and it is deliberately not the one of
+ * {@link sourceCountOf}: that one stops at 400 files, because it only has to
+ * tell the sub-projects of a workspace apart ("which one is the big one?").
+ * The ceiling tier has to tell a small project from a big one, and the
+ * boundary between "medium" and "large" is at 1000 files - so this scan
+ * counts up to 2000 files and no deeper than three directories.
+ *
+ * The scan is bounded on purpose: it runs while a language server is
+ * started, and a workspace with thousands of files must not slow the start
+ * down. It is NOT a file index - it is a size estimate.
+ *
+ * @param {string} directory the absolute path of the project
+ * @returns {number} the number of source files that were counted (0 when
+ *   the directory does not exist or cannot be read)
+ */
+export function projectSizeOf(directory) {
+  if (typeof directory !== 'string' || directory === '') return 0
+  const key = rootKey(directory)
+  const now = Date.now()
+  const cached = PROJECT_SIZES.get(key)
+  if (cached !== undefined && now - cached.at < PROJECT_SIZE_TTL_MS) return cached.count
+  const count = countSourceFiles(directory)
+  PROJECT_SIZES.set(key, { count, at: now })
+  return count
+}
+
+/**
+ * Count the source files of one project (bounded scan).
+ * @param {string} directory the absolute path of the project
+ * @returns {number} the number of source files that were counted
+ */
+function countSourceFiles(directory) {
+  let counted = 0
+  const visit = (current, depth) => {
+    if (depth > 3 || counted >= PROJECT_SIZE_CAP) return
+    let entries
+    try {
+      entries = readdirSync(current, { withFileTypes: true })
+    } catch {
+      // The directory does not exist (a project that was never created) or
+      // cannot be read: the size is unknown.
+      return
+    }
+    for (const entry of entries) {
+      if (counted >= PROJECT_SIZE_CAP) return
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+      if (entry.isDirectory()) {
+        visit(join(current, entry.name), depth + 1)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (SOURCE_EXTENSIONS.some(extension => entry.name.endsWith(extension))) counted += 1
+    }
+  }
+  visit(directory, 0)
+  return counted
+}
+
+/**
+ * The tier of one project size (PRD-v5.1 §3.7, MEM-11).
+ *
+ * A size of zero is NOT a small project: it is a project whose size could
+ * not be measured (the directory does not exist, cannot be read, or holds
+ * no source files at all). The tier of an unknown size is 'unknown', and
+ * the unknown size keeps the default ceiling - lowering the ceiling
+ * without knowing why is how a big project ends up without an index
+ * (PRD-v5.1 §8 risk 2).
+ *
+ * @param {number} sourceFiles the number of source files of the project
+ * @returns {'small' | 'medium' | 'large' | 'unknown'} the tier
+ */
+export function ceilingTierOf(sourceFiles) {
+  if (!Number.isFinite(sourceFiles) || sourceFiles <= 0) return 'unknown'
+  for (const tier of CEILING_TIERS) {
+    if (sourceFiles <= tier.maxSourceFiles) return tier.name
+  }
+  return 'large'
+}
+
+/**
+ * The ceiling of one project size (MB).
+ *
+ * @param {number} sourceFiles the number of source files of the project
+ * @returns {number} the ceiling in megabytes
+ */
+export function ceilingMBOfSize(sourceFiles) {
+  const tier = ceilingTierOf(sourceFiles)
+  const entry = CEILING_TIERS.find(candidate => candidate.name === tier)
+  return entry === undefined ? LARGE_CEILING_MB : entry.memoryLimitMB
+}
+
+/**
+ * The effective ceiling of one language server (PRD-v5.1 §3.7, MEM-11).
+ *
+ * Three values play here, and the order matters:
+ *
+ *   1. the per-language override of the settings (`servers[lang].memoryLimitMB`)
+ *      wins over everything: it is the escape hatch that keeps a big
+ *      project working when the tier guessed wrong;
+ *   2. the tier of the project size, lowered to the ceiling of the language
+ *      (the tier only lowers a ceiling, it never raises one - a YAML server
+ *      stays at 512 MB);
+ *   3. the global limit of the settings, which is a CAP over every language
+ *      server now (PRD-v5.1 §5) and not a flat value any more.
+ *
+ * @param {string | null} languageId the language of the server
+ * @param {string | null} scopeRoot the directory the program is built for
+ * @param {object} lsp the `lsp` section of the settings
+ * @returns {number} the ceiling in megabytes
+ */
+export function ceilingMBOf(languageId, scopeRoot, lsp) {
+  const section = isPlainObject(lsp) ? lsp : DEFAULT_LSP_SETTINGS
+  const servers = isPlainObject(section.servers) ? section.servers : {}
+  const override = isPlainObject(servers[languageId]) ? servers[languageId] : {}
+  const registryEntry = typeof languageId === 'string' ? LSP_REGISTRY[languageId] : undefined
+  const registryMB = Number.isFinite(registryEntry?.memoryLimitMB) && registryEntry.memoryLimitMB > 0
+    ? registryEntry.memoryLimitMB
+    : LARGE_CEILING_MB
+  // The override of the user wins over everything.
+  if (Number.isFinite(override.memoryLimitMB) && override.memoryLimitMB > 0) return override.memoryLimitMB
+  const tierMB = Math.min(ceilingMBOfSize(projectSizeOf(scopeRoot)), registryMB)
+  const globalMB = Number.isFinite(section.memoryLimitMB) && section.memoryLimitMB > 0
+    ? section.memoryLimitMB
+    : tierMB
+  return Math.min(tierMB, globalMB)
+}
+
+/**
  * The root of the program the language server builds (PRD-v5 §4.2).
  *
  * A workspace root that holds several independent projects must not be
@@ -774,12 +1045,296 @@ export function scopeRootOf(root, policy = 'auto') {
 }
 
 /**
+ * The configuration files that describe the program of a project.
+ *
+ * A TypeScript project is described by its `tsconfig.json`, a JavaScript
+ * one by its `jsconfig.json`. They are the same thing for the language
+ * server, and two roots that share one of them share ONE program.
+ */
+const PROJECT_CONFIGS = ['tsconfig.json', 'jsconfig.json']
+
+/**
+ * How many directories above a root are looked at for a workspace (levels).
+ *
+ * The lookup is bounded: a program never lives twelve directories above the
+ * file the user opened, and the walk must not turn into a scan of the disk.
+ */
+const WORKSPACE_LOOKUP_DEPTH = 8
+
+/**
+ * How many configurations one program may reference (files).
+ */
+const MAX_REFERENCES = 64
+
+/**
+ * The configuration file of one directory (the first one that exists).
+ * @param {string} directory the absolute path of the directory
+ * @returns {string | null} the absolute path of the configuration
+ */
+function configOf(directory) {
+  for (const name of PROJECT_CONFIGS) {
+    const path = join(directory, name)
+    if (existsSync(path)) return path
+  }
+  return null
+}
+
+/**
+ * Parse a configuration file that may contain comments.
+ *
+ * A `tsconfig.json` is JSON with comments and trailing commas - it is not
+ * JSON, and `JSON.parse` refuses it. The comments are removed before the
+ * parse; a file that still cannot be read is treated as a configuration
+ * without references, which merges less than it could.
+ *
+ * @param {string} text the content of the file
+ * @returns {any} the parsed value, or null when it cannot be read
+ */
+function parseJsonc(text) {
+  try {
+    const withoutComments = String(text)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    return JSON.parse(withoutComments.replace(/,(\s*[}\]])/g, '$1'))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The configurations one configuration references (one level).
+ * @param {string} configPath the absolute path of the configuration
+ * @returns {string[]} the absolute paths of the referenced configurations
+ */
+function referencesOf(configPath) {
+  let text
+  try {
+    text = readFileSync(configPath, 'utf8')
+  } catch {
+    return []
+  }
+  const parsed = parseJsonc(text)
+  const references = parsed !== null && Array.isArray(parsed.references) ? parsed.references : []
+  const directory = dirname(configPath)
+  const output = []
+  for (const reference of references) {
+    const target = typeof reference?.path === 'string' ? reference.path : ''
+    if (target === '') continue
+    const path = resolvePath(directory, target)
+    for (const name of PROJECT_CONFIGS) {
+      const candidate = join(path, name)
+      if (existsSync(candidate)) {
+        output.push(candidate)
+        break
+      }
+    }
+  }
+  return output
+}
+
+/**
+ * The configurations one configuration references (transitively).
+ * @param {string | null} configPath the absolute path of the configuration
+ * @returns {string[]} the absolute paths of the referenced configurations
+ */
+function referencedConfigsOf(configPath) {
+  if (configPath === null || configPath === undefined) return []
+  const found = new Set()
+  const queue = [configPath]
+  while (queue.length > 0 && found.size < MAX_REFERENCES) {
+    const current = queue.shift()
+    if (current === null || current === undefined || found.has(current)) continue
+    found.add(current)
+    for (const reference of referencesOf(current)) {
+      if (!found.has(reference)) queue.push(reference)
+    }
+  }
+  found.delete(configPath)
+  return [...found].sort()
+}
+
+/**
+ * Whether one directory is the root of a workspace.
+ *
+ * Two shapes make a directory a workspace root:
+ *
+ *   - it is the root of a package manager workspace (`package.json` with a
+ *     `workspaces` field): pnpm, npm and yarn put the packages of a
+ *     monorepo below it, and those packages are ONE program for the
+ *     language server;
+ *   - it holds a configuration that references the project of the root (or
+ *     configurations inside it): a solution-style `tsconfig.json` with
+ *     `references` makes its packages one program.
+ *
+ * @param {string} directory the absolute path of the directory
+ * @param {string | null} configPath the configuration of the project
+ * @returns {boolean}
+ */
+function isWorkspaceRoot(directory, configPath) {
+  const manifest = join(directory, 'package.json')
+  if (existsSync(manifest)) {
+    try {
+      const parsed = JSON.parse(readFileSync(manifest, 'utf8'))
+      if (isPlainObject(parsed?.workspaces)) return true
+    } catch { /* no readable manifest */ }
+  }
+  const config = configOf(directory)
+  if (config === null) return false
+  const references = referencedConfigsOf(config)
+  // The paths are compared through `rootKey`: Windows spells a path with
+  // backslashes, and the case of the letters does not matter there.
+  if (configPath !== null && references.some(reference => rootKey(reference) === rootKey(configPath))) return true
+  const prefix = `${rootKey(directory)}/`
+  for (const reference of references) {
+    if (rootKey(reference).startsWith(prefix)) return true
+  }
+  return false
+}
+
+/**
+ * The outermost directory above one root that is a workspace root.
+ * @param {string} directory the absolute path of the root
+ * @param {string | null} configPath the configuration of the project
+ * @returns {string | null} the workspace root, or null when there is none
+ */
+function workspaceRootOf(directory, configPath) {
+  let current = resolvePath(String(directory))
+  let found = null
+  for (let depth = 0; depth <= WORKSPACE_LOOKUP_DEPTH; depth += 1) {
+    if (isWorkspaceRoot(current, configPath)) found = current
+    const parent = dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return found
+}
+
+/**
+ * The configuration of the program of one directory.
+ *
+ * The configuration of the directory itself wins; if there is none, the
+ * nearest one above it is used - a root that is a sub-directory of a
+ * project belongs to the program of that project.
+ *
+ * @param {string} directory the absolute path of the directory
+ * @returns {string | null} the absolute path of the configuration
+ */
+function nearestConfigOf(directory) {
+  let current = resolvePath(String(directory))
+  for (let depth = 0; depth <= WORKSPACE_LOOKUP_DEPTH; depth += 1) {
+    const config = configOf(current)
+    if (config !== null) return config
+    const parent = dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return null
+}
+
+/**
+ * The path of a `file:` URI.
+ * @param {string} uri the URI
+ * @returns {string | null} the absolute path, or null when the URI is not one
+ */
+function fileUriToPath(uri) {
+  if (!/^file:\/\//i.test(String(uri))) return null
+  const rest = String(uri).slice('file://'.length)
+  const slash = rest.indexOf('/')
+  if (slash < 0) return null
+  const host = rest.slice(0, slash)
+  if (host !== '' && host !== 'localhost') return null
+  let path = rest.slice(slash)
+  if (process.platform === 'win32') path = path.replace(/^\/([A-Za-z]:)/, '$1')
+  try {
+    return resolvePath(decodeURIComponent(path))
+  } catch {
+    return resolvePath(path)
+  }
+}
+
+/**
+ * The root URI of a recorded handshake.
+ *
+ * The handshake is owned by the host (PRD-v5 §6, L4), and its `rootUri` is
+ * the authoritative statement of WHICH program the language server builds.
+ * The host does not parse LSP payloads - the framing and the protocol live
+ * in the frame worker - but it already looks at the one payload it owns
+ * with the same narrow structural check (`isInitializeRequest`), and the
+ * program of a root is a question the host has to answer itself.
+ *
+ * @param {string} handshake the recorded handshake
+ * @returns {string | null} the absolute path of the program, or null
+ */
+function rootUriOf(handshake) {
+  if (typeof handshake !== 'string' || handshake === '') return null
+  const match = /"rootUri"\s*:\s*"([^"]*)"/.exec(handshake)
+  if (match === null) return null
+  return fileUriToPath(match[1])
+}
+
+/**
+ * The identity of the program one root would build (PRD-v5.1 §4.2, CONC-01).
+ *
+ * Two roots that share a `tsconfig.json` / `jsconfig.json`, or that are
+ * connected through the `references` of a configuration, belong to the SAME
+ * program: the language server would hold the same symbols twice, twice
+ * the memory, and two programs may disagree about the types of the same
+ * file. The host therefore starts ONE server for them.
+ *
+ * The decision is CONSERVATIVE: when the host is not sure, the roots are
+ * merged. One missing index is better than two duplicate ones (PRD-v5.1
+ * §8 risk 6).
+ *
+ * The key is built from three things, in this order:
+ *
+ *   1. the `rootUri` of the recorded handshake, when the host knows one -
+ *      it is the authoritative statement of the program (L4);
+ *   2. the workspace root above the project: a package manager workspace
+ *      or a solution-style `tsconfig.json` puts its packages into one
+ *      program;
+ *   3. the configuration of the project itself, or the root when there is
+ *      none.
+ *
+ * @param {string} root the absolute project root
+ * @param {string} [handshake] the recorded handshake of the root
+ * @returns {string} the key of the program
+ */
+export function programKeyOf(root, handshake = '') {
+  const base = rootUriOf(handshake) ?? resolvePath(String(root))
+  const config = nearestConfigOf(base)
+  // The program root is the directory of the configuration when the
+  // configuration lives above the root: a sub-directory of a project belongs
+  // to the program of that project.
+  const programRoot = config === null ? base : (dirname(config) === base ? base : dirname(config))
+  const workspace = workspaceRootOf(programRoot, config)
+  if (workspace !== null) return `workspace:${rootKey(workspace)}`
+  if (config !== null) return `config:${rootKey(config)}`
+  return `root:${rootKey(programRoot)}`
+}
+
+/**
  * One byte count in megabytes, for the messages the user reads.
  * @param {number} bytes
  * @returns {number}
  */
 function toMb(bytes) {
   return Math.round(bytes / (1024 * 1024))
+}
+
+/**
+ * The hint of the worst case (PRD-v5.1 §3.3, MEM-07).
+ *
+ * The typical band says what happens when the server keeps the footprint it
+ * has today. The worst band says what happens when it grows to the
+ * permission it was given - and that number may be negative, which is
+ * exactly what the user has to know before the machine starts to swap.
+ *
+ * @param {object} resources the memory snapshot
+ * @returns {string} the hint, or an empty string when the worst case is fine
+ */
+function worstCaseHintOf(resources) {
+  if (resources?.worstCase !== true) return ''
+  return `; if it grew to its ceiling of ${resources.ceilingMB} MB, the machine would be left with ${toMb(resources.worstCaseBytes)} MB`
 }
 
 /**
@@ -831,9 +1386,11 @@ function defaultCreateWorker(workerData) {
  * ~600 MB of reclaimable cache) and it is not reachable from JavaScript
  * without a native helper.
  *
- * What actually keeps the machine out of swap is MEM-02: every running
- * language server is charged its ceiling, and the charge is returned the
- * moment the process is gone.
+ * What actually keeps the machine out of swap is not one number but three:
+ * MEM-05 charges every running language server only for what it can STILL
+ * grow into, MEM-08 caps the sum of the ceilings of all running servers at
+ * a share of the machine, and MEM-12 gives the memory back when the
+ * machine asks for it.
  *
  * @returns {number} the standby cache in bytes
  */
@@ -949,6 +1506,14 @@ function snapshotOf(entry) {
      * the answer is "yes" for every session that may still be released.
      */
     idleArmed: session?.idleTimer !== null && session?.idleTimer !== undefined,
+    /**
+     * Whether a language server runs for this root right now (CONC-05).
+     */
+    running: session !== null && session !== undefined && ['starting', 'building', 'ready', 'restarting'].includes(session.state),
+    /**
+     * The identity of the program of this root (CONC-01).
+     */
+    programKey: session?.programKey ?? null,
   }
 }
 
@@ -972,6 +1537,16 @@ export class LspManager {
   #timeoutLimit
   #graceMs
   #lastEntry = null
+  /**
+   * The root the editor of the user is in (PRD-v5.1 §4.4, CONC-03).
+   *
+   * The host cannot see the editor, so the client reports it (see
+   * `setFocus`). Without a report the host treats every root as "not
+   * focused": the order of the yield is still right, the focused root just
+   * does not get the special treatment of the last position.
+   * @type {string | null}
+   */
+  #focusRoot = null
   /**
    * The sessions this manager owns.
    *
@@ -1078,6 +1653,33 @@ export class LspManager {
        * server is given back when the project is not used any more.
        */
       idleArmed: session?.idleTimer !== null && session?.idleTimer !== undefined,
+      /**
+       * Whether a language server runs for this root right now.
+       *
+       * Together with the historical fact of the `indexedRoots` map this is
+       * what the badge of the client needs: "indexed, running" and
+       * "indexed, reclaimed" are two different states (CONC-05).
+       */
+      running: session !== null && session !== undefined && this.#isRunning(session),
+      /**
+       * The identity of the program of this root (CONC-01).
+       *
+       * Two roots with the same key share one language server.
+       */
+      programKey: session?.programKey ?? null,
+      /**
+       * The scope roots of the roots that run a language server right now.
+       *
+       * The badge of the client has to tell "indexed, running" from
+       * "indexed, reclaimed" (CONC-05), and it has to tell it for EVERY
+       * root - not only for the one the client is talking to. The host owns
+       * the answer: it knows which sessions are running.
+       *
+       * The scope root is reported and not the root itself: the program of
+       * a project is built for the scope root (PRD-v5 §4.2), and that is
+       * the path the client knows.
+       */
+      liveRoots: this.#liveRoots(),
       // The memory of the machine and the estimate of the server travel with
       // the status: the client polls it every two seconds anyway, and a
       // running server already knows its language, so nothing has to be
@@ -1087,6 +1689,30 @@ export class LspManager {
         ? null
         : this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp),
     }
+  }
+
+  /**
+   * The scope roots of the roots that run a language server right now.
+   *
+   * The answer is process-wide and not per manager: the badge of the
+   * client is about the whole IDE, and the roots of every manager belong
+   * to the same process.
+   *
+   * A root counts as running when its session is in one of the live states
+   * (`starting`, `building`, `ready`, `restarting`) - the same set the
+   * client uses for the health of the host.
+   *
+   * @returns {string[]} the scope roots of the running servers
+   */
+  #liveRoots() {
+    const roots = new Set()
+    for (const entry of ROOTS.values()) {
+      const session = entry.session
+      if (session === null || session === undefined) continue
+      if (!this.#isRunning(session)) continue
+      roots.add(session.scopeRoot ?? entry.root)
+    }
+    return [...roots]
   }
 
   /**
@@ -1266,9 +1892,13 @@ export class LspManager {
       ? resolvePath(root)
       : (entry?.root ?? null)
     const languageId = session?.languageId ?? (target === null ? null : detectLanguage(target))
-    // The ceiling stays the one of the settings: the estimate never asks for
-    // more than the server may use.
-    const memoryLimitMB = session?.memoryLimitMB ?? lsp.memoryLimitMB
+    // The ceiling of the snapshot is the EFFECTIVE ceiling of the server
+    // that would start: the tier of the project size, the ceiling of the
+    // language and the global limit (MEM-11). A root that was never
+    // started has no session, but it has a language and a size - the same
+    // ones the start path would use.
+    const memoryLimitMB = session?.memoryLimitMB
+      ?? ceilingMBOf(languageId, target === null ? null : scopeRootOf(target, indexScopeOf(lsp)), lsp)
     return this.#resourcesSnapshot(memoryLimitMB, languageId, lsp)
   }
 
@@ -1299,11 +1929,74 @@ export class LspManager {
 
   /**
    * The `indexedRoots` map of the settings document.
-   * @returns {Promise<Record<string, { at: number, languageId: string }>>}
+   *
+   * The map records a HISTORICAL fact ("this root completed a first
+   * build"), and the badge of the client has to tell two states apart
+   * (PRD-v5.1 §4.6, CONC-05):
+   *
+   *   - "indexed": the root was indexed and a language server is running
+   *     for it right now;
+   *   - "indexed, reclaimed": the root was indexed, and the server was
+   *     released (the idle exit, the pressure yield, the shutdown).
+   *
+   * The host owns the answer - it knows which sessions are running - so
+   * every entry carries the flag `running`.
+   *
+   * @returns {Promise<Record<string, { at: number, languageId: string, running: boolean }>>}
    */
   async indexedRoots() {
     const settings = await this.#settings()
-    return { ...lspSection(settings).indexedRoots }
+    const map = { ...lspSection(settings).indexedRoots }
+    for (const key of Object.keys(map)) {
+      const entry = ROOTS.get(rootKey(key))
+      const session = entry?.session ?? null
+      const running = session !== null && session !== undefined && this.#isRunning(session)
+      const value = isPlainObject(map[key]) ? map[key] : {}
+      map[key] = { ...value, running }
+    }
+    return map
+  }
+
+  /**
+   * Report the root the editor of the user is in (PRD-v5.1 §4.4, CONC-03).
+   *
+   * The yield order of the pressure valve needs to know which root the user
+   * is working in: that one is released last of all, and a release would
+   * interrupt the editor.
+   *
+   * The host does not need the report to work: without it the focused root
+   * is simply not treated specially (and the client that is attached to a
+   * root is treated as the focused one anyway).
+   *
+   * @param {string | null} root the absolute project root, or null to clear it
+   * @returns {{ focusedRoot: string | null }} the root that is focused now
+   */
+  setFocus(root) {
+    this.#focusRoot = typeof root === 'string' && root.trim() !== '' ? resolvePath(root) : null
+    return { focusedRoot: this.#focusRoot }
+  }
+
+  /**
+   * The root the editor of the user is in (CONC-03).
+   * @returns {string | null} the absolute project root, or null when the
+   *   client did not report one
+   */
+  focusedRoot() {
+    return this.#focusRoot
+  }
+
+  /**
+   * The identity of the program one root would build (PRD-v5.1 §4.2, CONC-01).
+   *
+   * Two roots with the same key belong to the same program, and the host
+   * starts ONE language server for them.
+   * @param {string} root the absolute project root
+   * @returns {string} the key of the program
+   */
+  programKey(root) {
+    const target = this.#requireRoot(root)
+    const entry = this.#peek(target)
+    return programKeyOf(target, entry?.handshake ?? '')
   }
 
   /**
@@ -1314,7 +2007,7 @@ export class LspManager {
   stateOf(root) {
     const entry = this.#peek(this.#requireRoot(root))
     return entry === null
-      ? { root: resolvePath(String(root)), state: 'idle', languageId: null, command: null, source: null, detail: null, startedAt: null, cancellable: false, progress: 'idle', memoryLimitMB: null, scopeRoot: null, stderrLines: [], timeouts: 0, processId: 0, buildingProgram: false, idleArmed: false }
+      ? { root: resolvePath(String(root)), state: 'idle', languageId: null, command: null, source: null, detail: null, startedAt: null, cancellable: false, progress: 'idle', memoryLimitMB: null, scopeRoot: null, stderrLines: [], timeouts: 0, processId: 0, buildingProgram: false, idleArmed: false, running: false, programKey: null }
       : snapshotOf(entry)
   }
 
@@ -1768,30 +2461,64 @@ export class LspManager {
   }
 
   /**
-   * The memory that the running language servers of this process hold.
+   * The running session that already covers one program (CONC-01).
    *
-   * The gate has to know what this process already started (MEM-02): the
-   * free memory of the machine is not free for a *new* server, because the
-   * servers that are already running may still take their whole ceiling.
+   * The search is over the sessions of THIS manager: a session of another
+   * manager belongs to another host.
+   * @param {string} programKey the key of the program
+   * @param {string | null} languageId the language of the server
+   * @param {object | null} [exclude] a session that is not the owner (the
+   *   session that is being started is in the set already)
+   * @returns {object | null} the session that owns the program
+   */
+  #programOwnerOf(programKey, languageId, exclude = null) {
+    if (typeof programKey !== 'string' || programKey === '') return null
+    for (const session of this.#sessions) {
+      if (session === exclude) continue
+      if (session.programKey !== programKey) continue
+      if (session.languageId !== languageId) continue
+      if (!this.#isRunning(session)) continue
+      return session
+    }
+    return null
+  }
+
+  /**
+   * How many language servers of this manager are running.
+   * @param {object | null} [exclude] a session that is not counted
+   * @returns {number}
+   */
+  #runningSessionCount(exclude = null) {
+    let count = 0
+    for (const session of this.#sessions) {
+      if (session === exclude) continue
+      if (this.#isRunning(session)) count += 1
+    }
+    return count
+  }
+
+  /**
+   * The memory that the running language servers of this process can STILL
+   * grow into (PRD-v5.1 §3.1, MEM-05).
    *
-   * THE RESERVATION IS THE CEILING (`memoryLimitMB`), NOT THE MEASURED
-   * FOOTPRINT. This is a deliberate trade-off:
+   * THE RESERVATION IS NOT THE CEILING, IT IS THE HEADROOM.
    *
-   *   - The measured footprint of a TypeScript index is 434 MB (the median
-   *     of the measurement of PRD-v5 §5.2), but the server is told that it
-   *     may use up to `memoryLimitMB` (2 GB by default, and that ceiling
-   *     really reaches the server as `maxTsServerMemory`).
-   *   - The machine has to survive the worst case of every server it runs.
-   *     Reserving the measured footprint would let three servers claim
-   *     1.3 GB on a machine with 4 GB of free memory - and each of them
-   *     may really take its 2 GB, which is a machine that swaps.
-   *   - The price is a stricter gate: on a 16 GB machine with 4 GB of free
-   *     memory the first two indexes are allowed and the third one is
-   *     refused, and on an 8 GB machine with 8 GB of free memory four
-   *     TypeScript indexes are allowed (8 GB reserved, ~1.8 GB measured).
-   *     A user who opens several projects may see the conservative mode
-   *     for the third one. That is the point of the gate: it is better to
-   *     refuse an index than to swap.
+   *   `os.freemem()` has ALREADY subtracted the real footprint of the
+   *   running servers - the machine does not give the same memory to the
+   *   editor and to a language server. Charging the ceiling of every
+   *   running server ON TOP of that counts every server TWICE: once as
+   *   consumed and once as permission. That is the whole defect the user
+   *   reported (2648 MB free, one index that really needs 621 MB, and the
+   *   gate said "not enough resources").
+   *
+   * What a running server may still take from the machine is its headroom:
+   *
+   *   headroom_i = max(0, ceiling_i - measured_i)
+   *
+   * `measured_i` is the real footprint of the server (MEM-06) and
+   * `ceiling_i` the permission it was given (MEM-11). A server that uses
+   * 606 MB of its 2048 MB ceiling endangers the next server with 1442 MB -
+   * and with the old formula it endangered it with 2048 MB.
    *
    * The reservation is given back on every path that ends a session:
    * `#terminateAndWait`, `#teardownSession` and `#onCrash`.
@@ -1806,6 +2533,62 @@ export class LspManager {
   }
 
   /**
+   * The real footprint of the running language servers (MEM-06).
+   *
+   * The sum of the measurements of the running sessions, in bytes. The
+   * client shows it, and it is the number that makes the reservation
+   * understandable: "the machine has 2648 MB free, 606 MB of it is the
+   * index that is already running, and 1442 MB of it is what that index
+   * may still grow into".
+   * @returns {number} the measured memory in bytes
+   */
+  #measuredBytes() {
+    let total = 0
+    for (const session of this.#sessions) {
+      if (session.measuredBytes > 0) total += session.measuredBytes
+    }
+    return total
+  }
+
+  /**
+   * The sum of the ceilings of the running language servers (MEM-08).
+   *
+   * This is the number the machine-level budget is about: the per-server
+   * gate answers "may the NEXT server start", and only the sum answers
+   * "may these servers grow to their ceilings AT THE SAME TIME".
+   * @returns {number} the ceilings in bytes
+   */
+  #ceilingBytes() {
+    let total = 0
+    for (const session of this.#sessions) {
+      if (session.ceilingBytes > 0) total += session.ceilingBytes
+    }
+    return total
+  }
+
+  /**
+   * The machine-level budget of the language servers (PRD-v5.1 §3.4, MEM-08).
+   *
+   * `min(totalBytes * budgetRatio, budgetCapMB)`: a quarter of the machine
+   * is the default share, and the absolute cap keeps a big machine from
+   * handing out a budget that no project ever needs.
+   * @param {object} lsp the `lsp` section of the settings
+   * @param {number} totalBytes the total memory of the machine
+   * @returns {number} the budget in bytes
+   */
+  #budgetBytesOf(lsp, totalBytes) {
+    const section = isPlainObject(lsp) ? lsp : DEFAULT_LSP_SETTINGS
+    const ratio = Number.isFinite(section.budgetRatio) && section.budgetRatio > 0
+      ? section.budgetRatio
+      : DEFAULT_LSP_SETTINGS.budgetRatio
+    const capMB = Number.isFinite(section.budgetCapMB) && section.budgetCapMB > 0
+      ? section.budgetCapMB
+      : DEFAULT_LSP_SETTINGS.budgetCapMB
+    const total = Number.isFinite(totalBytes) && totalBytes > 0 ? totalBytes : 0
+    return Math.min(total * ratio, capMB * 1024 * 1024)
+  }
+
+  /**
    * Give the memory of one session back to the machine.
    *
    * The reservation has to go away on every path that ends a session, or
@@ -1816,34 +2599,52 @@ export class LspManager {
   #releaseReservation(session) {
     if (session === null || session === undefined) return
     session.reservedBytes = 0
+    // The measurement belongs to the process: it is meaningless without it.
+    session.measuredBytes = 0
   }
 
   /**
-   * The memory situation of one language server (PRD §2.2, §2.3).
+   * The memory situation of one language server (PRD §2.2, §2.3, PRD-v5.1
+   * §3.3/MEM-07/MEM-08).
    *
-   * The decision is graded: the free memory is compared with the estimate of
-   * the language instead of one global number, so a YAML project does not
-   * need the gigabytes a TypeScript project needs. The three bands are
+   * The decision is graded: the available memory is compared with the
+   * estimate of the language instead of one global number, so a YAML
+   * project does not need the gigabytes a TypeScript project needs. The
+   * three bands are
    *
-   *   free >= needMB * 2   enough   - the server starts
-   *   free >= hardFloorMB  tight    - the user decides; the host refuses to
+   *   available >= soft_j   enough   - the server starts
+   *   available >= floor    tight    - the user decides; the host refuses to
    *                                    start the server without `force`
-   *   otherwise            too low  - the server degrades
+   *   otherwise             too low  - the server degrades
    *
-   * The free memory that the bands are computed from is the free memory of
-   * the machine MINUS the standby cache (MEM-03: on Windows `os.freemem()`
-   * counts the standby cache as available, and 652 MB of standby are
-   * exactly one medium index) MINUS the memory the servers of this process
-   * have already reserved (MEM-02: the gate has to know what it already
-   * started).
+   * The available memory is the free memory of the machine MINUS the
+   * standby cache (MEM-03: on Windows `os.freemem()` counts the standby
+   * cache as available, and 652 MB of standby are exactly one medium index)
+   * MINUS the headroom of the servers that are already running (MEM-05:
+   * the gate has to know what it already started - and it has to charge it
+   * for what it may still grow into, not for its whole ceiling).
+   *
+   * TWO BANDS, ONE DECISION (MEM-07):
+   *
+   *   the typical band compares the available memory with the estimate of
+   *   the language (`needMB`) - that is what happens when the server keeps
+   *   the footprint it has today;
+   *
+   *   the worst band compares the available memory MINUS THE CEILING of the
+   *   new server with the hard floor - that is what happens when it grows
+   *   to the permission it was given. The worst band is REPORTED, never
+   *   enforced: with a 2 GB ceiling almost every machine would hit it, and
+   *   a hard reject on the worst case would seal the gate shut for good.
+   *   What keeps the machine out of the swap is the machine-level budget
+   *   (MEM-08) and the pressure valve (MEM-12).
    *
    * The free-memory threshold of the settings is only the conservative
    * fallback: it speaks when no estimate of the language is known, and it
    * never blocks a language that has one (PRD §4.4).
-   * @param {number} memoryLimitMB the ceiling of the language server
+   * @param {number} memoryLimitMB the effective ceiling of the language server
    * @param {string | null} languageId the language the estimate is based on
    * @param {object} lsp the `lsp` section of the settings
-   * @returns {{ totalBytes: number, freeBytes: number, thresholdBytes: number, memoryLimitMB: number, canIndex: boolean, needMB: number, baselineMB: number, headroom: number, hardFloorMB: number, tight: boolean, belowHardFloor: boolean, languageId: string | null, softThresholdBytes: number }}
+   * @returns {object} the memory snapshot
    */
   #resourcesSnapshot(memoryLimitMB, languageId, lsp) {
     const memory = this.#readMemory()
@@ -1874,22 +2675,42 @@ export class LspManager {
       : 0
     const freeBytes = Math.max(0, memory.freeBytes - standbyBytes)
     // The servers that are already running hold their memory: it is not
-    // free for the next one.
+    // free for the next one. Only their HEADROOM is charged (MEM-05).
     const reservedBytes = this.#reservedBytes()
+    const measuredBytes = this.#measuredBytes()
+    const ceilingBytes = this.#ceilingBytes()
     const availableBytes = Math.max(0, freeBytes - reservedBytes)
+    // The worst band: the machine, if the new server grows to its ceiling.
+    // The number may be negative - that is the point of it.
+    const worstCaseBytes = availableBytes - limit * 1024 * 1024
+    const worstCase = worstCaseBytes < hardFloorBytes
+    // The machine-level budget of the language servers (MEM-08).
+    const budgetBytes = this.#budgetBytesOf(section, memory.totalBytes)
     // The authoritative answer of the host: what may happen with this
     // snapshot. The client renders it instead of judging the numbers again -
     // two sides that judge the same snapshot differently give the user two
     // different answers.
-    const decision = availableBytes < hardFloorBytes ? 'low' : (availableBytes < softThresholdBytes ? 'tight' : 'ok')
+    //
+    // The worst band NEVER lowers the decision to 'low': a hard reject on
+    // the worst case would seal the gate shut (MEM-07). It says 'tight' and
+    // carries the flag, and the client reports it.
+    const decision = availableBytes < hardFloorBytes
+      ? 'low'
+      : (availableBytes < softThresholdBytes ? 'tight' : (worstCase ? 'tight' : 'ok'))
     return {
       totalBytes: memory.totalBytes,
       freeBytes,
       standbyBytes,
       reservedBytes,
+      // The real footprint of the running servers, and the part of it that
+      // is still free to grow (MEM-05/MEM-06).
+      measuredBytes,
+      measuredMB: toMb(measuredBytes),
       availableBytes,
       thresholdBytes,
       memoryLimitMB: limit,
+      /** The effective ceiling of the language server (MEM-11). */
+      ceilingMB: limit,
       canIndex: availableBytes >= thresholdBytes,
       needMB,
       baselineMB,
@@ -1897,6 +2718,7 @@ export class LspManager {
       hardFloorMB,
       // "Tight" is the whole window between the hard floor and the soft
       // factor: the user decides there, the host does not start on its own.
+      // The worst band is NOT part of it - it is reported, not enforced.
       tight: availableBytes >= hardFloorBytes && availableBytes < softThresholdBytes,
       belowHardFloor: availableBytes < hardFloorBytes,
       // 'ok' = the server may start, 'tight' = the user has to decide,
@@ -1904,7 +2726,36 @@ export class LspManager {
       decision,
       languageId: typeof languageId === 'string' ? languageId : null,
       softThresholdBytes,
+      /** Whether the machine would run out of memory in the worst case. */
+      worstCase,
+      /** What the machine would have left in the worst case (bytes). */
+      worstCaseBytes,
+      /** The machine-level budget of the language servers (bytes). */
+      budgetBytes,
+      /** The share of the budget the running servers hold (bytes). */
+      budgetUsedBytes: ceilingBytes,
     }
+  }
+
+  /**
+   * The refusal of the machine-level budget (PRD-v5.1 §3.4, MEM-08).
+   *
+   * The budget answers "may these servers grow to their ceilings AT THE
+   * SAME TIME", and that is the question that ends in the swap.
+   *
+   * The budget is NOT skipped by `force`: the user answered the question
+   * "may this server start although the memory is tight", and the budget
+   * is not a question about the memory of THIS server (PRD-v5.1 §4.2).
+   * Releasing another server frees the budget again.
+   *
+   * @param {object} resources the memory snapshot
+   * @param {number} memoryLimitMB the ceiling of the server that would start
+   * @returns {string | null} the message, or null when the budget has room
+   */
+  #budgetRefusal(resources, memoryLimitMB) {
+    const ceilingBytes = Math.max(0, memoryLimitMB) * 1024 * 1024
+    if (resources.budgetUsedBytes + ceilingBytes <= resources.budgetBytes) return null
+    return `the memory budget of the language servers is used up (${toMb(resources.budgetUsedBytes)} MB of ${toMb(resources.budgetBytes)} MB are held by the running servers, and this one would need ${memoryLimitMB} MB). Release a language server, or raise the budget in the settings.`
   }
 
   /**
@@ -1918,6 +2769,13 @@ export class LspManager {
     const session = entry.session
     if (session !== null && ['starting', 'building', 'ready', 'restarting'].includes(session.state)) {
       return session
+    }
+    // A root whose program is covered by another running server does not get
+    // a server of its own (CONC-01) - but it does as soon as that server is
+    // gone, so the decision is re-checked and not remembered for ever.
+    if (session !== null && session.duplicateOf !== null) {
+      const owner = this.#programOwnerOf(session.programKey, session.languageId, session)
+      if (owner !== null) return session
     }
     return this.#startSession(entry, languageId, force)
   }
@@ -1957,28 +2815,25 @@ export class LspManager {
     const invalid = validateServerCommand(command)
     if (invalid !== null) throw new ApiError('bad-request', invalid)
     const args = Array.isArray(override.args) ? override.args.map(String) : registryEntry.args
-    // The ceiling of the language server.
+    // The effective ceiling of the language server (PRD-v5.1 §3.7, MEM-11).
     //
-    // Three values play here: the per-language override of the settings, the
-    // global limit of the settings and the built-in default of the language.
-    // The global limit is a CAP over every language server - that is what
-    // the setting says - and the per-language override replaces it for that
-    // language (so one language may be given more than the global limit).
+    // Three values play here, and the order matters: the per-language
+    // override of the settings wins over everything (it is the escape hatch
+    // that keeps a big project working), the tier of the project size comes
+    // next, and the global limit of the settings is a CAP over every
+    // language server - it is not a flat value any more (PRD-v5.1 §5).
     //
     // Without the global limit in this chain the setting was a dead
     // control: the value the user saw in the settings page never reached
     // the server, and the only ceiling in effect was the built-in one.
-    const languageLimitMB = Number.isFinite(override.memoryLimitMB)
-      ? override.memoryLimitMB
-      : registryEntry.memoryLimitMB
-    const globalLimitMB = Number.isFinite(lsp.memoryLimitMB) && lsp.memoryLimitMB > 0
-      ? lsp.memoryLimitMB
-      : languageLimitMB
-    const memoryLimitMB = Number.isFinite(override.memoryLimitMB)
-      ? override.memoryLimitMB
-      : Math.min(languageLimitMB, globalLimitMB)
+    const memoryLimitMB = ceilingMBOf(language, scopeRoot, lsp)
     // A language that is switched off in the settings is never started.
     const turnedOff = override.enabled === false
+    // The identity of the program this root would build (PRD-v5.1 §4.2,
+    // CONC-01). Two roots of one program must not get two language
+    // servers: the symbols would be held twice, the memory would be spent
+    // twice, and two programs may disagree about the types of one file.
+    const programKey = programKeyOf(entry.root, entry.handshake)
 
     const session = {
       entry,
@@ -1997,13 +2852,73 @@ export class LspManager {
        */
       scopeRoot,
       /**
+       * The identity of the program of this root (CONC-01).
+       *
+       * Two roots with the same key belong to the same program, and the
+       * host starts ONE language server for them.
+       */
+      programKey,
+      /**
+       * The root whose running language server already covers this program.
+       *
+       * It is null while this session has a server of its own.
+       * @type {string | null}
+       */
+      duplicateOf: null,
+      /**
+       * The ceiling of this session on the machine (bytes).
+       *
+       * The ceiling is a permission, not a footprint - it is what the
+       * server MAY take. The machine-level budget is about the sum of
+       * these (MEM-08).
+       */
+      ceilingBytes: 0,
+      /**
        * The memory this session has reserved on the machine (bytes).
        *
        * The gate subtracts the reservations of the running sessions from
-       * the free memory before it decides (MEM-02). The reservation is
+       * the free memory before it decides (MEM-05). The reservation is the
+       * HEADROOM of the session - what it may still grow into - and it is
        * given when the process starts and given back when it goes away.
        */
       reservedBytes: 0,
+      /**
+       * The measured footprint of the language server (bytes).
+       *
+       * It is measured as the difference of two readings of the free memory
+       * (MEM-06) and it is what makes the reservation a headroom instead
+       * of the whole ceiling.
+       */
+      measuredBytes: 0,
+      /**
+       * Whether the last measurement was a real one.
+       *
+       * A measurement in the noise band is void: the estimate of the
+       * registry is used instead, and the host keeps the last value that
+       * was real.
+       */
+      measurementValid: false,
+      /**
+       * The free memory at the last reading (bytes).
+       *
+       * The next reading is compared with this one, so the difference is
+       * the growth of the server since the last measurement.
+       */
+      lastFreeBytes: null,
+      /**
+       * The moment of the last measurement of the footprint (ms).
+       *
+       * The measurement runs at most once per minute, and the watchdog of
+       * the session carries it.
+       */
+      lastMeasureAt: null,
+      /**
+       * The moment of the last check of the memory pressure (ms).
+       *
+       * The check runs at its own interval, not on every tick of the
+       * watchdog.
+       */
+      lastPressureAt: null,
       /**
        * The user asked for the server although the memory was tight.
        *
@@ -2083,6 +2998,14 @@ export class LspManager {
       exited: false,
       intentionalExit: false,
       /**
+       * Whether the session is being released right now.
+       *
+       * The idle timer and the pressure valve may fire at the same time,
+       * and a session that is released twice would try to leave the state
+       * `suspended` twice.
+       */
+      releasing: false,
+      /**
        * The cancel that is currently running, if any.
        *
        * A second cancel waits for it instead of starting a second one: the
@@ -2092,7 +3015,6 @@ export class LspManager {
       cancelPromise: null,
       lastActivityAt: this.#now(),
       idleTimer: null,
-      pressureTimer: null,
       watchdogTimer: null,
       readyTimer: null,
       restartTimer: null,
@@ -2154,6 +3076,23 @@ export class LspManager {
       return session
     }
 
+    // ONE PROGRAM, ONE SERVER (PRD-v5.1 §4.2, CONC-01).
+    //
+    // Two roots of one program - the packages of a pnpm workspace, the
+    // projects of a solution-style `tsconfig.json` - would be indexed
+    // twice: twice the memory, twice the symbols, and two programs that
+    // may disagree about the types of the same file. The host starts one
+    // server and says which root it belongs to.
+    //
+    // The decision is conservative: when the host is not sure, the roots
+    // are merged. One missing index is better than two duplicate ones.
+    const owner = this.#programOwnerOf(programKey, language, session)
+    if (owner !== null) {
+      session.duplicateOf = owner.entry.root
+      this.#transition(session, 'idle', `this project belongs to the same program as "${owner.entry.root}", which is already indexed - one language server covers both, so no second one was started`)
+      return session
+    }
+
     // The memory pre-check runs before every start, not only when the
     // settings are validated (PRD §2.2).
     //
@@ -2168,14 +3107,44 @@ export class LspManager {
     // budget is the user's decision, and a machine that is out of memory
     // cannot run a server at all.
     //
-    // Both refusals have the cause `memory`: the situation of the machine
-    // changes, and a later payload may try again (IDLE-02).
+    // The refusals of the memory have the cause `memory`: the situation of
+    // the machine changes, and a later payload may try again (IDLE-02).
+    // The refusal of the budget has its own cause - the budget frees up
+    // as soon as a server is released, and that is worth a retry too.
+    //
+    // The numbers in the messages are the AVAILABLE memory - the number
+    // the gate really decided with (MEM-09). The free memory of the
+    // machine ignores the servers that are already running, and a user
+    // that is told "2648 MB available" while the gate says "600 MB" gets
+    // two opposite answers to one question.
     if (resources.belowHardFloor) {
-      this.#degrade(session, DEGRADE_CAUSES.memory, `not enough free memory to start the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Close other programs, lower the memory limit in the settings, or use the conservative mode.`)
+      this.#degrade(session, DEGRADE_CAUSES.memory, `not enough free memory to start the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.availableBytes)} MB available${worstCaseHintOf(resources)}). Close other programs, lower the memory limit in the settings, or use the conservative mode.`)
+      return session
+    }
+    // The machine-level budget of the language servers (PRD-v5.1 §3.4,
+    // MEM-08).
+    //
+    // The per-server gate answers "may the NEXT server start"; the budget
+    // answers "may these servers grow to their ceilings AT THE SAME TIME",
+    // and that is the question that ends in the swap.
+    //
+    // The budget is checked BEFORE the tight band: asking the user "shall
+    // I start it anyway?" and then refusing the start anyway would be the
+    // worst of both answers.
+    const refusal = this.#budgetRefusal(resources, memoryLimitMB)
+    if (refusal !== null) {
+      this.#degrade(session, DEGRADE_CAUSES.budget, refusal)
+      return session
+    }
+    // The own limit of the user: how many indexes may run at the same time.
+    // The stricter of the two wins - the budget and this one.
+    const maxConcurrent = Number.isFinite(lsp.maxConcurrentIndexes) ? lsp.maxConcurrentIndexes : 0
+    if (maxConcurrent > 0 && this.#runningSessionCount(session) >= maxConcurrent) {
+      this.#degrade(session, DEGRADE_CAUSES.budget, `the limit of ${maxConcurrent} concurrent indexes is reached (the setting "maxConcurrentIndexes"). Release a language server, or raise the limit in the settings.`)
       return session
     }
     if (resources.tight && !session.force) {
-      this.#degrade(session, DEGRADE_CAUSES.memory, `the free memory is tight for the ${language} language server (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it anyway to continue, or use the conservative mode.`)
+      this.#degrade(session, DEGRADE_CAUSES.memory, `the available memory is tight for the ${language} language server (${toMb(resources.availableBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended${worstCaseHintOf(resources)}). Start it anyway to continue, or use the conservative mode.`)
       return session
     }
 
@@ -2313,6 +3282,19 @@ export class LspManager {
       graceMs: this.#graceMs,
     }
     let handle
+    // The free memory right BEFORE the process starts (MEM-06).
+    //
+    // The footprint of the language server is measured as the difference of
+    // two readings of the free memory: `os.freemem()` has already counted
+    // the memory that the running servers hold, and the difference between
+    // the two readings is what the new server took.
+    //
+    // There is NO process-level API here on purpose: Windows has no way to
+    // read the RSS of another process from Node, and `Get-Process` would
+    // cost a PowerShell child process per server per round (measured: 50-150
+    // ms) - and tsserver is a GRANDchild process, so the tree would have to
+    // be rebuilt every time.
+    const freeBefore = this.#freeBytes()
     try {
       handle = this.#spawnServer !== null
         ? await this.#spawnServer(spec)
@@ -2327,13 +3309,31 @@ export class LspManager {
     }
     session.handle = handle
     session.intentionalExit = false
-    // The server is running: it holds memory from now on, and the gate has
-    // to know it (MEM-02). The reservation is the ceiling the server may
-    // use - the machine has to survive the worst case of every server it
-    // runs (see `#reservedBytes`).
-    session.reservedBytes = Number.isFinite(session.memoryLimitMB) && session.memoryLimitMB > 0
+    // The session is counted by the memory gate again.
+    //
+    // A session that crashed was torn down (it left the set of the
+    // sessions of the manager), and the restart reuses the very same
+    // session object: without this line the running server would hold
+    // memory that the gate does not see - and the budget of the machine
+    // (MEM-08) would not know about it either.
+    this.#sessions.add(session)
+    // The ceiling of the server on this machine (MEM-08): what it MAY take.
+    session.ceilingBytes = Number.isFinite(session.memoryLimitMB) && session.memoryLimitMB > 0
       ? session.memoryLimitMB * 1024 * 1024
       : 0
+    // The footprint of the server, measured right after the process exists
+    // (MEM-06).
+    const freeAfter = this.#freeBytes()
+    this.#measureFootprint(session, freeBefore, freeAfter)
+    // The server is running: it holds memory from now on, and the gate has
+    // to know it (MEM-05). The reservation is its HEADROOM - what it may
+    // still grow into - and not its whole ceiling: the free memory of the
+    // machine has already subtracted the memory the server holds.
+    session.reservedBytes = Math.max(0, session.ceilingBytes - session.measuredBytes)
+    // The measurement is repeated while the session lives: the program of
+    // the project is not built yet, so the server grows afterwards. The
+    // watchdog of the session carries it (see `#tick`).
+    session.lastMeasureAt = null
     // The new process starts at zero. The requests of the old one will
     // never be answered, and the program of the project is built again -
     // so the first semantic request after a restart is a long one too.
@@ -2462,6 +3462,129 @@ export class LspManager {
         setPriority(handle.pid, osConstants.priority.PRIORITY_BELOW_NORMAL)
       } catch { /* the platform refused to change the priority */ }
     }
+  }
+
+  /**
+   * The free memory of the machine, in bytes.
+   *
+   * The same probe the gate uses (`options.readMemory`), so that a test can
+   * inject the machine it wants to see. The standby cache is subtracted:
+   * it is memory the machine has already given to the file cache (MEM-03).
+   * @returns {number} the free memory in bytes
+   */
+  #freeBytes() {
+    try {
+      const memory = this.#readMemory()
+      const standby = Number.isFinite(memory?.standbyBytes) && memory.standbyBytes > 0 ? memory.standbyBytes : 0
+      const free = Number.isFinite(memory?.freeBytes) ? memory.freeBytes : 0
+      return Math.max(0, free - standby)
+    } catch {
+      // A probe that fails must not take the host down: the measurement is
+      // void, and the estimate of the registry is used instead.
+      return 0
+    }
+  }
+
+  /**
+   * Measure the footprint of one language server (PRD-v5.1 §3.2, MEM-06).
+   *
+   * The measurement is the difference of two readings of the free memory.
+   * It is VOID when the difference is in the noise band (or negative): then
+   * something else on the machine allocated or freed memory at the same
+   * time, and the difference cannot be attributed to the server. The
+   * estimate of the registry is used instead - the measured 434 MB of a
+   * TypeScript index - and the host log says so.
+   *
+   * A void measurement is not a wrong one: it is a missing one, and the
+   * conservative direction is the estimate of a real measurement.
+   *
+   * @param {object} session the session
+   * @param {number} freeBefore the free memory before the process started
+   * @param {number} freeAfter the free memory after the process existed
+   */
+  #measureFootprint(session, freeBefore, freeAfter) {
+    const delta = freeBefore - freeAfter
+    session.lastFreeBytes = freeAfter
+    if (delta > MEASURE_NOISE_MAX_MB * 1024 * 1024) {
+      session.measuredBytes = delta
+      session.measurementValid = true
+      return
+    }
+    const { baselineMB } = memoryEstimateOf(session.languageId, session.lsp ?? DEFAULT_LSP_SETTINGS)
+    session.measuredBytes = Math.max(0, baselineMB) * 1024 * 1024
+    session.measurementValid = false
+    const reason = delta < MEASURE_NOISE_MIN_MB * 1024 * 1024
+      ? 'the machine gave memory away while the server was started'
+      : 'the difference of the free memory was inside the noise band'
+    this.#ctx?.logger?.warn?.('lsp: the footprint of the %s language server could not be measured (%s, %d MB) - the estimate of %d MB is used instead', session.languageId, reason, Math.round(delta / (1024 * 1024)), baselineMB)
+  }
+
+  /**
+   * Measure the footprint of one server again (MEM-06).
+   *
+   * The first measurement happens while the process starts: the program of
+   * the project is not built yet, so the server is still small. It grows
+   * while the program is built, and the gate has to know that - a server
+   * that grew to 900 MB has 900 MB less headroom.
+   *
+   * The new reading is compared with the last one, and only a growth that
+   * is bigger than the noise band is counted. A reading that is inside the
+   * noise band (or a machine that gave memory away) keeps the last valid
+   * value: the machine may have freed memory that the server did not, and
+   * a smaller charge would be the dangerous direction.
+   *
+   * The measurement runs at most once per minute: the watchdog of the
+   * session ticks far more often, and the reading of the free memory is
+   * cheap but not free.
+   *
+   * @param {object} session the session
+   */
+  #remeasure(session) {
+    try {
+      const now = this.#now()
+      if (session.lastMeasureAt !== null && session.lastMeasureAt !== undefined) {
+        if (now - session.lastMeasureAt < MEASURE_INTERVAL_MS) return
+      }
+      session.lastMeasureAt = now
+      const free = this.#freeBytes()
+      const previous = session.lastFreeBytes
+      session.lastFreeBytes = free
+      if (previous === null || previous === undefined) return
+      const delta = previous - free
+      if (delta <= MEASURE_NOISE_MAX_MB * 1024 * 1024) {
+        this.#ctx?.logger?.warn?.('lsp: the re-measurement of the %s language server was not conclusive (%d MB) - the last valid value (%d MB) is kept', session.languageId, Math.round(delta / (1024 * 1024)), Math.round(session.measuredBytes / (1024 * 1024)))
+        return
+      }
+      session.measuredBytes += delta
+      session.measurementValid = true
+      session.reservedBytes = Math.max(0, session.ceilingBytes - session.measuredBytes)
+    } catch (error) {
+      // The measurement runs in an interval: a throw here is an uncaught
+      // exception and would end the DSH host process.
+      this.#ctx?.logger?.warn?.('lsp: the measurement of the language server failed: %s', messageOf(error))
+    }
+  }
+
+  /**
+   * One tick of a running session.
+   *
+   * The watchdog of the session carries three things, because a session
+   * should not own three timers that all wake up the host:
+   *
+   *   - the measurement of the footprint of the server (MEM-06): it runs at
+   *     most once per minute;
+   *   - the check of the memory pressure of the machine (MEM-12): it runs
+   *     at the interval of the pressure check;
+   *   - the count of the unanswered requests (CRASH-01).
+   *
+   * @param {object} entry the root entry
+   * @param {object} session the session
+   * @param {number} timeout the request timeout
+   */
+  #tick(entry, session, timeout) {
+    this.#remeasure(session)
+    this.#checkMemoryPressure(entry, session)
+    this.#checkTimeouts(entry, session, timeout)
   }
 
   /**
@@ -2859,7 +3982,9 @@ export class LspManager {
    *     stops it.
    *   - 'after' arms the timer of `idleTimeoutMs`.
    *   - 'onMemoryPressure' arms no timer: the server is released when the
-   *     machine runs out of free memory (see `#armPressureTimer`).
+   *     machine runs out of free memory (see `#checkMemoryPressure`).
+   *   - 'always' arms the timer of `idleTimeoutMs` - the same as 'after',
+   *     written down explicitly.
    *
    * `autoExit: false` still means "never": the documents that were written
    * before the policy existed keep their meaning.
@@ -2870,6 +3995,20 @@ export class LspManager {
    * build budget are both ten minutes by default, so they used to fire
    * together.
    *
+   * THE PRESSURE VALVE IS NOT PART OF THIS POLICY (PRD-v5.1 §3.8, MEM-12).
+   * It is armed on its own, and `idlePolicy: 'never'` does NOT exempt it:
+   * "never" means "not because of idleness", not "not even when the machine
+   * is dying". The default policy ('after') used to leave the machine
+   * without any defence at all - the pressure timer was not even installed,
+   * and the promise "never let the machine run into swap" had no fallback.
+   * The only way to switch the valve off is `pressureYield: false`.
+   *
+   * The valve rides on the watchdog of the session (see `#tick`) and not on
+   * a timer of its own: a session that owns three timers wakes the host up
+   * three times, and the review of the earlier rounds made sure that a
+   * session owns exactly two - the idle timer and the watchdog. The
+   * watchdog is armed independently of the idle policy, so the valve is too.
+   *
    * @param {object} entry the root entry
    * @param {object} session the session
    * @param {number} [delayMs] the delay, when it is not the configured timeout
@@ -2878,17 +4017,7 @@ export class LspManager {
     this.#clearIdleTimer(session)
     const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
     const policy = idlePolicyOf(lsp)
-    if (policy === 'never') {
-      this.#clearPressureTimer(session)
-      return
-    }
-    if (policy === 'onMemoryPressure') {
-      // No idle timer: the memory of the machine decides when the server
-      // has to go.
-      this.#armPressureTimer(entry, session)
-      return
-    }
-    this.#clearPressureTimer(session)
+    if (policy === 'never' || policy === 'onMemoryPressure') return
     if (isBuildingProgram(session)) return
     const timeout = Number.isFinite(delayMs) ? delayMs : Number(lsp.idleTimeoutMs)
     if (!Number.isFinite(timeout) || timeout <= 0) return
@@ -2898,33 +4027,24 @@ export class LspManager {
   }
 
   /**
-   * Arm the timer that watches the free memory of the machine.
-   *
-   * The policy 'onMemoryPressure' releases the language server when the
-   * machine runs out of memory - not after a fixed time. The check reads
-   * the same memory probe the gate uses, and the interval is short enough
-   * to be useful and long enough to be cheap.
-   * @param {object} entry the root entry
-   * @param {object} session the session
-   */
-  #armPressureTimer(entry, session) {
-    this.#clearPressureTimer(session)
-    const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
-    const configured = Number(lsp.idleTimeoutMs)
-    const interval = Number.isFinite(configured) && configured > 0
-      ? Math.min(PRESSURE_CHECK_MAX_MS, Math.max(PRESSURE_CHECK_MIN_MS, configured))
-      : PRESSURE_CHECK_MAX_MS
-    const timer = setInterval(() => { this.#checkMemoryPressure(entry, session) }, interval)
-    timer.unref?.()
-    session.pressureTimer = timer
-  }
-
-  /**
-   * The memory of the machine dropped below the hard floor.
+   * The machine is below the hard floor: give the memory back.
    *
    * The server is released then: the machine needs the memory more than
    * the project needs the index. The release is not a failure - the server
-   * comes back with the first request (IDLE-02).
+   * comes back with the first request (IDLE-02) - and it ends in
+   * `suspended`, not in `degraded` (CONC-04): the machine did not break,
+   * it asked for its memory back.
+   *
+   * The trigger is the AVAILABLE memory and not the bare free memory
+   * (MEM-12): the free memory ignores the reservations of the running
+   * servers, and the books are already overspent exactly when that
+   * matters. The bare free number would not react while the machine has
+   * 2 GB of "free" memory and three servers that may grow into 6 GB.
+   *
+   * The victim is chosen by the LRU order of CONC-03 - the machine is not
+   * asked which server may go, and the server that builds its program is
+   * never the one that goes.
+   *
    * @param {object} entry the root entry
    * @param {object} session the session
    */
@@ -2933,21 +4053,140 @@ export class LspManager {
       if (entry.session !== session) return
       if (session.state !== 'ready' && session.state !== 'building') return
       const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
-      const memory = this.#readMemory()
-      const standbyBytes = Number.isFinite(memory.standbyBytes) && memory.standbyBytes > 0
-        ? memory.standbyBytes
-        : 0
-      const freeBytes = Math.max(0, memory.freeBytes - standbyBytes)
-      const hardFloorMB = Number.isFinite(lsp.memoryHardFloorMB) && lsp.memoryHardFloorMB >= 0
-        ? lsp.memoryHardFloorMB
-        : MEMORY_HARD_FLOOR_MB
-      if (freeBytes >= hardFloorMB * 1024 * 1024) return
-      this.#safely(this.#exitIdle(entry, session, PRESSURE_EXIT_DETAIL), 'the memory pressure release')
+      // The valve is the one and only way to switch it off (MEM-12).
+      if (!pressureYieldOf(lsp)) return
+      // The check runs at its own interval and not on every tick of the
+      // watchdog: the reading of the free memory is cheap, but it is not
+      // free, and the machine does not change its mind every second.
+      const now = this.#now()
+      const interval = this.#pressureIntervalOf()
+      const last = session.lastPressureAt
+      if (last !== null && last !== undefined && now - last < interval) return
+      session.lastPressureAt = now
+      const resources = this.#resourcesSnapshot(session.memoryLimitMB, session.languageId, lsp)
+      const hardFloorBytes = resources.hardFloorMB * 1024 * 1024
+      if (resources.availableBytes >= hardFloorBytes) return
+      this.#safely(this.#yieldUnderPressure(session), 'the memory pressure release')
     } catch (error) {
       // The check runs in an interval: a throw here is an uncaught
       // exception and would end the DSH host process.
       this.#ctx?.logger?.warn?.('lsp: the memory pressure check failed: %s', messageOf(error))
     }
+  }
+
+  /**
+   * How often the memory pressure of the machine is checked (ms).
+   *
+   * The interval is inside the range of the constants of the pressure
+   * check, and it does not depend on the idle timeout.
+   * @returns {number}
+   */
+  #pressureIntervalOf() {
+    return Math.min(PRESSURE_CHECK_MAX_MS, Math.max(PRESSURE_CHECK_MIN_MS, PRESSURE_CHECK_INTERVAL_MS))
+  }
+
+  /**
+   * Release the least used language server of the machine (CONC-03).
+   *
+   * The order is the one of the specification, from "given up first" to
+   * "given up last":
+   *
+   *   1. no outstanding request, not the focused root, not building, and
+   *      idle the longest;
+   *   2. requests that ran into their deadline - they are dead anyway;
+   *   3. a root with requests that are still running;
+   *   4. the focused root - the editor of the user is there, and it is
+   *      released last of all.
+   *
+   * A server that BUILDS the program of its project is never released: the
+   * idle timer is not armed while it builds (IDLE-04), so it looks like
+   * the most idle one - and it is the one that must not be touched.
+   *
+   * @param {object} trigger the session whose check found the pressure
+   */
+  async #yieldUnderPressure(trigger) {
+    const victim = this.#lruVictim()
+    if (victim === null) return
+    const entry = victim.entry
+    if (entry === undefined || entry === null) return
+    // The message says why the server was released: the machine ran out of
+    // memory (this server was the one that had to go), or the host gave
+    // the room to a server that was used less (the LRU rule).
+    const detail = victim === trigger ? PRESSURE_EXIT_DETAIL : PRESSURE_YIELD_DETAIL
+    await this.#exitIdle(entry, victim, detail)
+  }
+
+  /**
+   * The language server that may be released first (CONC-03).
+   * @returns {object | null} the session, or null when none may go
+   */
+  #lruVictim() {
+    const candidates = []
+    for (const session of this.#sessions) {
+      if (session.state !== 'ready' && session.state !== 'building') continue
+      // A server that builds the program of its project is never yielded.
+      if (isBuildingProgram(session)) continue
+      const focused = this.#isFocused(session)
+      const outstanding = session.pendingRequests.size
+      const timedOut = this.#hasTimedOutRequest(session)
+      // The focused root is released last of all - the user is working in
+      // it, and a release would interrupt them.
+      const priority = focused ? 3 : (outstanding === 0 ? 0 : (timedOut ? 1 : 2))
+      candidates.push({ session, priority, activity: session.lastActivityAt })
+    }
+    if (candidates.length === 0) return null
+    // The longest idle one goes first inside a group.
+    candidates.sort((left, right) => (left.priority - right.priority) || (left.activity - right.activity))
+    return candidates[0].session
+  }
+
+  /**
+   * Whether the user is working in one session (CONC-03).
+   *
+   * The host cannot see the editor of the user, but it knows two things
+   * that come close to it:
+   *
+   *   - the client that is attached to the root is the client the user is
+   *     working with (the relay attaches the sink of the root it speaks
+   *     to);
+   *   - the client may report the focused root itself (see `setFocus`).
+   *
+   * Without any of them the host treats the sessions as "not focused": the
+   * order of the yield is still right, the focused root just does not get
+   * the special treatment.
+   *
+   * @param {object} session the session
+   * @returns {boolean}
+   */
+  #isFocused(session) {
+    const entry = session.entry
+    if (entry === undefined || entry === null) return false
+    if (entry.sinks instanceof Set && entry.sinks.size > 0) return true
+    const focus = this.#focusRoot
+    if (focus === null || focus === undefined) return false
+    return rootKey(focus) === entry.key
+  }
+
+  /**
+   * Whether one session has a request that ran into its deadline.
+   *
+   * A request that is still running is work the user waits for. A request
+   * that ran into its deadline is dead - the answer will not come - and the
+   * server that owns it is a better victim than one that is busy.
+   *
+   * @param {object} session the session
+   * @returns {boolean}
+   */
+  #hasTimedOutRequest(session) {
+    if (session.timeouts > 0) return true
+    const lsp = session.lsp ?? DEFAULT_LSP_SETTINGS
+    const timeout = Number(lsp.requestTimeoutMs)
+    const budget = session.realAnswers > 0 ? timeout : BUILD_REQUEST_TIMEOUT_MS
+    const now = this.#now()
+    for (const pending of session.pendingRequests.values()) {
+      if (now - pending.at >= budget) return true
+    }
+    return false
   }
 
   /**
@@ -2995,6 +4234,12 @@ export class LspManager {
       this.#rearmAfterEarlyExit(entry, session)
       return
     }
+    // Two releases of the same session must not happen: the idle timer and
+    // the pressure valve may fire at the same time, and the second release
+    // would try to leave the state `suspended` twice - a transition the
+    // state machine refuses.
+    if (session.releasing === true) return
+    session.releasing = true
     session.intentionalExit = true
     this.#writeDidClose(entry, session)
     await this.#terminateAndWait(session)
@@ -3047,7 +4292,7 @@ export class LspManager {
     const timeout = Number(lsp.requestTimeoutMs)
     if (!Number.isFinite(timeout) || timeout <= 0) return
     const interval = Math.min(1000, Math.max(25, Math.floor(timeout / 4)))
-    const timer = setInterval(() => { this.#checkTimeouts(entry, session, timeout) }, interval)
+    const timer = setInterval(() => { this.#tick(entry, session, timeout) }, interval)
     timer.unref?.()
     session.watchdogTimer = timer
   }
@@ -3219,11 +4464,18 @@ export class LspManager {
     // The refusal is the memory and not the crash: the machine may have
     // more memory later, and the session may be woken again then.
     if (resources.belowHardFloor) {
-      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.availableBytes)} MB available)`))
+      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `there is not enough free memory to restart it (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.availableBytes)} MB available${worstCaseHintOf(resources)})`))
+      return
+    }
+    // The machine-level budget is the same rule as at the start (MEM-08):
+    // it is never skipped, not even by a session the user forced.
+    const refusal = this.#budgetRefusal(resources, session.memoryLimitMB)
+    if (refusal !== null) {
+      this.#degrade(session, DEGRADE_CAUSES.budget, this.#degradationDetail(reason, refusal))
       return
     }
     if (resources.tight && !session.force) {
-      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `the free memory is tight for the restart (${toMb(resources.availableBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended)`))
+      this.#degrade(session, DEGRADE_CAUSES.memory, this.#degradationDetail(reason, `the available memory is tight for the restart (${toMb(resources.availableBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended${worstCaseHintOf(resources)})`))
       return
     }
     session.restarts += 1
@@ -3250,11 +4502,18 @@ export class LspManager {
     // The refusal is the memory: the machine may have more memory later,
     // and the session may be woken again then (IDLE-02).
     if (resources.belowHardFloor) {
-      this.#degrade(session, DEGRADE_CAUSES.memory, `there is not enough free memory to restart the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.freeBytes)} MB available). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
+      this.#degrade(session, DEGRADE_CAUSES.memory, `there is not enough free memory to restart the language server (needs ${toMb(resources.thresholdBytes)} MB, ${toMb(resources.availableBytes)} MB available${worstCaseHintOf(resources)}). Lower the memory limit in the settings, turn this language off, or use the conservative mode.`)
+      return
+    }
+    // The machine-level budget is the same rule as at the start (MEM-08):
+    // it is never skipped, not even by a session the user forced.
+    const refusal = this.#budgetRefusal(resources, session.memoryLimitMB)
+    if (refusal !== null) {
+      this.#degrade(session, DEGRADE_CAUSES.budget, refusal)
       return
     }
     if (resources.tight && !session.force) {
-      this.#degrade(session, DEGRADE_CAUSES.memory, `the free memory is tight for the restart of the language server (${toMb(resources.freeBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended). Start it again to continue, or use the conservative mode.`)
+      this.#degrade(session, DEGRADE_CAUSES.memory, `the available memory is tight for the restart of the language server (${toMb(resources.availableBytes)} MB available, ${resources.needMB} MB expected, ${toMb(resources.softThresholdBytes)} MB recommended${worstCaseHintOf(resources)}). Start it again to continue, or use the conservative mode.`)
       return
     }
     // The documents the new server does not know yet (see
@@ -3338,11 +4597,13 @@ export class LspManager {
   #teardownSession(session) {
     if (session === null || session === undefined) return
     // The session is gone: it must not be counted by the memory gate any
-    // more (MEM-02).
+    // more (MEM-05).
     this.#sessions.delete(session)
     this.#releaseReservation(session)
+    // The ceiling of the session is the share of the machine-level budget
+    // it held: the budget of the machine is free again (MEM-08).
+    session.ceilingBytes = 0
     this.#clearIdleTimer(session)
-    this.#clearPressureTimer(session)
     this.#clearWatchdog(session)
     if (session.readyTimer !== null) {
       clearTimeout(session.readyTimer)
@@ -3363,17 +4624,6 @@ export class LspManager {
     if (session.idleTimer !== null) {
       clearTimeout(session.idleTimer)
       session.idleTimer = null
-    }
-  }
-
-  /**
-   * Clear the memory pressure timer of one session.
-   * @param {object} session the session
-   */
-  #clearPressureTimer(session) {
-    if (session.pressureTimer !== null && session.pressureTimer !== undefined) {
-      clearInterval(session.pressureTimer)
-      session.pressureTimer = null
     }
   }
 
@@ -3478,10 +4728,6 @@ export function shutdownAll() {
     if (session.idleTimer !== null) {
       clearTimeout(session.idleTimer)
       session.idleTimer = null
-    }
-    if (session.pressureTimer !== null && session.pressureTimer !== undefined) {
-      clearInterval(session.pressureTimer)
-      session.pressureTimer = null
     }
     if (session.watchdogTimer !== null) {
       clearInterval(session.watchdogTimer)

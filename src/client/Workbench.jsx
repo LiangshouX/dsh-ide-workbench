@@ -431,7 +431,7 @@ export function showCancelButton(hostState, cancellable) {
 }
 
 /**
- * The three numbers of the memory row of the diagnostics panel.
+ * The numbers of the memory row of the diagnostics panel.
  *
  * "Available" is the memory a new language server may really use - the free
  * memory of the machine minus what the running servers have reserved. It is
@@ -444,17 +444,31 @@ export function showCancelButton(hostState, cancellable) {
  * use. The reservation is only shown when there is one: a row that always
  * says "reserved 0 MB" is noise.
  *
+ * The panel shows TWO bands (PRD-v5.1 MEM-07): the typical one above ("the
+ * server needs 651 MB, the machine has 1206 MB") and the worst one below
+ * ("if this server takes its ceiling of 2048 MB, the machine will be left
+ * with -842 MB"). One band alone is a promise the machine may not keep: the
+ * gate judges the estimate, but the server may grow into its ceiling. The
+ * worst band is NOT a rejection - it is the truth, and the machine-level
+ * budget (MEM-08) and the pressure valve (MEM-12) are what keep the machine
+ * out of the swap.
+ *
+ * The numbers of the worst band come from the host (`worstCaseBytes`,
+ * `ceilingMB`): the client does not compute them a second time, because two
+ * sides that compute the same thing differently give the user two different
+ * answers.
+ *
  * The helper is exported so the numbers can be asserted without mounting the
  * whole dialog.
  *
  * @param {{t: (key: string) => string}} store the workbench store
  * @param {object | null} resources the memory snapshot of the host
- * @returns {{availableMB: number|null, needMB: number|null, reservedMB: number, text: string}}
+ * @returns {{availableMB: number|null, needMB: number|null, reservedMB: number, text: string, worstMB: number|null, worstText: string}}
  */
 export function memoryFacts(store, resources) {
   const t = store.t
   if (resources === null || resources === undefined) {
-    return { availableMB: null, needMB: null, reservedMB: 0, text: '—' }
+    return { availableMB: null, needMB: null, reservedMB: 0, text: '—', worstMB: null, worstText: '' }
   }
   const mib = 1024 * 1024
   const availableMB = Math.round((resources.availableBytes ?? resources.freeBytes ?? 0) / mib)
@@ -462,7 +476,16 @@ export function memoryFacts(store, resources) {
   const reservedMB = Math.round((resources.reservedBytes ?? 0) / mib)
   const text = `${t('lsp.diagnostics.memoryAvailable')} ${availableMB} MB · ${t('lsp.diagnostics.memoryNeed')} ${needMB} MB`
     + (reservedMB > 0 ? ` · ${t('lsp.diagnostics.memoryReserved')} ${reservedMB} MB` : '')
-  return { availableMB, needMB, reservedMB, text }
+  // The worst band: what the machine would be left with if the next server
+  // grew into its own ceiling. The number may be negative - that is the
+  // point of the band.
+  const worstBytes = Number.isFinite(resources.worstCaseBytes) ? resources.worstCaseBytes : null
+  const ceilingMB = Number.isFinite(resources.ceilingMB) ? resources.ceilingMB : null
+  const worstMB = worstBytes === null ? null : Math.round(worstBytes / mib)
+  const worstText = worstMB === null || ceilingMB === null
+    ? ''
+    : interpolate(t('lsp.diagnostics.memoryWorstText'), { ceiling: ceilingMB, left: worstMB })
+  return { availableMB, needMB, reservedMB, text, worstMB, worstText }
 }
 
 /**
@@ -696,6 +719,22 @@ export function lspStatusView(store, state) {
     case 'idle':
       // No server runs at all. Nothing is broken: the workbench is in its
       // basic mode and says so.
+      //
+      // When the USER chose the basic mode for this project, the status says
+      // so as well (PRD-v5.1 WS-04): a grey dot with "not enabled" and no
+      // reason reads like a broken feature, and the user has no way back
+      // from it without knowing that the choice was theirs.
+      if (typeof store.lspWorkspaceDefault === 'function'
+        && store.lspWorkspaceDefault(state?.root) === 'conservative') {
+        return {
+          ...base,
+          key: 'workspaceOff',
+          text: t('lsp.status.workspaceOff'),
+          tone: 'idle',
+          action: 'diagnostics',
+          detail: t('lsp.workspaceOffHint'),
+        }
+      }
       return { ...base, key: 'idle', text: t('lsp.status.idle'), tone: 'idle', action: 'diagnostics' }
     case 'suspended':
       // The host released the server to give the memory back (PRD-v5 §1.2).
@@ -907,6 +946,33 @@ function ProjectPicker({ store, state }) {
   const projects = Array.isArray(state.projects) ? state.projects : []
   const root = projects.filter(project => project.isRoot === true)
   const children = projects.filter(project => project.isRoot !== true)
+  /**
+   * The badge of one project (PRD-v5.1 CONC-05).
+   *
+   * `indexedRoots` is a historical fact: the folder completed a first build
+   * at some point in this profile. The badge said "indexed" even after the
+   * server was reclaimed - and the user read that as "the index is there",
+   * while a rebuild costs another full build. The two states are therefore
+   * distinguished: a server that runs now says "indexed", a reclaimed one
+   * says "indexed (reclaimed)" - in grey, because a reclaimed server is a
+   * deliberate act of the host and not a failure.
+   * @param {{path: string, indexState?: string}} project
+   * @returns {any} the badge, or null
+   */
+  const indexBadge = project => {
+    const badge = typeof store.indexBadgeState === 'function' ? store.indexBadgeState(project) : null
+    if (badge === 'indexed') {
+      return React.createElement('span', { className: 'iwb-project-index-badge', title: t('project.indexedHint') }, t('project.indexed'))
+    }
+    if (badge === 'indexed-reclaimed') {
+      // The grey tone of a released server - not the yellow of a failure.
+      return React.createElement('span', {
+        className: 'iwb-project-index-badge iwb-project-index-badge-reclaimed',
+        title: t('project.indexedReclaimedHint'),
+      }, t('project.indexedReclaimed'))
+    }
+    return null
+  }
   const choice = project => React.createElement('button', {
     key: project.path,
     type: 'button',
@@ -928,9 +994,7 @@ function ProjectPicker({ store, state }) {
       : null,
     // The badge order is fixed: [Git] → [Indexed] → [Current]. The three can
     // coexist; none of them replaces another (PRD-v5 §2.1).
-    project.indexState === 'indexed'
-      ? React.createElement('span', { className: 'iwb-project-index-badge', title: t('project.indexedHint') }, t('project.indexed'))
-      : null,
+    indexBadge(project),
     project.path === state.root
       ? React.createElement('span', { className: 'iwb-project-current-badge' }, t('project.current'))
       : null,
@@ -1182,9 +1246,11 @@ export function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
   const timeouts = Number.isFinite(lsp.consecutiveTimeouts) ? lsp.consecutiveTimeouts : 0
   const lastFailure = lsp.lastFailure ?? null
   const view = lspStatusView(store, state)
-  // The three numbers of the memory row: what is available, what the next
-  // server needs, and what the running servers have reserved.
-  const memoryText = memoryFacts(store, resources).text
+  // The numbers of the memory row: what is available, what the next server
+  // needs, what the running servers have reserved - and what the machine
+  // would be left with if the next server grew into its ceiling (MEM-07).
+  const memory = memoryFacts(store, resources)
+  const memoryText = memory.text
   return React.createElement('div', {
     className: 'iwb-modal-backdrop',
     onMouseDown: event => { if (event.target === event.currentTarget) onClose() },
@@ -1234,6 +1300,20 @@ export function LspDiagnosticsModal({ store, state, onOpenSettings, onClose }) {
           React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.memory')),
           React.createElement('span', { className: 'iwb-lsp-diagnostics-value', title: t('lsp.diagnostics.memoryHint') }, memoryText),
         ),
+        // The worst band (PRD-v5.1 MEM-07). The row above is the typical
+        // case; this one says what happens if the server grows into its
+        // ceiling. It is a fact, not a rejection: the budget of the machine
+        // (MEM-08) and the pressure valve (MEM-12) are what keep the machine
+        // out of the swap.
+        memory.worstText === ''
+          ? null
+          : React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
+              React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.memoryWorstCase')),
+              React.createElement('span', {
+                className: 'iwb-lsp-diagnostics-value',
+                title: t('lsp.diagnostics.memoryWorstHint'),
+              }, memory.worstText),
+            ),
         React.createElement('div', { className: 'iwb-lsp-diagnostics-row' },
           React.createElement('span', { className: 'iwb-lsp-diagnostics-key' }, t('lsp.diagnostics.stderr')),
           React.createElement('pre', { className: 'iwb-lsp-diagnostics-logs' },

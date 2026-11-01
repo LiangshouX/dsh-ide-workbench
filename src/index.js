@@ -754,6 +754,23 @@ export function apply(ctx) {
       root: typeof payload?.root === 'string' ? payload.root : undefined,
     }),
 
+    /**
+     * The root the user is looking at (PRD-v5.1 §4.4, CONC-03).
+     *
+     * The host cannot see the focus of the browser: it knows which roots have
+     * a language server, but not which one the user is working in. The LRU
+     * order of the memory pressure yield needs that fact - the focused root
+     * is one of the last to go, because yielding it interrupts the user.
+     *
+     * The client reports it whenever the editor moves; the host remembers the
+     * last one it was told about. An empty root means "no focus" - the LRU
+     * order then treats every root the same.
+     */
+    'lsp.focus': async (payload) => {
+      const root = typeof payload?.root === 'string' ? payload.root : ''
+      return lsp.setFocus(root)
+    },
+
     /** The stderr of the language server, for the status bar's log link. */
     'lsp.logs': async (payload) => lsp.logs({
       root: typeof payload?.root === 'string' ? payload.root : undefined,

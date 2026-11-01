@@ -330,7 +330,7 @@ test('a tight budget asks the user before the server starts', async () => {
   }
 })
 
-test('the answer is remembered, and the same project is not asked twice', async () => {
+test('the answer "start anyway" forces this start only, and the next tight moment asks again', async () => {
   const host = hostStub({ decision: 'tight' })
   const store = fakeStore()
   try {
@@ -338,20 +338,27 @@ test('the answer is remembered, and the same project is not asked twice', async 
     await flush()
     store.resolveMemoryDecision('start')
     await first
-    // The answer is a decision, not a question: it is written down.
-    assert.equal(store.state.settings.lsp.memoryWarnedRoots[CHILD], 'accepted')
+    // The permission belongs to the start it was given for (PRD-v5.1 MEM-10):
+    // the memory of the map says "do not ask me again", never "you may force".
+    assert.notEqual(
+      store.state.settings.lsp.memoryWarnedRoots?.[CHILD],
+      'accepted',
+      'the permission to force is not remembered',
+    )
+    const start = host.calls.find(call => call.method === 'lsp.start')
+    assert.ok(start !== undefined, 'the server is started')
+    assert.equal(start.body.force, true, 'the start of this moment is forced')
 
-    // The project is left and opened again: the remembered answer applies
-    // and the user is not asked a second time.
+    // The project is left and opened again while the memory is still tight:
+    // the user is asked again instead of a silent forced start.
     store.state = { ...store.state, root: ROOT }
     const second = store.selectProject(CHILD)
     await flush()
-    assert.equal(store.state.memoryDecision, null, 'the user is not asked again')
-    store.resolveIndexDecision('build')
+    assert.ok(store.state.memoryDecision !== null, 'the user is asked again')
+    store.resolveMemoryDecision('conservative')
     await second
-    const start = host.calls.filter(call => call.method === 'lsp.start')
-    assert.equal(start.length, 2)
-    assert.equal(start[1].body.force, true, 'the remembered answer forces the start')
+    const starts = host.calls.filter(call => call.method === 'lsp.start')
+    assert.equal(starts.length, 1, 'and nothing is started behind their back')
   } finally {
     cleanup(store)
     host.restore()
@@ -608,6 +615,9 @@ test('the project picker marks an indexed folder with its own badge', async () =
   // The folder is a repository, it was indexed and it is the current one:
   // all three badges sit on the same row.
   store.state.root = CHILD
+  // A language server runs for it right now, so the badge is the plain
+  // "indexed" one (PRD-v5.1 CONC-05).
+  store.state.lsp = { ...store.state.lsp, state: 'ready', liveRoots: [CHILD] }
   const html = renderToStaticMarkup(React.createElement(mod.Workbench, { store }))
   assert.match(html, /iwb-project-index-badge/)
   assert.match(html, /project\.indexed/)
@@ -618,6 +628,20 @@ test('the project picker marks an indexed folder with its own badge', async () =
   const indexed = html.indexOf('iwb-project-index-badge')
   const current = html.indexOf('iwb-project-current-badge')
   assert.ok(git >= 0 && indexed > git && current > indexed, 'the three badges keep their order')
+})
+
+test('an indexed folder whose server was reclaimed carries the reclaimed badge', async () => {
+  const mod = await loadModule()
+  const store = fakeStore({ child: { indexState: 'indexed', indexedAt: 1700000000000 } })
+  store.state.projectPicker = true
+  store.state.root = CHILD
+  // The server was released: the historical fact is still true, but there is
+  // no index to use - the badge has to say so (PRD-v5.1 CONC-05).
+  store.state.lsp = { ...store.state.lsp, state: 'suspended', liveRoots: [] }
+  const html = renderToStaticMarkup(React.createElement(mod.Workbench, { store }))
+  assert.match(html, /iwb-project-index-badge/)
+  assert.match(html, /project\.indexedReclaimed/)
+  assert.match(html, /title="project\.indexedReclaimedHint"/)
 })
 
 test('a folder that was never indexed carries no badge', async () => {

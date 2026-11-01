@@ -948,6 +948,11 @@ export const CSS = `
 .iwb-project-choice-path { color: var(--iwb-muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-repo-badge { font-size: 9.5px; color: var(--iwb-git-add, #57a86b); border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
 .iwb-project-index-badge { font-size: 9.5px; color: #8b7cf6; border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
+/* The second state of the badge (PRD-v5.1 CONC-05): the folder WAS indexed,
+   but the language server was reclaimed - so the index is not there any more
+   and a rebuild costs another full build. The grey tone is the one of a
+   released server, not the yellow of a failure. */
+.iwb-project-index-badge-reclaimed { color: var(--iwb-muted); }
 .iwb-project-current-badge { font-size: 9.5px; color: var(--iwb-accent); border: 1px solid currentColor; border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
 .iwb-project-empty { padding: 10px 8px; color: var(--iwb-muted); font-size: 11.5px; }
 .iwb-sidebar-open {
