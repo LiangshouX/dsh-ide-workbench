@@ -2,8 +2,8 @@
 
 > **状态**：待实施。规格已拍板，**无需再向用户确认任何条目**。
 > **输入**：`1030优化需求.md`（原始需求，原文保留未改）。
-> **配套**：`docs/VERIFICATION.md`（累计验收记录）、`docs/1023优化需求-实施进展.md`（上一轮，已归档）、`docs/PRD-v4-实施进展.md`（本轮进展记录）、`docs/M0-api-findings.md`（DSH API 契约）。
-> **对应记录**：`docs/PRD-v4-实施进展.md`。
+> **配套**：`docs/VERIFICATION.md`（累计验收记录）、`docs/prd/archive/1023优化需求-实施进展.md`（上一轮，已归档）、`docs/prd/v4/PRD-v4-实施进展.md`（本轮进展记录）、`docs/M0-api-findings.md`（DSH API 契约）。
+> **对应记录**：`docs/prd/v4/PRD-v4-实施进展.md`。
 > **代码基线**：`dsh-ide-workbench` v0.4.0，HEAD `79140b0`，分支 `main`。
 > **本文档定位**：这是**实施规格**，不是问题清单。每一项都含：结论 → 代码锚点（`file:line`）→ 改法 → 验收口径 → 风险。
 > 开发时请**按 §9 里程碑顺序**推进，每完成一个里程碑即跑一次 `npm test` + `npm run build`。
@@ -392,7 +392,7 @@ useMemo(() => flatten(state, ...), [state, ...])
 - **裸 `Ctrl+F`**（文件内查找，`EditorArea.jsx:453`/`:462`）**保持不变**。
 - `findInFilesAlt = Ctrl+Alt+F` 保留。
 
-**2.4.4 历史佐证（来自 `docs/PRD-v3-实施进展.md:93`）**
+**2.4.4 历史佐证（来自 `docs/prd/v3/PRD-v3-实施进展.md:93`）**
 
 > "`Ctrl+Shift+F` 被 DSH/Chromium 外层吞掉；`Ctrl+Alt+F` 备用键可用。顶部按钮点击仍被外层覆盖层拦截，Project 面板头部与右键菜单入口作为兜底。"
 
@@ -599,7 +599,7 @@ CommitPanel.jsx:39-47   checkbox onChange
 
 **现状**：**不是弹窗**，而是编辑器工具条内的 inline chip（`EditorArea.jsx:316-328`，样式 `.iwb-conflict-chip` `styles.js:790-793`），文案为 `editor.externalChanged` / `editor.reloadFromDisk` / `editor.overwriteDisk`（`i18n.js:405/843`、`403/841`、`404/842`）。窄窗口时 chip 文本换行 → "看不清内容"。
 
-> **独立佐证**：`docs/PRD-v3-实施进展.md:83` 的实机记录写明——"磁盘内容已变化 / 从磁盘重新加载 / 覆盖磁盘"出现在**工具栏**上。这确认了"它是个工具栏 chip、不是弹窗"，与本条的现状判定一致。
+> **独立佐证**：`docs/prd/v3/PRD-v3-实施进展.md:83` 的实机记录写明——"磁盘内容已变化 / 从磁盘重新加载 / 覆盖磁盘"出现在**工具栏**上。这确认了"它是个工具栏 chip、不是弹窗"，与本条的现状判定一致。
 
 **改法**：
 
@@ -632,13 +632,13 @@ CommitPanel.jsx:39-47   checkbox onChange
 ## 7. FILE — 聊天 File link 的相对路径解析
 
 > **来源**：用户实机反馈（见 `1030优化需求.md` 追加条目）。上一轮交付了聊天文件链接的**认领机制**
-> （`docs/1023优化需求-实施进展.md` §1.3），本条修的是其中**相对路径形态**的一个缺口。
+> （`docs/prd/archive/1023优化需求-实施进展.md` §1.3），本条修的是其中**相对路径形态**的一个缺口。
 > **性能评估结论：成本可忽略，纳入本轮**（逐场景测算见 §7.5）。
 
 ### 7.1 FILE-01 现象
 
-工作区文件 `D:/Code/DSH-IDE-TOOLWINDOWS-ROOT/dsh-ide-workbench/docs/PRD-v4.md`
-在聊天里以 File link 出现时，路径形态是 `/docs/PRD-v4.md`。
+工作区文件 `D:/Code/DSH-IDE-TOOLWINDOWS-ROOT/dsh-ide-workbench/docs/prd/v4/PRD-v4.md`
+在聊天里以 File link 出现时，路径形态是 `/docs/prd/v4/PRD-v4.md`。
 
 结果：**IDE 工作台不认领**（判定为"不在工作区"）→ 交回 DSH 默认侧栏 → 默认侧栏同样不认识这个路径 → **打不开**。
 
@@ -646,10 +646,10 @@ CommitPanel.jsx:39-47   checkbox onChange
 
 | 地址形态 | `parseFileAddress` 得到 path | `resolveFileAddress(cwd=工作区根)` | 落在工作区？ | 实际结果 |
 |---|---|---|---|---|
-| `session/s1//docs/PRD-v4.md` | `/docs/PRD-v4.md` | `/docs/PRD-v4.md` | ❌ | → 默认侧栏 → **打不开** |
-| `session/s1/docs/PRD-v4.md` | `docs/PRD-v4.md` | `D:/Code/…-ROOT/docs/PRD-v4.md` | ✅ 但不在项目内 | → 走"切换项目"提示 → 切完仍指向**不存在的路径** → **打开失败** |
-| `absolute//docs/PRD-v4.md` | `//docs/PRD-v4.md` | `//docs/PRD-v4.md` | ❌ | → 默认侧栏 → **打不开** |
-| `absolute/D:/Code/…/docs/PRD-v4.md` | `D:/Code/…/docs/PRD-v4.md` | 同左 | ✅ 且在项目内 | ✅ **正常打开**（现状正确，不能回归） |
+| `session/s1//docs/prd/v4/PRD-v4.md` | `/docs/prd/v4/PRD-v4.md` | `/docs/prd/v4/PRD-v4.md` | ❌ | → 默认侧栏 → **打不开** |
+| `session/s1/docs/prd/v4/PRD-v4.md` | `docs/prd/v4/PRD-v4.md` | `D:/Code/…-ROOT/docs/prd/v4/PRD-v4.md` | ✅ 但不在项目内 | → 走"切换项目"提示 → 切完仍指向**不存在的路径** → **打开失败** |
+| `absolute//docs/prd/v4/PRD-v4.md` | `//docs/prd/v4/PRD-v4.md` | `//docs/prd/v4/PRD-v4.md` | ❌ | → 默认侧栏 → **打不开** |
+| `absolute/D:/Code/…/docs/prd/v4/PRD-v4.md` | `D:/Code/…/docs/prd/v4/PRD-v4.md` | 同左 | ✅ 且在项目内 | ✅ **正常打开**（现状正确，不能回归） |
 
 ### 7.2 根因
 
@@ -677,7 +677,7 @@ if (isAbsoluteFilePath(path)) return normalizeFilePath(path, cwd)   // ← 不�
 
 - `workspaceRoot` = `D:/Code/DSH-IDE-TOOLWINDOWS-ROOT`
 - `state.root`（IDE 项目）= `D:/Code/DSH-IDE-TOOLWINDOWS-ROOT/dsh-ide-workbench`
-- 链接 `/docs/PRD-v4.md` 相对**项目根**才对，相对**工作区根**是另一个不存在的路径
+- 链接 `/docs/prd/v4/PRD-v4.md` 相对**项目根**才对，相对**工作区根**是另一个不存在的路径
 
 → 只修 ① 不够；必须同时解决"相对谁"的歧义。
 
@@ -763,7 +763,7 @@ POSIX 上额外把**绝对解释**放在候选之前（仅当它 `isPathWithin` 
 
 ### 7.7 验收
 
-- [ ] 聊天 File link 指向 `…/dsh-ide-workbench/docs/PRD-v4.md`（地址形态 `session/<sid>//docs/PRD-v4.md`）→ **在 IDE 工作台打开**，展开 Project 树并定位到该文件。
+- [ ] 聊天 File link 指向 `…/dsh-ide-workbench/docs/prd/v4/PRD-v4.md`（地址形态 `session/<sid>//docs/prd/v4/PRD-v4.md`）→ **在 IDE 工作台打开**，展开 Project 树并定位到该文件。
 - [ ] 同一文件以**无前导斜杠**的相对形态给出 → 也能打开（今天会走到"切换项目"提示后仍然失败）。
 - [ ] 绝对路径形态 → 行为与今天一致，**无回归**。
 - [ ] POSIX 上工作区内的绝对路径 `/home/me/proj/a.md` → 仍直接打开，不被误判为相对路径。
@@ -853,7 +853,7 @@ POSIX 上额外把**绝对解释**放在候选之前（仅当它 `isPathWithin` 
 | **UP-05** 核实宿主是否按会话行渲染 `conversation.session.header.utilities` | 是 → 追加 PERF-10（入口组件轻量化） |
 | 建立 §1.3 的性能基线（notify 计数 / git 子进程数 / fs 调用数） | 无基线无法验收性能项 |
 
-**产出**：`docs/PRD-v4-实施进展.md` 的开头记录两项核实结论与基线数值。
+**产出**：`docs/prd/v4/PRD-v4-实施进展.md` 的开头记录两项核实结论与基线数值。
 
 ---
 
@@ -1034,7 +1034,7 @@ POSIX 上额外把**绝对解释**放在候选之前（仅当它 `isPathWithin` 
 | 1 | 全部代码改动 | `dsh-ide-workbench/src/**` |
 | 2 | 新增/更新测试 | `dsh-ide-workbench/tests/**` |
 | 3 | 构建产物 | `dsh-ide-workbench/dist/client.js`（`npm run build`） |
-| 4 | 本轮实施记录（里程碑、实测数值、上游待办状态） | `dsh-ide-workbench/docs/PRD-v4-实施进展.md` |
+| 4 | 本轮实施记录（里程碑、实测数值、上游待办状态） | `dsh-ide-workbench/docs/prd/v4/PRD-v4-实施进展.md` |
 | 5 | 验收记录（自动化 + 实机清单勾选结果） | `dsh-ide-workbench/docs/VERIFICATION.md`（追加本轮段） |
 | 6 | 上游反馈单（UP-01~05，含证据与建议改法） | 由 §1.4 表格整理，随本轮进展记录一并提交 |
 | 7 | 原始需求（保持不改） | `1030优化需求.md` |

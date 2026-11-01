@@ -2,7 +2,7 @@
   "name": "dsh-ide-workbench-bench",
   "private": true,
   "version": "0.0.0",
-  "description": "Benchmark harness backing docs/代码智能-性能开销评估.md. Not shipped with the plugin.",
+  "description": "Benchmark harness backing docs/prd/v5/代码智能-性能开销评估.md. Not shipped with the plugin.",
   "type": "module",
   "scripts": {
     "host-cost": "node host-cost.mjs",

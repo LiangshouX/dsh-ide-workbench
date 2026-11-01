@@ -1,7 +1,7 @@
 /**
  * Regression tests for the findings of the code review.
  *
- * The review of the code intelligence work (docs/PRD-v5-代码检视报告.md) found
+ * The review of the code intelligence work (docs/prd/v5/PRD-v5-代码检视报告.md) found
  * a handful of defects that the previous test suite did not catch. Every test
  * in this file guards one of them:
  *

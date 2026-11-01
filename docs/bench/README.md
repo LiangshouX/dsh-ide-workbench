@@ -1,6 +1,6 @@
 # 性能基准测试脚手架
 
-本目录是 `docs/代码智能-性能开销评估.md` 的**可复现脚手架**，支撑 PRD-v5 §11 性能预算的验收。
+本目录是 `docs/prd/v5/代码智能-性能开销评估.md` 的**可复现脚手架**，支撑 PRD-v5 §11 性能预算的验收。
 
 > **不随插件分发**：`dsh-ide-workbench/package.json` 的 `files` 白名单（`package.json:23-35`）不含 `docs/`，因此本目录不会进入 npm 发布包，也不会进入离线 tarball。
 

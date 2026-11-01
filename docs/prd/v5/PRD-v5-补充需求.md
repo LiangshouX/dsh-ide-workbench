@@ -1,9 +1,9 @@
 # PRD-v5 补充需求 —— 智能代码体验收尾、Git 着色与交互形态
 
-> **状态**：**已实施**。落地产物与偏差记录见 `docs/PRD-v5-补充需求-实施进展.md`（本文件仍是规格，不覆盖它）。
+> **状态**：**已实施**。落地产物与偏差记录见 `docs/prd/v5/PRD-v5-补充需求-实施进展.md`（本文件仍是规格，不覆盖它）。
 > 规格已按实机反馈逐条核实（每条都给了代码锚点），§0.4 的决策**已全部拍板**（按默认结论执行，无需再确认），**开发时按本文执行**。
 > **输入**：一次实机使用的口头反馈，共 10 组条目（智能代码 6 条 + 文件树 Git 着色 + 全项目查找 + Commit 推送 + 弹窗层级）。
-> **配套**：`docs/PRD-v5.md`（V5 主规格，只读）、`docs/PRD-v5-缺陷跟踪.md`（D1–D17 的缺陷与修复）、`docs/PRD-v5-代码检视报告.md`（五轮检视记录）、`docs/PRD-v5-实施进展.md`（落地与偏差）。
+> **配套**：`docs/prd/v5/PRD-v5.md`（V5 主规格，只读）、`docs/prd/v5/PRD-v5-缺陷跟踪.md`（D1–D17 的缺陷与修复）、`docs/prd/v5/PRD-v5-代码检视报告.md`（五轮检视记录）、`docs/prd/v5/PRD-v5-实施进展.md`（落地与偏差）。
 > **代码基线**：`dsh-ide-workbench` commit **`13c4533e729042a2e8a92526028e20ec2852edf3`**（分支 `main`，`docs(code): record the fourth and fifth review rounds`，2026-10-31）。基线测试 **549 项 / 549 通过 / 0 失败**。
 > **本文档定位**：这是**实施规格**，不是问题清单。每一项都含：核实结论 → 代码锚点（`file:line`）→ 改法 → 验收口径 → 风险。
 >
@@ -544,7 +544,7 @@ freeMemoryThresholdMB: 2048,
 
 | 怀疑 | 核实结论 |
 |---|---|
-| 服务器不支持 `references` | ❌ 排除。`docs/PRD-v5-实施进展.md` §5.2 的真机验证记录了 `referencesProvider` 在 23 项能力里 |
+| 服务器不支持 `references` | ❌ 排除。`docs/prd/v5/PRD-v5-实施进展.md` §5.2 的真机验证记录了 `referencesProvider` 在 23 项能力里 |
 | 菜单项被置灰 | ❌ 排除。`CodeEditor.jsx:765` 的 `semanticUsagesAvailable()` 只看 `serverCapabilities.referencesProvider` 与 `state.lsp.state === 'ready'`，正常时是**可点**的 |
 | 请求超时 | ⚠️ 可能叠加，但不是主因。主因是「拿到了响应，但条目被过滤光」 |
 | 面板没渲染 | ❌ 排除。`styles.js:1144-1159` 有完整的 `.cm-lsp-reference-panel` 样式 |
@@ -629,7 +629,7 @@ async requestFile(uri) {
 
 1. **用户找不到 / 不确定它管不管用**：标签叫「启用语义分析」，用户的心智模型是「构建代码索引」。语义上确实是同一个开关，但命名不匹配。
 2. **关了之后进程不退出**（§2.1(e)）→ 用户以为关了没用。
-3. **没有按语言的粒度**：`settings.lsp.servers[lang].enabled` **有文档无实现**（代码检视报告 N7，`docs/PRD-v5-代码检视报告.md:229`）。`host/lsp.js:1107` 确实读了 `override.enabled === false` 并转 `degraded`，但设置页**没有**这个控件。
+3. **没有按语言的粒度**：`settings.lsp.servers[lang].enabled` **有文档无实现**（代码检视报告 N7，`docs/prd/v5/PRD-v5-代码检视报告.md:229`）。`host/lsp.js:1107` 确实读了 `override.enabled === false` 并转 `degraded`，但设置页**没有**这个控件。
 
 ### 4.2 SET-01 — 索引总开关：语义收敛 + 关闭即退进程
 

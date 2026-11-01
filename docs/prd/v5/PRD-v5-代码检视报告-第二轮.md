@@ -1,7 +1,7 @@
 # PRD-v5 代码检视报告（第二轮：修复复核 + 崩溃根因）
 
 > **范围**：`31dfbc7` → `bf4927e`（1 个提交，`fix(code): count unanswered requests, not silence, and settle the review round`）。
-> **基线**：`31dfbc7b24ba7e5a62c8549a092cea6bc951d7aa`。**对照物**：`docs/PRD-v5-代码检视报告-补充需求轮.md`（上一轮，R1–R20）、`docs/PRD-v5-补充需求.md`（规格）。
+> **基线**：`31dfbc7b24ba7e5a62c8549a092cea6bc951d7aa`。**对照物**：`docs/prd/v5/PRD-v5-代码检视报告-补充需求轮.md`（上一轮，R1–R20）、`docs/prd/v5/PRD-v5-补充需求.md`（规格）。
 > **方法**：读代码 + **实跑验证**。`npm test` 实跑 **669 项 / 669 通过 / 0 失败**（上一轮为 640）；自建 **6 个探针脚本**直接 import 生产代码复现关键路径；崩溃日志与探针栈**逐帧比对**。
 > **本次检视未修改任何源码**。探针脚本写在仓库外的临时目录（`%LOCALAPPDATA%\Temp\iwb-probe\`）。
 > **检视日期**：2026-10-31。

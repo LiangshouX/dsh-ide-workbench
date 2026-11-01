@@ -97,7 +97,7 @@ cd dsh-ide-toolwindows && npm test
 
 ## PRD-v4 验收记录（2026-10-30）
 
-> 对应规格：`docs/PRD-v4.md`；对应进展：`docs/PRD-v4-实施进展.md`。
+> 对应规格：`docs/prd/v4/PRD-v4.md`；对应进展：`docs/prd/v4/PRD-v4-实施进展.md`。
 > 本轮**未做实机走查**（未在 DSH 里实际操作），下面的「自动化」列给出可复现的用例位置，
 > 「实机」列留给下一轮补做。
 
@@ -146,7 +146,7 @@ npm run build   # dist/client.js 已更新
 ### 本轮新增的已知限制
 
 - **另一个仓库的文件不能在编辑器里打开**：编辑器读写围栏是项目根，GIT-01 不允许放宽它；
-  「跳到源文件」遇到这类文件会提示而不是打开（见 `docs/PRD-v4-实施进展.md` §6）。
+  「跳到源文件」遇到这类文件会提示而不是打开（见 `docs/prd/v4/PRD-v4-实施进展.md` §6）。
 - **一次轮询在操作系统层面是 2 个 git 进程**（`rev-parse` + `status`）：PRD §1.2 PERF-06 的基线口径
   只统计 `status()` 内部的 3 个，宿主 `repoEnv()` 的那次 `rev-parse` 不在其内（见 §3.1 注 1）。
 - **恢复出的展开目录是后台逐个（串行）加载**，不是严格等到用户展开才加载（见 §3.1 注 3）；冷进入本身只发 1 次目录列表请求。
@@ -158,7 +158,7 @@ npm run build   # dist/client.js 已更新
 # 验收记录（PRD-v5 — 代码智能）
 
 > 环境：Windows 11 / Node v22 / `dsh-ide-workbench` 基线 commit `dd6dc175f8cf1b6a891cc37f81ac21a3d81839a4`。
-> 规格：`docs/PRD-v5.md`；实施记录与偏差：`docs/PRD-v5-实施进展.md`。
+> 规格：`docs/prd/v5/PRD-v5.md`；实施记录与偏差：`docs/prd/v5/PRD-v5-实施进展.md`。
 
 ## 自动化测试（493 项全部通过）
 
@@ -235,7 +235,7 @@ reconnect initialize -> answered, capabilities: 23
 - **崩溃态的「点击进日志」改为 tooltip + 重播建议文案**（客户端没有日志视图；stderr 由 `lsp.logs` API 暴露给宿主日志面）。
 - **`tests/perf-cold-workspace.test.mjs:123` 在机器满载时偶发失败**（时序敏感用例，单独跑必绿；与本轮改动无关）。
 - **界面层面的验收还没走完**：补全弹窗观感、Ctrl+点击的手感、引用面板、索引取消 / 崩溃恢复 / 空闲退出的界面表现，
-  逐条清单见 `docs/PRD-v5-实施进展.md` §5.3。
+  逐条清单见 `docs/prd/v5/PRD-v5-实施进展.md` §5.3。
 
 
 

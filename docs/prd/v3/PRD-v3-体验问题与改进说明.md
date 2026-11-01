@@ -1226,7 +1226,7 @@ README 还写着"所有快捷键均可在设置中重新绑定"（`README_ZH.md:
 | 设置死项 | `SettingsPanel.jsx:119-137`、`settings-store.js:16-108` |
 | 快捷键捕获 | `SettingsPanel.jsx:82-88`、`ui.jsx:149-183` |
 | README 承诺 | `README_ZH.md:19-27` |
-| PRD 上下分栏/单击 | `docs/PRD-v2.md:393-414`、`430-435` |
+| PRD 上下分栏/单击 | `docs/prd/v2/PRD-v2.md:393-414`、`430-435` |
 
 ### 13.2 复现命令与结果
 

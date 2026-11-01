@@ -1,11 +1,11 @@
 # PRD-v4 复核记录（对 DSH 实现 `de3625f` 的代码复核）
 
-> **对应规格**：`docs/PRD-v4.md`
+> **对应规格**：`docs/prd/v4/PRD-v4.md`
 > **对应实现**：`de3625f`（"feat: implement PRD-v4 (session-switch performance, Project toolbar, Git repo autonomy)"）
 > **复核基线**：`e6f491d`（实现提交的前一个）
 > **复核日期**：2026-10-30
 > **本文件职责**：记录**代码复核**发现的问题，作为下一轮修复的施工清单。
-> 它**不改写** `docs/PRD-v4.md`（规格）、`docs/PRD-v4-实施进展.md`（实施记录）、`docs/VERIFICATION.md`（验收记录）——
+> 它**不改写** `docs/prd/v4/PRD-v4.md`（规格）、`docs/prd/v4/PRD-v4-实施进展.md`（实施记录）、`docs/VERIFICATION.md`（验收记录）——
 > 三者的状态由 DSH 在修复时自行更新。
 > **命名规则**：复核记录的文件名 = **该轮规格文件名 + `-复核记录`**。
 
@@ -65,7 +65,7 @@
 | **L7** | ✅ 已修复 | `layout.left` 切到 `'commit'` 时补一次带 numstat 的刷新（状态替换**之后**触发）
 | **E1** | ⚖️ 接受现状 + 文档化 | `Ctrl+Shift+R` 是**已批准规格**的默认键，桌面形态（DSH Desktop）宿主不占用 → 保留。纯浏览器形态下 `Ctrl+Shift+R` 是 Chromium 硬刷新、网页无法拦截 → 已在 `README.md` / `README_EN.md` 的"已知限制"与设置页提示里写明**浏览器形态请用 `Ctrl+Alt+F`**。此项仍需**用户拍板**是否改默认键 |
 
-> **本轮修复的提交**：见 `docs/PRD-v4-实施进展.md` §7（提交哈希以该处记录为准）。
+> **本轮修复的提交**：见 `docs/prd/v4/PRD-v4-实施进展.md` §7（提交哈希以该处记录为准）。
 
 ---
 
@@ -192,7 +192,7 @@ const file = join(repoRoot, '.gitignore')
 
 **与自身记录矛盾**
 
-`docs/PRD-v4-实施进展.md:216`（§6）明确记录了这条决定：
+`docs/prd/v4/PRD-v4-实施进展.md:216`（§6）明确记录了这条决定：
 
 > **GIT-01 的 `git.ignore`**：唯一一个**不**跟随 `gitRepoRoot` 的 `git.*` 调用 —— 它的路径是**工作区相对**的（文件树上的「加入 .gitignore」动作），必须留在工作区/项目根上
 
@@ -200,7 +200,7 @@ const file = join(repoRoot, '.gitignore')
 
 **修复方向**
 
-让 `path` 与 `repoRoot` **同基准**，二者要么都换算到 `gitRoot`，要么都到 `state.root`；并同步修正 `store.js:2431-2433` 的注释与 `docs/PRD-v4-实施进展.md:216` 的表述（若最终决定跟随 gitRoot）。
+让 `path` 与 `repoRoot` **同基准**，二者要么都换算到 `gitRoot`，要么都到 `state.root`；并同步修正 `store.js:2431-2433` 的注释与 `docs/prd/v4/PRD-v4-实施进展.md:216` 的表述（若最终决定跟随 gitRoot）。
 
 **验收方式**
 
@@ -325,7 +325,7 @@ window.addEventListener('keydown', onKeyDown, true)
 - **现象**：
   1. 折叠阈值**写死 520px**，与"内容是否真的溢出"无关 —— 窗口宽但编辑区窄时不折叠，窗口窄但内容很短时反而折叠；
   2. `flex-shrink:0` + `overflow:hidden` 从**右侧**硬裁 → **先裁掉末尾的文件名**（最重要的信息），而 `…` 此刻 `display:none`。
-- **对照**：`docs/PRD-v4-实施进展.md:208` 记录 EDITOR-02 采用**容器查询** `@container iwb-editor-toolbar (max-width: 520px)` —— 阈值写死正是该决定的直接后果，且与"不折行"的意图存在冲突。
+- **对照**：`docs/prd/v4/PRD-v4-实施进展.md:208` 记录 EDITOR-02 采用**容器查询** `@container iwb-editor-toolbar (max-width: 520px)` —— 阈值写死正是该决定的直接后果，且与"不折行"的意图存在冲突。
 - **修复方向**：改为按**实际溢出**折叠（`ResizeObserver` / `scrollWidth > clientWidth`）；折叠时保留**末尾**文件名、裁中间的目录段。
 
 ### M8 — 项目树"显示历史"传入的路径基准与 `git log` 不一致
@@ -371,7 +371,7 @@ window.addEventListener('keydown', onKeyDown, true)
 > **状态**：⚖️ 接受现状 + 文档化（2026-10-30）—— 保留 `Ctrl+Shift+R`（已批准规格、桌面形态不占用）；浏览器形态的硬刷新风险写进 `README.md` / `README_EN.md` 的"已知限制"与设置页提示。**仍需用户拍板**是否改默认键。
 
 - **事实**：`Ctrl+Shift+R` 在浏览器里是 Chromium 的**硬刷新**快捷键，`preventDefault()` 对它**无效** → 整页刷新 → **编辑缓冲区丢失**。
-- **核实范围**：UP-04 只核实了 **Electron 宿主菜单**未占用该组合（结论见 `docs/PRD-v4-实施进展.md` §2.1），**未覆盖纯浏览器形态**。
+- **核实范围**：UP-04 只核实了 **Electron 宿主菜单**未占用该组合（结论见 `docs/prd/v4/PRD-v4-实施进展.md` §2.1），**未覆盖纯浏览器形态**。
 - **重要性**：用户原始动机正是"搜狗浏览器容易冲突"，而搜狗/Chromium 内核浏览器**就是**纯浏览器形态。
 - **兜底**：`Ctrl+Alt+F` 仍在（`host/settings-store.js:107`）。
 - **建议**：由用户拍板 —— (a) 保留 `Ctrl+Shift+R` 并在文档里提示浏览器形态改用 `Ctrl+Alt+F`；(b) 换成浏览器形态更安全的组合；(c) 插件侧对浏览器形态做区分处理。
@@ -398,8 +398,8 @@ window.addEventListener('keydown', onKeyDown, true)
    - 10 工作区的内存曲线。
 2. **部分缺陷是"源码路径推导 + host 纯函数离线复算"得出**：未在真实仓库执行 `git add` 或写 `.gitignore`（审计方要求只读）。
 3. **macOS / Linux 未实测**：`fs.stat` 行为按 POSIX 语义推断。
-4. **`f7fe228` 与 `de3625f` 的关系**：`de3625f` 是 `f7fe228` 的 amend（reflog: `commit` → `commit (amend)`），两者**代码树完全一致**，仅 `docs/PRD-v4-实施进展.md` 不同。
-   ⚠️ 但 `docs/PRD-v4-实施进展.md:227` 的 §7 提交表仍记着旧哈希 `f7fe228` —— 该提交已**不在分支历史里**（只能从 reflog 找到）。修复后再提交时，请把 §7 的哈希更新为**新提交的实际哈希**。
+4. **`f7fe228` 与 `de3625f` 的关系**：`de3625f` 是 `f7fe228` 的 amend（reflog: `commit` → `commit (amend)`），两者**代码树完全一致**，仅 `docs/prd/v4/PRD-v4-实施进展.md` 不同。
+   ⚠️ 但 `docs/prd/v4/PRD-v4-实施进展.md:227` 的 §7 提交表仍记着旧哈希 `f7fe228` —— 该提交已**不在分支历史里**（只能从 reflog 找到）。修复后再提交时，请把 §7 的哈希更新为**新提交的实际哈希**。
 
 ### 6.3 上游待办（不在本仓库，勿混）
 
@@ -411,11 +411,11 @@ UP-01~03（DSH 核心会话表全量重建、订阅粒度、better-sidebar 的 O
 
 | 修复完成后应更新 | 内容 |
 |---|---|
-| `docs/PRD-v4-实施进展.md` §1 范围表 | 把 R1/R2/R3/A1/M1~M9 涉及的条目状态从 ✅ 改为「🔧 复核发现问题，修复中」，再在修复完成后改回 ✅ 并注明复核记录 |
-| `docs/PRD-v4-实施进展.md` §6 | 记录本次复核触发的**决定与偏差**（尤其 R3 涉及 GIT-01 的 `git.ignore` 口径，需要改写现有第 216 行的表述） |
-| `docs/PRD-v4-实施进展.md` §7 | 提交哈希填**新提交的实际哈希**（不要沿用已失效的 `f7fe228`） |
+| `docs/prd/v4/PRD-v4-实施进展.md` §1 范围表 | 把 R1/R2/R3/A1/M1~M9 涉及的条目状态从 ✅ 改为「🔧 复核发现问题，修复中」，再在修复完成后改回 ✅ 并注明复核记录 |
+| `docs/prd/v4/PRD-v4-实施进展.md` §6 | 记录本次复核触发的**决定与偏差**（尤其 R3 涉及 GIT-01 的 `git.ignore` 口径，需要改写现有第 216 行的表述） |
+| `docs/prd/v4/PRD-v4-实施进展.md` §7 | 提交哈希填**新提交的实际哈希**（不要沿用已失效的 `f7fe228`） |
 | `docs/VERIFICATION.md` §PRD-v4 段 | 修正与 M9、L1、L4 相关的验收结论表述（它们目前标 ✅ 但前提不成立） |
-| 本文件 `docs/PRD-v4-复核记录.md` | 逐条标注「已修复 / 接受不修 / 延后」及对应提交哈希 |
+| 本文件 `docs/prd/v4/PRD-v4-复核记录.md` | 逐条标注「已修复 / 接受不修 / 延后」及对应提交哈希 |
 
 ---
 

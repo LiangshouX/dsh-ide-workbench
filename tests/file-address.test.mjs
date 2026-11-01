@@ -111,20 +111,20 @@ test('has no link candidates for drive-letter and UNC absolute paths', () => {
 
 test('joins a single leading slash path onto every base', () => {
   assert.deepEqual(
-    relativeLinkCandidates('/docs/PRD-v4.md', ['D:/Code/ROOT/dsh-ide-workbench', 'D:/Code/ROOT']),
+    relativeLinkCandidates('/docs/prd/v4/PRD-v4.md', ['D:/Code/ROOT/dsh-ide-workbench', 'D:/Code/ROOT']),
     [
-      'D:/Code/ROOT/dsh-ide-workbench/docs/PRD-v4.md',
-      'D:/Code/ROOT/docs/PRD-v4.md',
+      'D:/Code/ROOT/dsh-ide-workbench/docs/prd/v4/PRD-v4.md',
+      'D:/Code/ROOT/docs/prd/v4/PRD-v4.md',
     ],
   )
 })
 
 test('joins a plain relative path onto every base', () => {
   assert.deepEqual(
-    relativeLinkCandidates('docs/PRD-v4.md', ['D:/Code/ROOT/dsh-ide-workbench', 'D:/Code/ROOT']),
+    relativeLinkCandidates('docs/prd/v4/PRD-v4.md', ['D:/Code/ROOT/dsh-ide-workbench', 'D:/Code/ROOT']),
     [
-      'D:/Code/ROOT/dsh-ide-workbench/docs/PRD-v4.md',
-      'D:/Code/ROOT/docs/PRD-v4.md',
+      'D:/Code/ROOT/dsh-ide-workbench/docs/prd/v4/PRD-v4.md',
+      'D:/Code/ROOT/docs/prd/v4/PRD-v4.md',
     ],
   )
   assert.deepEqual(
@@ -141,16 +141,16 @@ test('keeps the first position of a repeated base and the project root first', (
     'D:/Code/OTHER',
   ]
   assert.deepEqual(
-    relativeLinkCandidates('/docs/PRD-v4.md', bases),
+    relativeLinkCandidates('/docs/prd/v4/PRD-v4.md', bases),
     [
-      'D:/Code/ROOT/dsh-ide-workbench/docs/PRD-v4.md',
-      'D:/Code/ROOT/docs/PRD-v4.md',
-      'D:/Code/OTHER/docs/PRD-v4.md',
+      'D:/Code/ROOT/dsh-ide-workbench/docs/prd/v4/PRD-v4.md',
+      'D:/Code/ROOT/docs/prd/v4/PRD-v4.md',
+      'D:/Code/OTHER/docs/prd/v4/PRD-v4.md',
     ],
   )
   assert.deepEqual(
-    relativeLinkCandidates('/docs/PRD-v4.md', ['d:/code/root', 'D:/Code/ROOT']),
-    ['d:/code/root/docs/PRD-v4.md'],
+    relativeLinkCandidates('/docs/prd/v4/PRD-v4.md', ['d:/code/root', 'D:/Code/ROOT']),
+    ['d:/code/root/docs/prd/v4/PRD-v4.md'],
   )
 })
 
@@ -174,17 +174,17 @@ test('resolves dot segments so an escaping path leaves its base', () => {
 
 test('splits every candidate into its base and the relative path', () => {
   assert.deepEqual(
-    relativeLinkCandidateEntries('/docs/PRD-v4.md', ['D:/Code/ROOT', 'D:/Code/OTHER']),
+    relativeLinkCandidateEntries('/docs/prd/v4/PRD-v4.md', ['D:/Code/ROOT', 'D:/Code/OTHER']),
     [
-      { base: 'D:/Code/ROOT', rel: 'docs/PRD-v4.md', absolute: 'D:/Code/ROOT/docs/PRD-v4.md' },
-      { base: 'D:/Code/OTHER', rel: 'docs/PRD-v4.md', absolute: 'D:/Code/OTHER/docs/PRD-v4.md' },
+      { base: 'D:/Code/ROOT', rel: 'docs/prd/v4/PRD-v4.md', absolute: 'D:/Code/ROOT/docs/prd/v4/PRD-v4.md' },
+      { base: 'D:/Code/OTHER', rel: 'docs/prd/v4/PRD-v4.md', absolute: 'D:/Code/OTHER/docs/prd/v4/PRD-v4.md' },
     ],
   )
 })
 
 test('flags only the single leading slash shape as ambiguous', () => {
-  assert.equal(isAmbiguousLinkPath('/docs/PRD-v4.md'), true)
-  assert.equal(isAmbiguousLinkPath('docs/PRD-v4.md'), false)
+  assert.equal(isAmbiguousLinkPath('/docs/prd/v4/PRD-v4.md'), true)
+  assert.equal(isAmbiguousLinkPath('docs/prd/v4/PRD-v4.md'), false)
   assert.equal(isAmbiguousLinkPath('D:/docs/a.md'), false)
   assert.equal(isAmbiguousLinkPath('//server/share/a.md'), false)
   assert.equal(isAmbiguousLinkPath(''), false)
@@ -193,5 +193,5 @@ test('flags only the single leading slash shape as ambiguous', () => {
 test('keeps a POSIX absolute path inside the workspace absolute', () => {
   assert.equal(isAmbiguousLinkPath('/home/me/proj/a.md', '/home/me/proj'), false)
   assert.equal(isAmbiguousLinkPath('/home/me/proj/a.md', '/home/me/other'), true)
-  assert.equal(isAmbiguousLinkPath('/docs/PRD-v4.md', 'D:/Code/ROOT'), true)
+  assert.equal(isAmbiguousLinkPath('/docs/prd/v4/PRD-v4.md', 'D:/Code/ROOT'), true)
 })

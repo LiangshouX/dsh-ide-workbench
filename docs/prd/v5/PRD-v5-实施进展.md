@@ -1,6 +1,6 @@
 # PRD-v5 实施进展 — 代码智能（语义补全、Usage 与跳转定义）
 
-> 状态：**已完成**。规格见 `docs/PRD-v5.md`（只读，本文件不覆盖规格）。
+> 状态：**已完成**。规格见 `docs/prd/v5/PRD-v5.md`（只读，本文件不覆盖规格）。
 > 代码基线：`dsh-ide-workbench` commit `dd6dc175f8cf1b6a891cc37f81ac21a3d81839a4`（分支 `main`）。
 > 本文件记录**实测结论**、**与规格的偏差**与**验收数据**；结论与 PRD 冲突时以 PRD 为准。
 
@@ -34,7 +34,7 @@
 
 | # | 任务 | 结论 | 依据 |
 |---|---|---|---|
-| **M0-0** | 核对代码基线 | ✅ `git rev-parse HEAD` = `dd6dc175f8cf1b6a891cc37f81ac21a3d81839a4`，与 PRD 基线一致。工作区只有 `docs/PRD-v5.md`、`docs/bench/` 等**未跟踪**文件，源码树与基线逐字节一致；**没有**使用 `v0.4.1` tag | `git rev-parse HEAD`、`git status --short` |
+| **M0-0** | 核对代码基线 | ✅ `git rev-parse HEAD` = `dd6dc175f8cf1b6a891cc37f81ac21a3d81839a4`，与 PRD 基线一致。工作区只有 `docs/prd/v5/PRD-v5.md`、`docs/bench/` 等**未跟踪**文件，源码树与基线逐字节一致；**没有**使用 `v0.4.1` tag | `git rev-parse HEAD`、`git status --short` |
 | **M0-1** | 宿主是否占用 `Ctrl+Space` | ⚠️ **宿主二进制里没有明文绑定**（`resources/app.asar` 全文扫描无 `Ctrl+Space` 字面量）。按 PRD §6.4 取 `Ctrl+Space`，并做成**可配置项**；实机被吞时改设置默认值即可，无需改代码 | `resources/app.asar` 扫描 |
 | **M0-2** | 宿主是否占用 `Alt+F7` / `Alt+F8` | ✅ 未发现冲突（同一扫描）。本插件既有快捷键表也无这两个键 | 同上 + `settings-store.js` |
 | **M0-3** | `ctx.subprocess.spawn` 可用性与契约 | ✅ 可用，契约已核实：`spawn(spec): SubprocessHandle`（**同步**返回）、`stdio: {stdin:'pipe', stdout:'pipe', stderr:'pipe'}`、`graceMs` 必填、`env` 可选 | `cordis_inspect_query(host, Service, listService, {service:'subprocess'})` |
@@ -284,7 +284,7 @@ src/client/ui.jsx          ContextMenu 的 title 透传
 
 > ⚠️ **实机反馈与修复**：用户在真机上发现三个问题 —— 状态卡在「索引中」、`Ctrl+点击` 100% 超时，
 > 以及一次**把 DSH 宿主进程带崩**的致命缺陷。三个都已修复，根因、证据与验证方式见
-> **`docs/PRD-v5-缺陷跟踪.md`**。下面这份清单是修完之后仍需人工确认的部分。
+> **`docs/prd/v5/PRD-v5-缺陷跟踪.md`**。下面这份清单是修完之后仍需人工确认的部分。
 
 **端到端链路已经用真的 `typescript-language-server` 验证过**（见 §5.2）。
 下面这些是**界面与交互层面**的验收，自动化测试与端到端脚本都覆盖不到，需要人在界面上点一遍：
@@ -304,7 +304,7 @@ src/client/ui.jsx          ContextMenu 的 title 透传
 
 ## 8. 实机发现的缺陷（已修）
 
-**九个**实机缺陷（D1–D9）的完整分析在 **`docs/PRD-v5-缺陷跟踪.md`**。这里只留结论：
+**九个**实机缺陷（D1–D9）的完整分析在 **`docs/prd/v5/PRD-v5-缺陷跟踪.md`**。这里只留结论：
 
 | # | 现象 | 根因 | 修复 |
 |---|---|---|---|
@@ -318,7 +318,7 @@ src/client/ui.jsx          ContextMenu 的 title 透传
 | **D8** | 已索引的仓库永远显示「正在更新索引…」 | `store.refreshLspStatus()` 把上一份快照的 `progress` / `startedAt` / `cancellable` 摊到下一份上，状态栏的 `ready` 分支又看 `progress` | store 在非 `building` 时清空这三个值；视图的 `ready` 分支不再看 `progress` |
 | **D9** | 悬停卡片 / 补全弹窗**看不清**；Ctrl+悬浮**没有提示** | 样式写的是 `.cm-lsp-hover`，库渲染的是 **`.cm-lsp-hover-tooltip`**（一条都没匹配上）；补全配色在 `styles.js` 与 `CodeEditor.jsx` 的 THEME 里打架 | 改用库真实类名、补全配色收敛到 `styles.js` 一处；新增 `iwb-ctrl-hover-symbol` 装饰（Ctrl+悬浮变蓝 + 下划线） |
 
-代码检视报告（`docs/PRD-v5-代码检视报告.md`）另外发现并修好了 **D10–D17**
+代码检视报告（`docs/prd/v5/PRD-v5-代码检视报告.md`）另外发现并修好了 **D10–D17**
 （握手重放的时序、看门狗按 tick 计数、取消/崩溃泄漏定时器、
 重复 `initialize` 被转发、`pending` 淘汰丢掉握手、
 取消在降级/并发时抛错、取消时残留一个语言服务器进程、

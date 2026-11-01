@@ -161,7 +161,7 @@ At the moment of the start the check is `need = min(estimate, effective ceiling)
 
 > On a large project the **first** semantic request can take more than ten minutes (building the program was measured at over ten). The request budget is ten minutes until the server has answered one real request, so the first completion popup may take a long time to return — that is the index being built, and the status bar says "Semantic analysis: indexing…".
 
-The full reference (how the effective ceiling is computed, the three gates, a field-by-field configuration table, the known limitations and a troubleshooting table) is in **[docs/代码索引内存配置.md](docs/代码索引内存配置.md)** (Chinese).
+The full reference (how the effective ceiling is computed, the three gates, a field-by-field configuration table, the known limitations and a troubleshooting table) is in **[docs/prd/v5/代码索引内存配置.md](docs/prd/v5/代码索引内存配置.md)** (Chinese).
 
 ## DSH integration
 
@@ -187,7 +187,7 @@ The full reference (how the effective ceiling is computed, the three gates, a fi
 - The Markdown preview does not rewrite relative images/links to local paths yet (http(s) works).
 - Not implemented: interactive rebase, three-way merge editing, stash, blame, fetch/pull, split terminals.
 - **Code index memory**: the global ceiling is a cap over *every* language and cannot break through a language's own built-in ceiling (raise the global one to 4096 and TypeScript is still 2048) — use the per-language ceiling to raise one. **Only the TypeScript server limits itself by that ceiling**; the other language servers use it to cap the estimate only. The estimate is a **typical** footprint, and a large project needs much more. See
-  [The memory configuration of the code index](docs/代码索引内存配置.md) (Chinese).
+  [The memory configuration of the code index](docs/prd/v5/代码索引内存配置.md) (Chinese).
 - **The first semantic request on a large project can take more than ten minutes** (building the program); the request budget is ten minutes until the server answers one real request, so the first completion popup may take a long time to return.
 - `Ctrl+Shift+R` is Chromium's **hard reload** shortcut in a plain browser (DSH Web, Chromium-based browsers) and a page cannot intercept it — the page reloads and the editor buffer is lost. **Use the `Ctrl+Alt+F` fallback in a browser**; the desktop build (DSH Desktop) is unaffected.
 - **Send to chat** needs the host's per-session composer actions. When a host does not publish them, the action reports "The chat input is not available right now" instead of silently dropping the reference. Code ranges use `@file (Lx-Ly)` plus a fenced block because the `@` grammar has no line suffix.

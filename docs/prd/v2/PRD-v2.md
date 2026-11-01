@@ -4,7 +4,7 @@
 |---|---|
 | 版本 | v2.0-draft |
 | 状态 | 待产品负责人评审（决策项见 13 章） |
-| 上一版 | `docs/PRD-v1.md`（v0.2，V1 已交付 0.2.1） |
+| 上一版 | `docs/prd/v1/PRD-v1.md`（v0.2，V1 已交付 0.2.1） |
 | 目标读者 | dsh 插件开发执行者（本规格的下一任实现者） |
 | 交付目标 | 把"体感像 VS Code"的 V1 改造成 JetBrains 系 IDE（IntelliJ IDEA / WebStorm）的交互与观感 |
 

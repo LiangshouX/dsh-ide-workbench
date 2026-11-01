@@ -2,7 +2,7 @@
 
 > **状态**：待实施。规格已拍板（Q1–Q4 见 §0.4），**无需再向用户确认任何条目**。
 > **输入**：本次口头需求（两条能力 + 索引决策流程 + 性能缓解要求）。
-> **配套**：`docs/代码智能-可行性评估.md`（技术选型与开源可复用清单）、`docs/代码智能-性能开销评估.md`（实测性能基线）、`docs/VERIFICATION.md`（累计验收记录）、`docs/PRD-v5-实施进展.md`（本轮进展记录，本轮新建）、`docs/M0-api-findings.md`（DSH API 契约）。
+> **配套**：`docs/prd/v5/代码智能-可行性评估.md`（技术选型与开源可复用清单）、`docs/prd/v5/代码智能-性能开销评估.md`（实测性能基线）、`docs/VERIFICATION.md`（累计验收记录）、`docs/prd/v5/PRD-v5-实施进展.md`（本轮进展记录，本轮新建）、`docs/M0-api-findings.md`（DSH API 契约）。
 > **代码基线（必须按提交号对齐，不要按版本号）**：`dsh-ide-workbench` **commit `dd6dc175f8cf1b6a891cc37f81ac21a3d81839a4`**（分支 `main`，提交标题 `perf(tree): keep the status aggregate's identity while the status is unchanged`，2026-10-31 13:09）。测试基线 **329 项（329 全通过，0 失败）**，客户端产物 `dist/client.js` **2,413 KB**。
 >
 > ⚠️ **不要用 `v0.4.1` 这个 tag 作为基线。** `package.json` 的 `"version"` 在 **tag `v0.4.1`（commit `7895712`，2026-10-30）与本基线 commit 上都是 `"0.4.1"`**，因此**版本号无法区分两棵树**；而 HEAD 实际比 tag **领先 7 个提交**，其中 6 个提交改动了本文档引用的文件。按 tag 实施会让多个锚点错位，最严重的两处：
@@ -766,7 +766,7 @@ lsp: {
 
 ## 8. 实施顺序与里程碑
 
-> 每个里程碑结束时：**跑 `npm test`（当前 329 项）+ `npm run build`**，并在 `docs/PRD-v5-实施进展.md` 追加记录。
+> 每个里程碑结束时：**跑 `npm test`（当前 329 项）+ `npm run build`**，并在 `docs/prd/v5/PRD-v5-实施进展.md` 追加记录。
 
 ### M0 — 开工前置（阻塞项）
 
@@ -780,7 +780,7 @@ lsp: {
 | **M0-5** 建立性能基线：空闲时宿主内存、语言服务器进程树 RSS、宿主事件循环漂移 | 无基线无法验收 §11 |
 | **M0-6** 复跑基线测试 `npm test`，确认 **329 项全绿**（基线 commit 已修复 `tests/perf-cold-workspace.test.mjs:123`；本项用于确认工作区没有新的并发失败） | 有失败 → 先处置；无法处置 → 在 §9.3 显式豁免并记录原因 |
 
-**产出**：M0-0~M0-6 的结论写进 `docs/PRD-v5-实施进展.md`；结论与本文档冲突时**以本文档为准**，需回填的按键位改动同步更新本文档。
+**产出**：M0-0~M0-6 的结论写进 `docs/prd/v5/PRD-v5-实施进展.md`；结论与本文档冲突时**以本文档为准**，需回填的按键位改动同步更新本文档。
 
 ---
 
@@ -971,7 +971,7 @@ lsp: {
 
 ## 11. 性能预算与验收口径
 
-> 全部数值来自 `docs/代码智能-性能开销评估.md` 的实测（i5-10300H / 4 核 / 15.8 GB / Windows / Node v22.22.2）。
+> 全部数值来自 `docs/prd/v5/代码智能-性能开销评估.md` 的实测（i5-10300H / 4 核 / 15.8 GB / Windows / Node v22.22.2）。
 > 复现脚本已入库 `docs/bench/`（见 `docs/bench/README.md`），验收时可原样复跑下列每条预算。
 
 ### 11.1 宿主主线程
@@ -1022,9 +1022,9 @@ lsp: {
 | 8 | 依赖变更 | `dsh-ide-workbench/package.json` |
 | 9 | 新增/更新测试 | `dsh-ide-workbench/tests/**` |
 | 10 | 构建产物 | `dsh-ide-workbench/dist/client.js`（`npm run build`） |
-| 11 | 本轮实施记录（里程碑、实测数值、M0 结论） | `dsh-ide-workbench/docs/PRD-v5-实施进展.md`（新建） |
+| 11 | 本轮实施记录（里程碑、实测数值、M0 结论） | `dsh-ide-workbench/docs/prd/v5/PRD-v5-实施进展.md`（新建） |
 | 12 | 验收记录（自动化 + 实机清单勾选结果） | `dsh-ide-workbench/docs/VERIFICATION.md`（追加本轮段） |
-| 13 | 配套评估文档 | `docs/代码智能-可行性评估.md`、`docs/代码智能-性能开销评估.md`（已完成） |
+| 13 | 配套评估文档 | `docs/prd/v5/代码智能-可行性评估.md`、`docs/prd/v5/代码智能-性能开销评估.md`（已完成） |
 | 14 | 性能基准测试脚手架（§11 预算的复现手段） | `dsh-ide-workbench/docs/bench/`（已完成，见 `docs/bench/README.md`；不在 `files` 白名单内，不随插件分发） |
 
 ---
