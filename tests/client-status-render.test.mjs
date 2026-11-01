@@ -429,6 +429,47 @@ test('the reconnect button belongs to the dead session alone', async () => {
   assert.equal(showRebuildButton('degraded', {}), true, 'the rebuild still belongs to the host')
 })
 
+test('the reconnect button follows the dead session, not the display winner', async () => {
+  const { showReconnectButton, showRebuildButton, lspStatusView } = await loadModule()
+  const store = { t: translator(en) }
+
+  // The host knows the reason, so the status bar shows ITS text - but the
+  // exit has to be there anyway: the greyed menu item says "the semantic
+  // analysis session is not ready, reconnect it from the status bar", and a
+  // tooltip that promises a button that is not there is a lie (review R6-1).
+  for (const state of ['idle', 'suspended', 'degraded', 'crashed', 'cancelled', 'failed']) {
+    assert.equal(showReconnectButton(state, 'failed'), true, `the dead session offers the reconnect over ${state}`)
+    // The two buttons stay exclusive: the reconnect button does everything
+    // the rebuild button does (the host stops and starts its server) and
+    // more (the client handshake) - two buttons for one problem would offer
+    // the weaker one first.
+    assert.equal(showRebuildButton(state, { clientState: 'failed' }), false, `no rebuild next to the reconnect over ${state}`)
+  }
+  // A living session needs no exit - and the rebuild button stays with the
+  // host.
+  assert.equal(showReconnectButton('idle', 'ready'), false, 'a living session needs no reconnect')
+  assert.equal(showReconnectButton('idle', 'starting'), false, 'a connecting session needs no reconnect')
+  assert.equal(showRebuildButton('idle', { clientState: 'ready' }), true, 'the rebuild still belongs to the host')
+
+  // The view of the status bar is the one of the host - the button is the
+  // one of the problem.
+  const idle = lspStatusView(store, snapshot({ state: 'idle', clientState: 'failed' }))
+  assert.equal(idle.key, 'idle', 'the host keeps the wording')
+  assert.equal(showReconnectButton(idle.key, 'failed'), true, 'the exit is there anyway')
+})
+
+test('the status bar and the toast share one list of the healthy host states', async () => {
+  // One list in one place: the status bar and the toast gate must not
+  // disagree about what "the host is fine" means - they are the two pillars
+  // of the same decision, and two lists would let them fight each other
+  // (review R6-5).
+  const source = await readFile(join(root, 'src/client/Workbench.jsx'), 'utf8')
+  assert.match(source, /import \{ LSP_HOST_HEALTHY_STATES \} from '\.\/lsp-session\.js'/, 'the status bar takes the shared list')
+  assert.doesNotMatch(source, /const HOST_HEALTHY_STATES/, 'the status bar has no list of its own')
+  const session = await readFile(join(root, 'src/client/lsp-session.js'), 'utf8')
+  assert.match(session, /export const LSP_HOST_HEALTHY_STATES = \['starting', 'building', 'ready', 'restarting'\]/, 'the list lives in the session module')
+})
+
 test('the status of a starting session says how long the user waits', async () => {
   const { lspStatusView, formatWaited, waitedFor } = await loadModule()
   const store = { t: translator(en) }
@@ -1079,6 +1120,7 @@ test('both dictionaries carry the new keys of the retrofit', () => {
     'lsp.reconnect',
     'lsp.sessionFailedToast',
     'nav.semanticSessionUnavailable',
+    'nav.semanticSessionConnecting',
   ]
   for (const key of keys) {
     assert.equal(typeof en[key], 'string', `the English text of ${key} is missing`)

@@ -98,6 +98,23 @@ const SCOPE_TIMEOUT_MS = 3000
 const HANDSHAKE_TIMEOUT_MS = 30000
 
 /**
+ * The host states in which the host claims to be all right.
+ *
+ * The client session is a fault of its own: the host may be perfectly healthy
+ * while the link between the browser and the server is dead. But there is
+ * nothing that could fail when the host has no server at all - the project
+ * was put into the basic mode on purpose, or the feature is switched off. In
+ * every other state the host knows better than the client, and its own
+ * explanation is the truth (review P1-2).
+ *
+ * The list lives HERE and not in the two places that use it: the status bar
+ * and the toast must not disagree about what "the host is fine" means. One
+ * of them changing its mind would make them fight each other - and they are
+ * the two pillars of the same decision (review R6-5).
+ */
+export const LSP_HOST_HEALTHY_STATES = ['starting', 'building', 'ready', 'restarting']
+
+/**
  * The decision of the workbench about the index of one root.
  *
  * The store owns the decision: it is the one that asked the user
@@ -1503,14 +1520,9 @@ function refreshLsp() {
   const lspSettings = store.state?.settings?.lsp ?? null
   const root = typeof store.state?.root === 'string' ? store.state.root : ''
   const enabled = sessionEnabled && lspSettings?.enabled !== false
-  // The decision of the workbench about this project: does it get an index?
-  // The store owns it (it asked the user, PRD-v5 §2.3), and the session has
-  // to follow it - a session for a project the user put into the basic mode
-  // waits for a server that will never come, and its handshake ends in a
-  // failure report for a decision that was made on purpose.
-  const decision = indexDecisionOf(store, root)
   // Without a project there is no language server to talk to, and a project
-  // the workbench does not want to index gets no session at all.
+  // the workbench does not want to index gets no session at all - the store
+  // owns that decision (it asked the user, PRD-v5 §2.3).
   const wanted = sessionWanted(store, root)
   const policy = indexScopePolicy(lspSettings)
   // The scope root belongs to the project: another project has another scope,
@@ -1555,14 +1567,15 @@ function refreshLsp() {
     // before the socket is closed, so the host learns about it while the
     // session is still alive.
     //
-    // The one case in which the server stays: the session was given up
-    // because the HOST released the server (the idle timeout, a crash) -
-    // the host knows that already, and shutting it down again would be
-    // pointless. Another project, a switched-off feature and a project the
-    // user put into the basic mode all end the server of the old root.
-    if (previousRoot !== root || !enabled || decision === 'conservative') {
-      shutdownHostLsp(previousRoot)
-    }
+    // Every way into this branch wants the same thing: the semantic features
+    // are switched off, the project was closed, or the workbench decided that
+    // this project stays in the basic mode. In all three cases the server of
+    // the old root has to go.
+    //
+    // (The host releasing its server on its own - the idle timeout - is NOT
+    // one of them: the session does not notice that at all. It stays
+    // connected, and the host wakes the server on the next payload.)
+    shutdownHostLsp(previousRoot)
     stopLsp()
   }
 }
@@ -1736,6 +1749,31 @@ export function keymapKeyFor(name) {
 }
 
 /**
+ * The reason why the semantic entries are greyed out, for one state of the
+ * client session.
+ *
+ * Three states, three reasons (review R6-1):
+ *
+ *   'ready'    - the server answered and does not offer the feature;
+ *   'failed'   - the session is dead. The way out is the [reconnect] button
+ *                in the status bar, and that button IS there: it follows the
+ *                dead session, not the state that won the status bar;
+ *   'starting' - the session is still connecting. There is nothing to
+ *                reconnect yet, and promising a button that does not exist
+ *                is exactly the mistake this round fixed.
+ *
+ * The helper is exported so the mapping can be asserted without driving a
+ * session into every state.
+ * @param {string} state the state of the client session
+ * @returns {string} the key of the text
+ */
+export function semanticUnavailableFor(state) {
+  if (state === 'ready') return 'nav.semanticUnavailable'
+  if (state === 'failed') return 'nav.semanticSessionUnavailable'
+  return 'nav.semanticSessionConnecting'
+}
+
+/**
  * The labels of the navigation menu items.
  *
  * The workbench keeps the i18n table in one place, so the texts come from
@@ -1749,9 +1787,7 @@ export function keymapKeyFor(name) {
  * @returns {{goToDefinition: string, findUsages: string, findUsagesText: string, semanticUnavailable: string}} the labels
  */
 export function navLabels() {
-  const unavailable = clientSessionState === 'ready'
-    ? translate('nav.semanticUnavailable')
-    : translate('nav.semanticSessionUnavailable')
+  const unavailable = translate(semanticUnavailableFor(clientSessionState))
   return {
     goToDefinition: translate('nav.goToDefinition'),
     findUsages: translate('nav.findUsages'),

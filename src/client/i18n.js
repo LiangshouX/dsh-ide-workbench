@@ -634,6 +634,9 @@ export const en = {
   // The reason while the CLIENT session is not ready: the feature is missing
   // for another reason than a server that does not support it.
   'nav.semanticSessionUnavailable': 'The semantic analysis session is not ready. Reconnect it from the status bar.',
+  // The session is still connecting: there is nothing to reconnect yet, and
+  // the text must not promise a button that does not exist.
+  'nav.semanticSessionConnecting': 'The semantic analysis session is still connecting.',
 
   'lsp.lowMemory': 'Not enough free memory (needs {need} MB, {free} MB available)',
   'lsp.lowMemoryHint': 'Close the other programs, or use the basic mode for this language.',
@@ -1267,6 +1270,8 @@ export const zh = {
   'nav.semanticUnavailable': '该语言服务器不支持查找引用。',
   // 客户端会话未就绪时的原因：功能不可用的原因与「服务器不支持」不同。
   'nav.semanticSessionUnavailable': '语义分析会话尚未就绪，可在状态栏重新连接。',
+  // 会话仍在连接中：此时还没有可重连的东西，文案不能承诺一个不存在的按钮。
+  'nav.semanticSessionConnecting': '语义分析会话正在连接…',
 
   'lsp.lowMemory': '系统可用内存不足（需要 {need} MB，可用 {free} MB）',
   'lsp.lowMemoryHint': '请关闭其它程序，或对该语言改用保守版。',

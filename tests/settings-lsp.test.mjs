@@ -710,6 +710,67 @@ test('the page has no "language servers turned off" row any more', async () => {
   assert.equal('settings.lspServersDisabledHint' in zh, false, 'the Chinese hint is gone')
 })
 
+test('a language that is switched off and not installed keeps its row', async () => {
+  const mod = await loadPanel()
+  const store = panelStore()
+  // The host puts a language that is switched off AND not installed into the
+  // bucket of the missing servers - and it carries the switch there too.
+  // Without a row in the switch list the user could only switch it on again
+  // by editing the settings file (review R6-2).
+  const state = panelState({ servers: { java: { enabled: false } } })
+  state.lsp.servers.missing = [{
+    languageId: 'java',
+    command: 'jdtls',
+    hint: 'install jdtls and make sure it is on PATH',
+    enabled: false,
+  }]
+  const mounted = mount(mod.SettingsForm, () => ({ store, state }))
+  try {
+    const row = languageSwitch(mounted.tree, 'java')
+    assert.ok(row !== undefined, 'the switched-off language has a row')
+    assert.equal(row.props.checked, false, 'the switch of the switched-off language is empty')
+    // The title of the row is the install advice of the host: the language
+    // shows up nowhere else, so this is the last place that can say how to
+    // install it.
+    const label = elementsOf(mounted.tree).find(element =>
+      element.props?.className === 'iwb-settings-language-toggle'
+      && elementsOf(element).some(child =>
+        child.props?.className === 'iwb-settings-language-name' && child.props?.children === 'java'))
+    assert.ok(label !== undefined, 'the row has its label')
+    assert.equal(label.props.title, 'install jdtls and make sure it is on PATH', 'the hint of the host is the title')
+    // The user clicks the switch: the language is switched on again.
+    row.props.onChange({ target: { checked: true } })
+    await settle()
+    assert.equal(store.patches.length, 1, 'the panel sent one patch')
+    assert.equal(store.patches[0].lsp.servers.java.enabled, true, 'the language was switched on')
+  } finally {
+    mounted.unmount()
+  }
+})
+
+test('the "not found" row lists the languages that are wanted', async () => {
+  const mod = await loadPanel()
+  const store = panelStore()
+  const state = panelState()
+  state.lsp.servers.missing = [
+    { languageId: 'java', command: 'jdtls', hint: 'install jdtls', enabled: false },
+    { languageId: 'go', command: 'gopls', hint: 'install gopls', enabled: true },
+  ]
+  const mounted = mount(mod.SettingsForm, () => ({ store, state }))
+  try {
+    const values = elementsOf(mounted.tree)
+      .filter(element => element.props?.className === 'iwb-settings-value')
+      .map(element => String(element.props?.children ?? ''))
+    // A language that the user switched off is not announced as missing any
+    // more: the status bar filters it the same way, and the two interfaces
+    // must not use the same word for two different things (review R6-3).
+    assert.ok(!values.some(value => value.includes('java')), 'the switched-off language is not announced as missing')
+    assert.ok(values.some(value => value.includes('go')), 'the wanted language is announced as missing')
+  } finally {
+    mounted.unmount()
+  }
+})
+
 test('the global ceiling hint says what the value really does', () => {
   // The user raised the global ceiling and still saw the old one, because
   // the value is a cap over every language and a language keeps its own

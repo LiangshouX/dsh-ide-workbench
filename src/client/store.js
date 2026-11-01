@@ -24,7 +24,7 @@ import { isPathWithin, relativePathWithin, sameScopePath, sessionCwdOf } from '.
 // analysis: the host knows whether the language server PROCESS is up, the
 // client knows whether the link to it works. The import graph is acyclic -
 // `lsp-session.js` imports the workspace and the API, not the store.
-import { reconnectLsp as reconnectLspSession } from './lsp-session.js'
+import { LSP_HOST_HEALTHY_STATES, reconnectLsp as reconnectLspSession } from './lsp-session.js'
 
 let sequence = 0
 
@@ -475,18 +475,6 @@ const LSP_RECOVERED_STATES = ['starting', 'building', 'ready', 'idle', 'suspende
  * user never sees the cancel button (PRD-v5 §2.4 STALE-03).
  */
 const LSP_INDEX_STATES = ['starting', 'building', 'restarting']
-
-/**
- * The host states in which a language server is really on its way.
- *
- * The client session is a fault of its own: the host may be perfectly
- * healthy while the link between the browser and the server is dead. But
- * there is nothing that could fail when the host has no server at all - the
- * user put the project into the basic mode on purpose, or the feature is
- * switched off. In every other state the host knows better than the client,
- * and its explanation is the truth (review P1-2).
- */
-const LSP_HOST_FINE_STATES = ['starting', 'building', 'ready', 'restarting']
 
 export class WorkbenchStore {
   /**
@@ -1710,7 +1698,7 @@ export class WorkbenchStore {
     // basic mode on purpose, the feature is switched off, or the server was
     // released - and a red "the session is dead" on top of it would be a
     // false alarm (review P1-2).
-    if (!LSP_HOST_FINE_STATES.includes(lsp.state)) return
+    if (!LSP_HOST_HEALTHY_STATES.includes(lsp.state)) return
     this.lspSessionFaultNotified = true
     // The toast carries the localized text. The technical reason stays in
     // the mirrored state, where the status bar shows it in its tooltip.

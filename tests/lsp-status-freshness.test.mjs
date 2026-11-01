@@ -27,6 +27,7 @@ import {
   lspClient,
   navLabels,
   reconnectLsp,
+  semanticUnavailableFor,
   setLspEnabled,
   shutdownLsp,
 } from '../src/client/lsp-session.js'
@@ -962,8 +963,8 @@ test('the menu says why the semantic entries are greyed out', async () => {
     configureLsp(store)
     assert.equal(
       navLabels().semanticUnavailable,
-      'nav.semanticSessionUnavailable',
-      'the session is not ready: the reason is the session, not the server',
+      'nav.semanticSessionConnecting',
+      'the session is still connecting: there is no button to promise yet',
     )
     await tick(20)
     assert.equal(
@@ -972,6 +973,16 @@ test('the menu says why the semantic entries are greyed out', async () => {
       'the session is ready: the old reason is the right one again',
     )
   })
+})
+
+test('the three reasons of a greyed-out menu item are told apart', () => {
+  // The session is dead -> the way out is the [reconnect] button in the
+  // status bar, and that button is there (it follows the dead session).
+  assert.equal(semanticUnavailableFor('failed'), 'nav.semanticSessionUnavailable')
+  // The session is still connecting -> nothing to reconnect yet.
+  assert.equal(semanticUnavailableFor('starting'), 'nav.semanticSessionConnecting')
+  // The session is ready -> the server simply does not offer the feature.
+  assert.equal(semanticUnavailableFor('ready'), 'nav.semanticUnavailable')
 })
 
 test('the reconnect repeats the handshake and restarts the server of the host', async (t) => {

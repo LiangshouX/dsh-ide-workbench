@@ -31906,6 +31906,9 @@ var en = {
   // The reason while the CLIENT session is not ready: the feature is missing
   // for another reason than a server that does not support it.
   "nav.semanticSessionUnavailable": "The semantic analysis session is not ready. Reconnect it from the status bar.",
+  // The session is still connecting: there is nothing to reconnect yet, and
+  // the text must not promise a button that does not exist.
+  "nav.semanticSessionConnecting": "The semantic analysis session is still connecting.",
   "lsp.lowMemory": "Not enough free memory (needs {need} MB, {free} MB available)",
   "lsp.lowMemoryHint": "Close the other programs, or use the basic mode for this language.",
   "lsp.crashedToast": "The language server exited.",
@@ -32521,6 +32524,8 @@ var zh = {
   "nav.semanticUnavailable": "\u8BE5\u8BED\u8A00\u670D\u52A1\u5668\u4E0D\u652F\u6301\u67E5\u627E\u5F15\u7528\u3002",
   // 客户端会话未就绪时的原因：功能不可用的原因与「服务器不支持」不同。
   "nav.semanticSessionUnavailable": "\u8BED\u4E49\u5206\u6790\u4F1A\u8BDD\u5C1A\u672A\u5C31\u7EEA\uFF0C\u53EF\u5728\u72B6\u6001\u680F\u91CD\u65B0\u8FDE\u63A5\u3002",
+  // 会话仍在连接中：此时还没有可重连的东西，文案不能承诺一个不存在的按钮。
+  "nav.semanticSessionConnecting": "\u8BED\u4E49\u5206\u6790\u4F1A\u8BDD\u6B63\u5728\u8FDE\u63A5\u2026",
   "lsp.lowMemory": "\u7CFB\u7EDF\u53EF\u7528\u5185\u5B58\u4E0D\u8DB3\uFF08\u9700\u8981 {need} MB\uFF0C\u53EF\u7528 {free} MB\uFF09",
   "lsp.lowMemoryHint": "\u8BF7\u5173\u95ED\u5176\u5B83\u7A0B\u5E8F\uFF0C\u6216\u5BF9\u8BE5\u8BED\u8A00\u6539\u7528\u4FDD\u5B88\u7248\u3002",
   "lsp.crashedToast": "\u8BED\u8A00\u670D\u52A1\u5668\u5DF2\u9000\u51FA\u3002",
@@ -37752,6 +37757,7 @@ var DEFAULT_SHORTCUTS = {
 var LSP_WS_PATH = "ide-workbench/ws/lsp";
 var SCOPE_TIMEOUT_MS = 3e3;
 var HANDSHAKE_TIMEOUT_MS = 3e4;
+var LSP_HOST_HEALTHY_STATES = ["starting", "building", "ready", "restarting"];
 function indexDecisionOf(store, root) {
   if (store === null || store === void 0) return "unknown";
   if (typeof store.lspIndexDecision !== "function") {
@@ -38333,7 +38339,6 @@ function refreshLsp() {
   const lspSettings = store.state?.settings?.lsp ?? null;
   const root = typeof store.state?.root === "string" ? store.state.root : "";
   const enabled = sessionEnabled && lspSettings?.enabled !== false;
-  const decision = indexDecisionOf(store, root);
   const wanted = sessionWanted(store, root);
   const policy = indexScopePolicy(lspSettings);
   if (sessionRoot !== root) sessionScopeRoot = "";
@@ -38353,9 +38358,7 @@ function refreshLsp() {
     }
     startLsp(store);
   } else if (hadClient) {
-    if (previousRoot !== root || !enabled || decision === "conservative") {
-      shutdownHostLsp(previousRoot);
-    }
+    shutdownHostLsp(previousRoot);
     stopLsp();
   }
 }
@@ -38416,8 +38419,13 @@ function keymapKeyFor(name2) {
     return key;
   }).filter((part) => part !== "").join("-");
 }
+function semanticUnavailableFor(state) {
+  if (state === "ready") return "nav.semanticUnavailable";
+  if (state === "failed") return "nav.semanticSessionUnavailable";
+  return "nav.semanticSessionConnecting";
+}
 function navLabels() {
-  const unavailable = clientSessionState === "ready" ? translate("nav.semanticUnavailable") : translate("nav.semanticSessionUnavailable");
+  const unavailable = translate(semanticUnavailableFor(clientSessionState));
   return {
     goToDefinition: translate("nav.goToDefinition"),
     findUsages: translate("nav.findUsages"),
@@ -38765,7 +38773,6 @@ function crashAdviceFor(detail, t2) {
 var LSP_FAULT_STATES = ["crashed", "degraded"];
 var LSP_RECOVERED_STATES = ["starting", "building", "ready", "idle", "suspended"];
 var LSP_INDEX_STATES = ["starting", "building", "restarting"];
-var LSP_HOST_FINE_STATES = ["starting", "building", "ready", "restarting"];
 var WorkbenchStore = class {
   /**
    * @param {any} ctx client cordis context
@@ -39788,7 +39795,7 @@ var WorkbenchStore = class {
       return;
     }
     if (this.lspSessionFaultNotified) return;
-    if (!LSP_HOST_FINE_STATES.includes(lsp.state)) return;
+    if (!LSP_HOST_HEALTHY_STATES.includes(lsp.state)) return;
     this.lspSessionFaultNotified = true;
     this.toast("error", this.t("lsp.sessionFailedToast"));
   }
@@ -60212,6 +60219,7 @@ function Field({ label: label3, hint, title, children }) {
 function mergeServerToggles(servers) {
   const available = Array.isArray(servers?.available) ? servers.available : [];
   const legacy = Array.isArray(servers?.disabled) ? servers.disabled : [];
+  const missing = Array.isArray(servers?.missing) ? servers.missing : [];
   const merged = [];
   const seen = /* @__PURE__ */ new Set();
   const add2 = (server, enabled) => {
@@ -60224,12 +60232,13 @@ function mergeServerToggles(servers) {
   };
   for (const server of available) add2(server, server?.enabled !== false);
   for (const server of legacy) add2(server, false);
+  for (const server of missing) add2(server, server?.enabled !== false);
   return merged;
 }
 function SettingsForm({ store, state, compact, onStatusChange }) {
   const t2 = store.t;
   const settings = state.settings ?? {};
-  const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : [];
+  const missingServers = (Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : []).filter((server) => server?.enabled !== false);
   const toggleServers = mergeServerToggles(state.lsp?.servers);
   const lspResources = state.lsp?.resources ?? null;
   const runningServers = ["starting", "building", "ready", "restarting"].includes(state.lsp?.state) ? 1 : 0;
@@ -60860,7 +60869,12 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
               "label",
               {
                 className: "iwb-settings-language-toggle",
-                title: server.resolvedPath ?? server.command
+                // The hint of the host is the install advice. A language
+                // that is switched off AND not installed only shows up in
+                // this list (the "not found" row lists the languages that
+                // are wanted), so its title is the last place that can say
+                // "this one is not installed, here is how to install it".
+                title: server.resolvedPath ?? server.hint ?? server.command
               },
               import_react16.default.createElement("input", {
                 type: "checkbox",
@@ -61629,10 +61643,11 @@ function isChineseText(text) {
 }
 function showRebuildButton(viewKey, lsp = {}) {
   if (lsp.rebuilding === true) return false;
+  if (lsp.clientState === "failed") return false;
   return ["degraded", "failed", "cancelled", "idle", "suspended"].includes(viewKey);
 }
-function showReconnectButton(viewKey) {
-  return viewKey === "sessionFailed";
+function showReconnectButton(viewKey, clientState = "") {
+  return viewKey === "sessionFailed" || clientState === "failed";
 }
 function showCancelButton(hostState, cancellable) {
   return cancellable === true && ["building", "starting", "restarting"].includes(hostState);
@@ -61649,7 +61664,6 @@ function memoryFacts(store, resources) {
   const text = `${t2("lsp.diagnostics.memoryAvailable")} ${availableMB} MB \xB7 ${t2("lsp.diagnostics.memoryNeed")} ${needMB} MB` + (reservedMB > 0 ? ` \xB7 ${t2("lsp.diagnostics.memoryReserved")} ${reservedMB} MB` : "");
   return { availableMB, needMB, reservedMB, text };
 }
-var HOST_HEALTHY_STATES = ["starting", "building", "ready", "restarting"];
 var HOST_CONNECTING_STATES = ["ready", "building"];
 function waitedSince(lsp) {
   const startedAt = typeof lsp?.startedAt === "number" && lsp.startedAt > 0 ? lsp.startedAt : 0;
@@ -61685,7 +61699,7 @@ function lspStatusView(store, state) {
       title: interpolate5(t2("lsp.serverMissing"), { language: missingOnly.languageId })
     };
   }
-  if (clientState === "failed" && HOST_HEALTHY_STATES.includes(current)) {
+  if (clientState === "failed" && LSP_HOST_HEALTHY_STATES.includes(current)) {
     return {
       ...base2,
       key: "sessionFailed",
@@ -61772,7 +61786,7 @@ function LspStatus({ store, state, onOpenSettings, onOpenDiagnostics }) {
   const cancellable = lsp.cancellable === true || startedAt > 0 && Date.now() - startedAt > cancelAfter;
   const showCancel = showCancelButton(lsp.state, cancellable);
   const showRebuild = showRebuildButton(view.key, lsp);
-  const showReconnect = showReconnectButton(view.key);
+  const showReconnect = showReconnectButton(view.key, lsp.clientState);
   const tone = view.tone === "ok" ? " iwb-lsp-status-ready" : view.tone === "warn" ? " iwb-lsp-status-warn" : view.tone === "error" ? " iwb-lsp-status-error" : " iwb-lsp-status-muted";
   const title = view.detail === "" ? view.title : `${view.title} \u2014 ${view.detail}`;
   const onClick = view.action === "settings" ? () => {

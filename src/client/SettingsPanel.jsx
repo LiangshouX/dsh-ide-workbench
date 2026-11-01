@@ -158,13 +158,20 @@ function Field({ label, hint, title, children }) {
  * restarted, and the user must not have to wait for that to switch a
  * language back on.
  *
- * @param {{available?: unknown[], disabled?: unknown[]}|undefined} servers
+ * A language that is switched off AND not installed lands in the bucket of
+ * the missing servers (the host carries the `enabled` flag there too). It
+ * is merged in as well - otherwise it has no row in the switch list at all,
+ * and the user could only switch it on again by editing the settings file
+ * (review R6-2).
+ *
+ * @param {{available?: unknown[], disabled?: unknown[], missing?: unknown[]}|undefined} servers
  *   the registry the host reported
  * @returns {object[]} one entry per language, in the order of the host
  */
 export function mergeServerToggles(servers) {
   const available = Array.isArray(servers?.available) ? servers.available : []
   const legacy = Array.isArray(servers?.disabled) ? servers.disabled : []
+  const missing = Array.isArray(servers?.missing) ? servers.missing : []
   const merged = []
   const seen = new Set()
   // The bucket of the new host wins over the bucket of the old one: it
@@ -181,14 +188,25 @@ export function mergeServerToggles(servers) {
   // A language of the old bucket is switched off by definition - that is the
   // only thing the old host knew about it.
   for (const server of legacy) add(server, false)
+  // A language that is not installed carries the switch of the settings file
+  // as well: the host reports it there.
+  for (const server of missing) add(server, server?.enabled !== false)
   return merged
 }
 
 export function SettingsForm({ store, state, compact, onStatusChange }) {
   const t = store.t
   const settings = state.settings ?? {}
-  /** Language servers the host could not find on this machine. */
-  const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : []
+  /**
+   * Language servers the host could not find on this machine.
+   *
+   * A language that the user switched off is not missing: it is wanted and
+   * not installed, or it is installed and simply off. The status bar filters
+   * the same way, so the two interfaces do not use the same word for two
+   * different things (review R6-3).
+   */
+  const missingServers = (Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : [])
+    .filter(server => server?.enabled !== false)
   /** Every language server of the machine, switched on or off. */
   const toggleServers = mergeServerToggles(state.lsp?.servers)
   /** The memory snapshot of the host, when it was fetched. */
@@ -740,7 +758,12 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
                 // control it holds, and that has to stay the switch.
                 React.createElement('label', {
                   className: 'iwb-settings-language-toggle',
-                  title: server.resolvedPath ?? server.command,
+                  // The hint of the host is the install advice. A language
+                  // that is switched off AND not installed only shows up in
+                  // this list (the "not found" row lists the languages that
+                  // are wanted), so its title is the last place that can say
+                  // "this one is not installed, here is how to install it".
+                  title: server.resolvedPath ?? server.hint ?? server.command,
                 },
                   React.createElement('input', {
                     type: 'checkbox',

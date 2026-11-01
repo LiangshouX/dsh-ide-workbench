@@ -17,6 +17,7 @@ import { SearchPopup } from './SearchPopup.jsx'
 import { ContextMenu, ConfirmModal, Kbd, Toast } from './ui.jsx'
 import { baseName } from './util.js'
 import { STACK_WIDTH } from './layout.js'
+import { LSP_HOST_HEALTHY_STATES } from './lsp-session.js'
 
 /**
  * Translate with an English fallback for keys the locale table does not
@@ -366,12 +367,18 @@ function isChineseText(text) {
  * click away". A server that was released (`idle`, `suspended`) is
  * recoverable, so the button belongs to those states too (PRD-v5 §1.4).
  *
+ * The button is NOT offered to a dead client session: the reconnect button
+ * does everything the rebuild button does (the host stops and starts its
+ * server) PLUS the client handshake, so showing both would offer two
+ * buttons for one problem - and the weaker one first (review R6-1).
+ *
  * @param {string} viewKey the key of the status view
  * @param {object} [lsp] the `lsp` slice of the state
  * @returns {boolean} true when the button is shown
  */
 export function showRebuildButton(viewKey, lsp = {}) {
   if (lsp.rebuilding === true) return false
+  if (lsp.clientState === 'failed') return false
   return ['degraded', 'failed', 'cancelled', 'idle', 'suspended'].includes(viewKey)
 }
 
@@ -384,11 +391,24 @@ export function showRebuildButton(viewKey, lsp = {}) {
  * server. The two buttons are exclusive: the rebuild button belongs to the
  * states of the host, the reconnect button to the dead session.
  *
+ * The button follows the PROBLEM and not the display winner: the red "the
+ * session is dead" only wins while the host claims to be fine (the host
+ * knows the reason in every other state), but the exit has to be there
+ * whenever the session is dead - the greyed menu item points at it ("the
+ * semantic analysis session is not ready, reconnect it from the status
+ * bar"), and a tooltip that promises a button that is not there is a lie
+ * (review R6-1).
+ *
+ * For a host that has no server at all (`idle`) the reconnect button is
+ * exactly the right one: it repeats the handshake AND starts the server, in
+ * one click.
+ *
  * @param {string} viewKey the key of the status view
+ * @param {string} [clientState] the state of the client session
  * @returns {boolean} true when the button is shown
  */
-export function showReconnectButton(viewKey) {
-  return viewKey === 'sessionFailed'
+export function showReconnectButton(viewKey, clientState = '') {
+  return viewKey === 'sessionFailed' || clientState === 'failed'
 }
 
 /**
@@ -444,16 +464,6 @@ export function memoryFacts(store, resources) {
     + (reservedMB > 0 ? ` · ${t('lsp.diagnostics.memoryReserved')} ${reservedMB} MB` : '')
   return { availableMB, needMB, reservedMB, text }
 }
-
-/**
- * The host states in which the language server is supposed to work.
- *
- * Only in these states may the state of the client session overrule the
- * host: everywhere else the host knows the real reason - there is no
- * language server at all, or it crashed, or it was released - and its own
- * wording is the more useful one (review P1-2).
- */
-const HOST_HEALTHY_STATES = ['starting', 'building', 'ready', 'restarting']
 
 /**
  * The host states in which the client session shows "connecting…".
@@ -566,7 +576,7 @@ export function lspStatusView(store, state) {
   // The language that is not installed is the one exception above - that
   // message tells the user what to do, and a reconnect cannot install a
   // server.
-  if (clientState === 'failed' && HOST_HEALTHY_STATES.includes(current)) {
+  if (clientState === 'failed' && LSP_HOST_HEALTHY_STATES.includes(current)) {
     return {
       ...base,
       key: 'sessionFailed',
@@ -730,7 +740,12 @@ function LspStatus({ store, state, onOpenSettings, onOpenDiagnostics }) {
   // The dead client session has a way out of its own: rebuilding the index
   // of a healthy server would not repair the link between the browser and
   // the server. The two buttons are exclusive.
-  const showReconnect = showReconnectButton(view.key)
+  //
+  // The reconnect button follows the dead session and not the key of the
+  // status view: the host may own the wording of the status bar, but the
+  // exit has to be there whenever the session is dead - the greyed menu
+  // item points at it (review R6-1).
+  const showReconnect = showReconnectButton(view.key, lsp.clientState)
   const tone = view.tone === 'ok' ? ' iwb-lsp-status-ready'
     : (view.tone === 'warn' ? ' iwb-lsp-status-warn' : (view.tone === 'error' ? ' iwb-lsp-status-error' : ' iwb-lsp-status-muted'))
   const title = view.detail === '' ? view.title : `${view.title} — ${view.detail}`
