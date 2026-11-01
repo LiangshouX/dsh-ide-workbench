@@ -313,7 +313,7 @@ function initialState() {
        */
       buildingProgram: false,
       /** The language-server registry (`lsp.servers`), fetched once per language. */
-      servers: { available: [], missing: [], disabled: [] },
+      servers: { available: [], missing: [] },
       /**
        * The health of the semantic features on the client side.
        *
@@ -2251,11 +2251,17 @@ export class WorkbenchStore {
   async #loadLspServers() {
     try {
       const result = await call('lsp.servers', {})
+      // A host that still runs the old code puts the languages that are
+      // switched off into a `disabled` bucket. The bucket is passed through
+      // as it is: the settings page merges it into the switch list, so a
+      // language can be switched on again before the host process is
+      // restarted. A host of the new contract has no such bucket.
+      const legacy = Array.isArray(result?.disabled) ? { disabled: result.disabled } : {}
       this.patch('lsp', {
         servers: {
           available: Array.isArray(result?.available) ? result.available : [],
           missing: Array.isArray(result?.missing) ? result.missing : [],
-          disabled: Array.isArray(result?.disabled) ? result.disabled : [],
+          ...legacy,
         },
       })
     } catch {

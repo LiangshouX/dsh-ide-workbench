@@ -1194,35 +1194,35 @@ export class LspManager {
   /**
    * Every language server this plugin knows about.
    *
-   * A language that is switched off in the settings (`lsp.servers[languageId]
-   * .enabled === false`) is neither available nor missing: it is reported
-   * as disabled, so the settings page can tell "not installed" and "turned
-   * off" apart.
-   * @returns {Promise<{ available: object[], missing: object[], disabled: object[] }>}
+   * The command of every language of the registry is resolved, no matter how
+   * the switch of the settings stands: a language that is turned off is still
+   * probed and still reported, because a language that is not listed cannot
+   * be turned on again. The switch itself travels with the entry
+   * (`enabled`), so the settings page can tell "not installed" and "turned
+   * off" apart without a third list.
+   * @returns {Promise<{ available: object[], missing: object[] }>}
    */
   async servers() {
     const settings = await this.#settings()
     const lsp = lspSection(settings)
     const available = []
     const missing = []
-    const disabled = []
     for (const [languageId, registryEntry] of Object.entries(LSP_REGISTRY)) {
       const override = isPlainObject(lsp.servers[languageId]) ? lsp.servers[languageId] : {}
       const command = typeof override.command === 'string' && override.command !== ''
         ? override.command
         : registryEntry.command
-      if (override.enabled === false) {
-        disabled.push({ languageId, command, hint: 'the language server is turned off in the settings' })
-        continue
-      }
+      // The effective switch of the language: everything but an explicit
+      // `false` leaves the language on.
+      const enabled = override.enabled !== false
       const invalid = validateServerCommand(command)
       if (invalid !== null) {
-        missing.push({ languageId, command, hint: invalid })
+        missing.push({ languageId, command, enabled, hint: invalid })
         continue
       }
       const resolution = this.#resolveServer(command)
       if (resolution === null) {
-        missing.push({ languageId, command, hint: hintFor(registryEntry, command) })
+        missing.push({ languageId, command, enabled, hint: hintFor(registryEntry, command) })
         continue
       }
       const memoryLimitMB = Number.isFinite(override.memoryLimitMB)
@@ -1232,6 +1232,7 @@ export class LspManager {
       available.push({
         languageId,
         command,
+        enabled,
         source: resolution.source,
         resolvedPath: resolution.path,
         memoryLimitMB,
@@ -1239,7 +1240,7 @@ export class LspManager {
         memoryLimitSupported: resolution.supportsMemoryLimit,
       })
     }
-    return { available, missing, disabled }
+    return { available, missing }
   }
 
   /**

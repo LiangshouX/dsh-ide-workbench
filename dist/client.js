@@ -31397,8 +31397,6 @@ var en = {
   "settings.lspAutoRestart": "Restart once after a crash",
   "settings.lspServersMissing": "Language servers not found",
   "settings.lspServersMissingHint": "Install them and make sure they are on PATH",
-  "settings.lspServersDisabled": "Language servers turned off",
-  "settings.lspServersDisabledHint": "These languages stay in the basic mode until they are turned on in the settings file",
   "settings.lspOfflineNote": "An offline install does not include the bundled language servers: TypeScript, JavaScript and Python then need a language server on PATH.",
   "settings.terminalGroup": "Terminal",
   "settings.defaultShell": "Default shell profile",
@@ -32022,8 +32020,6 @@ var zh = {
   "settings.lspAutoRestart": "\u5D29\u6E83\u540E\u81EA\u52A8\u91CD\u542F\u4E00\u6B21",
   "settings.lspServersMissing": "\u672A\u627E\u5230\u7684\u8BED\u8A00\u670D\u52A1\u5668",
   "settings.lspServersMissingHint": "\u8BF7\u5B89\u88C5\u5B83\u4EEC\u5E76\u786E\u4FDD\u5B83\u4EEC\u5728 PATH \u4E2D",
-  "settings.lspServersDisabled": "\u5DF2\u5173\u95ED\u7684\u8BED\u8A00\u670D\u52A1\u5668",
-  "settings.lspServersDisabledHint": "\u8FD9\u4E9B\u8BED\u8A00\u5728\u8BBE\u7F6E\u6587\u4EF6\u4E2D\u91CD\u65B0\u542F\u7528\u524D\u53EA\u4F7F\u7528\u57FA\u7840\u6A21\u5F0F",
   "settings.lspOfflineNote": "\u79BB\u7EBF\u5B89\u88C5\u4E0D\u5305\u542B\u6253\u5305\u7684\u8BED\u8A00\u670D\u52A1\u5668\uFF1ATypeScript\u3001JavaScript \u4E0E Python \u9700\u8981 PATH \u4E0A\u6709\u5BF9\u5E94\u7684\u8BED\u8A00\u670D\u52A1\u5668\u3002",
   "settings.terminalGroup": "\u7EC8\u7AEF",
   "settings.defaultShell": "\u9ED8\u8BA4 Shell \u914D\u7F6E",
@@ -38619,7 +38615,7 @@ function initialState() {
        */
       buildingProgram: false,
       /** The language-server registry (`lsp.servers`), fetched once per language. */
-      servers: { available: [], missing: [], disabled: [] },
+      servers: { available: [], missing: [] },
       /**
        * The health of the semantic features on the client side.
        *
@@ -40197,11 +40193,12 @@ var WorkbenchStore = class {
   async #loadLspServers() {
     try {
       const result = await call2("lsp.servers", {});
+      const legacy = Array.isArray(result?.disabled) ? { disabled: result.disabled } : {};
       this.patch("lsp", {
         servers: {
           available: Array.isArray(result?.available) ? result.available : [],
           missing: Array.isArray(result?.missing) ? result.missing : [],
-          disabled: Array.isArray(result?.disabled) ? result.disabled : []
+          ...legacy
         }
       });
     } catch {
@@ -60119,12 +60116,28 @@ function Field({ label: label3, hint, title, children }) {
     import_react16.default.createElement("div", { className: "iwb-settings-field-control" }, children)
   );
 }
+function mergeServerToggles(servers) {
+  const available = Array.isArray(servers?.available) ? servers.available : [];
+  const legacy = Array.isArray(servers?.disabled) ? servers.disabled : [];
+  const merged = [];
+  const seen = /* @__PURE__ */ new Set();
+  const add2 = (server, enabled) => {
+    if (server === null || typeof server !== "object") return;
+    const languageId = server.languageId;
+    if (typeof languageId !== "string" || languageId === "") return;
+    if (seen.has(languageId)) return;
+    seen.add(languageId);
+    merged.push({ ...server, enabled });
+  };
+  for (const server of available) add2(server, server?.enabled !== false);
+  for (const server of legacy) add2(server, false);
+  return merged;
+}
 function SettingsForm({ store, state, compact, onStatusChange }) {
   const t2 = store.t;
   const settings = state.settings ?? {};
   const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : [];
-  const disabledServers = Array.isArray(state.lsp?.servers?.disabled) ? state.lsp.servers.disabled : [];
-  const availableServers = Array.isArray(state.lsp?.servers?.available) ? state.lsp.servers.available : [];
+  const toggleServers = mergeServerToggles(state.lsp?.servers);
   const lspResources = state.lsp?.resources ?? null;
   const runningServers = ["starting", "building", "ready", "restarting"].includes(state.lsp?.state) ? 1 : 0;
   const [draft, setDraft] = (0, import_react16.useState)(settings);
@@ -60677,17 +60690,8 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
           missingServers.map((server) => `${server.languageId} (${server.command})`).join(", ")
         )
       ) : null,
-      // A language that is switched off in the settings file is a fact of
-      // the configuration, not of the machine: it stays in the basic mode.
-      disabledServers.length > 0 ? import_react16.default.createElement(
-        Row,
-        { label: t2("settings.lspServersDisabled"), hint: t2("settings.lspServersDisabledHint") },
-        import_react16.default.createElement(
-          "span",
-          { className: "iwb-settings-value" },
-          disabledServers.map((server) => `${server.languageId} (${server.command})`).join(", ")
-        )
-      ) : null,
+      // No second list of the languages that are switched off: every language
+      // has its own row in the switch list below.
       import_react16.default.createElement("div", { className: "iwb-settings-hint" }, t2("settings.lspOfflineNote")),
       // The memory situation of the machine, as a fact the user can judge:
       // "384 MB needed" is a number, "the machine is short on memory" is a
@@ -60732,7 +60736,11 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
     // (SET-02). The field `lsp.servers[languageId].enabled` existed but had
     // no control, and the global ceiling could only lower a language: the
     // user had no way to give one language more than the global cap.
-    availableServers.length > 0 ? import_react16.default.createElement(
+    //
+    // The list holds every language of the machine, switched on or off: a
+    // language that is switched off keeps its row with an empty box, so the
+    // user can switch it on again.
+    toggleServers.length > 0 ? import_react16.default.createElement(
       Group,
       { title: t2("settings.lspServersGroup"), description: t2("settings.lspServersGroupHint") },
       // One line per language, not one settings row per language: a
@@ -60740,7 +60748,7 @@ function SettingsForm({ store, state, compact, onStatusChange }) {
       import_react16.default.createElement(
         "div",
         { className: "iwb-settings-languages" },
-        availableServers.map((server) => {
+        toggleServers.map((server) => {
           const servers = draft.lsp?.servers ?? {};
           const entry = servers[server.languageId] ?? {};
           const enabled = entry.enabled !== false;
@@ -61564,7 +61572,7 @@ function lspStatusView(store, state) {
   }
   const clientState = typeof lsp.clientState === "string" ? lsp.clientState : "";
   const clientDetail = typeof lsp.clientDetail === "string" ? lsp.clientDetail : "";
-  const missing = (lsp.servers?.missing ?? []).filter((entry) => typeof entry?.languageId === "string");
+  const missing = (lsp.servers?.missing ?? []).filter((entry) => typeof entry?.languageId === "string" && entry.enabled !== false);
   const missingHere = missing.find((entry) => entry.languageId === language2);
   const missingOnly = missingHere ?? (missing.length === 1 ? missing[0] : void 0);
   if (missingOnly !== void 0 && current !== "ready" && current !== "building" && current !== "starting") {

@@ -96,7 +96,7 @@ function mockFetch(routes = {}, calls = []) {
 function lspRoutes(state, extra = {}) {
   return {
     'lsp.status': () => ({ state, enabled: true, languageId: '', detail: 'because' }),
-    'lsp.servers': () => ({ available: [], missing: [], disabled: [] }),
+    'lsp.servers': () => ({ available: [], missing: [] }),
     ...extra,
   }
 }

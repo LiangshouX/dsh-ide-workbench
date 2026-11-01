@@ -493,7 +493,10 @@ export function lspStatusView(store, state) {
   const clientDetail = typeof lsp.clientDetail === 'string' ? lsp.clientDetail : ''
   // A language without a server is a different state than a failing server:
   // the user has to install something, so the item points at the settings.
-  const missing = (lsp.servers?.missing ?? []).filter(entry => typeof entry?.languageId === 'string')
+  // A language that the user switched off is not missing: it is installed
+  // and simply off, and announcing it as "not installed" would send the
+  // user after something that is already there.
+  const missing = (lsp.servers?.missing ?? []).filter(entry => typeof entry?.languageId === 'string' && entry.enabled !== false)
   const missingHere = missing.find(entry => entry.languageId === language)
   // The host reports the language of the running session; without a session
   // it stays empty, so a single language without a server is used as the

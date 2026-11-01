@@ -483,11 +483,50 @@ function panelState(lsp = {}) {
           memoryLimitSupported: true,
         }],
         missing: [],
-        disabled: [],
       },
       resources: null,
     },
   }
+}
+
+/**
+ * The switch of one language in the language-server list.
+ *
+ * The row of a language is the `iwb-settings-language` block that carries the
+ * name of the language; the switch is the first checkbox inside it.
+ * @param {object} tree the tree of the panel
+ * @param {string} languageId the language to look for
+ * @returns {object|undefined} the switch
+ */
+function languageSwitch(tree, languageId) {
+  const row = elementsOf(tree).find(element => {
+    if (element.props?.className !== 'iwb-settings-language') return false
+    return elementsOf(element).some(child =>
+      child.props?.className === 'iwb-settings-language-name' && child.props?.children === languageId)
+  })
+  if (row === undefined) return undefined
+  return elementsOf(row).find(element => element.props?.type === 'checkbox')
+}
+
+/**
+ * Every text the panel shows.
+ * @param {object} tree the tree of the panel
+ * @returns {string[]} the texts
+ */
+function textsOf(tree) {
+  const texts = []
+  const walk = node => {
+    if (typeof node === 'string') { texts.push(node); return }
+    if (node === null || node === undefined || typeof node !== 'object') return
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child)
+      return
+    }
+    if (node.props === undefined) return
+    walk(node.props.children)
+  }
+  walk(tree)
+  return texts
 }
 
 /** Let the debounce of the panel (300 ms) and the store settle. */
@@ -575,6 +614,100 @@ test('an empty per-language ceiling writes no number', async () => {
   } finally {
     mounted.unmount()
   }
+})
+
+// ── one switch per language (no second "turned off" list) ──────────────────
+//
+// A language that is switched off used to leave the switch list of the
+// "语言服务器" group and to show up in a second group ("已关闭的语言服务器")
+// instead. From there it could never be switched on again - the user hit
+// exactly that with javascript and yaml. One checkbox per language is
+// enough: a checked box means "on", an empty box means "off".
+
+test('a language that is switched off keeps its row and can be switched on again', async () => {
+  const mod = await loadPanel()
+  const store = panelStore()
+  // The language is switched off in the settings file, and the host reports
+  // it as installed - but switched off.
+  const state = panelState({ servers: { typescript: { enabled: false } } })
+  state.lsp.servers.available = [{
+    languageId: 'typescript',
+    command: 'typescript-language-server',
+    source: 'PATH',
+    resolvedPath: 'C:\\npm\\typescript-language-server.cmd',
+    enabled: false,
+  }]
+  const mounted = mount(mod.SettingsForm, () => ({ store, state }))
+  try {
+    const row = languageSwitch(mounted.tree, 'typescript')
+    assert.ok(row !== undefined, 'the switched-off language still has its row')
+    assert.equal(row.props.checked, false, 'the switch of the switched-off language is empty')
+    // The user clicks the switch: the language is switched on again.
+    row.props.onChange({ target: { checked: true } })
+    await settle()
+    assert.equal(store.patches.length, 1, 'the panel sent one patch')
+    const entry = store.patches[0].lsp.servers.typescript
+    assert.equal(entry.enabled, true, 'the language was switched on')
+    // The switch is on now - the page shows what it wrote.
+    assert.equal(languageSwitch(mounted.tree, 'typescript').props.checked, true)
+  } finally {
+    mounted.unmount()
+  }
+})
+
+test('the bucket of an older host is merged into the switch list', async () => {
+  const mod = await loadPanel()
+  const store = panelStore()
+  // A host that still runs the old code does not list a language that is
+  // switched off under `available`: it puts it into a `disabled` bucket.
+  // The page has to show that language as well, or the user cannot switch
+  // it back on before the host process is restarted.
+  const state = panelState({ servers: { yaml: { enabled: false } } })
+  state.lsp.servers.disabled = [{ languageId: 'yaml', command: 'yaml-language-server' }]
+  const mounted = mount(mod.SettingsForm, () => ({ store, state }))
+  try {
+    const row = languageSwitch(mounted.tree, 'yaml')
+    assert.ok(row !== undefined, 'the language of the old bucket has a row')
+    assert.equal(row.props.checked, false, 'the switch of the switched-off language is empty')
+    // The language is in the list exactly once.
+    const names = elementsOf(mounted.tree)
+      .filter(element => element.props?.className === 'iwb-settings-language-name')
+      .map(element => element.props.children)
+    assert.deepEqual(names, ['typescript', 'yaml'])
+    // The user clicks the switch: the language is switched on again.
+    row.props.onChange({ target: { checked: true } })
+    await settle()
+    assert.equal(store.patches.length, 1, 'the panel sent one patch')
+    assert.equal(store.patches[0].lsp.servers.yaml.enabled, true, 'the language was switched on')
+  } finally {
+    mounted.unmount()
+  }
+})
+
+test('the page has no "language servers turned off" row any more', async () => {
+  const mod = await loadPanel()
+  const store = panelStore()
+  const state = panelState({ servers: { yaml: { enabled: false } } })
+  state.lsp.servers.disabled = [{ languageId: 'yaml', command: 'yaml-language-server' }]
+  const mounted = mount(mod.SettingsForm, () => ({ store, state }))
+  try {
+    // The old row listed the languages that are switched off with their
+    // command. That list does not exist any more.
+    const values = elementsOf(mounted.tree)
+      .filter(element => element.props?.className === 'iwb-settings-value')
+      .map(element => element.props?.children)
+    assert.ok(!values.includes('yaml (yaml-language-server)'), 'the redundant list is gone')
+    // The language has a row of its own instead.
+    assert.ok(textsOf(mounted.tree).includes('yaml'), 'the switched-off language is listed')
+  } finally {
+    mounted.unmount()
+  }
+  // The text of the old row is gone from both locale tables as well: the
+  // page cannot show a section that has no name any more.
+  assert.equal('settings.lspServersDisabled' in en, false, 'the English text is gone')
+  assert.equal('settings.lspServersDisabledHint' in en, false, 'the English hint is gone')
+  assert.equal('settings.lspServersDisabled' in zh, false, 'the Chinese text is gone')
+  assert.equal('settings.lspServersDisabledHint' in zh, false, 'the Chinese hint is gone')
 })
 
 test('the global ceiling hint says what the value really does', () => {

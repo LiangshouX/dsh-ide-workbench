@@ -526,19 +526,16 @@ test('a language that is turned off in the settings is not started', async () =>
   assert.match(status.detail ?? '', /turned off/i)
 })
 
-test('the registry reports a language that is turned off as disabled', async () => {
+test('the registry reports a language that is turned off as available', async () => {
   const { manager } = makeManager({ lsp: { servers: { typescript: { enabled: false } } } })
   const registry = await manager.servers()
+  const entry = registry.available.find(item => item.languageId === 'typescript')
+  assert.ok(entry !== undefined, 'the language is still listed as available')
+  // The switch travels with the entry: the settings page needs it to show
+  // the language as turned off - and to turn it on again.
+  assert.equal(entry.enabled, false, 'the language is switched off')
   assert.ok(
-    registry.disabled.some(entry => entry.languageId === 'typescript'),
-    'the language is listed as disabled',
-  )
-  assert.ok(
-    !registry.available.some(entry => entry.languageId === 'typescript'),
-    'the language is not listed as available',
-  )
-  assert.ok(
-    !registry.missing.some(entry => entry.languageId === 'typescript'),
+    !registry.missing.some(item => item.languageId === 'typescript'),
     'the language is not listed as missing either',
   )
 })

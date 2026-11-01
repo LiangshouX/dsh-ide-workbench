@@ -29,8 +29,9 @@
 | **D15** | 取消在 `degraded` / 并发时**抛错**（违反 PRD §2.4 的幂等要求） | 中 | ✅ 已修 | `tests/lsp-review-fixes.test.mjs`（降级会话 + 并发两次取消） |
 | **D16** | 取消落在「服务器正在启动」的窗口里 → **残留一个语言服务器进程** | 中 | ✅ 已修 | `tests/lsp-review-fixes.test.mjs`「取消时进程正在启动」用例 |
 | **D17** | 「超时计数器在服务器回答后复位」**没有用例守着**（测试盲区，行为本身是对的） | 中 | ✅ 已修 | `tests/lsp-review-fixes.test.mjs`（这次真的让服务器回答了） |
+| **D18** | 设置页里**取消勾选的语言再也开不回来**（它从「语言服务器」列表消失，落进只读的「已关闭的语言服务器」） | 高 | ✅ 已修 | `tests/lsp-registry.test.mjs`（被关掉的语言仍在 `available` 里）+ `tests/settings-lsp.test.mjs`（它仍有一行未勾选的开关） |
 
-**当前测试数：549 项 / 549 通过 / 0 失败**（基线 329 + 本轮 220）。
+**当前测试数：870 项 / 870 通过 / 0 失败**（`node --test tests/*.test.mjs`，2026-11-01）。
 
 > D10–D14 来自 `docs/prd/v5/PRD-v5-代码检视报告.md`（外部代码检视）的 N1–N5，
 > D15–D17 来自同一份报告的 M1–M3（第四、五轮）；
@@ -582,3 +583,48 @@ worker 的 `noteForwarded()` 对重复握手返回 `false`，但那只是**记�
 - **取消是幂等的**：任何状态都要返回 `{ state: 'cancelled' }`，不许抛错（D15）；
   第二次取消要**等**第一次结束再回答，否则会在进程还活着的时候就返回（D15）。
 - **取消和启动会赛跑**：进程起来之后要核对会话状态，还活着就把刚起的进程停掉（D16）。
+
+---
+
+## 12. D18 —— 设置页里取消勾选的语言再也开不回来
+
+### 12.1 现象（实机反馈）
+
+用户在设置页的「语言服务器」组里取消勾选 JavaScript 与 YAML。这两个语言当场从
+「语言服务器」列表里**消失**，落进下面一个只读的清单：
+
+> **已关闭的语言服务器** —— 这些语言在设置文件中重新启用前只使用基础模式
+> javascript (typescript-language-server), yaml (yaml-language-server)
+
+那个清单里**没有开关**。于是要开回来只能去改设置文件 —— 一个本来只有一个勾的动作，
+被变成了「改文件」。
+
+### 12.2 根因
+
+宿主在列出语言服务器（`lsp.servers`）时先看设置里的 `enabled`，为 `false` 就
+**提前结束对这一个语言的探测**，把它塞进第三个桶 `disabled`：
+
+```js
+if (override.enabled === false) {
+  disabled.push({ languageId, command, hint: 'the language server is turned off in the settings' })
+  continue            // ← 命令根本没有被解析过
+}
+```
+
+设置页的开关列表渲染的是 `available`。被关掉的语言**不在里面**，于是它从界面上
+消失了 ——「已关闭的语言服务器」那一栏就是这个桶的只读投影。
+
+### 12.3 修复
+
+| 侧 | 改法 |
+|---|---|
+| 宿主 `host/lsp.js` | `servers()` 不再因为语言被关掉就跳过它：每个语言都照常探测，装上了进 `available`、没装进 `missing`，两者都带上 `enabled`。`disabled` 这个桶**删掉**。启动路径不变 —— 被关掉的语言仍然不会被启动。 |
+| 客户端 `client/SettingsPanel.jsx` | 删掉「已关闭的语言服务器」那一栏；「语言服务器」组里一个语言一行，勾上就是开、取消就是关，被关掉的语言**仍然占一行**、开关是空的。 |
+| 客户端 `client/Workbench.jsx` | 状态栏不再把被用户关掉的语言说成「未安装」：没装是机器的事实，被关掉是用户的决定。 |
+
+### 12.4 验证
+
+| 用例 | 断言 |
+|---|---|
+| `tests/lsp-registry.test.mjs` | 被关掉的语言仍在 `available` 里且 `enabled === false`；注册表里的每个语言要么在 `available` 要么在 `missing`，**一个都不丢** |
+| `tests/settings-lsp.test.mjs` | 被关掉的语言仍有自己的一行，开关是**未勾选**的；点它写回 `enabled: true`；页面上不再有「已关闭的语言服务器」这一栏 |

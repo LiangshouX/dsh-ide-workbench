@@ -244,6 +244,31 @@ test('a status the client could not refresh wins over every other state', async 
   }
 })
 
+test('a language that is switched off is not announced as not installed', async () => {
+  const { lspStatusView } = await loadModule()
+  const store = { t: translator(en) }
+
+  // The language is installed, the user only switched it off. The status bar
+  // must not send the user after an installation that is already there.
+  const view = lspStatusView(store, snapshot({
+    state: 'idle',
+    languageId: 'yaml',
+    servers: { missing: [{ languageId: 'yaml', command: 'yaml-language-server', enabled: false }] },
+  }))
+  assert.notEqual(view.key, 'missing', 'a switched-off language is not missing')
+  assert.notEqual(view.text, en['lsp.status.missing'], 'the status does not say "not installed"')
+  assert.notEqual(view.action, 'settings', 'the status does not point at the settings')
+
+  // A language that really is not installed is still announced as missing.
+  const missing = lspStatusView(store, snapshot({
+    state: 'idle',
+    languageId: 'yaml',
+    servers: { missing: [{ languageId: 'yaml', command: 'yaml-language-server' }] },
+  }))
+  assert.equal(missing.key, 'missing', 'a language that is not installed is still missing')
+  assert.equal(missing.action, 'settings', 'the status points at the settings')
+})
+
 test('the rebuild button belongs to the released and to the broken server', async () => {
   const { showRebuildButton } = await loadModule()
 
@@ -827,7 +852,7 @@ function panelState(lsp = {}) {
       },
     },
     terminal: { shells: [{ id: 'pwsh', label: 'PowerShell' }] },
-    lsp: { state: 'idle', servers: { available: [], missing: [], disabled: [] }, resources: null },
+    lsp: { state: 'idle', servers: { available: [], missing: [] }, resources: null },
   }
 }
 
@@ -854,6 +879,31 @@ test('the settings page warns what "never exit" costs', async () => {
   // The warning names the price: the language server stays resident.
   assert.match(en['settings.lspIdlePolicyNeverWarning'], /1\.8\s*–\s*2\.2\s*GB/, 'the warning names the footprint')
   assert.match(zh['settings.lspIdlePolicyNeverWarning'], /1\.8\s*–\s*2\.2\s*GB/, 'the warning names the footprint')
+})
+
+test('the settings page shows one switch per language and no "turned off" section', async () => {
+  const { SettingsForm } = await loadModule()
+  // The page is read in Chinese: that is the language of the user who
+  // reported the bug.
+  const store = { ...panelStore(), t: key => zh[key] ?? key }
+  const state = panelState({ servers: { yaml: { enabled: false } } })
+  // The host lists the language that is switched off as installed but off,
+  // and an older host puts it into a bucket of its own.
+  state.lsp.servers.available = [
+    { languageId: 'typescript', command: 'typescript-language-server' },
+    { languageId: 'yaml', command: 'yaml-language-server', enabled: false },
+  ]
+  state.lsp.servers.disabled = [{ languageId: 'yaml', command: 'yaml-language-server' }]
+  const html = renderToStaticMarkup(React.createElement(SettingsForm, { store, state }))
+
+  assert.match(html, /语言服务器/, 'the group of the language servers is there')
+  // The language that is switched off has a row of its own.
+  assert.match(html, /yaml/, 'the switched-off language has a row')
+  // The redundant section is gone.
+  assert.doesNotMatch(html, /已关闭的语言服务器/, 'the section of the turned-off servers is gone')
+  // The row of the language is a checkbox, and it is empty for a language
+  // that is switched off.
+  assert.match(html, /iwb-settings-language/, 'the language has a row')
 })
 
 test('the settings page has a field for the cancel threshold', async () => {

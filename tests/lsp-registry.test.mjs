@@ -126,21 +126,31 @@ test('the bundled language servers are found inside the package', async () => {
   }
 })
 
-test('every language of the registry is available, missing or turned off', async () => {
+test('every language of the registry is available or missing', async () => {
   const { manager } = makeManager()
-  const { available, missing, disabled } = await manager.servers()
+  const { available, missing } = await manager.servers()
   const known = new Set([
     ...available.map(item => item.languageId),
     ...missing.map(item => item.languageId),
-    ...disabled.map(item => item.languageId),
   ])
   assert.deepEqual([...known].sort(), Object.keys(LSP_REGISTRY).sort())
 })
 
-test('a language that is turned off is neither available nor missing', async () => {
-  const { manager } = makeManager({ lsp: { servers: { java: { enabled: false } } } })
-  const { available, missing, disabled } = await manager.servers()
-  assert.ok(disabled.some(entry => entry.languageId === 'java'), 'java is turned off')
-  assert.ok(!available.some(entry => entry.languageId === 'java'))
-  assert.ok(!missing.some(entry => entry.languageId === 'java'))
+test('every entry carries the switch of its language', async () => {
+  const { manager } = makeManager()
+  const { available, missing } = await manager.servers()
+  for (const entry of [...available, ...missing]) {
+    assert.equal(typeof entry.enabled, 'boolean', `${entry.languageId} carries its switch`)
+  }
+})
+
+test('a language that is turned off is still listed as available', async () => {
+  // The python server is bundled with the package, so it is found on every
+  // machine: the switch is the only thing that changes for it.
+  const { manager } = makeManager({ lsp: { servers: { python: { enabled: false } } } })
+  const { available, missing } = await manager.servers()
+  const entry = available.find(item => item.languageId === 'python')
+  assert.ok(entry !== undefined, 'the language is still listed as available')
+  assert.equal(entry.enabled, false, 'the language is switched off')
+  assert.ok(!missing.some(item => item.languageId === 'python'), 'the language is not missing')
 })

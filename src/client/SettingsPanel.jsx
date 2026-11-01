@@ -142,15 +142,55 @@ function Field({ label, hint, title, children }) {
   )
 }
 
+/**
+ * The language servers the settings page shows a switch for.
+ *
+ * One switch per language is enough: a language that is switched off stays
+ * in the list with an empty box, so the user can switch it on again. Before
+ * that a language that was switched off vanished from the list and landed in
+ * a second section ("已关闭的语言服务器"), and from there it could never be
+ * switched on again.
+ *
+ * The host lists a language that is switched off in `available` with
+ * `enabled: false`. A host that still runs the old code puts such a language
+ * into a separate `disabled` bucket instead, and that bucket is merged in
+ * here as well: the running host only answers differently after it is
+ * restarted, and the user must not have to wait for that to switch a
+ * language back on.
+ *
+ * @param {{available?: unknown[], disabled?: unknown[]}|undefined} servers
+ *   the registry the host reported
+ * @returns {object[]} one entry per language, in the order of the host
+ */
+export function mergeServerToggles(servers) {
+  const available = Array.isArray(servers?.available) ? servers.available : []
+  const legacy = Array.isArray(servers?.disabled) ? servers.disabled : []
+  const merged = []
+  const seen = new Set()
+  // The bucket of the new host wins over the bucket of the old one: it
+  // carries the resolved path of the command and the effective switch.
+  const add = (server, enabled) => {
+    if (server === null || typeof server !== 'object') return
+    const languageId = server.languageId
+    if (typeof languageId !== 'string' || languageId === '') return
+    if (seen.has(languageId)) return
+    seen.add(languageId)
+    merged.push({ ...server, enabled })
+  }
+  for (const server of available) add(server, server?.enabled !== false)
+  // A language of the old bucket is switched off by definition - that is the
+  // only thing the old host knew about it.
+  for (const server of legacy) add(server, false)
+  return merged
+}
+
 export function SettingsForm({ store, state, compact, onStatusChange }) {
   const t = store.t
   const settings = state.settings ?? {}
   /** Language servers the host could not find on this machine. */
   const missingServers = Array.isArray(state.lsp?.servers?.missing) ? state.lsp.servers.missing : []
-  /** Language servers that are switched off in the settings file. */
-  const disabledServers = Array.isArray(state.lsp?.servers?.disabled) ? state.lsp.servers.disabled : []
-  /** The language servers the host found and that are not switched off. */
-  const availableServers = Array.isArray(state.lsp?.servers?.available) ? state.lsp.servers.available : []
+  /** Every language server of the machine, switched on or off. */
+  const toggleServers = mergeServerToggles(state.lsp?.servers)
   /** The memory snapshot of the host, when it was fetched. */
   const lspResources = state.lsp?.resources ?? null
   /** How many language server processes run right now. */
@@ -626,15 +666,9 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
             ),
           )
         : null,
-      // A language that is switched off in the settings file is a fact of
-      // the configuration, not of the machine: it stays in the basic mode.
-      disabledServers.length > 0
-        ? React.createElement(Row, { label: t('settings.lspServersDisabled'), hint: t('settings.lspServersDisabledHint') },
-            React.createElement('span', { className: 'iwb-settings-value' },
-              disabledServers.map(server => `${server.languageId} (${server.command})`).join(', '),
-            ),
-          )
-        : null,
+
+      // No second list of the languages that are switched off: every language
+      // has its own row in the switch list below.
       React.createElement('div', { className: 'iwb-settings-hint' }, t('settings.lspOfflineNote')),
       // The memory situation of the machine, as a fact the user can judge:
       // "384 MB needed" is a number, "the machine is short on memory" is a
@@ -680,12 +714,16 @@ export function SettingsForm({ store, state, compact, onStatusChange }) {
     // (SET-02). The field `lsp.servers[languageId].enabled` existed but had
     // no control, and the global ceiling could only lower a language: the
     // user had no way to give one language more than the global cap.
-    availableServers.length > 0
+    //
+    // The list holds every language of the machine, switched on or off: a
+    // language that is switched off keeps its row with an empty box, so the
+    // user can switch it on again.
+    toggleServers.length > 0
       ? React.createElement(Group, { title: t('settings.lspServersGroup'), description: t('settings.lspServersGroupHint') },
           // One line per language, not one settings row per language: a
           // dozen rows of "a switch and a command" is a wall of text.
           React.createElement('div', { className: 'iwb-settings-languages' },
-            availableServers.map(server => {
+            toggleServers.map(server => {
               const servers = draft.lsp?.servers ?? {}
               const entry = servers[server.languageId] ?? {}
               const enabled = entry.enabled !== false
