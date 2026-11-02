@@ -1,0 +1,5 @@
+{
+  "name": "dsh-ide-codeintel",
+  "displayName": "IDE Code Intelligence",
+  "description": "Code intelligence for the IDE workbench. Requires the IDE Workbench plugin."
+}

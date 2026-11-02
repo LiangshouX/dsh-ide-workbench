@@ -1,24 +1,30 @@
 name: Publish
-# 发布到 npm：打 tag（v*）触发。
-# 自动发布需在 npm 包页面一次性配置 Trusted Publisher：
+# 发布到 npm：打 tag（<包>-v*）即触发。
+# 自动发布需要在 npm 包页面一次性配置 Trusted Publisher：
 #   Settings → Trusted Publisher → GitHub Actions
 #   owner: LiangshouX / repo: dsh-ide-workbench / workflow: publish.yml / environment: 留空
 #   详见 https://docs.npmjs.com/trusted-publishers
+#
+# 两个包有**独立的版本线**（PRD-v6 REL-01）：
+#   workbench-v<版本>  → packages/workbench  → dsh-ide-workbench
+#   codeintel-v<版本>  → packages/codeintel  → dsh-ide-codeintel
+# 一次发版只动一个包：契约的版本是独立的，只有 major 变更才要求另一方一起升。
 on:
   push:
-    tags: ['v*']
+    tags: ['workbench-v*', 'codeintel-v*']
 permissions:
-  contents: write         # 创建 GitHub Release 所必需（源码包由 tag 自动附带）
-  id-token: write         # OIDC 换取 npm 短期凭证所必需
+  contents: write         # 创建 GitHub Release（源码包用 tag 自动附加）
+  id-token: write         # OIDC 换取 npm 免密发布凭证
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # 不要给 setup-node 设置 registry-url：它会往 .npmrc 写
-      # `_authToken=${NODE_AUTH_TOKEN}`，并导出占位哨兵 XXXXX-XXXXX-XXXXX-XXXXX。
-      # npm 见到这个假 token 就会走 token 认证、跳过 Trusted Publisher 的 OIDC，
-      # registry 随即返回 404。去掉 registry-url 后 npm 使用默认 registry + OIDC。
+      # 不要给 setup-node 设置 registry-url：它会写一份 .npmrc 而
+      # `_authToken=${NODE_AUTH_TOKEN}` 会被展开成占位符 XXXXX-XXXXX-XXXXX。
+      # npm 见到那个 token 夹具会拒绝登录，跳过 Trusted Publisher（OIDC）；
+      # 改走 registry 登录会直接返回 404。去掉 registry-url 后 npm 用默认
+      # registry + OIDC。
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -53,37 +59,59 @@ jobs:
           names=$(grep -E '^not ok ' test-output.log | sed -E 's/^not ok [0-9]+ - //' | head -20 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/\n/%0A/g' | tr '\n' ',')
           echo "::error title=The tests failed::$names"
       - run: npm run build               # dist/client.js 必须在发布前重建
-      - name: Check tag matches package.json version
+      - name: Resolve the package of the tag
+        id: target
         run: |
-          PKG_VERSION="v$(node -p "require('./package.json').version")"
-          if [ "$PKG_VERSION" != "$GITHUB_REF_NAME" ]; then
-            echo "tag $GITHUB_REF_NAME != package.json version $PKG_VERSION" >&2
+          TAG="${GITHUB_REF_NAME}"
+          case "$TAG" in
+            workbench-v*) DIR="packages/workbench" ;;
+            codeintel-v*) DIR="packages/codeintel" ;;
+            *) echo "unknown tag $TAG" >&2; exit 1 ;;
+          esac
+          VERSION="${TAG#*v}"
+          PKG_VERSION="$(node -p "require('./$DIR/package.json').version")"
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "tag $TAG != $DIR/package.json version $PKG_VERSION" >&2
             exit 1
           fi
-      - run: npm publish --access public
+          NAME="$(node -p "require('./$DIR/package.json').name")"
+          PLUGIN_VERSION="$(node -p "require('./$DIR/dsh.plugin.json').version")"
+          if [ "$PLUGIN_VERSION" != "$PKG_VERSION" ]; then
+            echo "$DIR/dsh.plugin.json version $PLUGIN_VERSION != package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+      - name: Publish to npm
+        working-directory: ${{ steps.target.outputs.dir }}
+        run: npm publish --access public
       # 离线分发包：把运行时依赖（ws）一起打进 tarball，DSH 可以不联网直接安装。
       # package.json 的 bundleDependencies 让 npm 把 node_modules/ws 收进包里 ——
       # 也就是说 npm 上的这个包本身也是自包含的，两处是同一份内容。
       - name: Pack the offline bundle (with node_modules)
+        working-directory: ${{ steps.target.outputs.dir }}
         run: |
           mkdir -p artifacts
           npm pack --pack-destination artifacts
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.target.outputs.name }}
+          VERSION: ${{ steps.target.outputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          TAG="$GITHUB_REF_NAME"
           ASSET=$(ls artifacts/*.tgz | head -n 1)
-          ASSET_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$(basename "$ASSET")"
+          ASSET_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$(basename "$ASSET")"
           # 变更说明优先取 CHANGELOG.md 里这一版的小节；没有就退回 GitHub 按提交
           # 生成的说明。两边都拿不到时给一段占位说明，不能让发布整个失败。
           BODY="$(awk -v want="$VERSION" '
             /^## / { inside = ($0 ~ ("^## " want "([^0-9]|$)")); next }
             inside { print }
-          ' CHANGELOG.md)"
+          ' "${{ steps.target.outputs.dir }}/CHANGELOG.md" 2>/dev/null || true)"
           if [ -z "$(printf "%s" "$BODY" | tr -d "[:space:]")" ]; then
             BODY="$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
-              -f tag_name="$GITHUB_REF_NAME" --jq .body 2>/dev/null || true)"
+              -f tag_name="$TAG" --jq .body 2>/dev/null || true)"
           fi
           if [ -z "$(printf "%s" "$BODY" | tr -d "[:space:]")" ]; then
             BODY="见本次发布的提交记录。"
@@ -97,10 +125,10 @@ jobs:
             printf 'dsh plugin --profile web add %s\n' "$ASSET_URL"
             printf "\n"
             printf "# 或从 npm 装（同一个自包含 tarball）\n"
-            printf 'dsh plugin --profile web add dsh-ide-workbench@%s\n' "$VERSION"
+            printf 'dsh plugin --profile web add %s@%s\n' "$NAME" "$VERSION"
             printf '```\n'
           } > artifacts/notes.md
-          gh release create "$GITHUB_REF_NAME" \
-            --title "dsh-ide-workbench $GITHUB_REF_NAME" \
+          gh release create "$TAG" \
+            --title "$NAME $TAG" \
             --notes-file artifacts/notes.md \
             "$ASSET"

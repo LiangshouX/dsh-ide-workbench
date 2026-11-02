@@ -1,111 +1,24 @@
 {
-  "name": "dsh-ide-workbench",
-  "version": "0.5.1",
-  "description": "JetBrains-style IDE workbench for DeepSeek Harness: Project, Commit, Terminal and Git tool windows around an embedded editor, with chat file links, send-to-chat @references, IDE selection semantics, file operations, changelists, compare and word-level diff, in one shared repository model, plus a faster session switch, a Git repository picker that leaves the file tree alone, a file-locate button and code intelligence: local completion everywhere, plus semantic completion, go to definition and find usages when a language server is available. | DSH 插件：JetBrains 式 IDE 工作台——Project / Commit / Terminal / Git 四窗围绕内置编辑器，支持聊天文件链接、发送到聊天框的 @ 引用、选中优先的文件操作、变更列表、比较与单词级差异，并带来更快的会话切换、不动文件树的 Git 仓库选择器、文件定位按钮与代码智能（本地补全 + 语义补全 / 跳转定义 / 查找用法）。",
+  "name": "dsh-ide-workbench-monorepo",
+  "version": "0.6.0",
+  "private": true,
+  "description": "Monorepo of the DSH IDE workbench (core) and the DSH code intelligence plugin (codeintel). The repository name and the plugin ID of the core are unchanged (PRD-v6 D4).",
   "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/LiangshouX/dsh-ide-workbench.git"
-  },
-  "homepage": "https://github.com/LiangshouX/dsh-ide-workbench#readme",
-  "bugs": {
-    "url": "https://github.com/LiangshouX/dsh-ide-workbench/issues"
-  },
-  "author": "LiangshouX",
-  "main": "src/index.js",
-  "exports": {
-    ".": "./src/index.js",
-    "./client": "./dist/client.js",
-    "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
-  },
-  "files": [
-    "src/index.js",
-    "src/host",
-    "dist/client.js",
-    "cordis.patch.yml",
-    "dsh.plugin.json",
-    "locale/*.json",
-    "icon.svg",
-    "LICENSE",
-    "CHANGELOG.md",
-    "README.md",
-    "README_EN.md"
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "build:dev": "node scripts/build.mjs --dev",
-    "test": "node --test tests/*.test.mjs"
+    "sync:contract": "node scripts/sync-contract.mjs",
+    "build": "npm run sync:contract && npm run build --workspace packages/workbench && npm run build --workspace packages/codeintel",
+    "build:core": "npm run build --workspace packages/workbench",
+    "build:codeintel": "npm run build --workspace packages/codeintel",
+    "test": "npm run test --workspace packages/workbench && npm run test --workspace packages/codeintel && npm run test:contract",
+    "test:contract": "node --test tests/*.test.mjs",
+    "verify:split": "node scripts/verify-split.mjs",
+    "verify": "npm run build && npm test && npm run verify:split"
   },
   "engines": {
-    "node": ">=18",
-    "dsh": ">=0.1.7"
+    "node": ">=18"
   },
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "platform": "web",
-      "immediately": true,
-      "inject": [
-        "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-slots",
-        "@deepseek-ai/dsh-client-modules",
-        "@deepseek-ai/dsh-client-ui-sidebar-right"
-      ]
-    }
-  },
-  "keywords": [
-    "dsh",
-    "deepseek-harness",
-    "dsh-plugin",
-    "ide",
-    "workbench",
-    "project",
-    "git",
-    "terminal",
-    "commit",
-    "jetbrains"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "basedpyright": "^1.40.2",
-    "typescript": "~5.9.3",
-    "typescript-language-server": "^6.0.2",
-    "ws": "^8.18.0",
-    "yaml-language-server": "^2.0.0"
-  },
-  "devDependencies": {
-    "@codemirror/autocomplete": "^6.20.4",
-    "@codemirror/commands": "^6.11.1",
-    "@codemirror/lang-cpp": "^6.0.3",
-    "@codemirror/lang-css": "^6.3.1",
-    "@codemirror/lang-go": "^6.0.1",
-    "@codemirror/lang-html": "^6.4.12",
-    "@codemirror/lang-java": "^6.0.2",
-    "@codemirror/lang-javascript": "^6.2.5",
-    "@codemirror/lang-json": "^6.0.2",
-    "@codemirror/lang-markdown": "^6.5.2",
-    "@codemirror/lang-python": "^6.2.1",
-    "@codemirror/lang-rust": "^6.0.2",
-    "@codemirror/lang-sql": "^6.10.0",
-    "@codemirror/lang-xml": "^6.1.0",
-    "@codemirror/lang-yaml": "^6.1.3",
-    "@codemirror/language": "^6.13.1",
-    "@codemirror/lsp-client": "^6.3.0",
-    "@codemirror/search": "^6.7.2",
-    "@codemirror/state": "^6.7.6",
-    "@codemirror/view": "^6.43.15",
-    "@lezer/highlight": "^1.2.5",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
-    "esbuild": "^0.28.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "bundleDependencies": [
-    "ws"
-  ]
+  "license": "MIT"
 }

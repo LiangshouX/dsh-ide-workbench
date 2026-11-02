@@ -1,0 +1,5 @@
+{
+  "name": "dsh-ide-codeintel",
+  "displayName": "IDE 代码智能",
+  "description": "IDE 工作台的代码智能插件，需与 IDE 工作台插件配合使用。"
+}

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="IDE Workbench">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#26395a"/>
+      <stop offset=".55" stop-color="#151c29"/>
+      <stop offset="1" stop-color="#0d121a"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".30"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity=".06"/>
+    </linearGradient>
+    <linearGradient id="code" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a6d2ff"/>
+      <stop offset="1" stop-color="#4c8dff"/>
+    </linearGradient>
+    <linearGradient id="stripe" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#223048"/>
+      <stop offset="1" stop-color="#16202f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App tile -->
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#tile)"/>
+  <rect x="2.8" y="2.8" width="58.4" height="58.4" rx="14.2" fill="none" stroke="url(#edge)" stroke-width="1.6"/>
+
+  <!-- Workbench window -->
+  <rect x="10.5" y="10.5" width="43" height="43" rx="7" fill="#0b1119" stroke="#4a607c" stroke-width="1.8"/>
+
+  <!-- Left tool stripe with Project / Commit / Git dots -->
+  <path d="M17.5 10.5A7 7 0 0 0 10.5 17.5v29a7 7 0 0 0 7 7h3.5v-43z" fill="url(#stripe)"/>
+  <path d="M21 10.5v43" stroke="#43597a" stroke-width="1.3"/>
+  <circle cx="15.8" cy="19.6" r="2.1" fill="#6aa9ff"/>
+  <circle cx="15.8" cy="26.6" r="2.1" fill="#4bc98d"/>
+  <circle cx="15.8" cy="33.6" r="2.1" fill="#b27be8"/>
+
+  <!-- Code glyph -->
+  <path d="M31.2 23L25.6 28l5.6 5" fill="none" stroke="url(#code)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M35.8 22.2l-2.6 11.6" fill="none" stroke="#dce8f7" stroke-width="2.8" stroke-linecap="round" opacity=".9"/>
+  <path d="M38.8 23l5.6 5-5.6 5" fill="none" stroke="url(#code)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Bottom dock: terminal prompt -->
+  <path d="M21 42h32.5" stroke="#43597a" stroke-width="1.3"/>
+  <path d="M25.8 46.2l2.5 2.1-2.5 2.2" fill="none" stroke="#4bc98d" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M31.6 50.3h7.2" stroke="#8aa0b8" stroke-width="2.2" stroke-linecap="round"/>
+</svg>

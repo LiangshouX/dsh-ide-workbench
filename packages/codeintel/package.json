@@ -1,0 +1,94 @@
+{
+  "name": "dsh-ide-codeintel",
+  "version": "0.1.0",
+  "description": "Code intelligence for the DeepSeek Harness IDE workbench: local and semantic completion, go to definition, find usages, hover and signature help, plus the language servers (TypeScript, Python, Java/JDTLS, YAML) with their memory budget. Needs the IDE workbench plugin. | DSH 插件：代码智能——本地与语义补全、跳转定义、查找用法、悬浮与签名提示，并自带语言服务器（TypeScript / Python / Java / YAML）与其内存预算。需与 IDE 工作台插件配合使用。",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LiangshouX/dsh-ide-workbench.git"
+  },
+  "homepage": "https://github.com/LiangshouX/dsh-ide-workbench#readme",
+  "bugs": {
+    "url": "https://github.com/LiangshouX/dsh-ide-workbench/issues"
+  },
+  "author": "LiangshouX",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "src/index.js",
+    "src/host",
+    "dist/client.js",
+    "cordis.patch.yml",
+    "dsh.plugin.json",
+    "locale/*.json",
+    "icon.svg",
+    "LICENSE",
+    "CHANGELOG.md",
+    "README.md",
+    "README_EN.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:dev": "node scripts/build.mjs --dev",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18",
+    "dsh": ">=0.1.7"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-modules",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "ide",
+    "codeintel",
+    "lsp",
+    "completion",
+    "definition"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "basedpyright": "^1.40.2",
+    "typescript": "~5.9.3",
+    "typescript-language-server": "^6.0.2",
+    "ws": "^8.18.0",
+    "yaml-language-server": "^2.0.0"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/lsp-client": "^6.3.0",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
+    "esbuild": "^0.28.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "bundleDependencies": [
+    "ws"
+  ]
+}

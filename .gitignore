@@ -2,9 +2,13 @@ node_modules/
 dist/client.bundle.cjs
 dist/client.dev.bundle.cjs
 dist/client.dev.js
+**/dist/client.bundle.cjs
+**/dist/client.dev.bundle.cjs
+**/dist/client.dev.js
 .render-tmp/
 .host-icons-tmp/
 .verify/
 .codegraph/
+.spike/
 .idea/
 *.log

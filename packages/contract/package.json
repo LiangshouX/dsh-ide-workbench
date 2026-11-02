@@ -1,0 +1,17 @@
+{
+  "name": "@dsh-ide/contract",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The contract between the IDE workbench (core) and the code intelligence plugin. Not a plugin, not published: both plugins inline a copy of it.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./fault-registry": "./src/fault-registry.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src"
+  ],
+  "license": "MIT"
+}

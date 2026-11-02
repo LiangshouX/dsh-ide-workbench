@@ -1,0 +1,16 @@
+{
+  "name": "dsh-ide-codeintel",
+  "displayName": "IDE Code Intelligence",
+  "version": "0.1.0",
+  "description": "Code intelligence for the IDE workbench: local and semantic completion, go to definition, find usages, hover and signature help, plus the language servers (TypeScript, Python, Java/JDTLS, YAML) and their memory budget. Requires the IDE Workbench plugin.",
+  "author": "LiangshouX",
+  "homepage": "https://github.com/LiangshouX/dsh-ide-workbench",
+  "license": "MIT",
+  "tags": [
+    "ide",
+    "codeintel",
+    "lsp",
+    "completion",
+    "definition"
+  ]
+}
