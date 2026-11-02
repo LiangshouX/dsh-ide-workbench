@@ -423,11 +423,14 @@ test('expandHomeMacros expands $USER_HOME$ and ~/', () => {
 
 test('the jdk.table.xml of the IDE is read with its macros expanded', () => {
   const home = 'C:\\Users\\tester'
-  const table = join(home, 'AppData', 'Roaming', 'JetBrains', 'IntelliJ IDEA 2026.1', 'options', 'jdk.table.xml')
   const machine = fakeMachine({
     home,
-    env: { APPDATA: join(home, 'AppData', 'Roaming') },
+    env: { APPDATA: 'C:\\Users\\tester\\AppData\\Roaming' },
   })
+  // The machine is a Windows one, so its paths are built with the Windows
+  // separator - on a Linux host the platform's own `join` would spell the same
+  // path differently and the comparison below would fail on the spelling.
+  const table = machine.paths.join(home, 'AppData', 'Roaming', 'JetBrains', 'IntelliJ IDEA 2026.1', 'options', 'jdk.table.xml')
   machine.addFile(table, [
     '<application>',
     '  <component name="ProjectJdkTable">',
@@ -437,13 +440,13 @@ test('the jdk.table.xml of the IDE is read with its macros expanded', () => {
     '  </component>',
     '</application>',
   ].join('\n'))
-  addJdk(machine, join(home, '.jdks', 'corretto-21.0.3'), 21)
-  addJdk(machine, join(home, 'jdks', 'temurin-17'), 17)
+  addJdk(machine, machine.paths.join(home, '.jdks', 'corretto-21.0.3'), 21)
+  addJdk(machine, machine.paths.join(home, 'jdks', 'temurin-17'), 17)
 
   const { candidates, selected } = discoverJdks(machine.options())
   const found = candidates.map(candidate => candidate.path)
-  assert.ok(found.includes(join(home, '.jdks', 'corretto-21.0.3')), 'the $USER_HOME$ entry is expanded')
-  assert.ok(found.includes(join(home, 'jdks', 'temurin-17')), 'the ~/ entry is expanded')
+  assert.ok(found.includes(machine.paths.join(home, '.jdks', 'corretto-21.0.3')), 'the $USER_HOME$ entry is expanded')
+  assert.ok(found.includes(machine.paths.join(home, 'jdks', 'temurin-17')), 'the ~/ entry is expanded')
   // The macro was expanded, but the directory does not exist: the candidate
   // is skipped instead of being reported as a JDK that is not there.
   assert.ok(!found.some(path => path.includes('gone')), 'a path that does not exist is skipped')
@@ -496,7 +499,10 @@ test('the fallback scan finds the JBR in the flat, the vendor and the Toolbox la
   })
   addJdk(machine, 'C:\\ides\\JetBrains\\IntelliJ IDEA 2026.1.4\\jbr', 25)
   addJdk(machine, 'D:\\apps\\JetBrains\\WebStorm 2026.1.4\\jbr', 25)
-  addJdk(machine, join(localAppData, 'JetBrains', 'Toolbox', 'apps', 'PyCharm', 'ch-0', '2026.1', 'jbr'), 24)
+  // The path is built with the flavor of the machine (a Windows one), not with
+  // the flavor of the host the test happens to run on.
+  const toolbox = machine.paths.join(localAppData, 'JetBrains', 'Toolbox', 'apps', 'PyCharm', 'ch-0', '2026.1', 'jbr')
+  addJdk(machine, toolbox, 24)
 
   const { candidates, selected } = discoverJdks({
     ...machine.options(),
@@ -506,7 +512,7 @@ test('the fallback scan finds the JBR in the flat, the vendor and the Toolbox la
   assert.equal(found.length, 3)
   assert.ok(found.includes('C:\\ides\\JetBrains\\IntelliJ IDEA 2026.1.4\\jbr'), 'the flat layout')
   assert.ok(found.includes('D:\\apps\\JetBrains\\WebStorm 2026.1.4\\jbr'), 'the vendor layout')
-  assert.ok(found.includes(join(localAppData, 'JetBrains', 'Toolbox', 'apps', 'PyCharm', 'ch-0', '2026.1', 'jbr')), 'the Toolbox layout')
+  assert.ok(found.includes(toolbox), 'the Toolbox layout')
   for (const candidate of candidates) assert.equal(candidate.source, 'scan')
   assert.equal(selected.version, 25)
 })

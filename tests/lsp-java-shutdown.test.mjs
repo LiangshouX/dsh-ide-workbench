@@ -27,17 +27,22 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { shutdownAll } from '../src/host/lsp.js'
+import { shutdownAll, rootKey } from '../src/host/lsp.js'
 import { makeManager } from './lsp-fixtures.mjs'
 
 /**
  * The root key the manager is expected to pass to the sweep.
+ *
+ * The manager compares the roots through its own `rootKey`, which resolves a
+ * path to an absolute one and lowercases it on Windows. The expected value is
+ * therefore computed the same way - on a host that is not Windows the
+ * persisted root is resolved against the working directory, exactly as the
+ * manager resolves it.
  * @param {string} root the absolute root
  * @returns {string}
  */
 function rootKeyLike(root) {
-  const slashed = String(root).replace(/\\/g, '/')
-  return process.platform === 'win32' ? slashed.toLowerCase() : slashed
+  return rootKey(root)
 }
 
 /**
@@ -66,7 +71,7 @@ test('the unload sweeps with the persisted roots, normalised to root keys', () =
   assert.equal(javaRuntime.sweeps.length, 1, 'the sweep is called exactly once')
   const known = javaRuntime.sweeps[0]
   assert.ok(Array.isArray(known), 'the sweep receives a list of roots')
-  assert.ok(known.includes('d:/a/app'), `the root key is passed: ${JSON.stringify(known)}`)
+  assert.ok(known.includes(rootKeyLike('D:\\a\\app')), `the root key is passed: ${JSON.stringify(known)}`)
 })
 
 test('the unload unions the roots of this process with the persisted ones', async () => {
@@ -81,7 +86,7 @@ test('the unload unions the roots of this process with the persisted ones', asyn
 
     assert.equal(javaRuntime.sweeps.length, 1, 'the sweep is called exactly once')
     const known = javaRuntime.sweeps[0]
-    assert.ok(known.includes('d:/a/app'), `the persisted root survives the unload: ${JSON.stringify(known)}`)
+    assert.ok(known.includes(rootKeyLike('D:\\a\\app')), `the persisted root survives the unload: ${JSON.stringify(known)}`)
     assert.ok(
       known.includes(rootKeyLike(root)),
       `the root of this process is included: ${JSON.stringify(known)}`,
