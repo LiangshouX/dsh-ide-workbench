@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Project tree regressions (PRD-v4 §10.1).
  *
  *   - clicking a directory twisty toggles the folder;
@@ -161,7 +161,7 @@ function baseStore(state) {
     openDiff: (...args) => record('openDiff', ...args),
     showHistory: (...args) => record('showHistory', ...args),
     openQuickOpen: () => record('openQuickOpen'),
-    openSearchTab: () => record('openSearchTab'),
+    openSearchPopup: () => record('openSearchPopup'),
     sendToChat: (...args) => record('sendToChat', ...args),
     openRootPicker: () => record('openRootPicker'),
     openProjectPicker: () => record('openProjectPicker'),

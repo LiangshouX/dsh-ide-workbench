@@ -345,14 +345,15 @@ test('the stylesheet of the core has no rule of the code intelligence', () => {
   // The completion popup, the hover card, the signature help, the reference
   // panel and the status item of the semantic analysis belong to the codeintel
   // (PRD-v6 CUT-09): it injects its own `<style>`, and the core must not
-  // carry their rules.
+  // carry their rules. The Find in Files POPUP is not one of them any more:
+  // it is core UX (PRD-v5 FIND-01), and the codeintel keeps its own copy for
+  // the text version of Find Usages.
   for (const marker of [
     '.cm-tooltip',
     '.cm-completion',
     '.cm-lsp-',
     '.iwb-lsp-',
     '.iwb-index-decision',
-    '.iwb-search-popup',
     '.iwb-settings-language',
     '.iwb-project-index-badge',
     '.iwb-ctrl-hover-symbol',

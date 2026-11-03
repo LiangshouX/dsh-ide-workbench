@@ -1,4 +1,4 @@
-﻿# PRD-v6 增强需求 —— core 白屏修复与三项体验增强
+# PRD-v6 增强需求 —— core 白屏修复与三项体验增强
 
 > **状态**：**已实施并实机验收**（2026-11-03）。
 > **代码基线**：`dsh-ide-workbench` `33ff4d4`（V6 拆分后的 monorepo，`packages/{contract,workbench,codeintel}`）。
@@ -18,9 +18,10 @@
 | **ENH-02** | Git diff 保留原始空白、单词级差异默认开启、超长行可左右滚动 | 增强 | 并排两栏各占一半、各自横向滚动且联动（同位置）；统一模式单一滚动面；逐字符保真；Aa 默认开 | ✅ |
 | **ENH-03** | 行号右键「Annotate with Git Blame」→ **行号左侧的内联注解列**（`日期 作者`；未提交行留空）→ 点击跳转 Git 提交 | 增强 | 右键→列出现→点击→Git 打开并定位该提交，全链路可用 | ✅ |
 | **ENH-04** | 内容工具栏被压窄时文字换行（「编/辑」「utf-/8」） | 缺陷 | 文字永不换行；条再窄就只留图标（文字进 tooltip），编码只留首字母（`utf-8` → `u`） | ✅ 已修 |
+| **ENH-05** | 全局查找 `Ctrl+Shift+R` 在拆分后又退回**标签页**（把当前文件挤走）；`Ctrl+F` / `Ctrl+Shift+R` 都不认选中的文本 | 回归 + 体验 | 搜索在**弹窗**里（不加标签、不离开当前文件）；有选中文本时直接带入搜索框 | ✅ 已修 |
 | **DEF-02** | `profileBase()` 优先 `DSH_PROFILE_DIR`（从父 shell 继承）⇒ 从另一 DSH 终端启动的实例把设置写进**另一个 profile** | 缺陷 | 设置文件永远落在本进程真正服务的 profile | ✅ 已修 |
 
-**验收数字**：core **461** / codeintel **818** / 契约 **26** 测试全绿；`verify:split` **25/25**；实机全链路脚本 **47/47**（0 console/pageerror）。
+**验收数字**：core **483** / codeintel **818** / 契约 **26** 测试全绿；`verify:split` **25/25**；实机全链路脚本 **62/62**（0 console/pageerror）。
 
 ---
 
@@ -183,6 +184,34 @@ effect 里 ⇒ React 卸载整个工作台子树 ⇒ **右侧栏一片白**（sl
 
 ---
 
+## 4B. ENH-05：全局搜索回到弹窗，且「选中即带入」
+
+### 4B.1 现象
+
+拆分（`64ef48f`）把 `SearchPopup.jsx` 搬进了 codeintel，于是 core 的全项目查找又退回**标签页**形态：`Ctrl+Shift+R` 会在编辑器里开一个 `search:in-files` 标签，把用户正在看的文件挤走（PRD-v5 FIND-01 的回归）。同时两个查找入口都不认「当前选中的文本」——IDE 里选中一个词按 `Ctrl+F` / `Ctrl+Shift+R`，搜索框里就是那个词。
+
+### 4B.2 需求（对齐 PRD-v5 FIND-01 / FIND-02 + IDE 习惯）
+
+1. **弹窗，不是标签**：顶部浮出式（复用 Quick Open 骨架，`z-index: 70` 高于所有 modal），`min(900px, 92vw)` × `min(640px, 80vh)`；上半 40% 是**文件列表**（每个命中文件一行 + 命中数），下半 60% 是选中文件的**命中预览**（每条命中带上下文行）；**不新增 tab、不切换当前文档**；
+2. 交互：单击文件行只预览；双击文件行 / 双击命中块 → 打开文件并定位到行:列，**同时关闭弹窗**；`Esc` / 点遮罩 / 点 ✕ 关闭；`↑↓` 选文件、`Enter` 打开、`F8`/`Shift+F8` 在文件间移动；
+3. **选中即带入**：`Ctrl+F`（文件内 / Markdown 预览）与 `Ctrl+Shift+R` 在触发时若存在选中文本，直接把它填进搜索框：
+   - 编辑器的选中优先（CodeMirror 的选区），其次是页面选中（渲染后的 Markdown、或页面任意可选文本）；
+   - 单行选中按原样（保留行内空格，搜索是字面量）；多行选中取**第一条非空行**（全项目查找是逐行 grep，多行块永远搜不到）；
+   - **空选不清空**：没有选中时，搜索框里用户已经输入的内容保持原样；
+   - 查找框内再按 `Ctrl+F` 不覆盖已输入的查询（焦点已经在框里，框是选区的主人）。
+
+### 4B.3 实现
+
+- **core 新组件** `SearchPopup.jsx`：`searchPopupSlice(state) = { search, popup }`（自订阅，编辑区不被搜索结果重渲染）；`generation` 标记每次打开，弹窗从 `store.state.search` 取那一轮的 query/flags 作种子，`seeded` 门闩保证「同一 tick 里被重置的旧值」不会触发一次全项目搜索；
+- **store**：`state.searchPopup = { open, index, generation }` + `openSearchPopup(query)` / `closeSearchPopup()` / `moveSearchSelection(delta)` / `selectedSearchFile()`；`openSearchResult()` **先关弹窗再开文件**（一次性工具）；删除 `openSearchTab`、`openNextSearchResult`、`searchHits`；切项目时关闭弹窗；
+- **挂载点**：`Workbench.jsx` 根节点（没有打开任何文档也能用），`Ctrl+Shift+R` / `Ctrl+Alt+F` → `store.openSearchPopup(selectedText())`，编辑区工具栏的「在文件中查找」同一条路；旧 `SearchView.jsx` 与其标签页样式删除；
+- **选中带入**：`util.findSeed()`（trim、取首条非空行、400 字上限）+ `util.selectedText()`（读页面选区并归一化）；`FindBar` / `DomFindBar` 加 `seed = { text, nonce }`，`nonce` 变即重新预填，`EditorArea` 维护 `findHint` / `previewHint`；
+- **顺带修掉一个真缺陷**：切标签后 `EditorArea` 的 `[active?.id]` effect 会 `setEditorApi(null)`，而 React 先跑子组件 effect ⇒ 刚挂载的编辑器交出的 API 被清掉，`Ctrl+F` **静默不弹查找条**。现在 API 只由编辑器自己交还（卸载时 `onReady(null)`），父 effect 只关查找条；
+- **i18n / 样式**：`search.popup.{matches,matchCount,noPreview,binary,hint}`（中英）；core 样式表补 `.iwb-search-popup*`（与 Quick Open 同一骨架），删掉旧的标签页样式；codeintel 保留自己的一份（它那条「查找用法（文本）」仍用同名类，两个包各自注入、互不依赖）；
+- **回归**：`tests/search-popup.test.mjs`（7 例）、`tests/search-seed.test.mjs`（8 例，含「切标签不清 API」）、`tests/render.test.mjs` 弹窗 SSR、`tests/store-ui.test.mjs` 弹窗状态机、`tests/shortcuts.test.mjs` 种子接线、`tests/perf-slice-editor.test.mjs` 切片自订阅；实机 lead-verify 4b 段（双击选词 → `Ctrl+F` 预填 → `Ctrl+Shift+R` 预填且**不加标签** → 列表/预览/`Esc`）。
+
+---
+
 ## 5. 顺带修复：设置写进了别的 profile（DEF-02）
 
 `profileBase()` 原先优先 `process.env.DSH_PROFILE_DIR`。这个变量由**父 shell** 继承：从一个 DSH 的终端（或本仓库的实机夹具）里再启动 `dsh --profile X`，子进程仍带着**上一个** profile 的路径 —— 插件于是把 `ide-workbench/settings.json` 写进了那个 profile。本次实机验收中真实发生了（夹具把设置写进了用户的 desktop profile）。
@@ -195,17 +224,17 @@ effect 里 ⇒ React 卸载整个工作台子树 ⇒ **右侧栏一片白**（sl
 
 | 层 | 命令 / 手段 | 结果 |
 |---|---|---|
-| 单元 | `cd packages/workbench && npm test` | **464 pass / 0 fail** |
+| 单元 | `cd packages/workbench && npm test` | **483 pass / 0 fail** |
 | 单元 | `cd packages/codeintel && npm test` | **818 pass / 0 fail** |
 | 契约 | `npm run test:contract` | **26 pass** |
 | 机械 | `npm run verify:split` | **25 / 25**（新增打包完整性 5 项 + 负向验证） |
-| 实机 | `.e2e/lead-verify.mjs`（真 DSH + 打包产物 + Playwright） | **54 / 54**，0 console / pageerror |
+| 实机 | `.e2e/lead-verify.mjs`（真 DSH + 打包产物 + Playwright） | **62 / 62**，0 console / pageerror |
 | 实机 | core-only 冒烟（`.e2e/smoke.mjs`） | ok，四窗 + 编辑器 + `/ide-workbench/api/*` 全 200 |
 | 实机 | 升级路径 0.5.0 → 0.6.0（`.e2e/upgrade-0.5-to-0.6.mjs`） | **19 / 19**：布局保留、不再白屏、`editorAfterUpgrade=true`、设置版本 5→4、用户设置/`lsp` 段全部保留 |
 | 实机 | 双装 core+codeintel（`.e2e/dual-install.mjs`） | **13 / 13 全 true**（含 `editorWorks`、两端 `/api` 200、两个 settings 都落在 fixture profile、无 pageerror） |
 | 实机 | 缺 `src/contract` 的坏包对照 | 复现「宿主 failed to import、入口消失、客户端未加载」 |
 
-**实机断言摘要**：默认 `iwb-side-right` 且 stripe 在最右 → 设置页选「左」→ 根类翻转、stripe 在编辑器左侧 → 选回「右」；并排 diff 是**两个等宽窗格**（375px 内容区 → 187.5+187.5）、`white-space:pre`、8 空格缩进/连续 3 空格/行尾空格保留、Aa 默认高亮、两栏各自可横向滚动、拖左栏到 240px 后右栏也是 240px、拖右栏到 120px 后左栏也是 120px、滚到本栏末尾时另一栏夹在自己的端点且不回拉；统一模式仍是 1 个滚动面、0 个窗格；行号右键菜单含注解项、注解列在**行号左侧**且单元格只有 `日期 作者`、点击后 Git 抽屉显示该提交、改动未提交的行在列里**留空**；工具栏 675px 时带文字（`data-compact='false'`），把 dock 拖宽压到 375px 时 `data-compact='true'`、标签隐藏且**仍是一行**（高 30px）、编码变 `u` 且 tooltip 仍是 `utf-8 · LF`；设置文件只落在夹具 profile（`version:4 + wordLevel:true + entrySide:'right'`）。
+**实机断言摘要**：默认 `iwb-side-right` 且 stripe 在最右 → 设置页选「左」→ 根类翻转、stripe 在编辑器左侧 → 选回「右」；并排 diff 是**两个等宽窗格**（375px 内容区 → 187.5+187.5）、`white-space:pre`、8 空格缩进/连续 3 空格/行尾空格保留、Aa 默认高亮、两栏各自可横向滚动、拖左栏到 240px 后右栏也是 240px、拖右栏到 120px 后左栏也是 120px、滚到本栏末尾时另一栏夹在自己的端点且不回拉；统一模式仍是 1 个滚动面、0 个窗格；行号右键菜单含注解项、注解列在**行号左侧**且单元格只有 `日期 作者`、点击后 Git 抽屉显示该提交、改动未提交的行在列里**留空**；双击选中 `createCounter` 后 `Ctrl+F` 的输入框就是它、`Ctrl+Shift+R` 的弹窗输入框也是它、且标签数不变（搜索不占标签）、弹窗给出文件列表（2 文件 7 处）与带上下文的命中预览、`Esc` 关闭；工具栏 675px 时带文字（`data-compact='false'`），把 dock 拖宽压到 375px 时 `data-compact='true'`、标签隐藏且**仍是一行**（高 30px）、编码变 `u` 且 tooltip 仍是 `utf-8 · LF`；设置文件只落在夹具 profile（`version:4 + wordLevel:true + entrySide:'right'`）。
 
 ---
 
@@ -219,6 +248,7 @@ effect 里 ⇒ React 卸载整个工作台子树 ⇒ **右侧栏一片白**（sl
 | 4 | `selectEditorSlice` 含 `blame` 对象 | 每次 blame patch 会重渲染编辑区（已注释说明），不重建 CodeMirror 文档。 |
 | 5 | 大文件 blame | 输出先整体缓冲再截断到 20000 行；5 万行以上文件仍会占一次较多内存。 |
 | 6 | 并排两栏各自滚动 | 每栏一个横向滚动面（§3.2）：联动保证「距左端点相同的偏移」，不保证「同一个像素列」。若以后要「两栏同列对齐」，需要把两侧宽度统一成 `max(左, 右)` 再联动，代价是短的那栏也永远能滚到别人的长度。 |
+| 7 | 弹窗样式两个包各有一份 | core 与 codeintel 都定义 `.iwb-search-popup*`（外观相同、各自注入 `<style>`）：core 的查找弹窗不依赖 codeintel，「查找用法（文本）」也不依赖 core；将来调整外观要两边一起改。 |
 
 ## 8. 非目标
 

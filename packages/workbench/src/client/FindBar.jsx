@@ -8,9 +8,15 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { IconClose } from './icons.jsx'
 
-export function FindBar({ store, editor, readOnly = false, initialQuery = '', onClose }) {
+/**
+ * @param {{store: object, editor: object, readOnly?: boolean, seed?: {text: string, nonce: number}|null, onClose?: Function}} props
+ *   `seed` is the text the bar was asked to start from (the selection of the
+ *   moment when Ctrl+F was pressed); its `nonce` marks the request, so the
+ *   same word selected twice still re-seeds the field.
+ */
+export function FindBar({ store, editor, readOnly = false, seed = null, onClose }) {
   const t = store.t
-  const [query, setQuery] = useState(initialQuery)
+  const [query, setQuery] = useState(seed?.text ?? '')
   const [replacement, setReplacement] = useState('')
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [wholeWord, setWholeWord] = useState(false)
@@ -44,6 +50,16 @@ export function FindBar({ store, editor, readOnly = false, initialQuery = '', on
     apply(query)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor])
+
+  // A new seed (Ctrl+F on a new selection) replaces the query. The field is
+  // not reset when there is no selection: the query the user typed is theirs.
+  useEffect(() => {
+    if (seed === null || seed === undefined || typeof seed.text !== 'string' || seed.text === '') return
+    setQuery(seed.text)
+    inputRef.current?.focus()
+    inputRef.current?.select()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed?.nonce])
 
   useEffect(() => {
     if (timer.current !== null) clearTimeout(timer.current)

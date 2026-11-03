@@ -1,4 +1,4 @@
-import test from 'node:test'
+﻿import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WorkbenchStore } from '../src/client/store.js'
 
@@ -113,20 +113,35 @@ test('openInDefaultBrowser sends a file URL to the host', async () => {
   }
 })
 
-test('the search opens a tab of its own', () => {
+test('the search opens a popup over the workbench and never a tab', () => {
   const store = fakeStore()
-  // The Find in Files view is a tab of the editor area (decision O2 ①): the
-  // popup above the editor belongs to the code intelligence.
-  store.openSearchTab()
-  assert.equal(store.state.tabs.length, 1)
-  assert.equal(store.state.tabs[0].kind, 'search')
-  assert.equal(store.state.tabs[0].id, 'search:in-files')
-  assert.equal(store.state.activeId, 'search:in-files')
-  // A second open reuses the tab and remounts the view.
-  const generation = store.state.tabs[0].generation
-  store.openSearchTab()
-  assert.equal(store.state.tabs.length, 1)
-  assert.equal(store.state.tabs[0].generation, generation + 1)
+  const tabsBefore = store.state.tabs.length
+  // Find in Files is a tool, not a document (PRD-v5 supplement FIND-01): the
+  // results float above the editor and the tab strip is left alone.
+  store.openSearchPopup()
+  assert.equal(store.state.tabs.length, tabsBefore, 'a popup takes no tab from the editor')
+  assert.equal(store.state.activeId, null)
+  assert.equal(store.state.searchPopup.open, true)
+  assert.equal(store.state.searchPopup.index, 0)
+  // A second open bumps the generation: the popup takes a fresh seed (the
+  // selection of that moment) and never reuses the query of the last run.
+  const generation = store.state.searchPopup.generation
+  store.openSearchPopup()
+  assert.equal(store.state.searchPopup.generation, generation + 1)
+  // The selection walks the files that matched.
+  store.patch('search', {
+    results: [
+      { path: 'a.ts', matches: [{ line: 1 }] },
+      { path: 'b.ts', matches: [{ line: 2 }] },
+    ],
+  })
+  store.moveSearchSelection(1)
+  assert.equal(store.state.searchPopup.index, 1)
+  store.moveSearchSelection(1)
+  assert.equal(store.state.searchPopup.index, 0, 'the list wraps')
+  store.closeSearchPopup()
+  assert.equal(store.state.searchPopup.open, false)
+  assert.equal(store.state.searchPopup.index, 0)
 })
 
 test('single-click commit selection does not open the drawer', () => {
@@ -341,7 +356,7 @@ test('runSearch stores grouped Find in Files results', async () => {
     },
   })
   try {
-    store.openSearchTab()
+    store.openSearchPopup()
     await store.runSearch('needle')
     assert.equal(store.state.search.query, 'needle')
     assert.equal(store.state.search.results.length, 1)
@@ -367,7 +382,9 @@ test('openSearchResult opens the hit at its line', () => {
     }
   }
   try {
+    store.openSearchPopup()
     store.openSearchResult('src/a.ts', 3)
+    assert.equal(store.state.searchPopup.open, false, 'the hit closes the popup')
     const tab = store.state.tabs.find(item => item.id === store.state.activeId)
     assert.equal(tab.kind, 'file')
     assert.equal(tab.path, 'C:\\work\\demo\\src\\a.ts')

@@ -60,12 +60,12 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { WorkbenchStore } from './src/client/store.js'
 import { EditorArea, selectEditorSlice } from './src/client/EditorArea.jsx'
-import { SearchView, searchSlice } from './src/client/SearchView.jsx'
+import { SearchPopup, searchPopupSlice } from './src/client/SearchPopup.jsx'
 import { DiffView, diffSlice } from './src/client/DiffView.jsx'
 import { FindBar } from './src/client/FindBar.jsx'
 import { shallowEqual } from './src/client/hooks.js'
 
-export { selectEditorSlice, shallowEqual, FindBar, searchSlice, diffSlice }
+export { selectEditorSlice, shallowEqual, FindBar, searchPopupSlice, diffSlice }
 
 const t = key => key
 
@@ -148,8 +148,8 @@ export function renderEditorWithoutState(store) {
   return renderToStaticMarkup(React.createElement(EditorArea, { store, state: throwingState() }))
 }
 
-export function renderSearchView(store) {
-  return renderToStaticMarkup(React.createElement(SearchView, { store, state: throwingState() }))
+export function renderSearchPopup(store) {
+  return renderToStaticMarkup(React.createElement(SearchPopup, { store, state: throwingState() }))
 }
 
 export function renderDiffView(store, tab) {
@@ -327,12 +327,19 @@ test('the find bar still renders', async () => {
 test('the migrated views never read a state prop', async () => {
   const mod = await loadModule()
   const store = mod.createStore()
+  // The popup only draws itself while it is open, so the slice has to say so.
+  store.state.searchPopup = { open: true, index: 0, generation: 1 }
+  store.state.search = {
+    ...store.state.search,
+    query: 'a.ts',
+    results: [{ path: 'src/a.ts', matches: [{ line: 1, column: 1, preview: 'const a = 1', before: [], after: [] }] }],
+  }
   // A state prop that throws on any read: a migrated view must not touch it.
   const editorHtml = mod.renderEditorWithoutState(store)
   assert.match(editorHtml, /iwb-editor/)
 
-  const searchHtml = mod.renderSearchView(store)
-  assert.match(searchHtml, /iwb-search/)
+  const searchHtml = mod.renderSearchPopup(store)
+  assert.match(searchHtml, /iwb-search-popup/)
 
   const diffHtml = mod.renderDiffView(store, mod.diffTab())
   assert.match(diffHtml, /iwb-diff/)
@@ -341,25 +348,28 @@ test('the migrated views never read a state prop', async () => {
 test('the search and diff views have their own slices', async () => {
   const mod = await loadModule()
   const store = mod.createStore()
-  assert.deepEqual(Object.keys(mod.searchSlice(store.state)), ['search'])
+  assert.deepEqual(Object.keys(mod.searchPopupSlice(store.state)), ['search', 'popup'])
   assert.deepEqual(Object.keys(mod.diffSlice(store.state)), ['commitMode'])
-  assert.equal(mod.searchSlice(store.state).search, store.state.search)
+  assert.equal(mod.searchPopupSlice(store.state).search, store.state.search)
+  assert.equal(mod.searchPopupSlice(store.state).popup, store.state.searchPopup)
   assert.equal(mod.diffSlice(store.state).commitMode, store.state.commit.mode)
 
-  const searchSource = await readFile(join(root, 'src/client/SearchView.jsx'), 'utf8')
-  assert.match(searchSource, /useStoreSlice\(store, searchSlice, shallowEqual\)/)
-  assert.match(searchSource, /export function SearchView\(\{ store \}\)/)
+  const searchSource = await readFile(join(root, 'src/client/SearchPopup.jsx'), 'utf8')
+  assert.match(searchSource, /useStoreSlice\(store, searchPopupSlice, shallowEqual\)/)
+  assert.match(searchSource, /export function SearchPopup\(\{ store \}\)/)
   // The selector is the only reader of the snapshot (`store.state` reads are
-  // always fresh and do not count).
-  assert.equal((searchSource.match(/(?<!store\.)state\./g) ?? []).length, 1)
+  // always fresh and do not count): search + searchPopup.
+  assert.equal((searchSource.match(/(?<!store\.)state\./g) ?? []).length, 2)
   const diffSource = await readFile(join(root, 'src/client/DiffView.jsx'), 'utf8')
   assert.match(diffSource, /useStoreSlice\(store, diffSlice, shallowEqual\)/)
   assert.match(diffSource, /export function DiffView\(\{ store, tab \}\)/)
   assert.equal((diffSource.match(/(?<!store\.)state\./g) ?? []).length, 1)
 
-  // The editor hands them the store only - no synthesized state object.
+  // The editor hands them the store only - no synthesized state object. The
+  // popup is mounted by the workbench root, not by the editor area.
   const editorSource = await readFile(join(root, 'src/client/EditorArea.jsx'), 'utf8')
-  assert.match(editorSource, /React\.createElement\(SearchView, \{ store \}\)/)
   assert.match(editorSource, /React\.createElement\(DiffView, \{ store, tab: active \}\)/)
   assert.doesNotMatch(editorSource, /searchState|diffState/)
+  const workbenchSource = await readFile(join(root, 'src/client/Workbench.jsx'), 'utf8')
+  assert.match(workbenchSource, /React\.createElement\(SearchPopup, \{ store \}\)/)
 })

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The workbench store: one shared repository snapshot behind all four tool
  * windows (Project / Commit / Git / Terminal).
  *
@@ -270,6 +270,15 @@ function initialState() {
       truncated: false,
       token: 0,
     },
+    /**
+     * The Find in Files popup.
+     *
+     * The results are a popup over the workbench, not a tab of the editor
+     * area: a project-wide search must not take the file the user is working
+     * on off the screen (PRD-v5 supplement FIND-01). `index` is the selected
+     * FILE of the list - the hits of that file are the preview below it.
+     */
+    searchPopup: { open: false, index: 0, generation: 0 },
     commit: {
       message: '',
       amend: false,
@@ -354,7 +363,6 @@ export class WorkbenchStore {
     /** Request generation of the blame panel, so a stale answer cannot win. */
     this.blameToken = 0
     this.searchToken = 0
-    this.searchIndex = -1
     this.settingsFile = ''
     this.initPromise = null
     this.unsubscribers = []
@@ -1037,6 +1045,9 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The popup belongs to the project it was opened in: a switch closes it
+      // instead of leaving the hits of the old project on screen.
+      searchPopup: initialState().searchPopup,
       blame: emptyBlame(),
       // The commit selection belongs to the repository it was made in
       // (PRD-v4 §3.2): it must not survive the switch.
@@ -1135,6 +1146,9 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The popup belongs to the project it was opened in: a switch closes it
+      // instead of leaving the hits of the old project on screen.
+      searchPopup: initialState().searchPopup,
       blame: emptyBlame(),
       // The checked paths and the group pins belong to the repository they
       // were made in (PRD-v4 §3.2): a path of repository A must not stay
@@ -1686,43 +1700,29 @@ export class WorkbenchStore {
     this.openFile(this.#absoluteOf(value), { rel: value, preview: false })
   }
 
-  /** Cycle through Find in Files hits with F8 / Shift+F8. */
-  openNextSearchResult(delta = 1) {
-    const hits = this.searchHits()
-    if (hits.length === 0) return
-    this.searchIndex = (this.searchIndex + (delta >= 0 ? 1 : -1) + hits.length) % hits.length
-    const hit = hits[this.searchIndex]
-    // The column travels with the line: the host sends it, so the cursor
-    // lands on the word and not at the start of the line.
-    this.openSearchResult(hit.path, hit.line, hit.column)
+  /**
+   * The file the Find in Files popup shows in its preview.
+   *
+   * The upper half of the popup lists the files that matched, and the selection
+   * walks that list; the hits of the selected file are the preview below.
+   * @returns {object|null} the file, or `null` when there is none
+   */
+  selectedSearchFile() {
+    const files = (this.state.search?.results ?? []).filter(file => (file?.matches ?? []).length > 0)
+    if (files.length === 0) return null
+    const index = Math.min(Math.max(this.state.searchPopup?.index ?? 0, 0), files.length - 1)
+    return files[index] ?? null
   }
 
   /**
-   * The hits of the current search, flattened over the files.
+   * Open one Find in Files hit at its line.
    *
-   * The popup shows the files on top and the hits of the selected file in
-   * the preview below; this flat list is what "F8 cycles the hits" walks.
-   * @returns {Array<{path: string, line: number, column: number, match: object, file: object}>}
+   * Opening a hit ends the popup: the popup is a one-shot tool, and the file
+   * the user picked is what has to be in front afterwards (PRD-v5 FIND-02).
    */
-  searchHits() {
-    const hits = []
-    for (const file of this.state.search.results ?? []) {
-      for (const match of file.matches ?? []) {
-        hits.push({
-          path: file.path,
-          line: match.line,
-          column: match.column,
-          match,
-          file,
-        })
-      }
-    }
-    return hits
-  }
-
-  /** Open one Find in Files hit at its line. */
   openSearchResult(rel, line, column) {
     if (typeof rel !== 'string' || rel === '') return
+    this.closeSearchPopup()
     const absolute = this.#absoluteOf(rel)
     this.openFile(absolute, {
       rel,
@@ -1735,28 +1735,21 @@ export class WorkbenchStore {
   }
 
   /**
-   * Open the Find in Files view.
+   * Open Find in Files as a popup over the workbench.
    *
-   * The view is a TAB of the editor area (decision O2 ①): the popup that
-   * floats above the editor belongs to the code intelligence, but the core
-   * keeps its own way to find a text in the files.
+   * The results used to be a tab of the editor area, which took the file the
+   * user was working on off the screen (PRD-v5 supplement FIND-01): the popup
+   * floats above the editor and leaves the tab strip alone.
    *
-   * The tab is remounted on every open: it takes its query from the store
-   * when it mounts, and a view that keeps the query of the last session is
-   * not what the user asked for.
+   * The query and the flags are reset on every open: a project-wide search
+   * must not inherit the flags of an earlier run, and the seed (the selection
+   * of the moment, or nothing) is what the popup starts from.
    *
    * @param {string} [query] the query to run right away
    */
-  openSearchTab(query = '') {
-    const existing = this.state.tabs.find(tab => tab.kind === 'search')
-    const generation = ((existing?.generation ?? 0) + 1)
-    const tab = existing === undefined
-      ? { id: 'search:in-files', kind: 'search', name: 'search.title', loading: false, error: null, generation }
-      : { ...existing, generation }
-    const tabs = existing === undefined
-      ? [...this.state.tabs, tab]
-      : this.state.tabs.map(item => (item === existing ? tab : item))
-    this.set({ tabs, activeId: tab.id })
+  openSearchPopup(query = '') {
+    const popup = this.state.searchPopup ?? { open: false, index: 0, generation: 0 }
+    this.set({ searchPopup: { ...popup, open: true, index: 0, generation: (popup.generation ?? 0) + 1 } })
     this.patch('search', {
       textMatch: false,
       query: '',
@@ -1767,6 +1760,30 @@ export class WorkbenchStore {
     if (typeof query === 'string' && query !== '') void this.runSearch(query)
   }
 
+  /** Close the Find in Files popup. */
+  closeSearchPopup() {
+    if (this.state.searchPopup?.open !== true) return
+    this.set({ searchPopup: { ...this.state.searchPopup, open: false, index: 0 } })
+  }
+
+  /**
+   * Move the selection inside the Find in Files popup.
+   *
+   * The upper half lists the files that matched, so the selection walks the
+   * files - the hits of a file are its preview, not more rows.
+   * @param {number} delta how far to move
+   */
+  moveSearchSelection(delta) {
+    const files = (this.state.search?.results ?? []).filter(file => (file?.matches ?? []).length > 0)
+    if (files.length === 0) return
+    const current = this.state.searchPopup?.index ?? 0
+    const step = Number.isFinite(delta) ? Math.trunc(delta) : 1
+    // The modulo is done twice: the first one folds the step into the list
+    // length, the second one keeps the result positive.
+    const index = (((current + step) % files.length) + files.length) % files.length
+    this.set({ searchPopup: { ...this.state.searchPopup, open: true, index } })
+  }
+
   async runSearch(query, options = {}) {
     const value = typeof query === 'string' ? query : this.state.search.query
     const flags = {
@@ -1775,7 +1792,6 @@ export class WorkbenchStore {
       regexp: options.regexp ?? this.state.search.regexp,
     }
     const token = ++this.searchToken
-    this.searchIndex = -1
     this.patch('search', {
       query: value, ...flags, loading: value !== '', error: null,
       results: value === '' ? [] : this.state.search.results,

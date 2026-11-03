@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PERF-02 — the Project panel subscribes to a store slice (PRD-v4 §1.2).
  *
  *   - the slice selector returns exactly the fields the panel reads;
@@ -154,7 +154,7 @@ function baseStore(state) {
     openDiff: () => {},
     showHistory: () => {},
     openQuickOpen: () => {},
-    openSearchTab: () => {},
+    openSearchPopup: () => {},
     sendToChat: () => {},
     openRootPicker: () => {},
     openProjectPicker: () => {},

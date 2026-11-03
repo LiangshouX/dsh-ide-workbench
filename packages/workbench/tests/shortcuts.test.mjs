@@ -1,4 +1,4 @@
-import test from 'node:test'
+﻿import test from 'node:test'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 import { mkdir, readFile, rm } from 'node:fs/promises'
@@ -123,7 +123,7 @@ function makeHandler(createEditorKeyHandler, overrides = {}) {
   const store = {
     state: { active: true },
     t: key => key,
-    openSearchTab() { calls.push('openSearchTab') },
+    openSearchPopup(query = '') { calls.push('openSearchPopup:' + query) },
   }
   const handler = createEditorKeyHandler(store, {
     textTab: true,
@@ -133,18 +133,35 @@ function makeHandler(createEditorKeyHandler, overrides = {}) {
     editorApi: null,
     setFindOpen: value => calls.push(`findOpen:${value}`),
     setPreviewFind: value => calls.push(`previewFind:${value}`),
+    seedFind: () => calls.push('seedFind'),
+    seedPreviewFind: () => calls.push('seedPreviewFind'),
     ...overrides,
   })
   return { handler, calls }
 }
 
-test('Ctrl+Shift+R opens the global Find in Files view', async () => {
+test('Ctrl+Shift+R opens the global Find in Files popup', async () => {
   const mod = await loadModule()
   const { handler, calls } = makeHandler(mod.createEditorKeyHandler)
   const event = keyEvent({ key: 'R', ctrlKey: true, shiftKey: true })
   handler(event)
-  assert.deepEqual(calls, ['openSearchTab'])
+  assert.deepEqual(calls, ['openSearchPopup:'])
   assert.equal(event.prevented, 1)
+})
+
+test('Ctrl+Shift+R seeds the popup with the selected text', async () => {
+  const mod = await loadModule()
+  const original = globalThis.window
+  // The selection of the page is what the IDE puts in the search field.
+  globalThis.window = { getSelection: () => ({ toString: () => '  writeFileSync  ' }) }
+  try {
+    const { handler, calls } = makeHandler(mod.createEditorKeyHandler)
+    handler(keyEvent({ key: 'R', ctrlKey: true, shiftKey: true }))
+    assert.deepEqual(calls, ['openSearchPopup:writeFileSync'])
+  } finally {
+    if (original === undefined) delete globalThis.window
+    else globalThis.window = original
+  }
 })
 
 test('Ctrl+Shift+F no longer opens the global Find in Files view', async () => {
@@ -156,13 +173,35 @@ test('Ctrl+Shift+F no longer opens the global Find in Files view', async () => {
   assert.equal(event.prevented, 0)
 })
 
-test('bare Ctrl+F stays the in-file find', async () => {
+test('bare Ctrl+F stays the in-file find and seeds it from the selection', async () => {
   const mod = await loadModule()
   const { handler, calls } = makeHandler(mod.createEditorKeyHandler)
   const event = keyEvent({ key: 'f', ctrlKey: true })
   handler(event)
-  assert.deepEqual(calls, ['findOpen:true'])
+  // Seed first, then open: the bar mounts with the selection in its field.
+  assert.deepEqual(calls, ['seedFind', 'findOpen:true'])
   assert.equal(event.prevented, 1)
+})
+
+test('Ctrl+F does not rewrite the query while the find bar has the focus', async () => {
+  const mod = await loadModule()
+  // An Element (not an HTMLElement): the guard of the find-in-files popup
+  // only asks for HTMLElement, the find bar check asks for Element.
+  const target = new globalThis.Element()
+  target.closest = selector => (selector === '.iwb-findbar' ? { tagName: 'DIV' } : null)
+  const { handler, calls } = makeHandler(mod.createEditorKeyHandler)
+  const event = keyEvent({ key: 'f', ctrlKey: true, target })
+  handler(event)
+  // The field is the selection's owner now: the query the user typed stays.
+  assert.deepEqual(calls, ['findOpen:true'])
+})
+
+test('Ctrl+F in the rendered preview seeds the DOM find bar', async () => {
+  const mod = await loadModule()
+  const { handler, calls } = makeHandler(mod.createEditorKeyHandler, { textTab: false, previewTab: true })
+  const event = keyEvent({ key: 'f', ctrlKey: true })
+  handler(event)
+  assert.deepEqual(calls, ['seedPreviewFind', 'previewFind:true'])
 })
 
 test('Ctrl+Alt+F stays the documented fallback alias', async () => {
@@ -170,14 +209,14 @@ test('Ctrl+Alt+F stays the documented fallback alias', async () => {
   const { handler, calls } = makeHandler(mod.createEditorKeyHandler)
   const event = keyEvent({ key: 'f', ctrlKey: true, altKey: true })
   handler(event)
-  assert.deepEqual(calls, ['openSearchTab'])
+  assert.deepEqual(calls, ['openSearchPopup:'])
   assert.equal(event.prevented, 1)
 })
 
-test('the global find shortcut is ignored inside the Find in Files view', async () => {
+test('the global find shortcut is ignored inside the Find in Files popup', async () => {
   const mod = await loadModule()
   const target = new globalThis.HTMLElement()
-  target.closest = selector => (selector === '.iwb-search' ? { tagName: 'DIV' } : null)
+  target.closest = selector => (selector === '.iwb-search-popup-backdrop' ? { tagName: 'DIV' } : null)
   const { handler, calls } = makeHandler(mod.createEditorKeyHandler)
   const event = keyEvent({ key: 'R', ctrlKey: true, shiftKey: true, target })
   handler(event)

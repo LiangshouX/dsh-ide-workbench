@@ -105,7 +105,7 @@ function FallbackMarkdown({ text }) {
  */
 export function MarkdownView({
   text, outlineOpen, onToggleOutline, labels = {}, t = (key) => key,
-  findOpen = false, onCloseFind, onFindRequest,
+  findOpen = false, seed = null, onCloseFind, onFindRequest,
 }) {
   const MarkdownText = useMarkdownComponent()
   const containerRef = useRef(null)
@@ -183,7 +183,7 @@ export function MarkdownView({
     },
   },
     findOpen === true
-      ? React.createElement(DomFindBar, { containerRef, t, onClose: () => onCloseFind?.() })
+      ? React.createElement(DomFindBar, { containerRef, t, seed, onClose: () => onCloseFind?.() })
       : null,
     React.createElement('div', { className: 'iwb-markdown', ref: containerRef },
       MarkdownText !== null

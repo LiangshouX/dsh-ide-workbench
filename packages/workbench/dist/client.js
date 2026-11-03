@@ -33149,6 +33149,13 @@ var en = {
   "search.openResult": "Open result",
   "search.results": "Results",
   "search.searching": "Searching\u2026",
+  // The popup (PRD-v5 FIND-01 / FIND-02): the files on top, the hits of the
+  // selected file with their context below.
+  "search.popup.matches": "{count} matches in {files} files",
+  "search.popup.matchCount": "{count} matches",
+  "search.popup.noPreview": "Select a file to see its matches",
+  "search.popup.binary": "Binary file - no preview",
+  "search.popup.hint": "\u2191\u2193 file \xB7 Enter opens \xB7 double click opens \xB7 Esc closes",
   "quickOpen.title": "Quick Open",
   "quickOpen.placeholder": "Type a file name or path",
   "quickOpen.empty": "No matching files",
@@ -33606,6 +33613,12 @@ var zh = {
   "search.openResult": "\u6253\u5F00\u7ED3\u679C",
   "search.results": "\u7ED3\u679C",
   "search.searching": "\u641C\u7D22\u4E2D\u2026",
+  // 查找弹窗（PRD-v5 FIND-01 / FIND-02）：上面是文件列表，下面是选中文件的命中与上下文。
+  "search.popup.matches": "{count} \u5904\u5339\u914D\uFF0C\u4F4D\u4E8E {files} \u4E2A\u6587\u4EF6",
+  "search.popup.matchCount": "{count} \u5904",
+  "search.popup.noPreview": "\u9009\u62E9\u4E00\u4E2A\u6587\u4EF6\u67E5\u770B\u5339\u914D\u5185\u5BB9",
+  "search.popup.binary": "\u4E8C\u8FDB\u5236\u6587\u4EF6\uFF0C\u65E0\u9884\u89C8",
+  "search.popup.hint": "\u2191\u2193 \u9009\u6587\u4EF6 \xB7 Enter \u6253\u5F00 \xB7 \u53CC\u51FB\u6253\u5F00 \xB7 Esc \u5173\u95ED",
   "quickOpen.title": "\u5FEB\u901F\u6253\u5F00",
   "quickOpen.placeholder": "\u8F93\u5165\u6587\u4EF6\u540D\u6216\u8DEF\u5F84",
   "quickOpen.empty": "\u6CA1\u6709\u5339\u914D\u7684\u6587\u4EF6",
@@ -33801,6 +33814,19 @@ function baseName(path2) {
 function shortEncoding(encoding) {
   const text = typeof encoding === "string" ? encoding.trim() : "";
   return text === "" ? "" : [...text][0];
+}
+function findSeed(text) {
+  if (typeof text !== "string") return "";
+  const trimmed = text.trim();
+  if (trimmed === "") return "";
+  const line = trimmed.split(/\r?\n/).find((part) => part.trim() !== "");
+  return line === void 0 ? "" : line.trim().slice(0, 400);
+}
+function selectedText() {
+  if (typeof window === "undefined") return "";
+  const selection = window.getSelection?.();
+  if (selection === null || selection === void 0) return "";
+  return findSeed(String(selection.toString()));
 }
 function formatGitDate(value, compact = false) {
   if (typeof value !== "string" || value === "") return "";
@@ -38267,6 +38293,15 @@ function initialState() {
       truncated: false,
       token: 0
     },
+    /**
+     * The Find in Files popup.
+     *
+     * The results are a popup over the workbench, not a tab of the editor
+     * area: a project-wide search must not take the file the user is working
+     * on off the screen (PRD-v5 supplement FIND-01). `index` is the selected
+     * FILE of the list - the hits of that file are the preview below it.
+     */
+    searchPopup: { open: false, index: 0, generation: 0 },
     commit: {
       message: "",
       amend: false,
@@ -38348,7 +38383,6 @@ var WorkbenchStore = class {
     this.gitDetailToken = 0;
     this.blameToken = 0;
     this.searchToken = 0;
-    this.searchIndex = -1;
     this.settingsFile = "";
     this.initPromise = null;
     this.unsubscribers = [];
@@ -38937,6 +38971,9 @@ var WorkbenchStore = class {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The popup belongs to the project it was opened in: a switch closes it
+      // instead of leaving the hits of the old project on screen.
+      searchPopup: initialState().searchPopup,
       blame: emptyBlame(),
       // The commit selection belongs to the repository it was made in
       // (PRD-v4 §3.2): it must not survive the switch.
@@ -39035,6 +39072,9 @@ var WorkbenchStore = class {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      // The popup belongs to the project it was opened in: a switch closes it
+      // instead of leaving the hits of the old project on screen.
+      searchPopup: initialState().searchPopup,
       blame: emptyBlame(),
       // The checked paths and the group pins belong to the repository they
       // were made in (PRD-v4 §3.2): a path of repository A must not stay
@@ -39493,39 +39533,28 @@ var WorkbenchStore = class {
     this.closeQuickOpen();
     this.openFile(this.#absoluteOf(value), { rel: value, preview: false });
   }
-  /** Cycle through Find in Files hits with F8 / Shift+F8. */
-  openNextSearchResult(delta = 1) {
-    const hits = this.searchHits();
-    if (hits.length === 0) return;
-    this.searchIndex = (this.searchIndex + (delta >= 0 ? 1 : -1) + hits.length) % hits.length;
-    const hit = hits[this.searchIndex];
-    this.openSearchResult(hit.path, hit.line, hit.column);
+  /**
+   * The file the Find in Files popup shows in its preview.
+   *
+   * The upper half of the popup lists the files that matched, and the selection
+   * walks that list; the hits of the selected file are the preview below.
+   * @returns {object|null} the file, or `null` when there is none
+   */
+  selectedSearchFile() {
+    const files = (this.state.search?.results ?? []).filter((file) => (file?.matches ?? []).length > 0);
+    if (files.length === 0) return null;
+    const index = Math.min(Math.max(this.state.searchPopup?.index ?? 0, 0), files.length - 1);
+    return files[index] ?? null;
   }
   /**
-   * The hits of the current search, flattened over the files.
+   * Open one Find in Files hit at its line.
    *
-   * The popup shows the files on top and the hits of the selected file in
-   * the preview below; this flat list is what "F8 cycles the hits" walks.
-   * @returns {Array<{path: string, line: number, column: number, match: object, file: object}>}
+   * Opening a hit ends the popup: the popup is a one-shot tool, and the file
+   * the user picked is what has to be in front afterwards (PRD-v5 FIND-02).
    */
-  searchHits() {
-    const hits = [];
-    for (const file of this.state.search.results ?? []) {
-      for (const match of file.matches ?? []) {
-        hits.push({
-          path: file.path,
-          line: match.line,
-          column: match.column,
-          match,
-          file
-        });
-      }
-    }
-    return hits;
-  }
-  /** Open one Find in Files hit at its line. */
   openSearchResult(rel, line, column) {
     if (typeof rel !== "string" || rel === "") return;
+    this.closeSearchPopup();
     const absolute = this.#absoluteOf(rel);
     this.openFile(absolute, {
       rel,
@@ -39537,24 +39566,21 @@ var WorkbenchStore = class {
     });
   }
   /**
-   * Open the Find in Files view.
+   * Open Find in Files as a popup over the workbench.
    *
-   * The view is a TAB of the editor area (decision O2 ①): the popup that
-   * floats above the editor belongs to the code intelligence, but the core
-   * keeps its own way to find a text in the files.
+   * The results used to be a tab of the editor area, which took the file the
+   * user was working on off the screen (PRD-v5 supplement FIND-01): the popup
+   * floats above the editor and leaves the tab strip alone.
    *
-   * The tab is remounted on every open: it takes its query from the store
-   * when it mounts, and a view that keeps the query of the last session is
-   * not what the user asked for.
+   * The query and the flags are reset on every open: a project-wide search
+   * must not inherit the flags of an earlier run, and the seed (the selection
+   * of the moment, or nothing) is what the popup starts from.
    *
    * @param {string} [query] the query to run right away
    */
-  openSearchTab(query = "") {
-    const existing = this.state.tabs.find((tab4) => tab4.kind === "search");
-    const generation = (existing?.generation ?? 0) + 1;
-    const tab3 = existing === void 0 ? { id: "search:in-files", kind: "search", name: "search.title", loading: false, error: null, generation } : { ...existing, generation };
-    const tabs = existing === void 0 ? [...this.state.tabs, tab3] : this.state.tabs.map((item) => item === existing ? tab3 : item);
-    this.set({ tabs, activeId: tab3.id });
+  openSearchPopup(query = "") {
+    const popup = this.state.searchPopup ?? { open: false, index: 0, generation: 0 };
+    this.set({ searchPopup: { ...popup, open: true, index: 0, generation: (popup.generation ?? 0) + 1 } });
     this.patch("search", {
       textMatch: false,
       query: "",
@@ -39564,6 +39590,26 @@ var WorkbenchStore = class {
     });
     if (typeof query === "string" && query !== "") void this.runSearch(query);
   }
+  /** Close the Find in Files popup. */
+  closeSearchPopup() {
+    if (this.state.searchPopup?.open !== true) return;
+    this.set({ searchPopup: { ...this.state.searchPopup, open: false, index: 0 } });
+  }
+  /**
+   * Move the selection inside the Find in Files popup.
+   *
+   * The upper half lists the files that matched, so the selection walks the
+   * files - the hits of a file are its preview, not more rows.
+   * @param {number} delta how far to move
+   */
+  moveSearchSelection(delta) {
+    const files = (this.state.search?.results ?? []).filter((file) => (file?.matches ?? []).length > 0);
+    if (files.length === 0) return;
+    const current = this.state.searchPopup?.index ?? 0;
+    const step = Number.isFinite(delta) ? Math.trunc(delta) : 1;
+    const index = ((current + step) % files.length + files.length) % files.length;
+    this.set({ searchPopup: { ...this.state.searchPopup, open: true, index } });
+  }
   async runSearch(query, options = {}) {
     const value = typeof query === "string" ? query : this.state.search.query;
     const flags = {
@@ -39572,7 +39618,6 @@ var WorkbenchStore = class {
       regexp: options.regexp ?? this.state.search.regexp
     };
     const token2 = ++this.searchToken;
-    this.searchIndex = -1;
     this.patch("search", {
       query: value,
       ...flags,
@@ -54099,7 +54144,7 @@ function TerminalPanel({ store, state, visible = true }) {
 }
 
 // src/client/EditorArea.jsx
-var import_react15 = __toESM(require("react"), 1);
+var import_react14 = __toESM(require("react"), 1);
 
 // src/client/CodeEditor.jsx
 var import_react9 = __toESM(require("react"), 1);
@@ -54910,8 +54955,8 @@ function rangesFor(container, query, options) {
   }
   return ranges;
 }
-function DomFindBar({ containerRef, t: t2, onClose }) {
-  const [query, setQuery] = (0, import_react10.useState)("");
+function DomFindBar({ containerRef, t: t2, seed = null, onClose }) {
+  const [query, setQuery] = (0, import_react10.useState)(seed?.text ?? "");
   const [caseSensitive, setCaseSensitive] = (0, import_react10.useState)(false);
   const [wholeWord, setWholeWord] = (0, import_react10.useState)(false);
   const [regexp, setRegexp] = (0, import_react10.useState)(false);
@@ -54969,6 +55014,12 @@ function DomFindBar({ containerRef, t: t2, onClose }) {
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
+  (0, import_react10.useEffect)(() => {
+    if (seed === null || seed === void 0 || typeof seed.text !== "string" || seed.text === "") return;
+    setQuery(seed.text);
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [seed?.nonce]);
   (0, import_react10.useEffect)(() => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => search2(query), 80);
@@ -55120,6 +55171,7 @@ function MarkdownView({
   labels = {},
   t: t2 = (key) => key,
   findOpen = false,
+  seed = null,
   onCloseFind,
   onFindRequest
 }) {
@@ -55196,7 +55248,7 @@ function MarkdownView({
         }
       }
     },
-    findOpen === true ? import_react11.default.createElement(DomFindBar, { containerRef, t: t2, onClose: () => onCloseFind?.() }) : null,
+    findOpen === true ? import_react11.default.createElement(DomFindBar, { containerRef, t: t2, seed, onClose: () => onCloseFind?.() }) : null,
     import_react11.default.createElement(
       "div",
       { className: "iwb-markdown", ref: containerRef },
@@ -55580,9 +55632,9 @@ function diffPaneWidths(rows) {
 
 // src/client/FindBar.jsx
 var import_react12 = __toESM(require("react"), 1);
-function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = "", onClose }) {
+function FindBar({ store, editor, readOnly: readOnly2 = false, seed = null, onClose }) {
   const t2 = store.t;
-  const [query, setQuery] = (0, import_react12.useState)(initialQuery);
+  const [query, setQuery] = (0, import_react12.useState)(seed?.text ?? "");
   const [replacement, setReplacement] = (0, import_react12.useState)("");
   const [caseSensitive, setCaseSensitive] = (0, import_react12.useState)(false);
   const [wholeWord, setWholeWord] = (0, import_react12.useState)(false);
@@ -55612,6 +55664,12 @@ function FindBar({ store, editor, readOnly: readOnly2 = false, initialQuery = ""
     inputRef.current?.select();
     apply2(query);
   }, [editor]);
+  (0, import_react12.useEffect)(() => {
+    if (seed === null || seed === void 0 || typeof seed.text !== "string" || seed.text === "") return;
+    setQuery(seed.text);
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [seed?.nonce]);
   (0, import_react12.useEffect)(() => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => apply2(query), 90);
@@ -56261,164 +56319,6 @@ ${row.right?.text ?? ""}`;
   );
 }
 
-// src/client/SearchView.jsx
-var import_react14 = __toESM(require("react"), 1);
-function interpolate2(text, values2) {
-  let out = typeof text === "string" ? text : "";
-  for (const [name2, value] of Object.entries(values2)) {
-    out = out.replaceAll(`{${name2}}`, String(value));
-  }
-  return out;
-}
-function Flag({ on: on2, label: label3, title, onClick }) {
-  return import_react14.default.createElement("button", {
-    type: "button",
-    className: `iwb-find-flag ${on2 ? "iwb-on" : ""}`,
-    title,
-    "aria-pressed": on2,
-    onClick
-  }, label3);
-}
-function searchSlice(state) {
-  return { search: state.search };
-}
-function SearchView({ store }) {
-  const t2 = store.t;
-  const { search: search2 } = useStoreSlice(store, searchSlice, shallowEqual);
-  const [query, setQuery] = (0, import_react14.useState)(search2.query);
-  const [caseSensitive, setCaseSensitive] = (0, import_react14.useState)(search2.caseSensitive);
-  const [wholeWord, setWholeWord] = (0, import_react14.useState)(search2.wholeWord);
-  const [regexp, setRegexp] = (0, import_react14.useState)(search2.regexp);
-  const inputRef = (0, import_react14.useRef)(null);
-  const timer = (0, import_react14.useRef)(null);
-  (0, import_react14.useEffect)(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
-    const timerId = setTimeout(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }, 80);
-    return () => clearTimeout(timerId);
-  }, []);
-  (0, import_react14.useEffect)(() => {
-    if (search2.loading === false) inputRef.current?.focus();
-  }, [search2.loading, search2.tookMs]);
-  (0, import_react14.useEffect)(() => {
-    if (timer.current !== null) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      timer.current = null;
-      void store.runSearch(query, { caseSensitive, wholeWord, regexp });
-    }, query === "" ? 0 : 220);
-    return () => {
-      if (timer.current !== null) clearTimeout(timer.current);
-    };
-  }, [query, caseSensitive, wholeWord, regexp]);
-  const totals = (0, import_react14.useMemo)(() => {
-    const matches = search2.results.reduce((sum, file) => sum + file.matches.length, 0);
-    return { matches, files: search2.results.length };
-  }, [search2.results]);
-  const open = (result, match) => {
-    store.openSearchResult(result.path, match.line);
-  };
-  (0, import_react14.useEffect)(() => {
-    const onKey = (event) => {
-      if (event.key !== "Enter" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-      if (store.state.activeId !== "search:in-files") return;
-      const first = search2.results[0];
-      if (first === void 0 || first.matches[0] === void 0) return;
-      event.preventDefault();
-      event.stopPropagation();
-      open(first, first.matches[0]);
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [search2.results, store]);
-  return import_react14.default.createElement(
-    "div",
-    { className: "iwb-search" },
-    import_react14.default.createElement(
-      "div",
-      { className: "iwb-search-head" },
-      import_react14.default.createElement(IconSearch, { width: 14, height: 14, style: { color: "var(--iwb-muted)" } }),
-      import_react14.default.createElement("input", {
-        ref: inputRef,
-        className: "iwb-search-input",
-        value: query,
-        placeholder: t2("search.placeholder"),
-        spellCheck: false,
-        onChange: (event) => setQuery(event.target.value),
-        onKeyDown: (event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            const first = search2.results[0];
-            if (first !== void 0 && first.matches[0] !== void 0) {
-              open(first, first.matches[0]);
-            } else {
-              void store.runSearch(query, { caseSensitive, wholeWord, regexp });
-            }
-          }
-        }
-      }),
-      import_react14.default.createElement(Flag, {
-        on: caseSensitive,
-        label: "Aa",
-        title: t2("search.caseSensitive"),
-        onClick: () => setCaseSensitive((value) => !value)
-      }),
-      import_react14.default.createElement(Flag, {
-        on: wholeWord,
-        label: "W",
-        title: t2("search.wholeWord"),
-        onClick: () => setWholeWord((value) => !value)
-      }),
-      import_react14.default.createElement(Flag, {
-        on: regexp,
-        label: ".*",
-        title: t2("search.regexp"),
-        onClick: () => setRegexp((value) => !value)
-      })
-    ),
-    import_react14.default.createElement(
-      "div",
-      { className: "iwb-search-meta" },
-      search2.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2.error !== null ? search2.error : search2.textMatch === true ? totals.matches === 0 ? t2("nav.noUsages") : interpolate2(t2("nav.usagesCount"), { count: totals.matches }) : `${totals.matches} ${t2("search.resultCount")} \xB7 ${totals.files} \xB7 ${search2.tookMs} ${t2("search.took")}`,
-      search2.truncated === true ? import_react14.default.createElement("span", { className: "iwb-search-warn" }, t2("search.truncated")) : null
-    ),
-    // The text version of Find Usages is a fallback, not a semantic result:
-    // every hit is labelled, so the user knows what the list really is
-    // (PRD-v5 §5.3, §7.1).
-    search2.textMatch === true ? import_react14.default.createElement("div", { className: "iwb-search-textmatch-note" }, t2("nav.textMatch")) : null,
-    import_react14.default.createElement(
-      "div",
-      { className: "iwb-search-results" },
-      search2.error !== null && query !== "" ? import_react14.default.createElement("div", { className: "iwb-search-error" }, search2.error) : search2.results.length === 0 && query !== "" && search2.loading !== true ? import_react14.default.createElement("div", { className: "iwb-empty" }, t2("search.noResults")) : search2.results.map((file) => import_react14.default.createElement(
-        "div",
-        { key: file.path, className: "iwb-search-file" },
-        import_react14.default.createElement(
-          "div",
-          { className: "iwb-search-file-head", title: file.path },
-          import_react14.default.createElement("span", { className: "iwb-search-file-name" }, file.path.split("/").pop()),
-          import_react14.default.createElement("span", { className: "iwb-search-file-dir" }, file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""),
-          import_react14.default.createElement("span", { className: "iwb-count" }, file.matches.length)
-        ),
-        file.matches.map((match, index) => import_react14.default.createElement(
-          "button",
-          {
-            key: `${file.path}:${match.line}:${match.column}:${index}`,
-            type: "button",
-            className: "iwb-search-hit",
-            title: t2("search.openResult"),
-            onClick: () => open(file, match)
-          },
-          import_react14.default.createElement("span", { className: "iwb-search-line" }, match.line),
-          search2.textMatch === true ? import_react14.default.createElement("span", { className: "iwb-search-textmatch" }, t2("nav.textMatch")) : null,
-          import_react14.default.createElement("span", { className: "iwb-search-preview" }, match.preview)
-        ))
-      ))
-    )
-  );
-}
-
 // src/client/EditorArea.jsx
 function selectEditorSlice(state) {
   const tabs = state.tabs ?? [];
@@ -56443,25 +56343,25 @@ function Welcome({ store, slice }) {
   const t2 = store.t;
   const branch = slice.status?.branch;
   const repoProjects = (slice.projects ?? []).filter((project) => project.isRepo === true && project.path !== slice.root);
-  const Shortcut = ({ shortcut, children }) => import_react15.default.createElement(Kbd, null, shortcut);
+  const Shortcut = ({ shortcut, children }) => import_react14.default.createElement(Kbd, null, shortcut);
   const actions = [
     { key: "project", icon: "project", title: t2("welcome.project"), shortcut: slice.shortcuts?.project ?? "Alt+1", onClick: () => store.showTool("project") },
     { key: "commit", icon: "commit", title: t2("welcome.commit"), shortcut: slice.shortcuts?.commit ?? "Alt+0", onClick: () => store.showTool("commit") },
     { key: "git", icon: "git", title: t2("welcome.git"), shortcut: slice.shortcuts?.git ?? "Alt+9", onClick: () => store.showTool("git") },
     { key: "terminal", icon: "terminal", title: t2("welcome.terminal"), shortcut: slice.shortcuts?.terminal ?? "Alt+F12", onClick: () => store.showTool("terminal") }
   ];
-  return import_react15.default.createElement(
+  return import_react14.default.createElement(
     "div",
     { className: "iwb-welcome" },
-    import_react15.default.createElement(
+    import_react14.default.createElement(
       "div",
       { className: "iwb-welcome-card" },
-      import_react15.default.createElement("h1", { className: "iwb-welcome-title" }, t2("welcome.title")),
-      import_react15.default.createElement("p", { className: "iwb-welcome-sub" }, t2("welcome.subtitle")),
-      import_react15.default.createElement(
+      import_react14.default.createElement("h1", { className: "iwb-welcome-title" }, t2("welcome.title")),
+      import_react14.default.createElement("p", { className: "iwb-welcome-sub" }, t2("welcome.subtitle")),
+      import_react14.default.createElement(
         "div",
         { className: "iwb-welcome-grid" },
-        actions.map((action) => import_react15.default.createElement(
+        actions.map((action) => import_react14.default.createElement(
           "button",
           {
             key: action.key,
@@ -56469,22 +56369,22 @@ function Welcome({ store, slice }) {
             className: "iwb-welcome-action",
             onClick: action.onClick
           },
-          import_react15.default.createElement(StripeIcon, { tool: action.icon, size: 17 }),
-          import_react15.default.createElement("span", null, action.title),
-          import_react15.default.createElement(Shortcut, { shortcut: action.shortcut, children: action.shortcut })
+          import_react14.default.createElement(StripeIcon, { tool: action.icon, size: 17 }),
+          import_react14.default.createElement("span", null, action.title),
+          import_react14.default.createElement(Shortcut, { shortcut: action.shortcut, children: action.shortcut })
         ))
       ),
-      import_react15.default.createElement(
+      import_react14.default.createElement(
         "div",
         { className: "iwb-welcome-meta" },
-        slice.status?.isRepo === true ? import_react15.default.createElement("span", null, `${t2("welcome.branch")}: ${slice.status.detached === true ? t2("git.detached") : branch ?? "HEAD"}`) : import_react15.default.createElement("span", null, t2("welcome.noRepo")),
-        import_react15.default.createElement("span", null, slice.root)
+        slice.status?.isRepo === true ? import_react14.default.createElement("span", null, `${t2("welcome.branch")}: ${slice.status.detached === true ? t2("git.detached") : branch ?? "HEAD"}`) : import_react14.default.createElement("span", null, t2("welcome.noRepo")),
+        import_react14.default.createElement("span", null, slice.root)
       ),
-      slice.status?.isRepo !== true && repoProjects.length > 0 ? import_react15.default.createElement(
+      slice.status?.isRepo !== true && repoProjects.length > 0 ? import_react14.default.createElement(
         "div",
         { className: "iwb-welcome-hint" },
-        import_react15.default.createElement("span", null, t2("project.noRepoHint")),
-        import_react15.default.createElement("button", {
+        import_react14.default.createElement("span", null, t2("project.noRepoHint")),
+        import_react14.default.createElement("button", {
           type: "button",
           className: "iwb-textbtn iwb-small",
           onClick: () => store.openProjectPicker()
@@ -56493,10 +56393,10 @@ function Welcome({ store, slice }) {
     )
   );
 }
-function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, onFindInFiles, previewFind, onPreviewFindRequest, onClosePreviewFind, contract, renderSlot }) {
+function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, onFindInFiles, previewFind, previewSeed, onPreviewFindRequest, onClosePreviewFind, contract, renderSlot }) {
   const t2 = store.t;
-  const scrollTimer = (0, import_react15.useRef)(null);
-  (0, import_react15.useEffect)(() => () => {
+  const scrollTimer = (0, import_react14.useRef)(null);
+  (0, import_react14.useEffect)(() => () => {
     if (scrollTimer.current !== null) clearTimeout(scrollTimer.current);
   }, []);
   const annotateBlame = (line) => {
@@ -56517,34 +56417,34 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
     }, 400);
   };
   if (tab3.loading === true && tab3.payload === void 0) {
-    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.loading"));
+    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.loading"));
   }
   if (tab3.error !== null && tab3.error !== void 0) {
-    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, import_react15.default.createElement("div", { className: "iwb-error-box" }, tab3.error));
+    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, import_react14.default.createElement("div", { className: "iwb-error-box" }, tab3.error));
   }
   const payload = tab3.payload;
   if (payload === void 0 || payload === null) return null;
   if (payload.kind === "image") {
-    return import_react15.default.createElement(
+    return import_react14.default.createElement(
       "div",
       { className: "iwb-editor-empty", style: { flexDirection: "column", gap: 12 } },
-      import_react15.default.createElement("img", { src: payload.dataUrl, alt: tab3.name, style: { maxWidth: "92%", maxHeight: "82%", objectFit: "contain", borderRadius: 6, border: "1px solid var(--iwb-border)" } }),
-      import_react15.default.createElement("span", null, `${tab3.rel} \xB7 ${payload.size} B`)
+      import_react14.default.createElement("img", { src: payload.dataUrl, alt: tab3.name, style: { maxWidth: "92%", maxHeight: "82%", objectFit: "contain", borderRadius: 6, border: "1px solid var(--iwb-border)" } }),
+      import_react14.default.createElement("span", null, `${tab3.rel} \xB7 ${payload.size} B`)
     );
   }
   if (payload.kind === "binary") {
-    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.binary"));
+    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.binary"));
   }
   if (payload.kind === "too-large") {
-    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.tooLarge"));
+    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.tooLarge"));
   }
   if (payload.kind !== "text") {
-    return import_react15.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.binary"));
+    return import_react14.default.createElement("div", { className: "iwb-editor-empty" }, t2("common.binary"));
   }
   const saved = payload.content ?? "";
   const text = tab3.dirty === true ? tab3.draft ?? saved : saved;
   if (tab3.editing === true && payload.truncated !== true) {
-    return import_react15.default.createElement(CodeEditor, {
+    return import_react14.default.createElement(CodeEditor, {
       key: `${tab3.id}:${tab3.resetToken ?? 0}`,
       value: tab3.draft ?? saved,
       path: tab3.path,
@@ -56571,11 +56471,12 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
     });
   }
   if (isMarkdownPath(tab3.path) && (tab3.view ?? "preview") === "preview") {
-    return import_react15.default.createElement(MarkdownView, {
+    return import_react14.default.createElement(MarkdownView, {
       key: tab3.id,
       text,
       t: t2,
       findOpen: previewFind,
+      seed: previewSeed,
       onFindRequest: onPreviewFindRequest,
       onCloseFind: onClosePreviewFind,
       outlineOpen: tab3.outlineOpen === true,
@@ -56592,7 +56493,7 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
       }
     });
   }
-  return import_react15.default.createElement(CodeEditor, {
+  return import_react14.default.createElement(CodeEditor, {
     key: `${tab3.id}:readonly:${tab3.resetToken ?? 0}`,
     value: text,
     path: tab3.path,
@@ -56616,12 +56517,12 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
 }
 function TabBar({ store, slice }) {
   const t2 = store.t;
-  const [menu, setMenu] = (0, import_react15.useState)(null);
+  const [menu, setMenu] = (0, import_react14.useState)(null);
   const activeIndex = slice.tabs.findIndex((tab3) => tab3.id === slice.activeId);
-  return import_react15.default.createElement(
+  return import_react14.default.createElement(
     "div",
     { className: "iwb-tabbar" },
-    slice.tabs.map((tab3) => import_react15.default.createElement(
+    slice.tabs.map((tab3) => import_react14.default.createElement(
       "div",
       {
         key: tab3.id,
@@ -56639,10 +56540,10 @@ function TabBar({ store, slice }) {
           setMenu({ x: event.clientX, y: event.clientY, tab: tab3 });
         }
       },
-      tab3.kind === "commit" ? import_react15.default.createElement(IconMore, { width: 12, height: 12 }) : import_react15.default.createElement(FileTypeIcon, { path: tab3.name, size: 14 }),
-      import_react15.default.createElement("span", { className: "iwb-tab-name" }, tab3.kind === "commit" ? tab3.hash.slice(0, 8) : tab3.name),
-      tab3.dirty === true ? import_react15.default.createElement("span", { className: "iwb-tab-dirty", title: t2("editor.dirty") }) : tab3.preview ? import_react15.default.createElement("span", { className: "iwb-tab-dot", title: t2("common.preview") }) : null,
-      import_react15.default.createElement("button", {
+      tab3.kind === "commit" ? import_react14.default.createElement(IconMore, { width: 12, height: 12 }) : import_react14.default.createElement(FileTypeIcon, { path: tab3.name, size: 14 }),
+      import_react14.default.createElement("span", { className: "iwb-tab-name" }, tab3.kind === "commit" ? tab3.hash.slice(0, 8) : tab3.name),
+      tab3.dirty === true ? import_react14.default.createElement("span", { className: "iwb-tab-dirty", title: t2("editor.dirty") }) : tab3.preview ? import_react14.default.createElement("span", { className: "iwb-tab-dot", title: t2("common.preview") }) : null,
+      import_react14.default.createElement("button", {
         type: "button",
         className: "iwb-tab-close",
         title: t2("common.closeTab"),
@@ -56650,19 +56551,19 @@ function TabBar({ store, slice }) {
           event.stopPropagation();
           store.closeTab(tab3.id);
         }
-      }, import_react15.default.createElement(IconClose, { width: 11, height: 11 }))
+      }, import_react14.default.createElement(IconClose, { width: 11, height: 11 }))
     )),
-    import_react15.default.createElement(
+    import_react14.default.createElement(
       "div",
       { className: "iwb-tabbar-actions" },
-      activeIndex >= 0 && slice.tabs[activeIndex]?.kind === "file" && slice.tabs[activeIndex]?.preview ? import_react15.default.createElement("button", {
+      activeIndex >= 0 && slice.tabs[activeIndex]?.kind === "file" && slice.tabs[activeIndex]?.preview ? import_react14.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t2("common.pinTab"),
         onClick: () => store.pinTab(slice.tabs[activeIndex].id)
-      }, import_react15.default.createElement(IconPin, { width: 14, height: 14 })) : null
+      }, import_react14.default.createElement(IconPin, { width: 14, height: 14 })) : null
     ),
-    menu !== null ? import_react15.default.createElement(ContextMenu, {
+    menu !== null ? import_react14.default.createElement(ContextMenu, {
       x: menu.x,
       y: menu.y,
       onClose: () => setMenu(null),
@@ -56710,41 +56611,41 @@ function breadcrumbParts(directories, middle, fileSegment, mode) {
   const full = mode === "full";
   const parts = [];
   if (directories.length > 0) {
-    parts.push(import_react15.default.createElement("span", { key: "head" }, directories[0]));
+    parts.push(import_react14.default.createElement("span", { key: "head" }, directories[0]));
     if (middle.length > 0) {
-      parts.push(import_react15.default.createElement("span", { key: "head-sep", className: "iwb-sep" }, "\u203A"));
+      parts.push(import_react14.default.createElement("span", { key: "head-sep", className: "iwb-sep" }, "\u203A"));
     }
   }
   middle.forEach((segment, index) => {
-    parts.push(import_react15.default.createElement("span", {
+    parts.push(import_react14.default.createElement("span", {
       key: `mid-${index}`,
       className: full ? void 0 : "iwb-crumb-mid"
     }, segment));
     if (index < middle.length - 1) {
-      parts.push(import_react15.default.createElement("span", {
+      parts.push(import_react14.default.createElement("span", {
         key: `mid-sep-${index}`,
         className: full ? "iwb-sep" : "iwb-sep iwb-crumb-mid"
       }, "\u203A"));
     }
   });
   if (!full && middle.length > 0) {
-    parts.push(import_react15.default.createElement("span", { key: "more", className: "iwb-crumb-more" }, "\u2026"));
+    parts.push(import_react14.default.createElement("span", { key: "more", className: "iwb-crumb-more" }, "\u2026"));
   }
   if (directories.length > 0) {
-    parts.push(import_react15.default.createElement("span", { key: "file-sep", className: "iwb-sep" }, "\u203A"));
+    parts.push(import_react14.default.createElement("span", { key: "file-sep", className: "iwb-sep" }, "\u203A"));
   }
-  parts.push(import_react15.default.createElement("b", { key: "file" }, fileSegment));
+  parts.push(import_react14.default.createElement("b", { key: "file" }, fileSegment));
   return parts;
 }
 function EditorToolbar({ store, tab: tab3 }) {
   const t2 = store.t;
-  const [diffMenu, setDiffMenu] = (0, import_react15.useState)(null);
-  const [overflow, setOverflow] = (0, import_react15.useState)(false);
-  const [compact, setCompact] = (0, import_react15.useState)(false);
-  const breadcrumbRef = (0, import_react15.useRef)(null);
-  const toolbarRef = (0, import_react15.useRef)(null);
-  const actionsRef = (0, import_react15.useRef)(null);
-  (0, import_react15.useEffect)(() => {
+  const [diffMenu, setDiffMenu] = (0, import_react14.useState)(null);
+  const [overflow, setOverflow] = (0, import_react14.useState)(false);
+  const [compact, setCompact] = (0, import_react14.useState)(false);
+  const breadcrumbRef = (0, import_react14.useRef)(null);
+  const toolbarRef = (0, import_react14.useRef)(null);
+  const actionsRef = (0, import_react14.useRef)(null);
+  (0, import_react14.useEffect)(() => {
     const element = breadcrumbRef.current;
     if (element === null) return void 0;
     const measure = element.querySelector(".iwb-breadcrumb-measure");
@@ -56757,7 +56658,7 @@ function EditorToolbar({ store, tab: tab3 }) {
     return () => observer.disconnect();
   }, [tab3.id, tab3.rel]);
   const TOOLBAR_BREADCRUMB_MIN = 140;
-  (0, import_react15.useLayoutEffect)(() => {
+  (0, import_react14.useLayoutEffect)(() => {
     const element = toolbarRef.current;
     const actions = actionsRef.current;
     if (element === null || actions === null) return void 0;
@@ -56782,44 +56683,44 @@ function EditorToolbar({ store, tab: tab3 }) {
       const rect = event.currentTarget.getBoundingClientRect();
       setDiffMenu({ x: rect.left - 120, y: rect.bottom + 4 });
     };
-    return import_react15.default.createElement(
-      import_react15.default.Fragment,
+    return import_react14.default.createElement(
+      import_react14.default.Fragment,
       null,
-      import_react15.default.createElement(
+      import_react14.default.createElement(
         "div",
         { className: "iwb-editor-toolbar" },
-        import_react15.default.createElement(
+        import_react14.default.createElement(
           "div",
           { className: "iwb-breadcrumb" },
-          import_react15.default.createElement("span", null, t2("commit.title")),
-          import_react15.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
-          import_react15.default.createElement("b", null, variant),
-          import_react15.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
-          import_react15.default.createElement("b", null, baseName(tab3.rel))
+          import_react14.default.createElement("span", null, t2("commit.title")),
+          import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
+          import_react14.default.createElement("b", null, variant),
+          import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
+          import_react14.default.createElement("b", null, baseName(tab3.rel))
         ),
-        import_react15.default.createElement("div", { className: "iwb-spacer" }),
-        readOnly2 ? null : import_react15.default.createElement(
-          import_react15.default.Fragment,
+        import_react14.default.createElement("div", { className: "iwb-spacer" }),
+        readOnly2 ? null : import_react14.default.createElement(
+          import_react14.default.Fragment,
           null,
-          import_react15.default.createElement("button", {
+          import_react14.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-small",
             onClick: anchor
           }, t2("commit.showDiffWith"), " \u25BE"),
-          import_react15.default.createElement("button", {
+          import_react14.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-small",
             title: t2("commit.jumpToSource"),
             onClick: () => store.jumpToSource(tab3.rel)
           }, t2("commit.jumpToSource")),
-          import_react15.default.createElement("button", {
+          import_react14.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-small iwb-danger",
             onClick: () => store.revertChange({ path: tab3.rel, untracked: tab3.untracked === true })
           }, t2("commit.revert"))
         )
       ),
-      diffMenu !== null && !readOnly2 ? import_react15.default.createElement(ContextMenu, {
+      diffMenu !== null && !readOnly2 ? import_react14.default.createElement(ContextMenu, {
         x: diffMenu.x,
         y: diffMenu.y,
         items: [
@@ -56832,17 +56733,17 @@ function EditorToolbar({ store, tab: tab3 }) {
     );
   }
   if (tab3.kind === "commit") {
-    return import_react15.default.createElement(
+    return import_react14.default.createElement(
       "div",
       { className: "iwb-editor-toolbar" },
-      import_react15.default.createElement(
+      import_react14.default.createElement(
         "div",
         { className: "iwb-breadcrumb" },
-        import_react15.default.createElement("b", null, t2("git.details")),
-        import_react15.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
-        import_react15.default.createElement("b", { style: { fontFamily: "var(--iwb-mono)" } }, tab3.hash.slice(0, 10))
+        import_react14.default.createElement("b", null, t2("git.details")),
+        import_react14.default.createElement("span", { className: "iwb-sep" }, "\u203A"),
+        import_react14.default.createElement("b", { style: { fontFamily: "var(--iwb-mono)" } }, tab3.hash.slice(0, 10))
       ),
-      import_react15.default.createElement("div", { className: "iwb-spacer" })
+      import_react14.default.createElement("div", { className: "iwb-spacer" })
     );
   }
   const segments = tab3.rel.split(/[\\/]/);
@@ -56856,8 +56757,8 @@ function EditorToolbar({ store, tab: tab3 }) {
   const view = tab3.view ?? (markdown2 ? "preview" : "code");
   const dirty = tab3.dirty === true;
   const saving = tab3.saving === true;
-  const dirtyBadge = dirty ? import_react15.default.createElement("span", { className: "iwb-toolbar-dirty", title: t2("editor.dirty") }, t2("editor.dirty")) : null;
-  return import_react15.default.createElement(
+  const dirtyBadge = dirty ? import_react14.default.createElement("span", { className: "iwb-toolbar-dirty", title: t2("editor.dirty") }, t2("editor.dirty")) : null;
+  return import_react14.default.createElement(
     "div",
     {
       className: "iwb-editor-toolbar",
@@ -56867,30 +56768,30 @@ function EditorToolbar({ store, tab: tab3 }) {
       "data-compact": compact === true ? "true" : "false",
       ref: toolbarRef
     },
-    import_react15.default.createElement(
+    import_react14.default.createElement(
       "div",
       { className: "iwb-breadcrumb", title: tab3.path, ref: breadcrumbRef },
       ...breadcrumbParts(directories, middle, fileSegment, "visible"),
       dirtyBadge,
       // The uncollapsed path, measured but never shown.
-      import_react15.default.createElement(
+      import_react14.default.createElement(
         "span",
         { className: "iwb-breadcrumb-measure", "aria-hidden": "true" },
         ...breadcrumbParts(directories, middle, fileSegment, "full"),
         dirtyBadge
       )
     ),
-    import_react15.default.createElement("div", { className: "iwb-spacer" }),
+    import_react14.default.createElement("div", { className: "iwb-spacer" }),
     // Everything to the right of the path is one measured cluster: the
     // compact switch compares its natural width with the width of the bar.
-    import_react15.default.createElement(
+    import_react14.default.createElement(
       "div",
       { className: "iwb-toolbar-actions", ref: actionsRef },
-      payload?.truncated === true ? import_react15.default.createElement("span", { style: { color: "var(--iwb-warn)" } }, t2("editor.truncated")) : null,
-      isText2 && markdown2 && !editing ? import_react15.default.createElement(
+      payload?.truncated === true ? import_react14.default.createElement("span", { style: { color: "var(--iwb-warn)" } }, t2("editor.truncated")) : null,
+      isText2 && markdown2 && !editing ? import_react14.default.createElement(
         "div",
         { className: "iwb-seg" },
-        import_react15.default.createElement(
+        import_react14.default.createElement(
           "button",
           {
             type: "button",
@@ -56898,12 +56799,12 @@ function EditorToolbar({ store, tab: tab3 }) {
             title: t2("editor.preview"),
             onClick: () => store.setTabView(tab3.id, "preview")
           },
-          import_react15.default.createElement(IconEye, { width: 12, height: 12 }),
+          import_react14.default.createElement(IconEye, { width: 12, height: 12 }),
           // The label is the first thing the compact mode drops: the
           // tooltip above is what a narrow toolbar shows on hover.
-          import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, t2("editor.preview"))
+          import_react14.default.createElement("span", { className: "iwb-toolbar-label" }, t2("editor.preview"))
         ),
-        import_react15.default.createElement(
+        import_react14.default.createElement(
           "button",
           {
             type: "button",
@@ -56911,17 +56812,17 @@ function EditorToolbar({ store, tab: tab3 }) {
             title: t2("editor.source"),
             onClick: () => store.setTabView(tab3.id, "code")
           },
-          import_react15.default.createElement(IconCode, { width: 12, height: 12 }),
-          import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, t2("editor.source"))
+          import_react14.default.createElement(IconCode, { width: 12, height: 12 }),
+          import_react14.default.createElement("span", { className: "iwb-toolbar-label" }, t2("editor.source"))
         )
       ) : null,
-      isText2 && markdown2 && !editing && view === "preview" ? import_react15.default.createElement("button", {
+      isText2 && markdown2 && !editing && view === "preview" ? import_react14.default.createElement("button", {
         type: "button",
         className: `iwb-iconbtn ${tab3.outlineOpen === true ? "iwb-on" : ""}`,
         title: t2("editor.outline"),
         onClick: () => store.updateActiveTab({ outlineOpen: tab3.outlineOpen !== true })
-      }, import_react15.default.createElement(IconOutline, { width: 14, height: 14 })) : null,
-      isText2 ? import_react15.default.createElement(
+      }, import_react14.default.createElement(IconOutline, { width: 14, height: 14 })) : null,
+      isText2 ? import_react14.default.createElement(
         "button",
         {
           type: "button",
@@ -56929,13 +56830,13 @@ function EditorToolbar({ store, tab: tab3 }) {
           title: editing ? t2("editor.toReadOnly") : t2("editor.toEdit"),
           onClick: () => store.setTabEditing(tab3.id, !editing)
         },
-        import_react15.default.createElement(editing ? IconLock : IconEdit, { width: 12, height: 12 }),
-        import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, editing ? t2("editor.readonly") : t2("editor.edit"))
+        import_react14.default.createElement(editing ? IconLock : IconEdit, { width: 12, height: 12 }),
+        import_react14.default.createElement("span", { className: "iwb-toolbar-label" }, editing ? t2("editor.readonly") : t2("editor.edit"))
       ) : null,
-      editing && isText2 ? import_react15.default.createElement(
-        import_react15.default.Fragment,
+      editing && isText2 ? import_react14.default.createElement(
+        import_react14.default.Fragment,
         null,
-        import_react15.default.createElement(
+        import_react14.default.createElement(
           "button",
           {
             type: "button",
@@ -56946,20 +56847,20 @@ function EditorToolbar({ store, tab: tab3 }) {
               void store.saveTab(tab3.id);
             }
           },
-          import_react15.default.createElement(IconSave, { width: 12, height: 12 }),
-          import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, saving ? t2("editor.saving") : t2("editor.save"))
+          import_react14.default.createElement(IconSave, { width: 12, height: 12 }),
+          import_react14.default.createElement("span", { className: "iwb-toolbar-label" }, saving ? t2("editor.saving") : t2("editor.save"))
         ),
-        import_react15.default.createElement("button", {
+        import_react14.default.createElement("button", {
           type: "button",
           className: "iwb-iconbtn",
           disabled: !dirty,
           title: t2("editor.restore"),
           onClick: () => store.discardDraft(tab3.id)
-        }, import_react15.default.createElement(IconRestore, { width: 14, height: 14 }))
-      ) : isText2 && dirty ? import_react15.default.createElement(
-        import_react15.default.Fragment,
+        }, import_react14.default.createElement(IconRestore, { width: 14, height: 14 }))
+      ) : isText2 && dirty ? import_react14.default.createElement(
+        import_react14.default.Fragment,
         null,
-        import_react15.default.createElement(
+        import_react14.default.createElement(
           "button",
           {
             type: "button",
@@ -56970,27 +56871,27 @@ function EditorToolbar({ store, tab: tab3 }) {
               void store.saveTab(tab3.id);
             }
           },
-          import_react15.default.createElement(IconSave, { width: 12, height: 12 }),
-          import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, saving ? t2("editor.saving") : t2("editor.save"))
+          import_react14.default.createElement(IconSave, { width: 12, height: 12 }),
+          import_react14.default.createElement("span", { className: "iwb-toolbar-label" }, saving ? t2("editor.saving") : t2("editor.save"))
         ),
-        import_react15.default.createElement("button", {
+        import_react14.default.createElement("button", {
           type: "button",
           className: "iwb-iconbtn",
           title: t2("editor.restore"),
           onClick: () => store.discardDraft(tab3.id)
-        }, import_react15.default.createElement(IconRestore, { width: 14, height: 14 }))
+        }, import_react14.default.createElement(IconRestore, { width: 14, height: 14 }))
       ) : null,
       // The encoding is a word in a 30px bar: the compact toolbar shows its
       // first letter only (utf-8 -> u, GBK -> G) and keeps the whole value in
       // the tooltip. The two spans are switched by the stylesheet.
-      import_react15.default.createElement(
+      import_react14.default.createElement(
         "span",
         {
           className: "iwb-encoding",
           title: payload?.encoding === void 0 ? "" : `${payload.encoding} \xB7 ${payload.eol === "\r\n" ? "CRLF" : "LF"}`
         },
-        import_react15.default.createElement("span", { className: "iwb-encoding-full" }, payload?.encoding ?? "utf-8"),
-        import_react15.default.createElement("span", { className: "iwb-encoding-short" }, shortEncoding(payload?.encoding ?? "utf-8"))
+        import_react14.default.createElement("span", { className: "iwb-encoding-full" }, payload?.encoding ?? "utf-8"),
+        import_react14.default.createElement("span", { className: "iwb-encoding-short" }, shortEncoding(payload?.encoding ?? "utf-8"))
       )
     )
   );
@@ -57001,10 +56902,10 @@ function isHtmlPath(path2) {
 function HtmlPreviewActions({ store, tab: tab3 }) {
   const t2 = store.t;
   if (tab3.kind !== "file" || !isHtmlPath(tab3.path)) return null;
-  return import_react15.default.createElement(
+  return import_react14.default.createElement(
     "div",
     { className: "iwb-html-actions" },
-    import_react15.default.createElement("button", {
+    import_react14.default.createElement("button", {
       type: "button",
       className: "iwb-html-action",
       title: t2("editor.htmlPreviewSidebar"),
@@ -57012,8 +56913,8 @@ function HtmlPreviewActions({ store, tab: tab3 }) {
       onClick: () => {
         void store.openInSidebar(tab3.path);
       }
-    }, import_react15.default.createElement(IconGlobe, { width: 15, height: 15 })),
-    import_react15.default.createElement("button", {
+    }, import_react14.default.createElement(IconGlobe, { width: 15, height: 15 })),
+    import_react14.default.createElement("button", {
       type: "button",
       className: "iwb-html-action iwb-chrome",
       title: t2("editor.htmlPreviewBrowser"),
@@ -57021,7 +56922,7 @@ function HtmlPreviewActions({ store, tab: tab3 }) {
       onClick: () => {
         void store.openInDefaultBrowser(tab3.path);
       }
-    }, import_react15.default.createElement(IconChrome, { width: 15, height: 15 }))
+    }, import_react14.default.createElement(IconChrome, { width: 15, height: 15 }))
   );
 }
 function buildConflictDialog(store, tab3) {
@@ -57058,28 +56959,31 @@ function buildConflictDialog(store, tab3) {
   };
 }
 function createEditorKeyHandler(store, options) {
-  const { textTab, previewTab, findOpenRef, previewFindRef, editorApi, setFindOpen, setPreviewFind } = options;
+  const { textTab, previewTab, findOpenRef, previewFindRef, editorApi, setFindOpen, setPreviewFind, seedFind, seedPreviewFind } = options;
   return (event) => {
     if (store.state.active !== true) return;
     const target = event.target;
-    if (target instanceof HTMLElement && target.closest(".iwb-search")) return;
+    if (target instanceof HTMLElement && target.closest(".iwb-search-popup-backdrop")) return;
+    const inFindBar = target instanceof Element && target.closest(".iwb-findbar") !== null;
     const mod = event.ctrlKey || event.metaKey;
     const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
     if (mod && (event.shiftKey && !event.altKey && key === "r" || event.altKey && !event.shiftKey && key === "f")) {
       event.preventDefault();
       event.stopPropagation();
-      store.openSearchTab();
+      store.openSearchPopup(selectedText());
       return;
     }
     if (mod && !event.altKey && !event.shiftKey && key === "f" && textTab) {
       event.preventDefault();
       event.stopPropagation();
+      if (!inFindBar) seedFind?.();
       setFindOpen(true);
       return;
     }
     if (mod && !event.altKey && !event.shiftKey && key === "f" && previewTab) {
       event.preventDefault();
       event.stopPropagation();
+      if (!inFindBar) seedPreviewFind?.();
       setPreviewFind(true);
       return;
     }
@@ -57111,22 +57015,38 @@ function createEditorKeyHandler(store, options) {
 function EditorArea({ store, state: _state, contract = null, renderSlot = null }) {
   const slice = useStoreSlice(store, selectEditorSlice, shallowEqual);
   const active = slice.tabs.find((tab3) => tab3.id === slice.activeId);
-  const [findOpen, setFindOpen] = (0, import_react15.useState)(false);
-  const [previewFind, setPreviewFind] = (0, import_react15.useState)(false);
-  const [editorApi, setEditorApi] = (0, import_react15.useState)(null);
-  const [dismissedTab, setDismissedTab] = (0, import_react15.useState)(null);
-  const findOpenRef = (0, import_react15.useRef)(false);
+  const [findOpen, setFindOpen] = (0, import_react14.useState)(false);
+  const [previewFind, setPreviewFind] = (0, import_react14.useState)(false);
+  const [editorApi, setEditorApi] = (0, import_react14.useState)(null);
+  const [findHint, setFindHint] = (0, import_react14.useState)(null);
+  const [previewHint, setPreviewHint] = (0, import_react14.useState)(null);
+  const hintNonce = (0, import_react14.useRef)(0);
+  const nextHint = (text) => {
+    const seed = findSeed(text);
+    if (seed === "") return null;
+    hintNonce.current += 1;
+    return { text: seed, nonce: hintNonce.current };
+  };
+  const seedFind = () => {
+    const hint = nextHint(editorApi?.getSelection?.() || selectedText());
+    if (hint !== null) setFindHint(hint);
+  };
+  const seedPreviewFind = () => {
+    const hint = nextHint(selectedText());
+    if (hint !== null) setPreviewHint(hint);
+  };
+  const [dismissedTab, setDismissedTab] = (0, import_react14.useState)(null);
+  const findOpenRef = (0, import_react14.useRef)(false);
   findOpenRef.current = findOpen;
-  const previewFindRef = (0, import_react15.useRef)(false);
+  const previewFindRef = (0, import_react14.useRef)(false);
   previewFindRef.current = previewFind;
   const textTab = active?.kind === "file" && active.payload?.kind === "text" && active.payload?.truncated !== true && !(isMarkdownPath(active.path) && (active.view ?? "preview") === "preview" && active.editing !== true);
   const previewTab = active?.kind === "file" && active.payload?.kind === "text" && active.payload?.truncated !== true && isMarkdownPath(active.path) && (active.view ?? "preview") === "preview" && active.editing !== true;
-  (0, import_react15.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     setFindOpen(false);
     setPreviewFind(false);
-    setEditorApi(null);
   }, [active?.id]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     const onKeyDown = createEditorKeyHandler(store, {
       textTab,
       previewTab,
@@ -57134,17 +57054,19 @@ function EditorArea({ store, state: _state, contract = null, renderSlot = null }
       previewFindRef,
       editorApi,
       setFindOpen,
-      setPreviewFind
+      setPreviewFind,
+      seedFind,
+      seedPreviewFind
     });
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [store, textTab, previewTab, editorApi]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     const onKeyDown = (event) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       const target = event.target;
       if (!(target instanceof Element) || target.closest(".iwb-root") === null) return;
-      if (target.closest(".iwb-commit, .iwb-term, .iwb-term-host, .iwb-diff, .iwb-search") !== null) return;
+      if (target.closest(".iwb-commit, .iwb-term, .iwb-term-host, .iwb-diff, .iwb-search-popup-backdrop") !== null) return;
       if (event.key.toLowerCase() === "w" && !event.shiftKey) {
         event.preventDefault();
         event.stopPropagation();
@@ -57162,64 +57084,58 @@ function EditorArea({ store, state: _state, contract = null, renderSlot = null }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [store]);
-  const conflictTab = (0, import_react15.useMemo)(() => {
+  const conflictTab = (0, import_react14.useMemo)(() => {
     if (active?.conflict === null || active?.conflict === void 0) return null;
     return { id: active.id, conflict: { message: active.conflict.message ?? null } };
   }, [active?.id, active?.conflict?.message]);
-  const conflictDialog = (0, import_react15.useMemo)(() => {
+  const conflictDialog = (0, import_react14.useMemo)(() => {
     if (conflictTab === null || dismissedTab === conflictTab.id) return null;
     if (slice.confirm !== null && slice.confirm !== void 0) return null;
     return buildConflictDialog(store, conflictTab);
   }, [conflictTab, dismissedTab, slice.confirm, store]);
-  const closeConflict = (0, import_react15.useCallback)(() => setDismissedTab(conflictTab?.id ?? null), [conflictTab?.id]);
+  const closeConflict = (0, import_react14.useCallback)(() => setDismissedTab(conflictTab?.id ?? null), [conflictTab?.id]);
   const bufferStamp = active?.payload?.mtimeMs ?? null;
-  (0, import_react15.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     setDismissedTab(null);
   }, [bufferStamp]);
   if (active === void 0) {
-    return import_react15.default.createElement(
+    return import_react14.default.createElement(
       "div",
       { className: "iwb-editor" },
-      import_react15.default.createElement(TabBar, { store, slice }),
-      import_react15.default.createElement(Welcome, { store, slice })
+      import_react14.default.createElement(TabBar, { store, slice }),
+      import_react14.default.createElement(Welcome, { store, slice })
     );
   }
-  if (active.kind === "search") {
-    return import_react15.default.createElement(
-      "div",
-      { className: "iwb-editor" },
-      import_react15.default.createElement(TabBar, { store, slice }),
-      // The key keeps the search tab apart: it takes its query from the store
-      // when it mounts, so a new open remounts it.
-      import_react15.default.createElement(
-        import_react15.default.Fragment,
-        { key: `${active.id}:${active.generation ?? 0}` },
-        import_react15.default.createElement(SearchView, { store })
-      )
-    );
-  }
-  const content2 = active.kind === "file" ? import_react15.default.createElement(FilePreview, {
+  const content2 = active.kind === "file" ? import_react14.default.createElement(FilePreview, {
     store,
     slice,
     tab: active,
     previewFind,
-    onPreviewFindRequest: () => setPreviewFind(true),
+    previewSeed: previewHint,
+    onPreviewFindRequest: () => {
+      seedPreviewFind();
+      setPreviewFind(true);
+    },
     onClosePreviewFind: () => setPreviewFind(false),
     onEditorReady: setEditorApi,
-    onFindRequest: () => setFindOpen(true),
-    onFindInFiles: () => store.openSearchTab(),
+    onFindRequest: () => {
+      seedFind();
+      setFindOpen(true);
+    },
+    onFindInFiles: () => store.openSearchPopup(selectedText()),
     contract,
     renderSlot
-  }) : active.loading === true ? import_react15.default.createElement("div", { className: "iwb-editor-empty" }, store.t("common.loading")) : active.error !== null && active.error !== void 0 ? import_react15.default.createElement("div", { className: "iwb-editor-empty" }, import_react15.default.createElement("div", { className: "iwb-error-box" }, active.error)) : import_react15.default.createElement(DiffView, { store, tab: active });
-  return import_react15.default.createElement(
+  }) : active.loading === true ? import_react14.default.createElement("div", { className: "iwb-editor-empty" }, store.t("common.loading")) : active.error !== null && active.error !== void 0 ? import_react14.default.createElement("div", { className: "iwb-editor-empty" }, import_react14.default.createElement("div", { className: "iwb-error-box" }, active.error)) : import_react14.default.createElement(DiffView, { store, tab: active });
+  return import_react14.default.createElement(
     "div",
     { className: "iwb-editor" },
-    import_react15.default.createElement(TabBar, { store, slice }),
-    import_react15.default.createElement(EditorToolbar, { store, tab: active }),
-    findOpen === true && textTab && editorApi !== null ? import_react15.default.createElement(FindBar, {
+    import_react14.default.createElement(TabBar, { store, slice }),
+    import_react14.default.createElement(EditorToolbar, { store, tab: active }),
+    findOpen === true && textTab && editorApi !== null ? import_react14.default.createElement(FindBar, {
       store,
       editor: editorApi,
       readOnly: active.editing !== true,
+      seed: findHint,
       onClose: () => setFindOpen(false)
     }) : null,
     // The annotation is an inline gutter of the editor itself (left of the
@@ -57231,8 +57147,8 @@ function EditorArea({ store, state: _state, contract = null, renderSlot = null }
     // the same level as the editor itself and receives the contract as its
     // prop. The core does not know who occupies it.
     renderSlot !== null && contract !== null ? renderSlot(SLOT_KEYS.editorBridge, { contract }) : null,
-    import_react15.default.createElement(HtmlPreviewActions, { store, tab: active }),
-    conflictDialog !== null ? import_react15.default.createElement(ConfirmModal, {
+    import_react14.default.createElement(HtmlPreviewActions, { store, tab: active }),
+    conflictDialog !== null ? import_react14.default.createElement(ConfirmModal, {
       dialog: conflictDialog,
       onClose: closeConflict,
       scope: "editor"
@@ -57241,7 +57157,7 @@ function EditorArea({ store, state: _state, contract = null, renderSlot = null }
 }
 
 // src/client/SettingsPanel.jsx
-var import_react16 = __toESM(require("react"), 1);
+var import_react15 = __toESM(require("react"), 1);
 
 // src/client/layout.js
 var STACK_WIDTH = 560;
@@ -57261,25 +57177,25 @@ var SHORTCUT_FIELDS = [
   ["quickOpen", "quickOpenShortcut"]
 ];
 function Group({ title, description, children }) {
-  return import_react16.default.createElement(
+  return import_react15.default.createElement(
     "section",
     { className: "iwb-settings-group" },
-    import_react16.default.createElement("h3", { className: "iwb-settings-group-title" }, title),
-    description !== void 0 ? import_react16.default.createElement("p", { className: "iwb-settings-group-desc" }, description) : null,
-    import_react16.default.createElement("div", { className: "iwb-settings-rows" }, children)
+    import_react15.default.createElement("h3", { className: "iwb-settings-group-title" }, title),
+    description !== void 0 ? import_react15.default.createElement("p", { className: "iwb-settings-group-desc" }, description) : null,
+    import_react15.default.createElement("div", { className: "iwb-settings-rows" }, children)
   );
 }
 function Row({ label: label3, hint, title, children }) {
-  return import_react16.default.createElement(
+  return import_react15.default.createElement(
     "div",
     { className: "iwb-settings-row", title },
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       "div",
       { className: "iwb-settings-label" },
-      import_react16.default.createElement("div", { className: "iwb-settings-title" }, label3),
-      hint !== void 0 ? import_react16.default.createElement("div", { className: "iwb-settings-hint" }, hint) : null
+      import_react15.default.createElement("div", { className: "iwb-settings-title" }, label3),
+      hint !== void 0 ? import_react15.default.createElement("div", { className: "iwb-settings-hint" }, hint) : null
     ),
-    import_react16.default.createElement("div", { className: "iwb-settings-control" }, children)
+    import_react15.default.createElement("div", { className: "iwb-settings-control" }, children)
   );
 }
 function resetPatch() {
@@ -57312,16 +57228,16 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
   const t2 = store.t;
   const settings = state.settings ?? {};
   const entrySide = state.settings?.layout?.entrySide === "left" ? "left" : DEFAULT_ENTRY_SIDE;
-  const [draft, setDraft] = (0, import_react16.useState)(settings);
-  const [saved, setSaved] = (0, import_react16.useState)(false);
-  const [saving, setSaving] = (0, import_react16.useState)(false);
-  const [capturing, setCapturing] = (0, import_react16.useState)(false);
-  const timer = (0, import_react16.useRef)(null);
-  const savedTimer = (0, import_react16.useRef)(null);
-  const rootRef = (0, import_react16.useRef)(null);
-  const scrollRef = (0, import_react16.useRef)({ parent: null, top: 0 });
-  const pendingPatch = (0, import_react16.useRef)({});
-  const alive = (0, import_react16.useRef)(true);
+  const [draft, setDraft] = (0, import_react15.useState)(settings);
+  const [saved, setSaved] = (0, import_react15.useState)(false);
+  const [saving, setSaving] = (0, import_react15.useState)(false);
+  const [capturing, setCapturing] = (0, import_react15.useState)(false);
+  const timer = (0, import_react15.useRef)(null);
+  const savedTimer = (0, import_react15.useRef)(null);
+  const rootRef = (0, import_react15.useRef)(null);
+  const scrollRef = (0, import_react15.useRef)({ parent: null, top: 0 });
+  const pendingPatch = (0, import_react15.useRef)({});
+  const alive = (0, import_react15.useRef)(true);
   const captureScroll = () => {
     let node = rootRef.current?.parentElement ?? null;
     while (node !== null) {
@@ -57343,11 +57259,11 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(apply2);
     else apply2();
   };
-  (0, import_react16.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     if (Object.keys(pendingPatch.current).length > 0) return;
     setDraft(settings);
   }, [settings]);
-  (0, import_react16.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     onStatusChange?.({ saving, saved });
   }, [saving, saved]);
   const mergePatch = (base2, patch) => {
@@ -57377,7 +57293,7 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
       }, 1800);
     });
   };
-  (0, import_react16.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     alive.current = true;
     return () => {
       alive.current = false;
@@ -57417,23 +57333,23 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
     setDraft(next);
     commit(patch);
   };
-  return import_react16.default.createElement(
+  return import_react15.default.createElement(
     "div",
     { className: "iwb-settings", ref: rootRef },
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       Group,
       {
         title: t2("settings.shortcuts"),
         description: t2("settings.shortcutsGroupHint")
       },
-      SHORTCUT_FIELDS.map(([field, labelKey]) => import_react16.default.createElement(
+      SHORTCUT_FIELDS.map(([field, labelKey]) => import_react15.default.createElement(
         Row,
         {
           key: field,
           label: t2(`settings.${labelKey}`),
           hint: t2(`settings.${labelKey}Hint`)
         },
-        import_react16.default.createElement(ShortcutCapture, {
+        import_react15.default.createElement(ShortcutCapture, {
           value: draft.shortcuts?.[field] ?? "",
           active: capturing,
           onActivate: setCapturing,
@@ -57443,36 +57359,36 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
         })
       ))
     ),
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       Group,
       { title: t2("settings.terminalGroup") },
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.defaultShell"), hint: t2("settings.defaultShellHint") },
-        import_react16.default.createElement(
+        import_react15.default.createElement(
           "select",
           {
             className: "iwb-select",
             value: draft.terminal?.shell ?? "auto",
             onChange: (event) => update({ terminal: { shell: event.target.value } })
           },
-          import_react16.default.createElement("option", { value: "auto" }, t2("settings.auto")),
-          state.terminal.shells.map((shell) => import_react16.default.createElement("option", { key: shell.id, value: shell.id }, shell.label))
+          import_react15.default.createElement("option", { value: "auto" }, t2("settings.auto")),
+          state.terminal.shells.map((shell) => import_react15.default.createElement("option", { key: shell.id, value: shell.id }, shell.label))
         )
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.copyOnSelect") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.terminal?.copyOnSelect === true,
           onChange: (event) => update({ terminal: { copyOnSelect: event.target.checked } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.terminalFontSize") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "number",
           min: 10,
           max: 20,
@@ -57481,94 +57397,94 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
         })
       )
     ),
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       Group,
       { title: t2("settings.filesGroup") },
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("project.alwaysSelect") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.project?.alwaysSelectOpened !== false,
           onChange: (event) => update({ project: { alwaysSelectOpened: event.target.checked } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("project.gitColors") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.git?.colors !== false,
           onChange: (event) => update({ git: { colors: event.target.checked } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.showHidden") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.project?.showHidden !== false,
           onChange: (event) => update({ project: { showHidden: event.target.checked } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.singleClickOpen"), hint: t2("settings.singleClickOpenHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.project?.singleClickOpen === true,
           onChange: (event) => update({ project: { singleClickOpen: event.target.checked } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.chatFileLinks"), hint: t2("settings.chatFileLinksHint") },
-        import_react16.default.createElement(
+        import_react15.default.createElement(
           "select",
           {
             className: "iwb-select",
             value: draft.links?.chatFiles === "sidebar" ? "sidebar" : "ide",
             onChange: (event) => update({ links: { chatFiles: event.target.value } })
           },
-          import_react16.default.createElement("option", { value: "ide" }, t2("settings.chatFileLinksIde")),
-          import_react16.default.createElement("option", { value: "sidebar" }, t2("settings.chatFileLinksSidebar"))
+          import_react15.default.createElement("option", { value: "ide" }, t2("settings.chatFileLinksIde")),
+          import_react15.default.createElement("option", { value: "sidebar" }, t2("settings.chatFileLinksSidebar"))
         )
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.showIgnored"), hint: t2("settings.showIgnoredHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.project?.showIgnored === true,
           onChange: (event) => update({ project: { showIgnored: event.target.checked } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.groupByDirectory"), hint: t2("settings.groupByDirectoryHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.commit?.groupByDirectory === true,
           onChange: (event) => update({ commit: { groupByDirectory: event.target.checked } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.useRecycleBin"), hint: t2("settings.useRecycleBinHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.delete?.useRecycleBin !== false,
           onChange: (event) => update({ delete: { useRecycleBin: event.target.checked } })
         })
       )
     ),
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       Group,
       { title: t2("settings.ideGroup"), description: t2("settings.idePathHint") },
-      IDE_OPTIONS.map((ide) => import_react16.default.createElement(
+      IDE_OPTIONS.map((ide) => import_react15.default.createElement(
         Row,
         { key: ide.id, label: ide.title },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "text",
           className: "iwb-input",
           "aria-label": ide.title,
@@ -57578,27 +57494,27 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
         })
       ))
     ),
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       Group,
       { title: t2("settings.editorGroup") },
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.openMode"), hint: t2("settings.openModeHint") },
-        import_react16.default.createElement(
+        import_react15.default.createElement(
           "select",
           {
             value: draft.editor?.openMode ?? "auto",
             onChange: (event) => update({ editor: { openMode: event.target.value } })
           },
-          import_react16.default.createElement("option", { value: "auto" }, t2("settings.openModeAuto")),
-          import_react16.default.createElement("option", { value: "editable" }, t2("settings.openModeEditable")),
-          import_react16.default.createElement("option", { value: "readonly" }, t2("settings.openModeReadonly"))
+          import_react15.default.createElement("option", { value: "auto" }, t2("settings.openModeAuto")),
+          import_react15.default.createElement("option", { value: "editable" }, t2("settings.openModeEditable")),
+          import_react15.default.createElement("option", { value: "readonly" }, t2("settings.openModeReadonly"))
         )
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.editableMaxBytes"), hint: t2("settings.editableMaxBytesHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "number",
           min: 64,
           max: 16384,
@@ -57607,10 +57523,10 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
           onChange: (event) => update({ editor: { editableMaxBytes: (Number(event.target.value) || 1024) * 1024 } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.editorFontSize") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "number",
           min: 10,
           max: 20,
@@ -57618,78 +57534,78 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
           onChange: (event) => update({ editor: { fontSize: Number(event.target.value) || 13 } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.markdownPreview"), hint: t2("settings.markdownPreviewHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.editor?.markdownPreview !== false,
           onChange: (event) => update({ editor: { markdownPreview: event.target.checked } })
         })
       )
     ),
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       Group,
       { title: t2("settings.gitGroup") },
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.gitPath"), hint: t2("settings.gitPathHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "text",
           placeholder: "git",
           value: draft.git?.path ?? "",
           onChange: (event) => update({ git: { path: event.target.value } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.commitTemplate"), hint: t2("settings.commitTemplateHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "text",
           value: draft.git?.commitTemplate ?? "",
           onChange: (event) => update({ git: { commitTemplate: event.target.value } })
         })
       )
     ),
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       Group,
       { title: t2("settings.commitGroup") },
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.testCommand"), hint: t2("settings.testCommandHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "text",
           placeholder: "npm test",
           value: draft.commit?.testCommand ?? "",
           onChange: (event) => update({ commit: { testCommand: event.target.value } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.optimizeCommand"), hint: t2("settings.optimizeCommandHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "text",
           value: draft.commit?.optimizeImportsCommand ?? "",
           onChange: (event) => update({ commit: { optimizeImportsCommand: event.target.value } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.cleanupCommand"), hint: t2("settings.cleanupCommandHint") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "text",
           value: draft.commit?.cleanupCommand ?? "",
           onChange: (event) => update({ commit: { cleanupCommand: event.target.value } })
         })
       )
     ),
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       Group,
       { title: t2("settings.layoutGroup") },
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.toolWindowSide"), hint: t2("settings.toolWindowSideHint") },
-        import_react16.default.createElement(
+        import_react15.default.createElement(
           "select",
           {
             className: "iwb-input",
@@ -57698,37 +57614,37 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
               void store.updateSettings({ layout: { entrySide: event.target.value === "left" ? "left" : "right" } });
             }
           },
-          import_react16.default.createElement("option", { value: "left" }, t2("settings.toolWindowSideLeft")),
-          import_react16.default.createElement("option", { value: "right" }, t2("settings.toolWindowSideRight"))
+          import_react15.default.createElement("option", { value: "left" }, t2("settings.toolWindowSideLeft")),
+          import_react15.default.createElement("option", { value: "right" }, t2("settings.toolWindowSideRight"))
         )
       )
     ),
-    import_react16.default.createElement(
+    import_react15.default.createElement(
       Group,
       { title: t2("settings.appearanceGroup") },
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.highlight") },
-        import_react16.default.createElement("input", {
+        import_react15.default.createElement("input", {
           type: "checkbox",
           checked: draft.editor?.highlight !== false,
           onChange: (event) => update({ editor: { highlight: event.target.checked } })
         })
       ),
-      import_react16.default.createElement(
+      import_react15.default.createElement(
         Row,
         { label: t2("settings.language"), hint: t2("settings.languageHint") },
-        import_react16.default.createElement("span", { className: "iwb-settings-value" }, t2("settings.followDsh"))
+        import_react15.default.createElement("span", { className: "iwb-settings-value" }, t2("settings.followDsh"))
       )
     ),
     // The settings groups of the plugins (PRD-v6 §3.3). The codeintel brings
     // its language-server group here; the core does not know who occupies
     // the slot.
     renderSlot !== null && contract !== null ? renderSlot(SLOT_KEYS.settingsSection, { contract }) : null,
-    compact === true ? null : import_react16.default.createElement(
+    compact === true ? null : import_react15.default.createElement(
       "div",
       { className: "iwb-settings-footer" },
-      import_react16.default.createElement("button", {
+      import_react15.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small iwb-settings-reset",
         onClick: () => {
@@ -57737,20 +57653,20 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
           commit(reset);
         }
       }, t2("settings.reset")),
-      saving === true ? import_react16.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : saved === true ? import_react16.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null
+      saving === true ? import_react15.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saving")) : saved === true ? import_react15.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t2("settings.saved")) : null
     )
   );
 }
 function SettingsSection({ store, state }) {
-  return import_react16.default.createElement(
+  return import_react15.default.createElement(
     "div",
     { className: "iwb-settings-section" },
-    import_react16.default.createElement(SettingsForm, { store, state })
+    import_react15.default.createElement(SettingsForm, { store, state })
   );
 }
 
 // src/client/QuickOpen.jsx
-var import_react17 = __toESM(require("react"), 1);
+var import_react16 = __toESM(require("react"), 1);
 function quickScore(path2, query) {
   const text = String(path2).toLowerCase();
   const value = String(query).trim().toLowerCase();
@@ -57772,8 +57688,8 @@ function quickScore(path2, query) {
 function QuickOpen({ store, state }) {
   const t2 = store.t;
   const index = state.quickOpenIndex;
-  const inputRef = (0, import_react17.useRef)(null);
-  const results = (0, import_react17.useMemo)(() => {
+  const inputRef = (0, import_react16.useRef)(null);
+  const results = (0, import_react16.useMemo)(() => {
     const scored = [];
     for (const path2 of state.fileIndex) {
       const score2 = quickScore(path2, state.quickOpenQuery);
@@ -57783,11 +57699,11 @@ function QuickOpen({ store, state }) {
     scored.sort((left, right) => right.score - left.score || left.path.length - right.path.length || left.path.localeCompare(right.path));
     return scored.slice(0, 100).map((item) => item.path);
   }, [state.fileIndex, state.quickOpenQuery]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     if (state.quickOpen !== true) return;
     inputRef.current?.focus();
   }, [state.quickOpen]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     if (index >= results.length) store.set({ quickOpenIndex: Math.max(0, results.length - 1) });
   }, [results.length]);
   if (state.quickOpen !== true) return null;
@@ -57795,7 +57711,7 @@ function QuickOpen({ store, state }) {
   const open = (rel) => {
     if (rel !== void 0) store.openQuickOpenSelection(rel);
   };
-  return import_react17.default.createElement(
+  return import_react16.default.createElement(
     "div",
     {
       className: "iwb-quick-backdrop",
@@ -57803,14 +57719,14 @@ function QuickOpen({ store, state }) {
         if (event.target === event.currentTarget) store.closeQuickOpen();
       }
     },
-    import_react17.default.createElement(
+    import_react16.default.createElement(
       "div",
       { className: "iwb-quick", role: "dialog", "aria-modal": "true", "aria-label": t2("quickOpen.title") },
-      import_react17.default.createElement(
+      import_react16.default.createElement(
         "div",
         { className: "iwb-quick-head" },
-        import_react17.default.createElement("span", { className: "iwb-quick-title" }, t2("quickOpen.title")),
-        import_react17.default.createElement("input", {
+        import_react16.default.createElement("span", { className: "iwb-quick-title" }, t2("quickOpen.title")),
+        import_react16.default.createElement("input", {
           ref: inputRef,
           className: "iwb-quick-input",
           value: state.quickOpenQuery,
@@ -57834,10 +57750,10 @@ function QuickOpen({ store, state }) {
           }
         })
       ),
-      import_react17.default.createElement(
+      import_react16.default.createElement(
         "div",
         { className: "iwb-quick-list" },
-        state.fileIndexLoading === true && state.fileIndex.length === 0 ? import_react17.default.createElement("div", { className: "iwb-quick-empty" }, t2("common.loading")) : results.length === 0 ? import_react17.default.createElement("div", { className: "iwb-quick-empty" }, t2("quickOpen.empty")) : results.map((path2, position) => import_react17.default.createElement(
+        state.fileIndexLoading === true && state.fileIndex.length === 0 ? import_react16.default.createElement("div", { className: "iwb-quick-empty" }, t2("common.loading")) : results.length === 0 ? import_react16.default.createElement("div", { className: "iwb-quick-empty" }, t2("quickOpen.empty")) : results.map((path2, position) => import_react16.default.createElement(
           "button",
           {
             key: path2,
@@ -57846,15 +57762,269 @@ function QuickOpen({ store, state }) {
             onMouseEnter: () => store.set({ quickOpenIndex: position }),
             onClick: () => open(path2)
           },
-          import_react17.default.createElement("span", { className: "iwb-quick-name" }, path2.slice(path2.lastIndexOf("/") + 1)),
-          import_react17.default.createElement("span", { className: "iwb-quick-dir" }, path2.includes("/") ? path2.slice(0, path2.lastIndexOf("/")) : "")
+          import_react16.default.createElement("span", { className: "iwb-quick-name" }, path2.slice(path2.lastIndexOf("/") + 1)),
+          import_react16.default.createElement("span", { className: "iwb-quick-dir" }, path2.includes("/") ? path2.slice(0, path2.lastIndexOf("/")) : "")
         ))
       ),
-      import_react17.default.createElement(
+      import_react16.default.createElement(
         "div",
         { className: "iwb-quick-foot" },
         `${results.length} \xB7 ${t2("quickOpen.hint")}`,
         state.fileIndexError !== null ? ` \xB7 ${state.fileIndexError}` : ""
+      )
+    )
+  );
+}
+
+// src/client/SearchPopup.jsx
+var import_react17 = __toESM(require("react"), 1);
+function interpolate2(text, values2) {
+  let out = typeof text === "string" ? text : "";
+  for (const [name2, value] of Object.entries(values2)) {
+    out = out.replaceAll(`{${name2}}`, String(value));
+  }
+  return out;
+}
+function PreviewLine({ number: number2, text, hit, key }) {
+  return import_react17.default.createElement(
+    "div",
+    { key, className: `iwb-search-popup-line ${hit ? "iwb-hit" : ""}` },
+    import_react17.default.createElement("span", { className: "iwb-search-popup-number" }, String(number2)),
+    import_react17.default.createElement("span", { className: "iwb-search-popup-text" }, text)
+  );
+}
+function searchPopupSlice(state) {
+  return { search: state.search, popup: state.searchPopup };
+}
+function SearchPopup({ store }) {
+  const t2 = store.t;
+  const { search: search2, popup: rawPopup } = useStoreSlice(store, searchPopupSlice, shallowEqual);
+  const popup = rawPopup ?? { open: false, index: 0, generation: 0 };
+  const open = popup.open === true;
+  const inputRef = (0, import_react17.useRef)(null);
+  const timer = (0, import_react17.useRef)(null);
+  const generation = popup.generation ?? 0;
+  const [query, setQuery] = (0, import_react17.useState)("");
+  const [caseSensitive, setCaseSensitive] = (0, import_react17.useState)(false);
+  const [wholeWord, setWholeWord] = (0, import_react17.useState)(false);
+  const [regexp, setRegexp] = (0, import_react17.useState)(false);
+  const [seeded, setSeeded] = (0, import_react17.useState)(false);
+  const files = (0, import_react17.useMemo)(() => (search2?.results ?? []).filter((file) => (file?.matches ?? []).length > 0), [search2?.results]);
+  const totals = (0, import_react17.useMemo)(() => {
+    let matches = 0;
+    for (const file of files) matches += (file.matches ?? []).length;
+    return { matches, files: files.length };
+  }, [files]);
+  const selected = files.length === 0 ? null : files[Math.min(Math.max(popup.index ?? 0, 0), files.length - 1)];
+  (0, import_react17.useEffect)(() => {
+    if (open !== true) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [open]);
+  (0, import_react17.useEffect)(() => {
+    if (open !== true) return;
+    const live = store.state?.search ?? search2 ?? {};
+    setQuery(live.query ?? "");
+    setCaseSensitive(live.caseSensitive === true);
+    setWholeWord(live.wholeWord === true);
+    setRegexp(live.regexp === true);
+    setSeeded(true);
+  }, [generation, open]);
+  (0, import_react17.useEffect)(() => {
+    if (open !== true) return void 0;
+    if (seeded !== true) return void 0;
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      void store.runSearch(query, { caseSensitive, wholeWord, regexp });
+    }, query === "" ? 0 : 220);
+    return () => {
+      if (timer.current !== null) clearTimeout(timer.current);
+    };
+  }, [query, caseSensitive, wholeWord, regexp, seeded, open]);
+  if (open !== true) return null;
+  const openHit = (path2, line, column) => {
+    if (typeof path2 !== "string" || path2 === "") return;
+    store.openSearchResult(path2, line, column);
+  };
+  const handleKey = (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      store.moveSearchSelection(1);
+      return true;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      store.moveSearchSelection(-1);
+      return true;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const first = selected?.matches?.[0];
+      if (selected !== null && first !== void 0) openHit(selected.path, first.line, first.column);
+      else void store.runSearch(query, { caseSensitive, wholeWord, regexp });
+      return true;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      store.closeSearchPopup();
+      return true;
+    }
+    if (event.key === "F8") {
+      event.preventDefault();
+      store.moveSearchSelection(event.shiftKey ? -1 : 1);
+      return true;
+    }
+    return false;
+  };
+  const onContainerKeyDown = (event) => {
+    if (handleKey(event) !== true) return;
+    event.stopPropagation();
+  };
+  const onInputKeyDown = (event) => {
+    if (handleKey(event) !== true) return;
+    event.stopPropagation();
+  };
+  const flag = (on2, label3, title, onClick) => import_react17.default.createElement("button", {
+    type: "button",
+    className: `iwb-find-flag ${on2 ? "iwb-on" : ""}`,
+    title,
+    "aria-pressed": on2,
+    onClick
+  }, label3);
+  return import_react17.default.createElement(
+    "div",
+    {
+      className: "iwb-quick-backdrop iwb-search-popup-backdrop",
+      // The container takes the keys, so they work wherever the focus is - a
+      // click on a file row moves the focus out of the input (R13).
+      tabIndex: -1,
+      onKeyDown: onContainerKeyDown,
+      onMouseDown: (event) => {
+        if (event.target === event.currentTarget) store.closeSearchPopup();
+      }
+    },
+    import_react17.default.createElement(
+      "div",
+      {
+        className: "iwb-quick iwb-search-popup",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": t2("search.title")
+      },
+      import_react17.default.createElement(
+        "div",
+        { className: "iwb-quick-head" },
+        import_react17.default.createElement(IconSearch, { width: 14, height: 14, style: { color: "var(--iwb-muted)" } }),
+        import_react17.default.createElement("input", {
+          ref: inputRef,
+          className: "iwb-quick-input",
+          value: query,
+          placeholder: t2("search.placeholder"),
+          spellCheck: false,
+          onChange: (event) => setQuery(event.target.value),
+          onKeyDown: onInputKeyDown
+        }),
+        flag(caseSensitive, "Aa", t2("search.caseSensitive"), () => setCaseSensitive((value) => !value)),
+        flag(wholeWord, "W", t2("search.wholeWord"), () => setWholeWord((value) => !value)),
+        flag(regexp, ".*", t2("search.regexp"), () => setRegexp((value) => !value)),
+        import_react17.default.createElement("button", {
+          type: "button",
+          className: "iwb-iconbtn",
+          title: t2("common.close"),
+          "aria-label": t2("common.close"),
+          onClick: () => store.closeSearchPopup()
+        }, import_react17.default.createElement("span", { style: { fontSize: 15, lineHeight: 1 } }, "\xD7"))
+      ),
+      import_react17.default.createElement(
+        "div",
+        { className: "iwb-search-popup-meta" },
+        search2?.loading === true ? t2("search.searching") : query === "" ? t2("search.empty") : search2?.error !== null && search2?.error !== void 0 ? search2.error : interpolate2(t2("search.popup.matches"), { count: totals.matches, files: totals.files }),
+        search2?.truncated === true ? import_react17.default.createElement("span", { className: "iwb-search-warn" }, t2("search.truncated")) : null
+      ),
+      // The upper half: one row per file that matched. The matches of a file
+      // are not repeated here - they are the preview below.
+      import_react17.default.createElement(
+        "div",
+        { className: "iwb-search-popup-list" },
+        search2?.error !== null && search2?.error !== void 0 && query !== "" ? import_react17.default.createElement("div", { className: "iwb-search-error" }, search2.error) : files.length === 0 && query !== "" && search2?.loading !== true ? import_react17.default.createElement("div", { className: "iwb-quick-empty" }, t2("search.noResults")) : files.map((file, index) => import_react17.default.createElement(
+          "button",
+          {
+            key: file.path,
+            type: "button",
+            className: `iwb-search-popup-file ${index === (popup.index ?? 0) ? "iwb-selected" : ""}`,
+            title: file.path,
+            onClick: () => store.set({ searchPopup: { ...popup, index } }),
+            // A double click opens the file at its first hit.
+            onDoubleClick: () => {
+              const first = file.matches?.[0];
+              if (first !== void 0) openHit(file.path, first.line, first.column);
+            }
+          },
+          import_react17.default.createElement(FileTypeIcon, { path: file.path, size: 14 }),
+          import_react17.default.createElement("span", { className: "iwb-search-popup-file-name" }, file.path.split("/").pop()),
+          import_react17.default.createElement("span", { className: "iwb-search-popup-file-dir" }, file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""),
+          import_react17.default.createElement(
+            "span",
+            { className: "iwb-search-popup-file-count" },
+            interpolate2(t2("search.popup.matchCount"), { count: (file.matches ?? []).length })
+          )
+        ))
+      ),
+      // The lower half: the preview of the selected file - every hit with the
+      // lines around it.
+      import_react17.default.createElement(
+        "div",
+        { className: "iwb-search-popup-preview" },
+        selected === null ? import_react17.default.createElement("div", { className: "iwb-quick-empty" }, t2("search.popup.noPreview")) : import_react17.default.createElement(
+          "div",
+          { className: "iwb-search-popup-blocks" },
+          (selected.matches ?? []).map((match, index) => {
+            const before = Array.isArray(match.before) ? match.before : [];
+            const after = Array.isArray(match.after) ? match.after : [];
+            const line = match.line ?? 0;
+            const binary = match.binary === true;
+            return import_react17.default.createElement(
+              "div",
+              {
+                key: `${selected.path}:${match.line}:${match.column}:${index}`,
+                className: "iwb-search-popup-block",
+                // A double click on the hit itself opens it as well: the
+                // preview is where the user reads the context and decides.
+                onDoubleClick: () => openHit(selected.path, match.line, match.column)
+              },
+              import_react17.default.createElement(
+                "div",
+                { className: "iwb-search-popup-block-head" },
+                import_react17.default.createElement("span", { className: "iwb-search-popup-block-pos" }, `${selected.path}:${line}`),
+                import_react17.default.createElement("span", { className: "iwb-search-popup-block-preview" }, match.preview ?? "")
+              ),
+              binary ? import_react17.default.createElement("div", { className: "iwb-quick-empty" }, t2("search.popup.binary")) : import_react17.default.createElement(
+                "div",
+                { className: "iwb-search-popup-code" },
+                before.map((text, at2) => PreviewLine({
+                  key: `before-${at2}`,
+                  number: line - before.length + at2,
+                  text,
+                  hit: false
+                })),
+                PreviewLine({ key: "hit", number: line, text: match.preview ?? "", hit: true }),
+                after.map((text, at2) => PreviewLine({
+                  key: `after-${at2}`,
+                  number: line + at2 + 1,
+                  text,
+                  hit: false
+                }))
+              )
+            );
+          })
+        )
+      ),
+      import_react17.default.createElement(
+        "div",
+        { className: "iwb-quick-foot" },
+        `${totals.files} \xB7 ${t2("search.popup.hint")}`,
+        search2?.tookMs > 0 ? ` \xB7 ${search2.tookMs} ${t2("search.took")}` : ""
       )
     )
   );
@@ -58508,6 +58678,9 @@ function Workbench({ store, visible = true, fullscreen = false, renderSlot = nul
     ) : null,
     import_react18.default.createElement(ConfirmModal, { dialog: state.confirm, onClose: () => store.dismissConfirm() }),
     import_react18.default.createElement(QuickOpen, { store, state }),
+    // Find in Files is a popup over the whole workbench (PRD-v5 FIND-01):
+    // it is a tool, not a document, so it takes no tab and hides no code.
+    import_react18.default.createElement(SearchPopup, { store }),
     import_react18.default.createElement(Toast, { toast: state.toast }),
     import_react18.default.createElement(RootPicker, { store, state }),
     import_react18.default.createElement(ProjectPicker, { store, state }),
@@ -59566,37 +59739,62 @@ var CSS2 = `
 }
 .iwb-editor-scoped-backdrop .iwb-modal-actions { flex-wrap: wrap; }
 
-.iwb-search { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; z-index: 8; pointer-events: auto; }
-.iwb-search * { pointer-events: auto; }
-.iwb-search-head {
-  display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--iwb-border);
-  background: var(--iwb-panel);
-}
-.iwb-search-input {
-  flex: 1; min-width: 100px; height: 28px; padding: 0 9px; border-radius: 6px;
-  border: 1px solid var(--iwb-border); background: var(--iwb-panel-2); color: var(--iwb-fg);
-  outline: none; font-size: 12.5px; user-select: text;
-}
-.iwb-search-input:focus { border-color: var(--iwb-accent); }
-.iwb-search-meta { display: flex; align-items: center; gap: 8px; padding: 5px 12px; color: var(--iwb-muted); font-size: 11px; border-bottom: 1px solid var(--iwb-border); }
+/* A bare word of the search slice (the tab view of the results is gone; the
+   popup below carries the rest). */
 .iwb-search-warn { color: var(--iwb-warn); }
-.iwb-search-results { flex: 1; min-height: 0; overflow: auto; padding: 4px 0 20px; }
-.iwb-search-file { border-bottom: 1px solid var(--iwb-border); }
-.iwb-search-file-head {
-  display: flex; align-items: center; gap: 7px; height: 27px; padding: 0 12px;
-  background: rgba(127,127,127,.06); position: sticky; top: 0; z-index: 1;
-}
-.iwb-search-file-name { font-weight: 600; font-size: 12px; }
-.iwb-search-file-dir { color: var(--iwb-muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; }
-.iwb-search-file-head .iwb-count { margin-left: auto; }
-.iwb-search-hit {
-  display: flex; align-items: center; gap: 10px; width: 100%; height: 23px; padding: 0 12px 0 20px;
-  text-align: left; font-family: var(--iwb-mono); font-size: 11.5px; color: var(--iwb-fg);
-}
-.iwb-search-hit:hover { background: rgba(76,154,255,.12); }
-.iwb-search-line { width: 42px; flex: 0 0 42px; text-align: right; color: var(--iwb-muted); font-variant-numeric: tabular-nums; }
-.iwb-search-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-search-error { padding: 12px; color: var(--iwb-error); font-size: 12px; white-space: pre-wrap; }
+
+/* \u2500\u2500 Find in Files popup (PRD-v5 FIND-01 / FIND-02) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The popup reuses the Quick Open skeleton: the same backdrop (z-index 70,
+   above every modal), the same panel, the same head and foot. Only the body
+   differs - the files on top (40%), the context of the selected file below
+   (60%), so a project-wide search never takes the code away from the user. */
+.iwb-search-popup-backdrop { padding-top: 4vh; }
+.iwb-search-popup {
+  width: min(900px, 92vw); height: min(640px, 80vh); max-height: none;
+  display: flex; flex-direction: column;
+}
+.iwb-search-popup-meta {
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+  border-bottom: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 10.5px;
+}
+.iwb-search-popup-list { flex: 0 0 40%; min-height: 0; overflow: auto; padding: 4px; }
+/* The upper half is a plain list of the files that matched - one row per file,
+   with its match count. The matches themselves are the preview below:
+   repeating them under the file row made the list a wall of text and left the
+   preview empty. */
+.iwb-search-popup-file {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 9px;
+  border-radius: 5px; text-align: left; font-size: 12px; color: var(--iwb-fg);
+}
+.iwb-search-popup-file:hover { background: rgba(127, 127, 127, .1); }
+.iwb-search-popup-file.iwb-selected { background: color-mix(in srgb, var(--iwb-accent) 20%, transparent); }
+.iwb-search-popup-file-name { flex: 0 0 auto; white-space: nowrap; }
+.iwb-search-popup-file-dir { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--iwb-muted); font-size: 10.5px; }
+.iwb-search-popup-file-count {
+  flex: 0 0 auto; margin-left: auto; color: var(--iwb-muted); font-size: 10.5px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.iwb-search-popup-preview { flex: 1 1 60%; min-height: 0; overflow: auto; border-top: 1px solid var(--iwb-border); }
+.iwb-search-popup-blocks { padding: 6px 0 12px; }
+/* One hit of the selected file with the lines around it. */
+.iwb-search-popup-block { padding-bottom: 8px; }
+.iwb-search-popup-block-head {
+  display: flex; align-items: baseline; gap: 10px; padding: 2px 10px;
+  color: var(--iwb-muted); font-size: 10.5px;
+}
+.iwb-search-popup-block-pos { flex: 0 0 auto; font-family: var(--iwb-mono); }
+.iwb-search-popup-block-preview {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.iwb-search-popup-code { padding: 2px 0; font-family: var(--iwb-mono); font-size: 11.5px; line-height: 1.6; }
+.iwb-search-popup-line { display: flex; gap: 10px; padding: 0 10px; color: var(--iwb-muted); opacity: .75; }
+.iwb-search-popup-line.iwb-hit { background: color-mix(in srgb, var(--iwb-accent) 16%, transparent); color: var(--iwb-fg); opacity: 1; }
+.iwb-search-popup-number {
+  flex: 0 0 44px; width: 44px; text-align: right; color: var(--iwb-muted);
+  font-variant-numeric: tabular-nums; user-select: none;
+}
+.iwb-search-popup-text { flex: 1 1 auto; min-width: 0; white-space: pre; }
 
 .iwb-quick-backdrop { position: absolute; inset: 0; z-index: 70; background: rgba(0,0,0,.38); display: flex; align-items: flex-start; justify-content: center; padding-top: 9vh; }
 .iwb-quick {
@@ -59712,17 +59910,6 @@ var CSS2 = `
 /* Read-only code / diff must be copyable despite the root user-select:none. */
 .iwb-code, .iwb-diff-text, .iwb-diff-side-cell, .iwb-diff-row { user-select: text; }
 .iwb-diff-row .iwb-diff-num, .iwb-diff-row .iwb-diff-sign, .iwb-diff-row .iwb-diff-gutter { user-select: none; }
-
-/* \u2500\u2500 text-match marker for the conservative Find Usages (NAV-03) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-.iwb-search-textmatch-note {
-  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 6px;
-  padding: 2px 8px; border-radius: 999px; font-size: 10.5px;
-  color: var(--iwb-warn); border: 1px solid currentColor; background: rgba(215, 162, 74, .08);
-}
-.iwb-search-textmatch {
-  font-size: 9.5px; line-height: 15px; color: var(--iwb-warn);
-  border: 1px solid currentColor; border-radius: 999px; padding: 0 5px; flex: 0 0 auto;
-}
 
 /* \u2500\u2500 Git Blame annotation (V6 blame) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
    The annotation is an INLINE COLUMN: a CodeMirror gutter of its own, placed
@@ -60275,7 +60462,7 @@ function apply(ctx) {
         if (matchesShortcut(shortcuts.findInFiles ?? "Ctrl+Shift+R", event) || matchesShortcut(shortcuts.findInFilesAlt ?? "Ctrl+Alt+F", event)) {
           event.preventDefault();
           event.stopPropagation();
-          store.openSearchTab();
+          store.openSearchPopup(selectedText());
           return;
         }
         if (matchesShortcut(shortcuts.quickOpen ?? "Ctrl+Shift+N", event)) {
@@ -60289,14 +60476,6 @@ function apply(ctx) {
           event.stopPropagation();
           store.openQuickOpen();
           return;
-        }
-        if (event.key === "F8" && !event.ctrlKey && !event.altKey && !event.metaKey) {
-          if (store.state.activeId === "search:in-files") {
-            event.preventDefault();
-            event.stopPropagation();
-            store.openNextSearchResult(event.shiftKey ? -1 : 1);
-            return;
-          }
         }
         if (store.state.layout.bottom === "git" && matchesShortcut(shortcuts.openCommitDetail ?? "Ctrl+Alt+D", event)) {
           event.preventDefault();

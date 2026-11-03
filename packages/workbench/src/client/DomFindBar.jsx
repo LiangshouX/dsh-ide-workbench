@@ -68,8 +68,13 @@ function rangesFor(container, query, options) {
   return ranges
 }
 
-export function DomFindBar({ containerRef, t, onClose }) {
-  const [query, setQuery] = useState('')
+/**
+ * @param {{containerRef: object, t: Function, seed?: {text: string, nonce: number}|null, onClose?: Function}} props
+ *   `seed` is the text the bar was asked to start from (the selection of the
+ *   rendered document when Ctrl+F was pressed); `nonce` marks the request.
+ */
+export function DomFindBar({ containerRef, t, seed = null, onClose }) {
+  const [query, setQuery] = useState(seed?.text ?? '')
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [wholeWord, setWholeWord] = useState(false)
   const [regexp, setRegexp] = useState(false)
@@ -128,6 +133,15 @@ export function DomFindBar({ containerRef, t, onClose }) {
   }
 
   useEffect(() => { inputRef.current?.focus(); inputRef.current?.select() }, [])
+  // A new seed (Ctrl+F on a new selection in the rendered document) replaces
+  // the query; without a selection the text the user typed stays.
+  useEffect(() => {
+    if (seed === null || seed === undefined || typeof seed.text !== 'string' || seed.text === '') return
+    setQuery(seed.text)
+    inputRef.current?.focus()
+    inputRef.current?.select()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed?.nonce])
   useEffect(() => {
     if (timer.current !== null) clearTimeout(timer.current)
     timer.current = setTimeout(() => search(query), 80)

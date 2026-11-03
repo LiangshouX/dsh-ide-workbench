@@ -1056,37 +1056,62 @@ export const CSS = `
 }
 .iwb-editor-scoped-backdrop .iwb-modal-actions { flex-wrap: wrap; }
 
-.iwb-search { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; z-index: 8; pointer-events: auto; }
-.iwb-search * { pointer-events: auto; }
-.iwb-search-head {
-  display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--iwb-border);
-  background: var(--iwb-panel);
-}
-.iwb-search-input {
-  flex: 1; min-width: 100px; height: 28px; padding: 0 9px; border-radius: 6px;
-  border: 1px solid var(--iwb-border); background: var(--iwb-panel-2); color: var(--iwb-fg);
-  outline: none; font-size: 12.5px; user-select: text;
-}
-.iwb-search-input:focus { border-color: var(--iwb-accent); }
-.iwb-search-meta { display: flex; align-items: center; gap: 8px; padding: 5px 12px; color: var(--iwb-muted); font-size: 11px; border-bottom: 1px solid var(--iwb-border); }
+/* A bare word of the search slice (the tab view of the results is gone; the
+   popup below carries the rest). */
 .iwb-search-warn { color: var(--iwb-warn); }
-.iwb-search-results { flex: 1; min-height: 0; overflow: auto; padding: 4px 0 20px; }
-.iwb-search-file { border-bottom: 1px solid var(--iwb-border); }
-.iwb-search-file-head {
-  display: flex; align-items: center; gap: 7px; height: 27px; padding: 0 12px;
-  background: rgba(127,127,127,.06); position: sticky; top: 0; z-index: 1;
-}
-.iwb-search-file-name { font-weight: 600; font-size: 12px; }
-.iwb-search-file-dir { color: var(--iwb-muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; }
-.iwb-search-file-head .iwb-count { margin-left: auto; }
-.iwb-search-hit {
-  display: flex; align-items: center; gap: 10px; width: 100%; height: 23px; padding: 0 12px 0 20px;
-  text-align: left; font-family: var(--iwb-mono); font-size: 11.5px; color: var(--iwb-fg);
-}
-.iwb-search-hit:hover { background: rgba(76,154,255,.12); }
-.iwb-search-line { width: 42px; flex: 0 0 42px; text-align: right; color: var(--iwb-muted); font-variant-numeric: tabular-nums; }
-.iwb-search-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-search-error { padding: 12px; color: var(--iwb-error); font-size: 12px; white-space: pre-wrap; }
+
+/* ── Find in Files popup (PRD-v5 FIND-01 / FIND-02) ─────────────────────────
+   The popup reuses the Quick Open skeleton: the same backdrop (z-index 70,
+   above every modal), the same panel, the same head and foot. Only the body
+   differs - the files on top (40%), the context of the selected file below
+   (60%), so a project-wide search never takes the code away from the user. */
+.iwb-search-popup-backdrop { padding-top: 4vh; }
+.iwb-search-popup {
+  width: min(900px, 92vw); height: min(640px, 80vh); max-height: none;
+  display: flex; flex-direction: column;
+}
+.iwb-search-popup-meta {
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+  border-bottom: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 10.5px;
+}
+.iwb-search-popup-list { flex: 0 0 40%; min-height: 0; overflow: auto; padding: 4px; }
+/* The upper half is a plain list of the files that matched - one row per file,
+   with its match count. The matches themselves are the preview below:
+   repeating them under the file row made the list a wall of text and left the
+   preview empty. */
+.iwb-search-popup-file {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 9px;
+  border-radius: 5px; text-align: left; font-size: 12px; color: var(--iwb-fg);
+}
+.iwb-search-popup-file:hover { background: rgba(127, 127, 127, .1); }
+.iwb-search-popup-file.iwb-selected { background: color-mix(in srgb, var(--iwb-accent) 20%, transparent); }
+.iwb-search-popup-file-name { flex: 0 0 auto; white-space: nowrap; }
+.iwb-search-popup-file-dir { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--iwb-muted); font-size: 10.5px; }
+.iwb-search-popup-file-count {
+  flex: 0 0 auto; margin-left: auto; color: var(--iwb-muted); font-size: 10.5px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.iwb-search-popup-preview { flex: 1 1 60%; min-height: 0; overflow: auto; border-top: 1px solid var(--iwb-border); }
+.iwb-search-popup-blocks { padding: 6px 0 12px; }
+/* One hit of the selected file with the lines around it. */
+.iwb-search-popup-block { padding-bottom: 8px; }
+.iwb-search-popup-block-head {
+  display: flex; align-items: baseline; gap: 10px; padding: 2px 10px;
+  color: var(--iwb-muted); font-size: 10.5px;
+}
+.iwb-search-popup-block-pos { flex: 0 0 auto; font-family: var(--iwb-mono); }
+.iwb-search-popup-block-preview {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.iwb-search-popup-code { padding: 2px 0; font-family: var(--iwb-mono); font-size: 11.5px; line-height: 1.6; }
+.iwb-search-popup-line { display: flex; gap: 10px; padding: 0 10px; color: var(--iwb-muted); opacity: .75; }
+.iwb-search-popup-line.iwb-hit { background: color-mix(in srgb, var(--iwb-accent) 16%, transparent); color: var(--iwb-fg); opacity: 1; }
+.iwb-search-popup-number {
+  flex: 0 0 44px; width: 44px; text-align: right; color: var(--iwb-muted);
+  font-variant-numeric: tabular-nums; user-select: none;
+}
+.iwb-search-popup-text { flex: 1 1 auto; min-width: 0; white-space: pre; }
 
 .iwb-quick-backdrop { position: absolute; inset: 0; z-index: 70; background: rgba(0,0,0,.38); display: flex; align-items: flex-start; justify-content: center; padding-top: 9vh; }
 .iwb-quick {
@@ -1202,17 +1227,6 @@ export const CSS = `
 /* Read-only code / diff must be copyable despite the root user-select:none. */
 .iwb-code, .iwb-diff-text, .iwb-diff-side-cell, .iwb-diff-row { user-select: text; }
 .iwb-diff-row .iwb-diff-num, .iwb-diff-row .iwb-diff-sign, .iwb-diff-row .iwb-diff-gutter { user-select: none; }
-
-/* ── text-match marker for the conservative Find Usages (NAV-03) ───────── */
-.iwb-search-textmatch-note {
-  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 6px;
-  padding: 2px 8px; border-radius: 999px; font-size: 10.5px;
-  color: var(--iwb-warn); border: 1px solid currentColor; background: rgba(215, 162, 74, .08);
-}
-.iwb-search-textmatch {
-  font-size: 9.5px; line-height: 15px; color: var(--iwb-warn);
-  border: 1px solid currentColor; border-radius: 999px; padding: 0 5px; flex: 0 0 auto;
-}
 
 /* ── Git Blame annotation (V6 blame) ────────────────────────────────────────
    The annotation is an INLINE COLUMN: a CodeMirror gutter of its own, placed

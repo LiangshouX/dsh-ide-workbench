@@ -7,7 +7,7 @@ import { Workbench } from './Workbench.jsx'
 import { SettingsSection } from './SettingsPanel.jsx'
 import { CSS } from './styles.js'
 import { setPrimitivesLoader } from './host-primitives.js'
-import { matchesShortcut, isTerminalTarget } from './util.js'
+import { matchesShortcut, isTerminalTarget, selectedText } from './util.js'
 import { useWorkbench } from './hooks.js'
 import {
   basenameOfFileAddress, isFileAddress, isIdeViewableAddress, parseFileAddress, resolveFileAddress,
@@ -579,7 +579,9 @@ export function apply(ctx) {
           || matchesShortcut(shortcuts.findInFilesAlt ?? 'Ctrl+Alt+F', event)) {
           event.preventDefault()
           event.stopPropagation()
-          store.openSearchTab()
+          // The popup seeds itself from the selection: what is selected is
+          // what the user is about to look for.
+          store.openSearchPopup(selectedText())
           return
         }
         if (matchesShortcut(shortcuts.quickOpen ?? 'Ctrl+Shift+N', event)) {
@@ -595,15 +597,10 @@ export function apply(ctx) {
           store.openQuickOpen()
           return
         }
-        // F8 cycles the hits of the Find in Files view.
-        if (event.key === 'F8' && !event.ctrlKey && !event.altKey && !event.metaKey) {
-          if (store.state.activeId === 'search:in-files') {
-            event.preventDefault()
-            event.stopPropagation()
-            store.openNextSearchResult(event.shiftKey ? -1 : 1)
-            return
-          }
-        }
+        // F8 moves the selection of the Find in Files popup. There is no
+        // global handler any more: the popup is a modal and owns the key
+        // while it is open (it stops the event), and with the popup closed
+        // there is no result list for F8 to walk.
         if (store.state.layout.bottom === 'git'
           && matchesShortcut(shortcuts.openCommitDetail ?? 'Ctrl+Alt+D', event)) {
           event.preventDefault()

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PRD-v4 review fixes — R2 (git status basis), R3 (`.gitignore` entries),
  * L5 (double click on the tree twisty).
  *
@@ -169,7 +169,7 @@ function baseStore(state) {
     openDiff: () => {},
     showHistory: () => {},
     openQuickOpen: () => {},
-    openSearchTab: () => {},
+    openSearchPopup: () => {},
     sendToChat: () => {},
     openRootPicker: () => {},
     openProjectPicker: () => {},

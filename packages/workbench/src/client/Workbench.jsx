@@ -19,6 +19,7 @@ import { TerminalPanel } from './TerminalPanel.jsx'
 import { EditorArea } from './EditorArea.jsx'
 import { SettingsForm } from './SettingsPanel.jsx'
 import { QuickOpen } from './QuickOpen.jsx'
+import { SearchPopup } from './SearchPopup.jsx'
 import { ContextMenu, ConfirmModal, Kbd, Toast } from './ui.jsx'
 import { baseName } from './util.js'
 import { DEFAULT_ENTRY_SIDE, STACK_WIDTH } from './layout.js'
@@ -657,6 +658,9 @@ export function Workbench({ store, visible = true, fullscreen = false, renderSlo
       : null,
     React.createElement(ConfirmModal, { dialog: state.confirm, onClose: () => store.dismissConfirm() }),
     React.createElement(QuickOpen, { store, state }),
+    // Find in Files is a popup over the whole workbench (PRD-v5 FIND-01):
+    // it is a tool, not a document, so it takes no tab and hides no code.
+    React.createElement(SearchPopup, { store }),
     React.createElement(Toast, { toast: state.toast }),
     React.createElement(RootPicker, { store, state }),
     React.createElement(ProjectPicker, { store, state }),

@@ -12,13 +12,12 @@ import { CodeEditor } from './CodeEditor.jsx'
 import { MarkdownView } from './MarkdownView.jsx'
 import { DiffView } from './DiffView.jsx'
 import { FindBar } from './FindBar.jsx'
-import { SearchView } from './SearchView.jsx'
 import { ConfirmModal, ContextMenu, Kbd } from './ui.jsx'
 import {
   FileTypeIcon, IconChrome, IconClose, IconCode, IconEdit, IconEye, IconGlobe, IconLock,
   IconMore, IconOutline, IconPin, IconRestore, IconSave, StripeIcon,
 } from './icons.jsx'
-import { baseName, shortEncoding } from './util.js'
+import { baseName, findSeed, selectedText, shortEncoding } from './util.js'
 import { openInIdeMenu } from './ide-menu.js'
 import { isMarkdownPath } from './store.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
@@ -97,7 +96,7 @@ function Welcome({ store, slice }) {
   )
 }
 
-function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindInFiles, previewFind, onPreviewFindRequest, onClosePreviewFind, contract, renderSlot }) {
+function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindInFiles, previewFind, previewSeed, onPreviewFindRequest, onClosePreviewFind, contract, renderSlot }) {
   const t = store.t
   const scrollTimer = useRef(null)
   useEffect(() => () => { if (scrollTimer.current !== null) clearTimeout(scrollTimer.current) }, [])
@@ -178,6 +177,7 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
       text,
       t,
       findOpen: previewFind,
+      seed: previewSeed,
       onFindRequest: onPreviewFindRequest,
       onCloseFind: onClosePreviewFind,
       outlineOpen: tab.outlineOpen === true,
@@ -670,22 +670,28 @@ export function buildConflictDialog(store, tab) {
  * @returns {(event: object) => void}
  */
 export function createEditorKeyHandler(store, options) {
-  const { textTab, previewTab, findOpenRef, previewFindRef, editorApi, setFindOpen, setPreviewFind } = options
+  const { textTab, previewTab, findOpenRef, previewFindRef, editorApi, setFindOpen, setPreviewFind, seedFind, seedPreviewFind } = options
   return (event) => {
     if (store.state.active !== true) return
     const target = event.target
-    if (target instanceof HTMLElement && target.closest('.iwb-search')) return
+    if (target instanceof HTMLElement && target.closest('.iwb-search-popup-backdrop')) return
+    // The selection of the moment is what the user wants to look for, but not
+    // while the caret is already in the find bar: Ctrl+F there keeps the query
+    // (the field is the selection's owner now).
+    const inFindBar = target instanceof Element && target.closest('.iwb-findbar') !== null
     const mod = event.ctrlKey || event.metaKey
     const key = typeof event.key === 'string' ? event.key.toLowerCase() : ''
     if (mod && ((event.shiftKey && !event.altKey && key === 'r') || (event.altKey && !event.shiftKey && key === 'f'))) {
       event.preventDefault()
       event.stopPropagation()
-      store.openSearchTab()
+      // The popup seeds itself from the selection (IDE behaviour).
+      store.openSearchPopup(selectedText())
       return
     }
     if (mod && !event.altKey && !event.shiftKey && key === 'f' && textTab) {
       event.preventDefault()
       event.stopPropagation()
+      if (!inFindBar) seedFind?.()
       setFindOpen(true)
       return
     }
@@ -695,6 +701,7 @@ export function createEditorKeyHandler(store, options) {
     if (mod && !event.altKey && !event.shiftKey && key === 'f' && previewTab) {
       event.preventDefault()
       event.stopPropagation()
+      if (!inFindBar) seedPreviewFind?.()
       setPreviewFind(true)
       return
     }
@@ -743,6 +750,31 @@ export function EditorArea({ store, state: _state, contract = null, renderSlot =
   const [findOpen, setFindOpen] = useState(false)
   const [previewFind, setPreviewFind] = useState(false)
   const [editorApi, setEditorApi] = useState(null)
+  /**
+   * The text the find bars were asked to start from.
+   *
+   * A hint and not a value: `nonce` marks the request, so pressing Ctrl+F on
+   * a new selection re-seeds the field even when the two selections happen to
+   * be the same word. The hint is what the IDE does - the selection of the
+   * moment is what you are about to look for.
+   */
+  const [findHint, setFindHint] = useState(null)
+  const [previewHint, setPreviewHint] = useState(null)
+  const hintNonce = useRef(0)
+  const nextHint = (text) => {
+    const seed = findSeed(text)
+    if (seed === '') return null
+    hintNonce.current += 1
+    return { text: seed, nonce: hintNonce.current }
+  }
+  const seedFind = () => {
+    const hint = nextHint(editorApi?.getSelection?.() || selectedText())
+    if (hint !== null) setFindHint(hint)
+  }
+  const seedPreviewFind = () => {
+    const hint = nextHint(selectedText())
+    if (hint !== null) setPreviewHint(hint)
+  }
   const [dismissedTab, setDismissedTab] = useState(null)
   const findOpenRef = useRef(false)
   findOpenRef.current = findOpen
@@ -758,7 +790,13 @@ export function EditorArea({ store, state: _state, contract = null, renderSlot =
   useEffect(() => {
     setFindOpen(false)
     setPreviewFind(false)
-    setEditorApi(null)
+    // The editor API is owned by the editor itself: it hands a new one to
+    // `onEditorReady` when it mounts and `null` when it is destroyed (see
+    // CodeEditor). This effect must NOT clear it: React runs the effects of
+    // the children before the effects of this component, so a reset here would
+    // wipe the API of the editor that has just mounted - and the find bar,
+    // which only renders with an API, would silently refuse to open until the
+    // tab was switched again.
   }, [active?.id])
 
   useEffect(() => {
@@ -770,6 +808,8 @@ export function EditorArea({ store, state: _state, contract = null, renderSlot =
       editorApi,
       setFindOpen,
       setPreviewFind,
+      seedFind,
+      seedPreviewFind,
     })
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
@@ -780,7 +820,7 @@ export function EditorArea({ store, state: _state, contract = null, renderSlot =
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return
       const target = event.target
       if (!(target instanceof Element) || target.closest('.iwb-root') === null) return
-      if (target.closest('.iwb-commit, .iwb-term, .iwb-term-host, .iwb-diff, .iwb-search') !== null) return
+      if (target.closest('.iwb-commit, .iwb-term, .iwb-term-host, .iwb-diff, .iwb-search-popup-backdrop') !== null) return
       if (event.key.toLowerCase() === 'w' && !event.shiftKey) {
         event.preventDefault()
         event.stopPropagation()
@@ -834,25 +874,16 @@ export function EditorArea({ store, state: _state, contract = null, renderSlot =
       React.createElement(Welcome, { store, slice }),
     )
   }
-  if (active.kind === 'search') {
-    return React.createElement('div', { className: 'iwb-editor' },
-      React.createElement(TabBar, { store, slice }),
-      // The key keeps the search tab apart: it takes its query from the store
-      // when it mounts, so a new open remounts it.
-      React.createElement(React.Fragment, { key: `${active.id}:${active.generation ?? 0}` },
-        React.createElement(SearchView, { store }),
-      ),
-    )
-  }
   const content = active.kind === 'file'
     ? React.createElement(FilePreview, {
         store, slice, tab: active,
         previewFind,
-        onPreviewFindRequest: () => setPreviewFind(true),
+        previewSeed: previewHint,
+        onPreviewFindRequest: () => { seedPreviewFind(); setPreviewFind(true) },
         onClosePreviewFind: () => setPreviewFind(false),
         onEditorReady: setEditorApi,
-        onFindRequest: () => setFindOpen(true),
-        onFindInFiles: () => store.openSearchTab(),
+        onFindRequest: () => { seedFind(); setFindOpen(true) },
+        onFindInFiles: () => store.openSearchPopup(selectedText()),
         contract,
         renderSlot,
       })
@@ -869,6 +900,7 @@ export function EditorArea({ store, state: _state, contract = null, renderSlot =
           store,
           editor: editorApi,
           readOnly: active.editing !== true,
+          seed: findHint,
           onClose: () => setFindOpen(false),
         })
       : null,

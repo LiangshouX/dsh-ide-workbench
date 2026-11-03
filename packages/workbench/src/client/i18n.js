@@ -448,6 +448,13 @@ export const en = {
   'search.openResult': 'Open result',
   'search.results': 'Results',
   'search.searching': 'Searching…',
+  // The popup (PRD-v5 FIND-01 / FIND-02): the files on top, the hits of the
+  // selected file with their context below.
+  'search.popup.matches': '{count} matches in {files} files',
+  'search.popup.matchCount': '{count} matches',
+  'search.popup.noPreview': 'Select a file to see its matches',
+  'search.popup.binary': 'Binary file - no preview',
+  'search.popup.hint': '↑↓ file · Enter opens · double click opens · Esc closes',
 
   'quickOpen.title': 'Quick Open',
   'quickOpen.placeholder': 'Type a file name or path',
@@ -925,6 +932,12 @@ export const zh = {
   'search.openResult': '打开结果',
   'search.results': '结果',
   'search.searching': '搜索中…',
+  // 查找弹窗（PRD-v5 FIND-01 / FIND-02）：上面是文件列表，下面是选中文件的命中与上下文。
+  'search.popup.matches': '{count} 处匹配，位于 {files} 个文件',
+  'search.popup.matchCount': '{count} 处',
+  'search.popup.noPreview': '选择一个文件查看匹配内容',
+  'search.popup.binary': '二进制文件，无预览',
+  'search.popup.hint': '↑↓ 选文件 · Enter 打开 · 双击打开 · Esc 关闭',
 
   'quickOpen.title': '快速打开',
   'quickOpen.placeholder': '输入文件名或路径',

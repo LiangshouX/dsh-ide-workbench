@@ -186,17 +186,26 @@ test('Git drawer renders the commit metadata and file list', async () => {
   assert.doesNotMatch(html, /iwb-git-narrow/)
 })
 
-test('Find in Files renders grouped results', async () => {
+test('Find in Files renders the matching files in a popup', async () => {
   const mod = await loadModule()
-  const html = mod.renderSearchTab()
-  assert.match(html, /iwb-search/)
-  assert.match(html, /iwb-search-hit/)
+  const html = mod.renderSearchPopup()
+  // The popup floats over the workbench and owns no tab of the editor.
+  assert.match(html, /iwb-search-popup-backdrop/)
+  assert.match(html, /iwb-search-popup-file/)
   assert.match(html, /search\.title/)
+  // The selected file's hits are the preview below the list.
+  assert.match(html, /iwb-search-popup-preview/)
+  assert.match(html, /iwb-search-popup-line/)
+  // A binary hit says so instead of printing fake code.
+  assert.match(html, /search\.popup\.binary/)
+  // The pieces of the old tab view are gone for good.
+  assert.doesNotMatch(html, /iwb-search-results/)
+  assert.doesNotMatch(html, /iwb-search-hit/)
 })
 
-test('Find in Files renders the match-case / whole-word / regexp toggles', async () => {
+test('the search popup renders the match-case / whole-word / regexp toggles', async () => {
   const mod = await loadModule()
-  const html = mod.renderSearchTab()
+  const html = mod.renderSearchPopup()
   assert.match(html, /title="search\.caseSensitive"/)
   assert.match(html, /title="search\.wholeWord"/)
   assert.match(html, /title="search\.regexp"/)

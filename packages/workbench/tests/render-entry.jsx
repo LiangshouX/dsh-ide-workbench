@@ -9,6 +9,7 @@ import { WorkbenchStore } from '../src/client/store.js'
 import { Workbench } from '../src/client/Workbench.jsx'
 import { EditorArea } from '../src/client/EditorArea.jsx'
 import { DiffView } from '../src/client/DiffView.jsx'
+import { SearchPopup } from '../src/client/SearchPopup.jsx'
 import { SettingsForm } from '../src/client/SettingsPanel.jsx'
 export { resetPatch } from '../src/client/SettingsPanel.jsx'
 import { MarkdownView } from '../src/client/MarkdownView.jsx'
@@ -320,16 +321,28 @@ export function renderGitDrawer() {
   return renderToStaticMarkup(React.createElement(Workbench, { store }))
 }
 
-export function renderSearchTab() {
+export function renderSearchPopup() {
   const store = baseStore()
-  store.state.tabs = [{ id: 'search:in-files', kind: 'search', name: 'search.title', loading: false, error: null }]
-  store.state.activeId = 'search:in-files'
+  // The search is a popup over the workbench now: no tab, no active document
+  // change - and the results carry the context the preview shows.
+  store.state.searchPopup = { open: true, index: 0, generation: 1 }
   store.state.search = {
     ...store.state.search,
-    query: 'a.ts', results: [{ path: 'a.ts', matches: [{ line: 1, column: 1, preview: 'const a = 1' }] }],
+    query: 'a.ts',
+    results: [
+      {
+        path: 'src/a.ts',
+        matches: [
+          { line: 3, column: 7, preview: 'const a = 1', before: ['line 1', 'line 2'], after: ['line 4'] },
+          // A binary hit of the same file: it says so instead of printing code.
+          { line: 9, column: 1, preview: '', binary: true, before: [], after: [] },
+        ],
+      },
+      { path: 'src/b.ts', matches: [{ line: 9, column: 1, preview: 'b.ts', before: [], after: [] }] },
+    ],
     tookMs: 4, loading: false,
   }
-  return renderToStaticMarkup(React.createElement(Workbench, { store }))
+  return renderToStaticMarkup(React.createElement(SearchPopup, { store }))
 }
 
 export function renderQuickOpen() {
