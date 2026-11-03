@@ -1,4 +1,4 @@
-# PRD-v6 实施进展 —— 插件拆分（core ⇄ codeintel）
+﻿# PRD-v6 实施进展 —— 插件拆分（core ⇄ codeintel）
 
 > **状态**：实施完成（M0–M6 主体 + M7 实机验收已完成，2026-11-03）。
 > **规格**：`PRD-v6-插件拆分.md`（归属与装载方式）｜**接口**：`PRD-v6-实施契约.md`（两包之间写死的东西）。
@@ -14,7 +14,7 @@
 | 仓库 | **monorepo**：`packages/{contract,workbench,codeintel}`，npm workspaces |
 | core | `dsh-ide-workbench` **0.6.0**（插件 ID 不变 ⇒ 原地升级） |
 | codeintel | `dsh-ide-codeintel` **0.1.0**（独立版本线） |
-| core 的测试 | **461 / 461 通过** |
+| core 的测试 | **463 / 463 通过** |
 | codeintel 的测试 | **818 / 818 通过** |
 | 契约测试（根级） | **26 / 26 通过** |
 | 机械验收（`npm run verify:split`） | **25 / 25 通过** |
@@ -215,9 +215,9 @@ CI（`.github/workflows/publish.yml`）据此选包、核对 `package.json` 与 
 |---|---|
 | **白屏（三个叠加根因）** | ① `files` 白名单漏 `src/contract` ⇒ 宿主 import 失败、插件不挂载；② 「原始键绑定数组当 Extension」共三处：core 的 `editor-seam.js`（**只装 core** 崩）、codeintel 的 `extensions.js`（**双装时该槽位胜出**，也崩）、core 的 `keymapCompartment.of(seam.keymap)`（**双装时 codeintel 注册了快捷键**才崩）⇒ `EditorState.create` 抛错、React 卸载工作台 ⇒ 白屏 |
 | **入口左右可配置** | `settings.layout.entrySide`（默认 `right`），镜像布局只影响 `.iwb-side-right`；左模式零新增选择器 |
-| **diff 增强** | 并排 `white-space:pre` 保留空白；`git.wordLevel` 默认开；`diffInnerWidth` 量测给出**单一横向滚动面** |
+| **diff 增强** | 并排 `white-space:pre` 保留空白；`git.wordLevel` 默认开；统一模式 `diffInnerWidth` 单一横向滚动面，并排模式改为**两栏各一半、各自滚动并联动**（`diffPaneWidths` 每栏按本栏最宽行测量，`echoRef` 挡住夹取回声） |
 | **Git Blame** | 行号右键 → **行号左侧的内联注解列**（每行 `日期 作者`，未提交行留空）→ 点击跳转 Git 提交；宿主 `git.blame` porcelain 解析 |
 | **窄面板工具栏** | 控件不换行不收缩（旧版「编/辑」「utf-/8」折行的根因）；实测 `data-compact` 标记在控件自然宽度 + 140px 路径预算放不下时切「只留图标 + tooltip + 编码首字母」 |
 | **跨 profile 写设置** | `profileBase()` 改为优先 `ctx.get('profileContext').dir`，环境变量只作 fallback |
 | **新增防回归** | `verify:split` 增加「entry 的 import 图必须全部在 `files` 里」+ 4 个必需产物检查（负向验证过）；`profile-dir` / `git-blame` / `blame-gutter` / `diff-view` / `toolwindow-side` / `toolbar-compact` 六个测试文件 + codeintel 的「合法扩展集」用例 |
-| **最终数字** | core **461** / codeintel **818** / 契约 **26**；`verify:split` **25/25**；实机：lead-verify **47/47**、升级 **19/19**、双装 **13/13**，0 console/pageerror |
+| **最终数字** | core **463** / codeintel **818** / 契约 **26**；`verify:split` **25/25**；实机：lead-verify **54/54**、升级 **19/19**、双装 **13/13**，0 console/pageerror |

@@ -6,7 +6,7 @@
  * `git apply --cached` changes exactly the selected lines.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { buildPatch, diffInnerWidth, firstFile, hunkChangeIndexes, parseUnifiedDiff, sideBySideRows, unifiedRows, wordLevelDefault, wordSegments } from './diff.js'
+import { buildPatch, diffInnerWidth, diffPaneWidths, firstFile, hunkChangeIndexes, parseUnifiedDiff, sideBySideRows, unifiedRows, wordLevelDefault, wordSegments } from './diff.js'
 import { IconRefresh } from './icons.jsx'
 import { FindBar } from './FindBar.jsx'
 import { buildFindRegExp } from './find.js'
@@ -71,6 +71,14 @@ export function DiffView({ store, tab }) {
   const [findRows, setFindRows] = useState(() => new Set())
   const [findActiveRow, setFindActiveRow] = useState(-1)
   const scrollRef = useRef(null)
+  // The right pane of the side-by-side view. It is null in unified mode, where
+  // one surface holds every row.
+  const paneRightRef = useRef(null)
+  // What the viewer itself wrote into a pane's scroll box. The browser fires a
+  // scroll event for that write too, and without this record the echo would be
+  // re-propagated to the source pane - a shorter pane (its own widest line is
+  // nearer) would then drag the longer one back to its own end.
+  const echoRef = useRef({ left: null, right: null })
   const selecting = useRef(false)
   const findRowsRef = useRef([])
   const findActiveRef = useRef(-1)
@@ -95,10 +103,14 @@ export function DiffView({ store, tab }) {
     setViewport(element.clientHeight)
     const top = tab.scrollTop ?? 0
     element.scrollTop = top
+    if (paneRightRef.current !== null) paneRightRef.current.scrollTop = top
     setScrollTop(top)
     return () => observer.disconnect()
+    // The primary scroller is a different element in each layout (the single
+    // surface of the unified view, the left pane of the side-by-side view), so
+    // a mode switch has to re-measure and re-restore it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab.id])
+  }, [tab.id, mode])
 
   const files = parsed.files
   const singleFile = files.length === 1 ? files[0] : null
@@ -151,11 +163,50 @@ export function DiffView({ store, tab }) {
 
   // Rows are absolutely positioned inside `.iwb-diff-inner`, so the inner has
   // no intrinsic width: without a measurement a long line is clipped by the
-  // panel and there is no horizontal scrollbar. Measuring the visible rows (and
-  // not just the viewport lines that happen to be rendered) keeps the surface a
-  // single, stable scroller for both layouts; the calculation is memoized so the
-  // scroll handler below does not re-walk the lines on every frame.
-  const innerWidth = useMemo(() => diffInnerWidth(viewRows, mode), [viewRows, mode])
+  // panel and there is no horizontal scrollbar. The unified view has ONE
+  // surface; the side-by-side view has one PER PANE, each measured from its own
+  // lines, so a pane can always reach the end of its own longest line. Both are
+  // memoized so the scroll handlers do not re-walk the lines on every frame.
+  const innerWidth = useMemo(() => diffInnerWidth(viewRows), [viewRows])
+  const paneWidths = useMemo(() => diffPaneWidths(viewRows), [viewRows])
+
+  /**
+   * Move the other pane to the same scroll position.
+   *
+   * The two panes are linked by POSITION, not by ratio: both scroll boxes
+   * represent the same distance from the left edge (and the same row at the
+   * top), which is what keeps the two halves telling the same story. A pane
+   * whose own longest line is shorter simply stops at its end - the browser
+   * clamps the assignment, and the clamp must never travel back to the pane the
+   * user is actually dragging, so the write is recorded in `echoRef` and
+   * recognised when its scroll event arrives.
+   * @param {'left'|'right'} side the pane the user moved
+   * @returns {(event: object) => void} the scroll handler of that pane
+   */
+  const onPaneScroll = (side) => (event) => {
+    const source = event.currentTarget
+    const top = source.scrollTop
+    const left = source.scrollLeft
+    setScrollTop(top)
+    const seen = echoRef.current[side]
+    if (seen !== null && Math.abs(seen.top - top) <= 1 && Math.abs(seen.left - left) <= 1) {
+      echoRef.current[side] = null
+      return
+    }
+    const target = side === 'left' ? paneRightRef.current : scrollRef.current
+    if (target === null) return
+    const other = side === 'left' ? 'right' : 'left'
+    let wrote = false
+    if (target.scrollTop !== top) {
+      target.scrollTop = top
+      wrote = true
+    }
+    if (target.scrollLeft !== left) {
+      target.scrollLeft = left
+      wrote = true
+    }
+    echoRef.current[other] = wrote ? { top, left } : null
+  }
 
   const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - 8)
   const end = Math.min(viewRows.length, Math.ceil((scrollTop + viewport) / LINE_HEIGHT) + 8)
@@ -199,6 +250,13 @@ export function DiffView({ store, tab }) {
       if (container !== null) {
         const top = Math.max(0, index * LINE_HEIGHT - container.clientHeight / 3)
         container.scrollTop = top
+        // The panes are linked: a jump in one has to land both halves on the
+        // same row, or the match would be off screen in the other half.
+        if (paneRightRef.current !== null) {
+          echoRef.current.right = { top, left: container.scrollLeft }
+          paneRightRef.current.scrollTop = top
+          paneRightRef.current.scrollLeft = container.scrollLeft
+        }
         setScrollTop(top)
       }
     }
@@ -323,10 +381,23 @@ export function DiffView({ store, tab }) {
 
   const rowStyle = (offset) => ({ position: 'absolute', top: `${offset * LINE_HEIGHT}px`, left: 0, right: 0, height: `${LINE_HEIGHT}px` })
 
-  const renderChromeRow = (row, offset) => {
+  /**
+   * A band that is not a code line (file label, binary notice, hunk header).
+   *
+   * The side-by-side view repeats it in both panes: each pane is a full,
+   * independent scroll surface, and a band that lived in only one of them would
+   * shift the rows of the other out of line with it. The hunk's stage button is
+   * the one exception - it acts on the whole file, so showing it twice would
+   * offer the same action twice; it renders in the left pane only.
+   * @param {object} row the band
+   * @param {number} offset its row index
+   * @param {'left'|'right'|null} [side] the pane, null on the unified surface
+   * @returns {object} the element
+   */
+  const renderChromeRow = (row, offset, side = null) => {
     if (row.kind === 'file') {
       return React.createElement('div', {
-        key: `file:${row.text}:${offset}`,
+        key: `file:${side ?? 'one'}:${row.text}:${offset}`,
         className: 'iwb-diff-hunk',
         style: { ...rowStyle(offset), background: 'var(--iwb-panel-2)', color: 'var(--iwb-fg)' },
       },
@@ -336,12 +407,12 @@ export function DiffView({ store, tab }) {
       )
     }
     if (row.kind === 'binary') {
-      return React.createElement('div', { key: `bin:${offset}`, className: 'iwb-diff-hunk', style: rowStyle(offset) },
+      return React.createElement('div', { key: `bin:${side ?? 'one'}:${offset}`, className: 'iwb-diff-hunk', style: rowStyle(offset) },
         React.createElement('span', { className: 'iwb-hunk-text' }, row.text))
     }
-    return React.createElement('div', { key: `hunk:${offset}`, className: 'iwb-diff-hunk', style: rowStyle(offset) },
+    return React.createElement('div', { key: `hunk:${side ?? 'one'}:${offset}`, className: 'iwb-diff-hunk', style: rowStyle(offset) },
       React.createElement('span', { className: 'iwb-hunk-text' }, row.text),
-      source.stageable
+      source.stageable && side !== 'right'
         ? React.createElement('span', { className: 'iwb-hunk-actions' },
             React.createElement('button', {
               type: 'button', className: 'iwb-textbtn iwb-small', disabled: applying,
@@ -399,16 +470,24 @@ export function DiffView({ store, tab }) {
     )
   }
 
-  const renderSideRow = (row, offset) => {
-    if (row.kind === 'file' || row.kind === 'binary' || row.kind === 'hunk') return renderChromeRow(row, offset)
+  /**
+   * One row of one pane: the cell of that side, or the blank cell that keeps
+   * the two halves on the same line when only the other side has text.
+   * @param {object} row the side-by-side row
+   * @param {number} offset its row index
+   * @param {'left'|'right'} side the pane
+   * @returns {object} the element
+   */
+  const renderSidePaneRow = (row, offset, side) => {
+    if (row.kind === 'file' || row.kind === 'binary' || row.kind === 'hunk') return renderChromeRow(row, offset, side)
     const segments = wordLevel && row.kind === 'change'
       ? wordSegments(row.left?.text ?? '', row.right?.text ?? '')
       : null
     return React.createElement('div', {
-      key: `side:${row.left?.index ?? 'x'}:${row.right?.index ?? 'y'}`,
+      key: `${side}:${row.left?.index ?? 'x'}:${row.right?.index ?? 'y'}`,
       className: `iwb-diff-side ${findRows.has(offset) ? 'iwb-diff-find' : ''} ${findActiveRow === offset ? 'iwb-diff-find-active' : ''}`,
-      style: { ...rowStyle(offset), display: 'grid' },
-    }, renderSideCell(row.left, true, segments?.left), renderSideCell(row.right, false, segments?.right))
+      style: rowStyle(offset),
+    }, renderSideCell(row[side] ?? null, side === 'left', side === 'left' ? segments?.left : segments?.right))
   }
 
   const toolbar = React.createElement('div', { className: 'iwb-diff-toolbar' },
@@ -447,34 +526,63 @@ export function DiffView({ store, tab }) {
       : null,
   )
 
-  const body = React.createElement('div', {
-    className: 'iwb-diff-scroll',
-    ref: scrollRef,
-    onScroll: event => setScrollTop(event.currentTarget.scrollTop),
+  /**
+   * The rows of one scroll surface.
+   *
+   * A collapsed band is drawn in every pane too: it stands for the same number
+   * of hidden rows on both sides, so a band missing from one pane would shift
+   * that pane out of line with the other.
+   * @param {'left'|'right'|null} side the pane, null on the unified surface
+   * @param {string} width the measured min-width of the surface
+   * @returns {object} the element
+   */
+  const rowsOf = (side, width) => React.createElement('div', {
+    className: 'iwb-diff-inner',
+    style: { height: `${viewRows.length * LINE_HEIGHT}px`, minWidth: width },
   },
-    viewRows.length === 0
-      ? React.createElement('div', { className: 'iwb-empty' }, t('commit.selectFile'))
+    viewRows.slice(start, end).map((row, index) => {
+      const offset = start + index
+      if (row.kind === 'collapsed') {
+        return React.createElement('div', {
+          key: `${side ?? 'one'}:${row.blockKey}`,
+          className: 'iwb-diff-collapsed',
+          onClick: () => setOpenBlocks(previous => new Set([...previous, row.blockKey])),
+        }, `\u22ef ${row.count} ${t('diff.collapsedLines')}`)
+      }
+      return side === null ? renderUnifiedRow(row, offset) : renderSidePaneRow(row, offset, side)
+    }),
+  )
+
+  /**
+   * One half of the side-by-side view: its own scroll box, its own measured
+   * width, its own scrollbars.
+   * @param {'left'|'right'} side the pane
+   * @returns {object} the element
+   */
+  const paneOf = (side) => React.createElement('div', {
+    className: `iwb-diff-pane iwb-diff-pane-${side}`,
+    ref: side === 'left' ? scrollRef : paneRightRef,
+    onScroll: onPaneScroll(side),
+    'data-pane': side,
+  }, rowsOf(side, paneWidths[side].width))
+
+  // Side by side is two panes that split the content area in half whatever its
+  // width is, and each scrolls inside its own region; the two are linked (see
+  // onPaneScroll). The unified view keeps its single surface.
+  const body = viewRows.length === 0
+    ? React.createElement('div', { className: 'iwb-diff-scroll' },
+        React.createElement('div', { className: 'iwb-empty' }, t('commit.selectFile')))
+    : mode === 'side'
+      ? React.createElement('div', { className: 'iwb-diff-split' }, paneOf('left'), paneOf('right'))
       // `minWidth` is the measured width of the widest visible line plus the
       // chrome; `max(100%, …)` keeps the surface at least as wide as the panel,
-      // so row backgrounds, selection and find outlines still cover the whole
-      // visible width while one scrollbar pans the long lines of both layouts.
+      // so row backgrounds, selection and find outlines cover the whole visible
+      // width while one scrollbar pans the long lines.
       : React.createElement('div', {
-          className: 'iwb-diff-inner',
-          style: { height: `${viewRows.length * LINE_HEIGHT}px`, minWidth: innerWidth.width },
-        },
-          viewRows.slice(start, end).map((row, index) => {
-            const offset = start + index
-            if (row.kind === 'collapsed') {
-              return React.createElement('div', {
-                key: row.blockKey,
-                className: 'iwb-diff-collapsed',
-                onClick: () => setOpenBlocks(previous => new Set([...previous, row.blockKey])),
-              }, `\u22ef ${row.count} ${t('diff.collapsedLines')}`)
-            }
-            return mode === 'side' ? renderSideRow(row, offset) : renderUnifiedRow(row, offset)
-          }),
-        ),
-  )
+          className: 'iwb-diff-scroll',
+          ref: scrollRef,
+          onScroll: event => setScrollTop(event.currentTarget.scrollTop),
+        }, rowsOf(null, innerWidth.width))
 
   // The commit metadata lives in the Git tool window's bottom details pane;
   // the editor area only shows the full diff (no duplicated header block).

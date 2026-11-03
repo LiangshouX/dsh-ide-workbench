@@ -55522,7 +55522,7 @@ var DIFF_SIDE_BORDER = 1;
 var DIFF_TAB_SIZE = 4;
 function diffChromeWidth(mode) {
   if (mode === "side") {
-    return 2 * (DIFF_GUTTER_WIDTH + DIFF_LINE_NUMBER_WIDTH + DIFF_TEXT_PADDING + DIFF_SIDE_BORDER);
+    return DIFF_GUTTER_WIDTH + DIFF_LINE_NUMBER_WIDTH + DIFF_TEXT_PADDING + DIFF_SIDE_BORDER;
   }
   return DIFF_GUTTER_WIDTH + 2 * DIFF_LINE_NUMBER_WIDTH + DIFF_SIGN_WIDTH + DIFF_TEXT_PADDING;
 }
@@ -55539,31 +55539,43 @@ function diffLineWidth(text) {
   }
   return columns;
 }
-function diffInnerWidth(rows, mode = "unified") {
-  const side = mode === "side";
+function diffInnerWidth(rows) {
   const list = Array.isArray(rows) ? rows : [];
   let chars = 0;
   let measured = false;
   for (const row of list) {
     if (row === null || typeof row !== "object") continue;
-    if (side) {
-      if (row.kind !== "change" && row.kind !== "context") continue;
-      measured = true;
-      chars = Math.max(chars, diffLineWidth(row.left?.text), diffLineWidth(row.right?.text));
-    } else {
-      if (row.kind !== "context" && row.kind !== "add" && row.kind !== "del") continue;
-      measured = true;
-      chars = Math.max(chars, diffLineWidth(row.text));
-    }
+    if (row.kind !== "context" && row.kind !== "add" && row.kind !== "del") continue;
+    measured = true;
+    chars = Math.max(chars, diffLineWidth(row.text));
   }
-  const chromePx = diffChromeWidth(mode);
+  const chromePx = diffChromeWidth("unified");
   if (!measured) return { chars: 0, chromePx, width: "100%" };
-  const columns = side ? 2 : 1;
   return {
     chars,
     chromePx,
-    width: `max(100%, calc(${chars * columns}ch + ${chromePx}px))`
+    width: `max(100%, calc(${chars}ch + ${chromePx}px))`
   };
+}
+function diffPaneWidths(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  let left = 0;
+  let right = 0;
+  let measured = false;
+  for (const row of list) {
+    if (row === null || typeof row !== "object") continue;
+    if (row.kind !== "change" && row.kind !== "context") continue;
+    measured = true;
+    left = Math.max(left, diffLineWidth(row.left?.text));
+    right = Math.max(right, diffLineWidth(row.right?.text));
+  }
+  const chromePx = diffChromeWidth("side");
+  const measure = (chars) => ({
+    chars,
+    chromePx,
+    width: measured ? `max(100%, calc(${chars}ch + ${chromePx}px))` : "100%"
+  });
+  return { left: measure(left), right: measure(right) };
 }
 
 // src/client/FindBar.jsx
@@ -55796,6 +55808,8 @@ function DiffView({ store, tab: tab3 }) {
   const [findRows, setFindRows] = (0, import_react13.useState)(() => /* @__PURE__ */ new Set());
   const [findActiveRow, setFindActiveRow] = (0, import_react13.useState)(-1);
   const scrollRef = (0, import_react13.useRef)(null);
+  const paneRightRef = (0, import_react13.useRef)(null);
+  const echoRef = (0, import_react13.useRef)({ left: null, right: null });
   const selecting = (0, import_react13.useRef)(false);
   const findRowsRef = (0, import_react13.useRef)([]);
   const findActiveRef = (0, import_react13.useRef)(-1);
@@ -55819,9 +55833,10 @@ function DiffView({ store, tab: tab3 }) {
     setViewport(element.clientHeight);
     const top2 = tab3.scrollTop ?? 0;
     element.scrollTop = top2;
+    if (paneRightRef.current !== null) paneRightRef.current.scrollTop = top2;
     setScrollTop(top2);
     return () => observer.disconnect();
-  }, [tab3.id]);
+  }, [tab3.id, mode]);
   const files = parsed.files;
   const singleFile = files.length === 1 ? files[0] : null;
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
@@ -55866,7 +55881,32 @@ function DiffView({ store, tab: tab3 }) {
     flush();
     return output;
   }, [rows, source.stageable, openBlocks]);
-  const innerWidth = (0, import_react13.useMemo)(() => diffInnerWidth(viewRows, mode), [viewRows, mode]);
+  const innerWidth = (0, import_react13.useMemo)(() => diffInnerWidth(viewRows), [viewRows]);
+  const paneWidths = (0, import_react13.useMemo)(() => diffPaneWidths(viewRows), [viewRows]);
+  const onPaneScroll = (side) => (event) => {
+    const source2 = event.currentTarget;
+    const top2 = source2.scrollTop;
+    const left = source2.scrollLeft;
+    setScrollTop(top2);
+    const seen = echoRef.current[side];
+    if (seen !== null && Math.abs(seen.top - top2) <= 1 && Math.abs(seen.left - left) <= 1) {
+      echoRef.current[side] = null;
+      return;
+    }
+    const target = side === "left" ? paneRightRef.current : scrollRef.current;
+    if (target === null) return;
+    const other = side === "left" ? "right" : "left";
+    let wrote = false;
+    if (target.scrollTop !== top2) {
+      target.scrollTop = top2;
+      wrote = true;
+    }
+    if (target.scrollLeft !== left) {
+      target.scrollLeft = left;
+      wrote = true;
+    }
+    echoRef.current[other] = wrote ? { top: top2, left } : null;
+  };
   const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - 8);
   const end = Math.min(viewRows.length, Math.ceil((scrollTop + viewport) / LINE_HEIGHT) + 8);
   rowsRef.current = viewRows;
@@ -55907,6 +55947,11 @@ ${row.right?.text ?? ""}`;
       if (container !== null) {
         const top2 = Math.max(0, index * LINE_HEIGHT - container.clientHeight / 3);
         container.scrollTop = top2;
+        if (paneRightRef.current !== null) {
+          echoRef.current.right = { top: top2, left: container.scrollLeft };
+          paneRightRef.current.scrollTop = top2;
+          paneRightRef.current.scrollLeft = container.scrollLeft;
+        }
         setScrollTop(top2);
       }
     };
@@ -56015,12 +56060,12 @@ ${row.right?.text ?? ""}`;
     });
   };
   const rowStyle = (offset) => ({ position: "absolute", top: `${offset * LINE_HEIGHT}px`, left: 0, right: 0, height: `${LINE_HEIGHT}px` });
-  const renderChromeRow = (row, offset) => {
+  const renderChromeRow = (row, offset, side = null) => {
     if (row.kind === "file") {
       return import_react13.default.createElement(
         "div",
         {
-          key: `file:${row.text}:${offset}`,
+          key: `file:${side ?? "one"}:${row.text}:${offset}`,
           className: "iwb-diff-hunk",
           style: { ...rowStyle(offset), background: "var(--iwb-panel-2)", color: "var(--iwb-fg)" }
         },
@@ -56032,15 +56077,15 @@ ${row.right?.text ?? ""}`;
     if (row.kind === "binary") {
       return import_react13.default.createElement(
         "div",
-        { key: `bin:${offset}`, className: "iwb-diff-hunk", style: rowStyle(offset) },
+        { key: `bin:${side ?? "one"}:${offset}`, className: "iwb-diff-hunk", style: rowStyle(offset) },
         import_react13.default.createElement("span", { className: "iwb-hunk-text" }, row.text)
       );
     }
     return import_react13.default.createElement(
       "div",
-      { key: `hunk:${offset}`, className: "iwb-diff-hunk", style: rowStyle(offset) },
+      { key: `hunk:${side ?? "one"}:${offset}`, className: "iwb-diff-hunk", style: rowStyle(offset) },
       import_react13.default.createElement("span", { className: "iwb-hunk-text" }, row.text),
-      source.stageable ? import_react13.default.createElement(
+      source.stageable && side !== "right" ? import_react13.default.createElement(
         "span",
         { className: "iwb-hunk-actions" },
         import_react13.default.createElement("button", {
@@ -56112,14 +56157,14 @@ ${row.right?.text ?? ""}`;
       )
     );
   };
-  const renderSideRow = (row, offset) => {
-    if (row.kind === "file" || row.kind === "binary" || row.kind === "hunk") return renderChromeRow(row, offset);
+  const renderSidePaneRow = (row, offset, side) => {
+    if (row.kind === "file" || row.kind === "binary" || row.kind === "hunk") return renderChromeRow(row, offset, side);
     const segments = wordLevel && row.kind === "change" ? wordSegments(row.left?.text ?? "", row.right?.text ?? "") : null;
     return import_react13.default.createElement("div", {
-      key: `side:${row.left?.index ?? "x"}:${row.right?.index ?? "y"}`,
+      key: `${side}:${row.left?.index ?? "x"}:${row.right?.index ?? "y"}`,
       className: `iwb-diff-side ${findRows.has(offset) ? "iwb-diff-find" : ""} ${findActiveRow === offset ? "iwb-diff-find-active" : ""}`,
-      style: { ...rowStyle(offset), display: "grid" }
-    }, renderSideCell(row.left, true, segments?.left), renderSideCell(row.right, false, segments?.right));
+      style: rowStyle(offset)
+    }, renderSideCell(row[side] ?? null, side === "left", side === "left" ? segments?.left : segments?.right));
   };
   const toolbar = import_react13.default.createElement(
     "div",
@@ -56165,32 +56210,39 @@ ${row.right?.text ?? ""}`;
       }
     }, source.staged ? t2("commit.unstageAll") : t2("commit.stageAll")) : null
   );
-  const body = import_react13.default.createElement(
+  const rowsOf = (side, width) => import_react13.default.createElement(
     "div",
     {
-      className: "iwb-diff-scroll",
-      ref: scrollRef,
-      onScroll: (event) => setScrollTop(event.currentTarget.scrollTop)
+      className: "iwb-diff-inner",
+      style: { height: `${viewRows.length * LINE_HEIGHT}px`, minWidth: width }
     },
-    viewRows.length === 0 ? import_react13.default.createElement("div", { className: "iwb-empty" }, t2("commit.selectFile")) : import_react13.default.createElement(
-      "div",
-      {
-        className: "iwb-diff-inner",
-        style: { height: `${viewRows.length * LINE_HEIGHT}px`, minWidth: innerWidth.width }
-      },
-      viewRows.slice(start, end).map((row, index) => {
-        const offset = start + index;
-        if (row.kind === "collapsed") {
-          return import_react13.default.createElement("div", {
-            key: row.blockKey,
-            className: "iwb-diff-collapsed",
-            onClick: () => setOpenBlocks((previous) => /* @__PURE__ */ new Set([...previous, row.blockKey]))
-          }, `\u22EF ${row.count} ${t2("diff.collapsedLines")}`);
-        }
-        return mode === "side" ? renderSideRow(row, offset) : renderUnifiedRow(row, offset);
-      })
-    )
+    viewRows.slice(start, end).map((row, index) => {
+      const offset = start + index;
+      if (row.kind === "collapsed") {
+        return import_react13.default.createElement("div", {
+          key: `${side ?? "one"}:${row.blockKey}`,
+          className: "iwb-diff-collapsed",
+          onClick: () => setOpenBlocks((previous) => /* @__PURE__ */ new Set([...previous, row.blockKey]))
+        }, `\u22EF ${row.count} ${t2("diff.collapsedLines")}`);
+      }
+      return side === null ? renderUnifiedRow(row, offset) : renderSidePaneRow(row, offset, side);
+    })
   );
+  const paneOf = (side) => import_react13.default.createElement("div", {
+    className: `iwb-diff-pane iwb-diff-pane-${side}`,
+    ref: side === "left" ? scrollRef : paneRightRef,
+    onScroll: onPaneScroll(side),
+    "data-pane": side
+  }, rowsOf(side, paneWidths[side].width));
+  const body = viewRows.length === 0 ? import_react13.default.createElement(
+    "div",
+    { className: "iwb-diff-scroll" },
+    import_react13.default.createElement("div", { className: "iwb-empty" }, t2("commit.selectFile"))
+  ) : mode === "side" ? import_react13.default.createElement("div", { className: "iwb-diff-split" }, paneOf("left"), paneOf("right")) : import_react13.default.createElement("div", {
+    className: "iwb-diff-scroll",
+    ref: scrollRef,
+    onScroll: (event) => setScrollTop(event.currentTarget.scrollTop)
+  }, rowsOf(null, innerWidth.width));
   return import_react13.default.createElement(
     "div",
     { className: "iwb-diff" },
@@ -59078,15 +59130,34 @@ var CSS2 = `
 .iwb-file-row:hover .iwb-file-stat { display: none; }
 
 .iwb-diff { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-/* The ONE horizontal scroll surface of both layouts. tab-size: 4 is the tab
-   stop the width measure of diff.js assumes (DIFF_TAB_SIZE): a tab in a line
-   must reserve the same four columns the stylesheet gives it. */
+/* The single scroll surface of the unified view (and of the empty state).
+   tab-size: 4 is the tab stop the width measure of diff.js assumes
+   (DIFF_TAB_SIZE): a tab in a line must reserve the same four columns the
+   stylesheet gives it. */
 .iwb-diff-scroll { flex: 1; min-height: 0; overflow: auto; font-family: var(--iwb-mono); font-size: 12.5px; line-height: 20px; position: relative; tab-size: 4; }
-/* Rows are absolutely positioned (left: 0; right: 0), so the viewer writes
-   the measured width of the longest visible line onto this element; that is
-   what gives the scroll surface a scrollable width and lets the row
-   backgrounds cover every pixel of it. The 100% min-width keeps the fallback
-   width (no measurement) at the width of the panel. */
+/* Side by side is two panes that always split the content area in half: the
+   tracks are minmax(0, 1fr), so neither a long line nor a scrollbar can move
+   the split, and both panes follow the width of the editor - not the width of
+   the text inside them. */
+.iwb-diff-split {
+  flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  font-family: var(--iwb-mono); font-size: 12.5px; line-height: 20px; tab-size: 4;
+}
+/* Each pane scrolls inside its own region: its horizontal bar pans its own
+   longest line, and the two bars are linked by the viewer (same distance from
+   the left edge, so the halves keep telling the same story). The vertical
+   scrollbar is shown on the right pane only: a second one against the split
+   would take a scrollbar's width out of the left half and make the two halves
+   look unequal. The left pane keeps its horizontal bar - width 0 hides the
+   vertical one, height stays the shared 10px of the root scrollbar rule. */
+.iwb-diff-pane { position: relative; overflow: auto; min-width: 0; }
+.iwb-diff-pane-left::-webkit-scrollbar { width: 0; }
+/* Rows are absolutely positioned (left: 0; right: 0), so the viewer writes the
+   measured width of the longest visible line onto this element; that is what
+   gives the scroll surface a scrollable width and lets the row backgrounds
+   cover every pixel of it. Every surface - the one of the unified view, and
+   each pane of the side-by-side view - has its own measure. The 100% min-width
+   keeps the fallback width (no measurement) at the width of the surface. */
 .iwb-diff-inner { position: relative; min-width: 100%; }
 .iwb-diff-row { display: flex; height: 20px; white-space: pre; }
 .iwb-diff-row.iwb-add { background: rgba(79, 180, 119, .12); }
@@ -59130,19 +59201,17 @@ var CSS2 = `
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); font-size: 11.5px; color: var(--iwb-muted);
 }
 .iwb-diff-toolbar .iwb-spacer { flex: 1; }
-/* Two equal columns: minmax(0, 1fr) lets the tracks stay exactly half of the
-   measured inner width, so the split never moves with the length of one row -
-   a plain 1fr would take its minimum from the text and every long line would
-   push the second column around. */
-.iwb-diff-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-width: 100%; }
-/* Both cells render the raw text: white-space: pre keeps the leading
+/* A side-by-side row lives inside ONE pane: it is a flex line holding the
+   single cell of that pane, so the two halves can scroll independently while
+   their rows stay on the same line (both panes share the row list). */
+.iwb-diff-side { display: flex; height: 20px; }
+/* The cell renders the raw text: white-space: pre keeps the leading
    indentation, the runs of spaces and the trailing spaces that normal
-   collapses (the package-lock.json indentation bug). The cell keeps
-   overflow: hidden because the inner width has already been measured wide
-   enough for the longest line (diffInnerWidth); clipping only a few pixels of
-   the estimation error is better than a line spilling into the other column.
-   The left edge of the second column therefore never moves. */
-.iwb-diff-side-cell { display: flex; height: 20px; min-width: 0; white-space: pre; overflow: hidden; border-right: 1px solid var(--iwb-border); }
+   collapses (the package-lock.json indentation bug). It fills the pane's
+   measured inner width (flex: 1), which is why it never needs to push the
+   other half around - there is no other half inside this row. overflow: hidden
+   only clips the estimation error of the measurement. */
+.iwb-diff-side-cell { display: flex; flex: 1 1 auto; height: 20px; min-width: 0; white-space: pre; overflow: hidden; border-right: 1px solid var(--iwb-border); }
 .iwb-diff-side-cell.iwb-add { background: rgba(79, 180, 119, .12); }
 .iwb-diff-side-cell.iwb-del { background: rgba(226, 104, 111, .12); }
 .iwb-diff-side-cell.iwb-blank { background: rgba(127, 127, 127, .05); }

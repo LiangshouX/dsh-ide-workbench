@@ -370,19 +370,19 @@ export const DIFF_TAB_SIZE = 4
  *
  * unified: [gutter][old number][new number][sign][text + padding]
  *          = 22 + 44 + 44 + 16 + 24 = 150
- * side: two equal columns (minmax(0, 1fr) each), every column is
- *       [gutter][number][text + padding][border] = 22 + 44 + 24 + 1 = 91,
- *       so the row spends 2 * 91 = 182 on chrome
+ * side: ONE cell of the side-by-side layout,
+ *       [gutter][number][text + padding][border] = 22 + 44 + 24 + 1 = 91
  *
- * The side view splits the measured inner width into two deterministic equal
- * columns, so this is the chrome of the whole row, not of one column.
+ * The side-by-side view is two panes, each its own horizontal scroll surface,
+ * so this is the chrome of one pane - not the chrome of a row that holds both
+ * cells (there is no such row any more).
  *
  * @param {'unified'|'side'} [mode] the layout of the viewer
  * @returns {number} the CSS pixels that are not line text
  */
 export function diffChromeWidth(mode) {
   if (mode === 'side') {
-    return 2 * (DIFF_GUTTER_WIDTH + DIFF_LINE_NUMBER_WIDTH + DIFF_TEXT_PADDING + DIFF_SIDE_BORDER)
+    return DIFF_GUTTER_WIDTH + DIFF_LINE_NUMBER_WIDTH + DIFF_TEXT_PADDING + DIFF_SIDE_BORDER
   }
   return DIFF_GUTTER_WIDTH + 2 * DIFF_LINE_NUMBER_WIDTH + DIFF_SIGN_WIDTH + DIFF_TEXT_PADDING
 }
@@ -437,17 +437,16 @@ export function diffLineWidth(text) {
 }
 
 /**
- * The width of the ONE horizontal scroll surface of the diff.
+ * The width of the ONE horizontal scroll surface of the unified view.
  *
  * `width` is the CSS `min-width` for `.iwb-diff-inner`: never narrower than
  * the panel (`100%`), and always wide enough for the widest visible line plus
- * the chrome of its layout. Rows are absolutely positioned with
+ * the chrome of the layout. Rows are absolutely positioned with
  * `left: 0; right: 0`, so this value is also what makes their backgrounds,
  * selection and find outlines cover the whole surface and pan with it.
  *
- * The side-by-side view splits the inner into two equal columns (`1fr 1fr`),
- * so both columns get the width of the wider side: the surface reserves the
- * widest line twice, not once.
+ * The side-by-side view does not use this measure: it is two panes, each with
+ * its own scrollbar and its own widest line (see `diffPaneWidths`).
  *
  * Only line rows are measured. A file label or a hunk header is chrome - it
  * carries `text-overflow: ellipsis` and must not push the whole surface wide.
@@ -458,36 +457,64 @@ export function diffLineWidth(text) {
  * reachable by the scrollbar.
  *
  * @param {Array<object>} rows the visible rows of the viewer
- * @param {'unified'|'side'} [mode] the layout of the viewer
  * @returns {{ chars: number, chromePx: number, width: string }} the measure
  */
-export function diffInnerWidth(rows, mode = 'unified') {
-  const side = mode === 'side'
+export function diffInnerWidth(rows) {
   const list = Array.isArray(rows) ? rows : []
   let chars = 0
   let measured = false
   for (const row of list) {
     if (row === null || typeof row !== 'object') continue
-    if (side) {
-      if (row.kind !== 'change' && row.kind !== 'context') continue
-      measured = true
-      chars = Math.max(chars, diffLineWidth(row.left?.text), diffLineWidth(row.right?.text))
-    } else {
-      if (row.kind !== 'context' && row.kind !== 'add' && row.kind !== 'del') continue
-      measured = true
-      chars = Math.max(chars, diffLineWidth(row.text))
-    }
+    if (row.kind !== 'context' && row.kind !== 'add' && row.kind !== 'del') continue
+    measured = true
+    chars = Math.max(chars, diffLineWidth(row.text))
   }
-  const chromePx = diffChromeWidth(mode)
+  const chromePx = diffChromeWidth('unified')
   // No line row at all (empty diff): stay at the width of the panel instead
   // of reserving the chrome of a line that is not there.
   if (!measured) return { chars: 0, chromePx, width: '100%' }
-  // Two columns need room for both cells; a context line is drawn on both
-  // sides, so the widest line is what each of the two columns has to hold.
-  const columns = side ? 2 : 1
   return {
     chars,
     chromePx,
-    width: `max(100%, calc(${chars * columns}ch + ${chromePx}px))`,
+    width: `max(100%, calc(${chars}ch + ${chromePx}px))`,
   }
+}
+
+/**
+ * The width of each pane of the side-by-side view.
+ *
+ * The two panes are separate scroll surfaces, so they are measured separately:
+ * the widest line of the left text and the widest line of the right text are
+ * usually two different numbers, and each pane must be able to reach the end
+ * of its OWN longest line. The panes are linked by scroll POSITION, not by
+ * width: the two scrollbars stand for the same distance from the left edge, so
+ * the shorter pane simply stops at its end (the request: "left aligned, same
+ * distance from the left endpoint").
+ *
+ * A line drawn on one side only (an addition or a deletion) counts for that
+ * side alone - the other pane leaves the row blank and must not be widened by
+ * text it does not show.
+ *
+ * @param {Array<object>} rows the visible rows of the viewer
+ * @returns {{ left: {chars: number, chromePx: number, width: string}, right: {chars: number, chromePx: number, width: string} }} the two measures
+ */
+export function diffPaneWidths(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  let left = 0
+  let right = 0
+  let measured = false
+  for (const row of list) {
+    if (row === null || typeof row !== 'object') continue
+    if (row.kind !== 'change' && row.kind !== 'context') continue
+    measured = true
+    left = Math.max(left, diffLineWidth(row.left?.text))
+    right = Math.max(right, diffLineWidth(row.right?.text))
+  }
+  const chromePx = diffChromeWidth('side')
+  const measure = chars => ({
+    chars,
+    chromePx,
+    width: measured ? `max(100%, calc(${chars}ch + ${chromePx}px))` : '100%',
+  })
+  return { left: measure(left), right: measure(right) }
 }

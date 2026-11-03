@@ -624,15 +624,34 @@ export const CSS = `
 .iwb-file-row:hover .iwb-file-stat { display: none; }
 
 .iwb-diff { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-/* The ONE horizontal scroll surface of both layouts. tab-size: 4 is the tab
-   stop the width measure of diff.js assumes (DIFF_TAB_SIZE): a tab in a line
-   must reserve the same four columns the stylesheet gives it. */
+/* The single scroll surface of the unified view (and of the empty state).
+   tab-size: 4 is the tab stop the width measure of diff.js assumes
+   (DIFF_TAB_SIZE): a tab in a line must reserve the same four columns the
+   stylesheet gives it. */
 .iwb-diff-scroll { flex: 1; min-height: 0; overflow: auto; font-family: var(--iwb-mono); font-size: 12.5px; line-height: 20px; position: relative; tab-size: 4; }
-/* Rows are absolutely positioned (left: 0; right: 0), so the viewer writes
-   the measured width of the longest visible line onto this element; that is
-   what gives the scroll surface a scrollable width and lets the row
-   backgrounds cover every pixel of it. The 100% min-width keeps the fallback
-   width (no measurement) at the width of the panel. */
+/* Side by side is two panes that always split the content area in half: the
+   tracks are minmax(0, 1fr), so neither a long line nor a scrollbar can move
+   the split, and both panes follow the width of the editor - not the width of
+   the text inside them. */
+.iwb-diff-split {
+  flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  font-family: var(--iwb-mono); font-size: 12.5px; line-height: 20px; tab-size: 4;
+}
+/* Each pane scrolls inside its own region: its horizontal bar pans its own
+   longest line, and the two bars are linked by the viewer (same distance from
+   the left edge, so the halves keep telling the same story). The vertical
+   scrollbar is shown on the right pane only: a second one against the split
+   would take a scrollbar's width out of the left half and make the two halves
+   look unequal. The left pane keeps its horizontal bar - width 0 hides the
+   vertical one, height stays the shared 10px of the root scrollbar rule. */
+.iwb-diff-pane { position: relative; overflow: auto; min-width: 0; }
+.iwb-diff-pane-left::-webkit-scrollbar { width: 0; }
+/* Rows are absolutely positioned (left: 0; right: 0), so the viewer writes the
+   measured width of the longest visible line onto this element; that is what
+   gives the scroll surface a scrollable width and lets the row backgrounds
+   cover every pixel of it. Every surface - the one of the unified view, and
+   each pane of the side-by-side view - has its own measure. The 100% min-width
+   keeps the fallback width (no measurement) at the width of the surface. */
 .iwb-diff-inner { position: relative; min-width: 100%; }
 .iwb-diff-row { display: flex; height: 20px; white-space: pre; }
 .iwb-diff-row.iwb-add { background: rgba(79, 180, 119, .12); }
@@ -676,19 +695,17 @@ export const CSS = `
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); font-size: 11.5px; color: var(--iwb-muted);
 }
 .iwb-diff-toolbar .iwb-spacer { flex: 1; }
-/* Two equal columns: minmax(0, 1fr) lets the tracks stay exactly half of the
-   measured inner width, so the split never moves with the length of one row -
-   a plain 1fr would take its minimum from the text and every long line would
-   push the second column around. */
-.iwb-diff-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-width: 100%; }
-/* Both cells render the raw text: white-space: pre keeps the leading
+/* A side-by-side row lives inside ONE pane: it is a flex line holding the
+   single cell of that pane, so the two halves can scroll independently while
+   their rows stay on the same line (both panes share the row list). */
+.iwb-diff-side { display: flex; height: 20px; }
+/* The cell renders the raw text: white-space: pre keeps the leading
    indentation, the runs of spaces and the trailing spaces that normal
-   collapses (the package-lock.json indentation bug). The cell keeps
-   overflow: hidden because the inner width has already been measured wide
-   enough for the longest line (diffInnerWidth); clipping only a few pixels of
-   the estimation error is better than a line spilling into the other column.
-   The left edge of the second column therefore never moves. */
-.iwb-diff-side-cell { display: flex; height: 20px; min-width: 0; white-space: pre; overflow: hidden; border-right: 1px solid var(--iwb-border); }
+   collapses (the package-lock.json indentation bug). It fills the pane's
+   measured inner width (flex: 1), which is why it never needs to push the
+   other half around - there is no other half inside this row. overflow: hidden
+   only clips the estimation error of the measurement. */
+.iwb-diff-side-cell { display: flex; flex: 1 1 auto; height: 20px; min-width: 0; white-space: pre; overflow: hidden; border-right: 1px solid var(--iwb-border); }
 .iwb-diff-side-cell.iwb-add { background: rgba(79, 180, 119, .12); }
 .iwb-diff-side-cell.iwb-del { background: rgba(226, 104, 111, .12); }
 .iwb-diff-side-cell.iwb-blank { background: rgba(127, 127, 127, .05); }

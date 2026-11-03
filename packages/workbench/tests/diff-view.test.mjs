@@ -3,7 +3,8 @@
  *
  * These checks are about the CSS/JS wiring that the pure-function tests in
  * diff.test.mjs cannot see: that the side-by-side cells preserve raw
- * whitespace, that the shared scroll surface measures its lines, that 'Aa'
+ * whitespace, that every scroll surface measures its own lines, that the two
+ * panes of the side-by-side view are linked by scroll position, that 'Aa'
  * defaults to on and is persisted, and that the measured chrome widths are
  * still the widths of the stylesheet. A rendered check would need a browser,
  * but every failure here is a one-line change in the source, so reading the
@@ -56,20 +57,29 @@ test('the side-by-side cells render the raw text at the measured column edge', (
   assert.doesNotMatch(ruleOf('.iwb-diff-text'), /text-overflow/)
 })
 
-test('the two side-by-side columns are deterministic halves of the surface', () => {
-  const side = ruleOf('.iwb-diff-side')
-  const tracks = /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/.exec(side)
-  assert.ok(tracks !== null, 'both columns must be minmax(0, 1fr)')
-  // A plain 1fr takes its minimum from the text, so every long line would
-  // push the second column around and the split would jump between rows.
-  assert.doesNotMatch(side, /grid-template-columns:\s*1fr\s+1fr/)
+test('the side-by-side body is two panes that always split it in half', () => {
+  const split = ruleOf('.iwb-diff-split')
+  const tracks = /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/.exec(split)
+  assert.ok(tracks !== null, 'both panes must be minmax(0, 1fr)')
+  // A plain 1fr takes its minimum from the content, so a long line would push
+  // the split around; the tracks have to be exactly half of the body.
+  assert.doesNotMatch(split, /grid-template-columns:\s*1fr\s+1fr/)
+  // Each pane is its own scroll surface (both axes), and a long line inside
+  // one pane may not widen the pane: the track owns the width.
+  const pane = ruleOf('.iwb-diff-pane')
+  assert.match(pane, /overflow:\s*auto/)
+  assert.match(pane, /min-width:\s*0/)
+  // One visible vertical scrollbar only: the left pane hides its own (width 0
+  // removes the vertical bar and keeps the 10px-high horizontal one), so the
+  // split line does not grow a second bar and the halves stay equal boxes.
+  assert.match(styles, /\.iwb-diff-pane-left::-webkit-scrollbar \{ width: 0; \}/)
 })
 
 test('the line text keeps its whole line in unified mode and the surface sets the tab stop', () => {
   // min-width: max-content is what stops the unified flex row from shrinking a
   // long line to the panel width. It is scoped to the unified row: in the
-  // side-by-side cells the same class must NOT carry it, or the two grid
-  // tracks would grow with the text and the columns would not stay equal.
+  // side-by-side cell the pane's measured width decides how far the text may
+  // run, and the cell must fill that width instead of pushing it.
   assert.match(ruleOf('.iwb-diff-row .iwb-diff-text'), /min-width:\s*max-content/)
   assert.doesNotMatch(ruleOf('.iwb-diff-text'), /min-width/)
   const scroll = ruleOf('.iwb-diff-scroll')
@@ -77,15 +87,42 @@ test('the line text keeps its whole line in unified mode and the surface sets th
   assert.match(scroll, /overflow:\s*auto/)
   // The tab stop of the stylesheet and the measure's tab stop are one number.
   assert.equal(DIFF_TAB_SIZE, 4)
-  // One horizontal surface only: the inner element must not bring a second
-  // scroller of its own.
+  // The split body carries the same font and tab stop as the single surface:
+  // a tab must reserve four columns in both layouts.
+  assert.match(ruleOf('.iwb-diff-split'), /tab-size:\s*4/)
+  // The inner element brings no scroller of its own: the panes and the single
+  // surface are the scroll boxes, not the measured child.
   assert.doesNotMatch(ruleOf('.iwb-diff-inner'), /overflow/)
+  // The side-by-side row is a flex line of ONE pane cell.
+  assert.match(ruleOf('.iwb-diff-side'), /display:\s*flex/)
+  assert.match(ruleOf('.iwb-diff-side-cell'), /flex:\s*1 1 auto/)
 })
 
-test('the inner surface is measured from the visible rows', () => {
-  assert.match(diffView, /const innerWidth = useMemo\(\(\) => diffInnerWidth\(viewRows, mode\)/)
-  // The computed width must be what the inner style carries.
-  assert.match(diffView, /minWidth:\s*innerWidth\.width/)
+test('the inner surface of each layout is measured from the visible rows', () => {
+  // Unified: one surface, one measure.
+  assert.match(diffView, /const innerWidth = useMemo\(\(\) => diffInnerWidth\(viewRows\)/)
+  // Side by side: one measure per pane, each from its own side's lines.
+  assert.match(diffView, /const paneWidths = useMemo\(\(\) => diffPaneWidths\(viewRows\)/)
+  assert.match(diffView, /style: \{ height: `\$\{viewRows\.length \* LINE_HEIGHT\}px`, minWidth: width \}/)
+  assert.match(diffView, /rowsOf\(side, paneWidths\[side\]\.width\)/)
+  assert.match(diffView, /rowsOf\(null, innerWidth\.width\)/)
+})
+
+test('the two panes scroll as one, by position and not by ratio', () => {
+  // Every pane reports its own scroll box; the handler writes the same
+  // scrollTop/scrollLeft into the other pane, so both stand for the same
+  // distance from the left edge (and the same row at the top).
+  assert.match(diffView, /const onPaneScroll = \(side\) => \(event\) => \{/)
+  assert.match(diffView, /const target = side === 'left' \? paneRightRef\.current : scrollRef\.current/)
+  assert.match(diffView, /target\.scrollTop = top/)
+  assert.match(diffView, /target\.scrollLeft = left/)
+  // A shorter pane clamps the assignment; the echo of that write must not
+  // travel back and drag the pane the user is dragging to its own end.
+  assert.match(diffView, /const seen = echoRef\.current\[side\]/)
+  assert.match(diffView, /Math\.abs\(seen\.left - left\) <= 1/)
+  // Both panes are wired with it, and each carries its side for the CSS.
+  assert.match(diffView, /onScroll: onPaneScroll\(side\)/)
+  assert.match(diffView, /className: `iwb-diff-pane iwb-diff-pane-\$\{side\}`/)
 })
 
 test('the measured chrome widths are the widths of the stylesheet', () => {

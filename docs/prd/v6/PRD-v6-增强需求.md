@@ -15,7 +15,7 @@
 | **DEF-01a** | 发布的包缺 `src/contract/` ⇒ 宿主半边 import 失败，插件整体不挂载 | 缺陷 | 只装 core 时入口出现、点开不再是空面板 | ✅ 已修 |
 | **DEF-01b** | 「非扩展值」被当扩展安装 ⇒ 编辑器挂载即抛错，React 卸载整个工作台 ⇒ 白屏（core-only 与双装各有一条触发路径，见 §1.2.2） | 缺陷 | core-only 与双装下 `.cm-editor` 都真的挂载，工作台不消失 | ✅ 已修 |
 | **ENH-01** | Project / Commit / Git / Terminal 四个入口可配置在左/右，**默认右**，设置页可改 | 增强 | 默认右侧；设置页切左/右即时生效并持久化；左模式与旧版逐像素一致 | ✅ |
-| **ENH-02** | Git diff 保留原始空白、单词级差异默认开启、超长行可左右滚动 | 增强 | 并排/统一都逐字符保真；Aa 默认开；单一横向滚动面可滚到行尾 | ✅ |
+| **ENH-02** | Git diff 保留原始空白、单词级差异默认开启、超长行可左右滚动 | 增强 | 并排两栏各占一半、各自横向滚动且联动（同位置）；统一模式单一滚动面；逐字符保真；Aa 默认开 | ✅ |
 | **ENH-03** | 行号右键「Annotate with Git Blame」→ **行号左侧的内联注解列**（`日期 作者`；未提交行留空）→ 点击跳转 Git 提交 | 增强 | 右键→列出现→点击→Git 打开并定位该提交，全链路可用 | ✅ |
 | **ENH-04** | 内容工具栏被压窄时文字换行（「编/辑」「utf-/8」） | 缺陷 | 文字永不换行；条再窄就只留图标（文字进 tooltip），编码只留首字母（`utf-8` → `u`） | ✅ 已修 |
 | **DEF-02** | `profileBase()` 优先 `DSH_PROFILE_DIR`（从父 shell 继承）⇒ 从另一 DSH 终端启动的实例把设置写进**另一个 profile** | 缺陷 | 设置文件永远落在本进程真正服务的 profile | ✅ 已修 |
@@ -116,18 +116,22 @@ effect 里 ⇒ React 卸载整个工作台子树 ⇒ **右侧栏一片白**（sl
 |---|---|---|---|
 | 1 | 并排 diff 里缩进与连续空格被吞 | `.iwb-diff-side-cell` 没有 `white-space: pre`（HTML 折叠空白） | 并排单元格 `white-space: pre`；`.iwb-diff-scroll` `tab-size: 4`；统一模式原本就有 `pre`，回归确认 |
 | 2 | 单词级差异默认关闭 | `DiffView` 的 `wordLevel` 初值 `false` | `wordLevelDefault(settings) = settings?.git?.wordLevel !== false`（缺省开、仅显式 false 关）；切换先本地生效再 `settings.update({git:{wordLevel}})` 持久化，写盘失败不回滚 |
-| 3 | 超长行看不到尾部、无法左右滚动 | 虚拟化行绝对定位、无自身宽度；并排单元格 `overflow:hidden`；外层没有可滚动宽度 | 测量可视行最宽处（`diffInnerWidth`）写到 `.iwb-diff-inner` 的 `min-width: max(100%, calc(Nch + Xpx))`，形成**单一横向滚动面**；并排两栏用 `minmax(0,1fr)` 保持确定性等宽 |
+| 3 | 超长行看不到尾部、无法左右滚动 | 虚拟化行绝对定位、无自身宽度；并排单元格 `overflow:hidden`；外层没有可滚动宽度 | 每个滚动面各自测量可视行最宽处，写到 `.iwb-diff-inner` 的 `min-width: max(100%, calc(Nch + Xpx))`；统一模式是**一个**横向滚动面，并排模式是**每栏一个**（见 §3.2） |
 
-### 3.2 宽度模型（写死在 `diff.js`）
+### 3.2 宽度模型与两栏滚动（写死在 `diff.js`）
 
-- chrome 宽度：统一 `22(gutter)+44+44(两个行号)+16(sign)+24(padding)=150px`；并排 `2×(22+44+24+1)=182px`；
+- chrome 宽度：统一 `22(gutter)+44+44(两个行号)+16(sign)+24(padding)=150px`；并排**单栏** `22+44+24+1=91px`（每栏各算一次）；
 - 文本宽度按码元计：`tab` 跳到 `tab-size:4` 的停位，CJK/韩文/emoji 计 2 列（UAX #11 近似，偏保守，宁可宽一点）；
-- 并排是两列等分，所以内层宽度按「最宽一侧 × 2」预留；
-- 只量 `context/add/del` 行；文件头/hunk 头是 chrome（原本就 `ellipsis`），不撑宽。
+- 只量 `context/add/del` 行；文件头/hunk 头是 chrome（原本就 `ellipsis`），不撑宽；
+- **并排 = 两个窗格（pane）**，各占内容区一半（`grid-template-columns: minmax(0,1fr) minmax(0,1fr)`，随内容区拉伸而等分），**各自**是一个滚动面：
+  - 每栏的内层宽度按**本栏**最宽的行算（`diffPaneWidths`），所以左栏的长行不会强迫右栏滚动，反之亦然；
+  - 两栏的 `scrollLeft` / `scrollTop` **联动**：拖左栏的横向条，右栏以**相同的位置**（同一「距左端点的距离」）跟随，反之同理；
+  - 可滚动长度不一致时按「左对齐」：较短的那栏由浏览器夹到自己的端点就停，并且**夹取的结果不会回传给用户正在拖的那一栏**（程序化写入记在 `echoRef` 里，其回声事件被识别并忽略）；
+  - 竖向滚动条只画在右栏（左栏用 `::-webkit-scrollbar { width: 0 }` 只隐藏竖向、保留横向），分割线上不会多出一条竖向滚动条。
 
 ### 3.3 已知限制（记录）
 
-`ch` 是按字体宽度解析的近似单位，极端字形（含宽字符混排）可能低估几个像素；并排等宽两栏下任一行超长会等比撑宽两栏 —— 这是「单一横向滚动面」方案的固有取舍，避免两栏各自滚动导致错位。
+`ch` 是按字体宽度解析的近似单位，极端字形（含宽字符混排）可能低估几个像素，因此每栏内层宽度是「够用就好」的保守估计；溢出部分由该栏自身的横向条带回。两栏各自滚动是刻意的：这是 IDE 的做法，代价是同一行在两栏里的横向位置可能不同（联动保证的是「同一个起点偏移」，不是「同一列像素」）。
 
 ---
 
@@ -191,17 +195,17 @@ effect 里 ⇒ React 卸载整个工作台子树 ⇒ **右侧栏一片白**（sl
 
 | 层 | 命令 / 手段 | 结果 |
 |---|---|---|
-| 单元 | `cd packages/workbench && npm test` | **461 pass / 0 fail** |
+| 单元 | `cd packages/workbench && npm test` | **463 pass / 0 fail** |
 | 单元 | `cd packages/codeintel && npm test` | **818 pass / 0 fail** |
 | 契约 | `npm run test:contract` | **26 pass** |
 | 机械 | `npm run verify:split` | **25 / 25**（新增打包完整性 5 项 + 负向验证） |
-| 实机 | `.e2e/lead-verify.mjs`（真 DSH + 打包产物 + Playwright） | **47 / 47**，0 console / pageerror |
+| 实机 | `.e2e/lead-verify.mjs`（真 DSH + 打包产物 + Playwright） | **54 / 54**，0 console / pageerror |
 | 实机 | core-only 冒烟（`.e2e/smoke.mjs`） | ok，四窗 + 编辑器 + `/ide-workbench/api/*` 全 200 |
 | 实机 | 升级路径 0.5.0 → 0.6.0（`.e2e/upgrade-0.5-to-0.6.mjs`） | **19 / 19**：布局保留、不再白屏、`editorAfterUpgrade=true`、设置版本 5→4、用户设置/`lsp` 段全部保留 |
 | 实机 | 双装 core+codeintel（`.e2e/dual-install.mjs`） | **13 / 13 全 true**（含 `editorWorks`、两端 `/api` 200、两个 settings 都落在 fixture profile、无 pageerror） |
 | 实机 | 缺 `src/contract` 的坏包对照 | 复现「宿主 failed to import、入口消失、客户端未加载」 |
 
-**实机断言摘要**：默认 `iwb-side-right` 且 stripe 在最右 → 设置页选「左」→ 根类翻转、stripe 在编辑器左侧 → 选回「右」；并排 diff `white-space:pre`、8 空格缩进/连续 3 空格/行尾空格保留、Aa 默认高亮、`scrollWidth 3873 > clientWidth 375` 且可滚到行尾、只有 1 个滚动面；行号右键菜单含注解项、注解列在**行号左侧**且单元格只有 `日期 作者`、点击后 Git 抽屉显示该提交、改动未提交的行在列里**留空**；工具栏 675px 时带文字（`data-compact='false'`），把 dock 拖宽压到 375px 时 `data-compact='true'`、标签隐藏且**仍是一行**（高 30px）、编码变 `u` 且 tooltip 仍是 `utf-8 · LF`；设置文件只落在夹具 profile（`version:4 + wordLevel:true + entrySide:'right'`）。
+**实机断言摘要**：默认 `iwb-side-right` 且 stripe 在最右 → 设置页选「左」→ 根类翻转、stripe 在编辑器左侧 → 选回「右」；并排 diff 是**两个等宽窗格**（375px 内容区 → 187.5+187.5）、`white-space:pre`、8 空格缩进/连续 3 空格/行尾空格保留、Aa 默认高亮、两栏各自可横向滚动、拖左栏到 240px 后右栏也是 240px、拖右栏到 120px 后左栏也是 120px、滚到本栏末尾时另一栏夹在自己的端点且不回拉；统一模式仍是 1 个滚动面、0 个窗格；行号右键菜单含注解项、注解列在**行号左侧**且单元格只有 `日期 作者`、点击后 Git 抽屉显示该提交、改动未提交的行在列里**留空**；工具栏 675px 时带文字（`data-compact='false'`），把 dock 拖宽压到 375px 时 `data-compact='true'`、标签隐藏且**仍是一行**（高 30px）、编码变 `u` 且 tooltip 仍是 `utf-8 · LF`；设置文件只落在夹具 profile（`version:4 + wordLevel:true + entrySide:'right'`）。
 
 ---
 
@@ -214,7 +218,7 @@ effect 里 ⇒ React 卸载整个工作台子树 ⇒ **右侧栏一片白**（sl
 | 3 | blame 折叠行 | gutter 行号解析对折叠行取折叠范围首行；坐标回退分支在极端虚拟滚动下可能偏一行。 |
 | 4 | `selectEditorSlice` 含 `blame` 对象 | 每次 blame patch 会重渲染编辑区（已注释说明），不重建 CodeMirror 文档。 |
 | 5 | 大文件 blame | 输出先整体缓冲再截断到 20000 行；5 万行以上文件仍会占一次较多内存。 |
-| 6 | 并排超长行 | 单一横向滚动面的直接结果：某一行超过「半个面板」的宽度时，内层会按该行宽度等比撑宽两栏，另一栏需横向滚动才能看到；面板较窄时（例如 Project 侧栏同时打开）并排 diff 会需要横向平移。想要同屏看两栏可用工具栏的「统一」模式。这是「不裁切 + 一个滚动面」方案与「两栏各自同步滚动」方案之间的取舍，后者需要每个单元格一个嵌套滚动区并在虚拟化行之间同步，本轮未做。 |
+| 6 | 并排两栏各自滚动 | 每栏一个横向滚动面（§3.2）：联动保证「距左端点相同的偏移」，不保证「同一个像素列」。若以后要「两栏同列对齐」，需要把两侧宽度统一成 `max(左, 右)` 再联动，代价是短的那栏也永远能滚到别人的长度。 |
 
 ## 8. 非目标
 
