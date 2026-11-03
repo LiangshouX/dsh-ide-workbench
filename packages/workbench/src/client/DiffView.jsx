@@ -546,6 +546,10 @@ export function DiffView({ store, tab }) {
         return React.createElement('div', {
           key: `${side ?? 'one'}:${row.blockKey}`,
           className: 'iwb-diff-collapsed',
+          // The band stands for a run of hidden rows, so it has to occupy the
+          // slot of those rows: without the offset it would be the one row in
+          // normal flow and render on top of the first lines instead.
+          style: rowStyle(offset),
           onClick: () => setOpenBlocks(previous => new Set([...previous, row.blockKey])),
         }, `\u22ef ${row.count} ${t('diff.collapsedLines')}`)
       }

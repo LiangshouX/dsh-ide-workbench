@@ -1,4 +1,4 @@
-# PRD-v6 增强需求 —— core 白屏修复与三项体验增强
+﻿# PRD-v6 增强需求 —— core 白屏修复与三项体验增强
 
 > **状态**：**已实施并实机验收**（2026-11-03）。
 > **代码基线**：`dsh-ide-workbench` `33ff4d4`（V6 拆分后的 monorepo，`packages/{contract,workbench,codeintel}`）。
@@ -195,7 +195,7 @@ effect 里 ⇒ React 卸载整个工作台子树 ⇒ **右侧栏一片白**（sl
 
 | 层 | 命令 / 手段 | 结果 |
 |---|---|---|
-| 单元 | `cd packages/workbench && npm test` | **463 pass / 0 fail** |
+| 单元 | `cd packages/workbench && npm test` | **464 pass / 0 fail** |
 | 单元 | `cd packages/codeintel && npm test` | **818 pass / 0 fail** |
 | 契约 | `npm run test:contract` | **26 pass** |
 | 机械 | `npm run verify:split` | **25 / 25**（新增打包完整性 5 项 + 负向验证） |

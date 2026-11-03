@@ -154,6 +154,14 @@ test('word-level highlighting starts enabled unless it was explicitly turned off
   assert.match(diffView, /useState\(\(\) => wordLevelDefault\(store\.state\.settings\)\)/)
 })
 
+test('the collapsed band occupies the slot of the rows it stands for', () => {
+  // Every row is absolutely positioned by its offset; the band is one of them.
+  // Without the offset it is the only row in normal flow, so it renders on top
+  // of the first lines instead of where the hidden run was (and in both panes
+  // of the side-by-side view at once).
+  assert.match(diffView, /className: 'iwb-diff-collapsed',[\s\S]{0,300}?style: rowStyle\(offset\)/)
+})
+
 test('the Aa toggle flips locally first and persists the choice', () => {
   const body = /const toggleWordLevel = \(\) => \{([\s\S]*?)\n  \}/.exec(diffView)
   assert.ok(body !== null, 'DiffView must define toggleWordLevel')

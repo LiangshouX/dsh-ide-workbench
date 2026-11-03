@@ -14,7 +14,7 @@
 | 仓库 | **monorepo**：`packages/{contract,workbench,codeintel}`，npm workspaces |
 | core | `dsh-ide-workbench` **0.6.0**（插件 ID 不变 ⇒ 原地升级） |
 | codeintel | `dsh-ide-codeintel` **0.1.0**（独立版本线） |
-| core 的测试 | **463 / 463 通过** |
+| core 的测试 | **464 / 464 通过** |
 | codeintel 的测试 | **818 / 818 通过** |
 | 契约测试（根级） | **26 / 26 通过** |
 | 机械验收（`npm run verify:split`） | **25 / 25 通过** |
@@ -220,4 +220,4 @@ CI（`.github/workflows/publish.yml`）据此选包、核对 `package.json` 与 
 | **窄面板工具栏** | 控件不换行不收缩（旧版「编/辑」「utf-/8」折行的根因）；实测 `data-compact` 标记在控件自然宽度 + 140px 路径预算放不下时切「只留图标 + tooltip + 编码首字母」 |
 | **跨 profile 写设置** | `profileBase()` 改为优先 `ctx.get('profileContext').dir`，环境变量只作 fallback |
 | **新增防回归** | `verify:split` 增加「entry 的 import 图必须全部在 `files` 里」+ 4 个必需产物检查（负向验证过）；`profile-dir` / `git-blame` / `blame-gutter` / `diff-view` / `toolwindow-side` / `toolbar-compact` 六个测试文件 + codeintel 的「合法扩展集」用例 |
-| **最终数字** | core **463** / codeintel **818** / 契约 **26**；`verify:split` **25/25**；实机：lead-verify **54/54**、升级 **19/19**、双装 **13/13**，0 console/pageerror |
+| **最终数字** | core **464** / codeintel **818** / 契约 **26**；`verify:split` **25/25**；实机：lead-verify **54/54**、升级 **19/19**、双装 **13/13**，0 console/pageerror |
