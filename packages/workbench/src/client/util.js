@@ -76,6 +76,21 @@ export function baseName(path) {
   return index < 0 ? path : path.slice(index + 1)
 }
 
+/**
+ * The one-letter spelling of an encoding, for a squeezed toolbar.
+ *
+ * The toolbar is 30 pixels tall and sits above the document: when the pane is
+ * narrow the controls lose their labels and the encoding keeps its first
+ * letter (`utf-8` -> `u`, `GBK` -> `G`), with the full value in the tooltip.
+ * An unknown or empty value stays empty instead of inventing a letter.
+ * @param {unknown} encoding the encoding reported by the host
+ * @returns {string} the first character, '' when there is none
+ */
+export function shortEncoding(encoding) {
+  const text = typeof encoding === 'string' ? encoding.trim() : ''
+  return text === '' ? '' : [...text][0]
+}
+
 /** Format an ISO-ish git date (`2026-10-21 10:00:00 +0800`). */
 export function formatGitDate(value, compact = false) {
   if (typeof value !== 'string' || value === '') return ''

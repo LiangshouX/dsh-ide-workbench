@@ -202,7 +202,11 @@ test('the core declares the automatic closing of the brackets and nothing else',
   // The extensions are the bracket handler with its state and the keymap.
   assert.equal(slot.extensions.length, 2)
   assert.ok(Array.isArray(slot.extensions[0]), 'the bracket handler carries its state field')
-  assert.ok(Array.isArray(slot.extensions[1]), 'the keymap of the brackets is a list of bindings')
+  // The key bindings are wrapped in `keymap.of`. A raw binding list is not an
+  // extension: passing it as one makes `EditorState.create` throw, and the
+  // workbench installed WITHOUT the codeintel (no slot replaces this one) then
+  // never mounts its editor at all.
+  assert.ok(!Array.isArray(slot.extensions[1]), 'the keymap of the brackets is a wrapped extension')
 })
 
 test('the core declares no completion at all (acceptance R8)', async () => {
@@ -291,7 +295,12 @@ test('the editor installs the extensions in their own compartment', async () => 
   const source = await sourceOf('CodeEditor.jsx')
   // The compartment is neutral: it does not know who fills it.
   assert.match(source, /extensionCompartment\.of\(seam\?\.extensionSlots \?\? \[\]\)/)
-  assert.match(source, /keymapCompartment\.of\(seam\?\.keymap \?\? \[\]\)/)
+  // The key bindings of the seam are a flat list, NOT an extension: they have
+  // to be wrapped in `keymap.of` before they reach a compartment, or the
+  // editor throws ("Unrecognized extension value") the moment a contributor
+  // registers a shortcut - and the whole workbench body unmounts.
+  assert.match(source, /keymapCompartment\.of\(keymap\.of\(seam\?\.keymap \?\? \[\]\)\)/)
+  assert.match(source, /keymapCompartment\.reconfigure\(keymap\.of\(seam\.keymap\)\)/)
   // The editor imports the compartments from the seam, not from the editor.
   assert.match(source, /import \{ extensionCompartment, keymapCompartment \} from '\.\/editor-seam\.js'/)
   assert.ok(extensionCompartment !== undefined && keymapCompartment !== undefined)

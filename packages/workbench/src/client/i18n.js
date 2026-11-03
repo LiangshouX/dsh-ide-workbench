@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Client locale dictionaries (en authoritative, zh-CN translated).
  *
  * Registered through `ctx.locale.register(NS, locale, dict)`; the bound
@@ -467,6 +467,20 @@ export const en = {
   'nav.usagesCount': '{count} usages',
   'nav.noUsages': 'No usages found',
 
+  // v6 layout
+  'settings.layoutGroup': 'Layout',
+  'settings.toolWindowSide': 'Tool window entries',
+  'settings.toolWindowSideHint': '"Left" docks the entries at the left edge; "Right" keeps the chat next to the code',
+  'settings.toolWindowSideLeft': 'Left',
+  'settings.toolWindowSideRight': 'Right',
+
+  // v6 blame — the inline annotate column (date + author left of the numbers)
+  'blame.annotate': 'Annotate with Git Blame',
+  'blame.closeAnnotate': 'Close Git Blame',
+  'blame.failed': 'Git blame failed',
+  'blame.outsideRepo': 'This file is outside the repository the Git window reads',
+  'blame.truncated': 'The file is long: the annotation stops at the line limit',
+
 }
 
 export const zh = {
@@ -929,5 +943,19 @@ export const zh = {
   'nav.textMatch': '文本匹配',
   'nav.usagesCount': '{count} 处引用',
   'nav.noUsages': '未找到引用',
+
+  // v6 layout
+  'settings.layoutGroup': '布局',
+  'settings.toolWindowSide': '工具窗口入口位置',
+  'settings.toolWindowSideHint': '左侧会占满工作台左缘；右侧让聊天区和代码内容区相邻',
+  'settings.toolWindowSideLeft': '左侧',
+  'settings.toolWindowSideRight': '右侧',
+
+  // v6 blame —— 行号左侧的内联注解列（日期 + 作者）
+  'blame.annotate': '注解 Git Blame',
+  'blame.closeAnnotate': '关闭 Git 注解',
+  'blame.failed': 'Git 注解失败',
+  'blame.outsideRepo': '该文件不在 Git 窗口当前读取的仓库内',
+  'blame.truncated': '文件过长：注解在行数上限处停止',
 
 }

@@ -35,6 +35,7 @@ import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle } fr
 import { tags } from '@lezer/highlight'
 import { findMatches, replaceAllMatches } from './find.js'
 import { extensionCompartment, keymapCompartment } from './editor-seam.js'
+import { blameField, blameGutter, blameMapOf, setBlameAnnotations } from './blame-gutter.js'
 import { ContextMenu } from './ui.jsx'
 import { SLOT_KEYS } from '../contract/index.js'
 
@@ -48,6 +49,16 @@ import { SLOT_KEYS } from '../contract/index.js'
  * grammar of the new language - the old one is taken away first.
  */
 const languageCompartment = new Compartment()
+
+/**
+ * The compartment that holds the inline annotate column.
+ *
+ * The annotation is switched on and off while the document is open, and it is
+ * a gutter of its own (left of the line numbers, see `blame-gutter.js`), so it
+ * lives in a compartment: reconfiguring it must not rebuild the document nor
+ * touch the undo history.
+ */
+const blameCompartment = new Compartment()
 
 /**
  * The language packages, loaded on demand.
@@ -257,6 +268,32 @@ export function revealPosition(state, line, column) {
 }
 
 /**
+ * The line a right-click on the line-number gutter points at.
+ *
+ * The gutter is not part of the document: the position under the pointer is
+ * not a document position, so the number the gutter element renders is the
+ * only exact answer. A folded range shows one gutter row carrying the first
+ * line of the range - which is the line the click annotates. When the text is
+ * not a line number (another gutter of the editor), the document position
+ * under the pointer is used instead.
+ * @param {any} view the CodeMirror view
+ * @param {any} element the gutter element that was clicked
+ * @param {{ x: number, y: number }} [point] the pointer, in viewport coordinates
+ * @returns {number} the 1-based line, never 0
+ */
+export function gutterLineOf(view, element, point) {
+  const text = typeof element?.textContent === 'string' ? element.textContent.trim() : ''
+  const lines = view?.state?.doc?.lines ?? 0
+  if (/^\d+$/.test(text)) {
+    const line = Number(text)
+    if (line > 0) return lines > 0 ? Math.min(line, lines) : line
+  }
+  const position = point !== undefined && typeof view?.posAtCoords === 'function' ? view.posAtCoords(point) : null
+  if (typeof position === 'number' && position >= 0) return view.state.doc.lineAt(position).number
+  return 1
+}
+
+/**
  * One editable or read-only buffer.
  * @param {{ value: string, path: string, fontSize?: number, resetToken?: number, readOnly?: boolean,
  *   revealLine?: number | null, revealColumn?: number | null,
@@ -264,13 +301,19 @@ export function revealPosition(state, line, column) {
  *   onChange: (text: string) => void, onSave: () => void,
  *   onCursor?: (position: { line: number, col: number }) => void,
  *   onSendToChat?: (selection: { text: string, fromLine: number, toLine: number }) => void,
+ *   onAnnotateBlame?: ((line: number) => void) | null, annotateLabel?: string,
+ *   blame?: { open?: boolean, path?: string, lines?: object[] } | null,
+ *   onBlameCommit?: ((hash: string) => void) | null,
+ *   onBlameClose?: (() => void) | null, closeAnnotateLabel?: string,
  *   chatLabels?: { send?: string, copy?: string },
  *   contract?: object, renderSlot?: Function }} props
  */
 export function CodeEditor({
   value, path, fontSize = 13, resetToken = 0, readOnly = false, revealLine = null, revealColumn = null,
   onFindRequest, onFindInFiles, onReady, onChange, onSave, onCursor,
-  onSendToChat, chatLabels = {}, contract = null, renderSlot = null,
+  onSendToChat, onAnnotateBlame = null, annotateLabel = 'Annotate with Git Blame',
+  blame = null, onBlameCommit = null, onBlameClose = null, closeAnnotateLabel = 'Close Git Blame',
+  chatLabels = {}, contract = null, renderSlot = null,
 }) {
   // The seam of the editor: the extensions, the key bindings and the commands
   // of the plugins arrive through it.
@@ -283,6 +326,21 @@ export function CodeEditor({
   const [, setSeamVersion] = useState(0)
   const onSendToChatRef = useRef(onSendToChat)
   onSendToChatRef.current = onSendToChat
+  // The annotate command belongs to the workbench, not to this buffer: the
+  // ref keeps the menu of an already-open editor pointing at the current one.
+  const onAnnotateBlameRef = useRef(onAnnotateBlame)
+  onAnnotateBlameRef.current = onAnnotateBlame
+  // The annotation column: the current document's blame (or null), the jump to
+  // a commit and the way to switch the column off. The refs keep the gutter
+  // that was built at mount time pointed at the live callbacks.
+  const onBlameCommitRef = useRef(onBlameCommit)
+  const onBlameCloseRef = useRef(onBlameClose)
+  onBlameCommitRef.current = onBlameCommit
+  onBlameCloseRef.current = onBlameClose
+  const blameActive = blame !== null && blame !== undefined && blame.open === true && blame.path === path
+  const blameLines = Array.isArray(blame?.lines) ? blame.lines : []
+  /** Build the annotate gutter; the click always goes through the live ref. */
+  const buildBlameGutter = () => blameGutter(hash => onBlameCommitRef.current?.(hash))
   const onChangeRef = useRef(onChange)
   const onSaveRef = useRef(onSave)
   const onCursorRef = useRef(onCursor)
@@ -300,6 +358,14 @@ export function CodeEditor({
   // The extensions, the key bindings and the commands of the plugins arrive
   // through the seam. A change of them reconfigures the compartments of the
   // editor - the document itself stays untouched.
+  //
+  // The bindings go through `keymap.of`: a flat list of key bindings is NOT a
+  // CodeMirror extension, and putting it into a compartment makes
+  // `EditorState.create` throw ("Unrecognized extension value in extension
+  // set") - which unmounts the whole workbench body. The core alone registers
+  // no bindings, so the crash only appears when a contributor does (the
+  // codeintel's semantic shortcuts); the real-machine dual-install acceptance
+  // is what caught it.
   useEffect(() => {
     if (seam === null || seam === undefined) return undefined
     return seam.subscribe(() => {
@@ -309,7 +375,7 @@ export function CodeEditor({
           view.dispatch({
             effects: [
               extensionCompartment.reconfigure(seam.extensionSlots),
-              keymapCompartment.reconfigure(seam.keymap),
+              keymapCompartment.reconfigure(keymap.of(seam.keymap)),
             ],
           })
         } catch {
@@ -320,11 +386,43 @@ export function CodeEditor({
     })
   }, [seam])
 
-  // A non-empty selection gets the workbench context menu (send to chat,
-  // copy); the commands of the plugins are always offered as well.
+  // The commands of the plugins. They are ordinary menu entries; a plugin
+  // that wants them greyed out says so itself.
+  const commandItems = (seam?.commandItems ?? []).flat().filter(item => item !== null && typeof item === 'object')
+
+  // A selection gets the workbench context menu (send to chat, copy); the
+  // line-number gutter gets the annotate command (see `onAnnotateBlame`).
+  // The commands of the plugins are offered in both cases; a right click on
+  // plain text without a selection keeps the native menu of the browser.
   const onContextMenu = (event) => {
     const view = viewRef.current
     if (view === null) return
+    const target = event?.target
+    const gutter = target !== null && target !== undefined && typeof target.closest === 'function'
+      ? target.closest('.cm-lineNumbers .cm-gutterElement')
+      : null
+    if (gutter !== null) {
+      // A gutter click that has nothing to offer must not swallow the native
+      // menu: only the annotate entry and the plugin commands live there.
+      if (typeof onAnnotateBlameRef.current !== 'function' && commandItems.length === 0) return
+      event.preventDefault()
+      const selection = view.state.selection.main
+      const hasSelection = selection.empty === false
+      // The click must not move the caret or change the selection: it only
+      // asks about the line under the pointer.
+      const line = gutterLineOf(view, gutter, { x: event.clientX, y: event.clientY })
+      setMenu({
+        x: event.clientX,
+        y: event.clientY,
+        kind: 'gutter',
+        hasSelection,
+        line,
+        text: hasSelection ? view.state.sliceDoc(selection.from, selection.to) : '',
+        fromLine: hasSelection ? view.state.doc.lineAt(selection.from).number : line,
+        toLine: hasSelection ? view.state.doc.lineAt(selection.to).number : line,
+      })
+      return
+    }
     const range = view.state.selection.main
     const hasSelection = range.empty === false
     if (!hasSelection) return
@@ -334,6 +432,9 @@ export function CodeEditor({
     setMenu({
       x: event.clientX,
       y: event.clientY,
+      kind: 'selection',
+      hasSelection,
+      line: fromLine,
       text: view.state.sliceDoc(range.from, range.to),
       fromLine,
       toLine,
@@ -371,8 +472,9 @@ export function CodeEditor({
       extensionCompartment.of(seam?.extensionSlots ?? []),
       // The key bindings of the plugins. They come BEFORE the default keymap,
       // otherwise `Enter` and `Tab` would be swallowed by it and a registered
-      // shortcut could never fire.
-      keymapCompartment.of(seam?.keymap ?? []),
+      // shortcut could never fire. `keymap.of` is what turns the flat binding
+      // list of the seam into an extension (see the reconfigure effect above).
+      keymapCompartment.of(keymap.of(seam?.keymap ?? [])),
       keymap.of([
         ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly }),
         ...editorKeymapRest(),
@@ -381,6 +483,11 @@ export function CodeEditor({
       // the compartment starts empty and the editor renders without
       // highlighting until the package arrives.
       languageCompartment.of([]),
+      // The annotate column: the field carries the annotation, the
+      // compartment the gutter itself (it is switched on and off while the
+      // document stays open, see `blame-gutter.js`).
+      blameField,
+      blameCompartment.of(blameActive ? buildBlameGutter() : []),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onChangeRef.current?.(update.state.doc.toString())
         if (update.selectionSet || update.docChanged) {
@@ -510,6 +617,27 @@ export function CodeEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, resetToken, readOnly])
 
+  // The annotation of the open document. The data arrives after the editor
+  // mounted (the user right-clicks a line number, the host answers later), so
+  // it is painted by an effect: the state field is replaced without touching
+  // the document or the undo history, and the gutter itself is reconfigured
+  // only when the annotate mode is switched on or off.
+  useEffect(() => {
+    const view = viewRef.current
+    if (view === null) return
+    try {
+      view.dispatch({
+        effects: [
+          setBlameAnnotations.of(blameMapOf(blameActive ? blameLines : [])),
+          blameCompartment.reconfigure(blameActive ? buildBlameGutter() : []),
+        ],
+      })
+    } catch {
+      /* the editor may already be gone */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blameActive, blameLines, path])
+
   useEffect(() => {
     const view = viewRef.current
     if (view === null) return
@@ -524,9 +652,46 @@ export function CodeEditor({
     onSendToChatRef.current?.({ text: current.text, fromLine: current.fromLine, toLine: current.toLine })
   }
 
-  // The commands of the plugins. They are ordinary menu entries; a plugin
-  // that wants them greyed out says so itself.
-  const commandItems = (seam?.commandItems ?? []).flat().filter(item => item !== null && typeof item === 'object')
+  // A gutter click offers the annotate command first, then the entries of the
+  // plugins; the chat entries need a selection, so they are only there when
+  // one exists. A selection click keeps exactly the menu it always had.
+  const items = []
+  if (menu !== null) {
+    if (menu.kind === 'gutter' && typeof onAnnotateBlameRef.current === 'function') {
+      items.push({
+        key: 'annotate',
+        text: annotateLabel,
+        action: () => { onAnnotateBlameRef.current?.(menu.line) },
+      })
+      // The column has to be switchable off from the same place it is switched
+      // on; otherwise the reader has to close the file to remove it.
+      if (blameActive && typeof onBlameCloseRef.current === 'function') {
+        items.push({
+          key: 'blame-close',
+          text: closeAnnotateLabel,
+          action: () => { onBlameCloseRef.current?.() },
+        })
+      }
+      items.push(null)
+    }
+    if (menu.kind !== 'gutter' || menu.hasSelection === true) {
+      items.push({ key: 'send', text: chatLabels.send ?? 'Send to chat', action: sendSelection })
+      items.push({
+        key: 'copy',
+        text: chatLabels.copy ?? 'Copy',
+        action: () => { void navigator.clipboard.writeText(menu.text).catch(() => {}) },
+      })
+    }
+    if (commandItems.length > 0) {
+      items.push(null, ...commandItems.map(item => ({
+        key: item.key,
+        text: item.label,
+        shortcut: item.shortcut,
+        disabled: typeof item.enabled === 'function' ? item.enabled() !== true : item.enabled === false,
+        action: () => { item.run?.() },
+      })))
+    }
+  }
 
   return React.createElement(React.Fragment, null,
     React.createElement('div', { className: 'iwb-codemirror', ref: hostRef, onContextMenu }),
@@ -535,23 +700,7 @@ export function CodeEditor({
           x: menu.x,
           y: menu.y,
           onClose: () => setMenu(null),
-          items: [
-            { key: 'send', text: chatLabels.send ?? 'Send to chat', action: sendSelection },
-            {
-              key: 'copy',
-              text: chatLabels.copy ?? 'Copy',
-              action: () => { void navigator.clipboard.writeText(menu.text).catch(() => {}) },
-            },
-            ...(commandItems.length === 0
-              ? []
-              : [null, ...commandItems.map(item => ({
-                  key: item.key,
-                  text: item.label,
-                  shortcut: item.shortcut,
-                  disabled: typeof item.enabled === 'function' ? item.enabled() !== true : item.enabled === false,
-                  action: () => { item.run?.() },
-                }))]),
-          ],
+          items,
           // The commands of the plugins that come through the slot of the
           // contract: the occupant draws its own entry (PRD-v6 §3.2).
           extra: renderSlot !== null && contract !== null

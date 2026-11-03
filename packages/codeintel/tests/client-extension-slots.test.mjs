@@ -39,6 +39,10 @@ async function loadModule() {
         contents: `
 export { codeintelExtensionSlots } from './src/client/extensions.js'
 export { CODEINTEL_PRIORITY, CORE_PRIORITY, mergeExtensionSlots } from './src/contract/index.js'
+// The state class has to be the one the extensions were built with: two
+// copies of @codemirror/state break the instanceof checks, which is exactly
+// the failure this file is about.
+export { EditorState } from '@codemirror/state'
 `,
         resolveDir: root,
         loader: 'jsx',
@@ -98,4 +102,21 @@ test('the order of the plugins does not change the winner', async () => {
   const second = mod.mergeExtensionSlots([codeintel, core])
   assert.equal(first.includes('core'), false, 'the core steps aside in the first order')
   assert.equal(second.includes('core'), false, 'and in the second order as well')
+})
+
+test('the bracket slot is a valid CodeMirror extension set', async () => {
+  // The winner of a double install is THIS slot, so its shape is what the
+  // editor of a double install actually gets. A raw list of key bindings is
+  // not an extension and makes `EditorState.create` throw - the workbench
+  // panel then goes blank (the same failure the core had alone; the
+  // real-machine dual-install acceptance caught it here).
+  const mod = await loadModule()
+  const slot = mod.codeintelExtensionSlots().find(item => item.key === 'closeBrackets')
+  assert.ok(slot !== undefined, 'the bracket slot exists')
+  assert.equal(Array.isArray(slot.extensions[1]), false, 'the keymap is a wrapped extension, not a binding list')
+  const extensions = mod.mergeExtensionSlots([[], [slot]])
+  assert.doesNotThrow(
+    () => mod.EditorState.create({ doc: 'const a = 1\n', extensions }),
+    'the winner of the merge is a valid extension set',
+  )
 })

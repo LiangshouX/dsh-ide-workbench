@@ -175,6 +175,34 @@ export function normalizeNewlines(text) {
   return typeof text === 'string' ? text.replace(/\r\n/g, '\n') : text
 }
 
+/**
+ * The empty state of the Git Blame panel.
+ *
+ * It is also what closing the panel leaves behind: the annotations belong to
+ * one document, so the rows of the previous file must not survive next to a
+ * different one (the line numbers would be off).
+ * @returns {{open: boolean, path: string, line: number|null, loading: boolean,
+ *   error: string|null, lines: object[], commits: Record<string, object>,
+ *   truncated: boolean, at: number}}
+ */
+function emptyBlame() {
+  return {
+    open: false,
+    /** Absolute path of the annotated file (the tab path, not a repo path). */
+    path: '',
+    /** The line the user asked about, highlighted in the panel. */
+    line: null,
+    loading: false,
+    error: null,
+    lines: [],
+    commits: {},
+    /** True when the host cut the annotation at its line limit. */
+    truncated: false,
+    /** When the current annotation arrived, for a "stale" marker if needed. */
+    at: 0,
+  }
+}
+
 /** The initial state, also the shape persisted UI is merged into. */
 function initialState() {
   return {
@@ -287,6 +315,8 @@ function initialState() {
       shells: [],
       shellsLoaded: false,
     },
+    /** The Git Blame panel of the active document (see `emptyBlame`). */
+    blame: emptyBlame(),
     rootPicker: false,
     confirm: null,
     toast: null,
@@ -321,6 +351,8 @@ export class WorkbenchStore {
     this.treeTokens = new Map()
     this.gitRequestToken = 0
     this.gitDetailToken = 0
+    /** Request generation of the blame panel, so a stale answer cannot win. */
+    this.blameToken = 0
     this.searchToken = 0
     this.searchIndex = -1
     this.settingsFile = ''
@@ -1005,6 +1037,7 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      blame: emptyBlame(),
       // The commit selection belongs to the repository it was made in
       // (PRD-v4 §3.2): it must not survive the switch.
       commit: this.#resetCommitSelection(),
@@ -1102,6 +1135,7 @@ export class WorkbenchStore {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      blame: emptyBlame(),
       // The checked paths and the group pins belong to the repository they
       // were made in (PRD-v4 §3.2): a path of repository A must not stay
       // pinned in the Unversioned group of repository B.
@@ -2043,6 +2077,8 @@ export class WorkbenchStore {
       || !roots.some(root => tab.path === root || tab.path.startsWith(`${root}\\`) || tab.path.startsWith(`${root}/`)))
     const activeId = tabs.some(tab => tab.id === this.state.activeId) ? this.state.activeId : (tabs[tabs.length - 1]?.id ?? null)
     this.set({ tabs, activeId })
+    // A deleted file has no document left to annotate.
+    if (this.state.blame.path !== '' && !tabs.some(tab => tab.path === this.state.blame.path)) this.closeBlame()
   }
 
   /** Reveal one path in the native file manager. */
@@ -2146,6 +2182,7 @@ export class WorkbenchStore {
     if (existing !== undefined) {
       const tabs = this.state.tabs.map(tab => (tab === existing ? { ...tab, preview: tab.preview && options.preview === true } : tab))
       this.set({ tabs, activeId: existing.id })
+      this.#syncBlameToTab(existing.id)
       if (Number.isInteger(options.line)) {
         // A jump carries the column as well (PRD-v5 §5.5); without one the
         // previous column is dropped, so the caret lands on the line start.
@@ -2204,6 +2241,7 @@ export class WorkbenchStore {
       tabs = [...tabs, tab]
     }
     this.set({ tabs, activeId: tab.id })
+    this.#syncBlameToTab(tab.id)
     this.setSelectedPath(path)
     void this.ensureTabContent(tab.id)
     this.persist()
@@ -2290,6 +2328,8 @@ export class WorkbenchStore {
     this.set({ activeId: id })
     const tab = this.state.tabs.find(item => item.id === id)
     if (tab?.kind === 'file') this.setSelectedPath(tab.path)
+    // The panel annotates one document; another document closes it.
+    this.#syncBlameToTab(id)
     // A restored tab is read from disk when it is focused for the first time
     // (PRD-v4 §1.2 PERF-07).
     void this.ensureTabContent(id)
@@ -2338,6 +2378,7 @@ export class WorkbenchStore {
       activeId = next?.id ?? null
     }
     this.set({ tabs, activeId })
+    this.#syncBlameToTab(activeId)
     this.persist()
   }
 
@@ -3165,6 +3206,106 @@ export class WorkbenchStore {
   closeCommitDetail() {
     this.gitDetailToken += 1
     this.patch('git', { detail: null, detailHash: null, detailLoading: false })
+  }
+
+  // ── git blame ─────────────────────────────────────────────────────────
+  /**
+   * Annotate the open file with the commit of every line.
+   *
+   * The request names the tab (`path`, absolute) and, when the caller has it,
+   * the project-relative `rel`. The host route works on paths relative to the
+   * repository the Git window reads, so the absolute path is converted against
+   * `gitRoot` instead of trusting `rel`: the two roots are independent, and a
+   * file of another project would otherwise be annotated from the wrong one.
+   *
+   * The answer is token-guarded: a second annotate (or a closed panel) must
+   * not have an older answer repaint the panel with another file's rows.
+   * @param {{ path?: string, rel?: string, line?: number }} [request]
+   */
+  async annotateBlame(request = {}) {
+    const absolute = typeof request?.path === 'string' && request.path !== ''
+      ? request.path
+      : (this.activeTab?.kind === 'file' ? this.activeTab.path : '')
+    if (absolute === '') return
+    const relative = relativePathWithin(this.gitRoot, absolute)
+    const token = ++this.blameToken
+    const line = Number.isInteger(request?.line) ? request.line : null
+    this.set({
+      blame: {
+        ...emptyBlame(),
+        open: true,
+        path: absolute,
+        line,
+        loading: true,
+        at: Date.now(),
+      },
+    })
+    if (relative === null || relative === '') {
+      // A file outside the repository the Git window reads has no blame: the
+      // panel stays open and says so instead of annotating a foreign file.
+      const message = this.t('blame.outsideRepo')
+      this.patch('blame', { loading: false, error: message })
+      this.toast('error', this.t('blame.failed'), message)
+      return
+    }
+    try {
+      const result = await call('git.blame', { root: this.gitRoot, path: relative })
+      if (token !== this.blameToken || this.state.blame.path !== absolute) return
+      this.patch('blame', {
+        loading: false,
+        error: null,
+        lines: Array.isArray(result?.lines) ? result.lines : [],
+        commits: result?.commits !== null && typeof result?.commits === 'object' ? result.commits : {},
+        truncated: result?.truncated === true,
+        at: Date.now(),
+      })
+      // The annotate column stops at the host's line limit; say so once, or a
+      // long file would silently lose its lower half.
+      if (result?.truncated === true) this.toast('info', this.t('blame.truncated'))
+    } catch (error) {
+      if (token !== this.blameToken) return
+      const message = error instanceof Error ? error.message : String(error)
+      this.patch('blame', { loading: false, error: message })
+      this.toast('error', this.t('blame.failed'), message)
+    }
+  }
+
+  /** Close the annotate column (also cancels an answer that is still in flight). */
+  closeBlame() {
+    this.blameToken += 1
+    if (this.state.blame.open !== true && this.state.blame.path === '') return
+    this.set({ blame: emptyBlame() })
+  }
+
+  /**
+   * Jump to one annotated commit in the Git window.
+   *
+   * The commit is selected and its detail drawer is opened; a commit that the
+   * drawer already shows is not fetched again, so the reader does not lose the
+   * scroll position of the drawer by clicking another line of it.
+   * @param {string} hash the commit of the cell
+   */
+  openBlameCommit(hash) {
+    if (typeof hash !== 'string' || hash === '' || /^0+$/.test(hash)) return
+    this.showTool('git')
+    this.selectCommit(hash)
+    if (this.state.git.detailHash === hash && this.state.git.detail !== null) return
+    void this.openCommitDetail(hash)
+  }
+
+  /**
+   * Close the blame panel when the document it annotates is off screen.
+   *
+   * The rows name the lines of ONE document; leaving that document with the
+   * panel open would show them next to another file (and the line numbers
+   * would point at the wrong code).
+   * @param {string | null} activeId the tab that is active now
+   */
+  #syncBlameToTab(activeId) {
+    if (this.state.blame.open !== true) return
+    const active = this.state.tabs.find(tab => tab.id === activeId)
+    const path = active?.kind === 'file' ? active.path : ''
+    if (path !== this.state.blame.path) this.closeBlame()
   }
 
   /**

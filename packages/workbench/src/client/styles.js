@@ -215,6 +215,24 @@ export const CSS = `
 .iwb-panel-body { flex: 1; min-height: 0; overflow: auto; position: relative; }
 
 .iwb-center { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--iwb-bg); }
+
+/* ── the side of the four tool-window entries (v6 layout) ─────────────────
+   The left side is the original layout: every base rule above stays
+   unprefixed and is the pixel-identical fallback for iwb-side-left. The
+   right side is a mirror built on the order property, so the DOM order (stripe, dock,
+   editor) and every ref/key stay as they were - only the paint order and
+   the edges change. The stack query at the end of this file resets these
+   rules: stacked, the stripe is a top bar again, exactly as before. */
+.iwb-side-right .iwb-body > .iwb-center { order: 1; }
+.iwb-side-right .iwb-body > .iwb-left { order: 2; }
+.iwb-side-right .iwb-body > .iwb-stripe { order: 3; }
+/* The divider belongs to the editor-facing edge of each panel now. */
+.iwb-side-right .iwb-left { border-right: 0; border-left: 1px solid var(--iwb-border); }
+.iwb-side-right .iwb-stripe { border-right: 0; border-left: 1px solid var(--iwb-border); }
+/* The active marker of the stripe points into the editor column. */
+.iwb-side-right .iwb-stripe-btn.iwb-on::before { left: auto; right: -6px; }
+/* The drag handle of the dock faces the editor, which is on its left. */
+.iwb-side-right .iwb-left-resizer { right: auto; left: -3px; }
 .iwb-tabbar {
   height: 34px; flex: 0 0 34px; display: flex; align-items: stretch; border-bottom: 1px solid var(--iwb-border);
   background: var(--iwb-panel); overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
@@ -258,8 +276,6 @@ export const CSS = `
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;
-  /* Own container: the document pane may be narrow while the window is wide. */
-  container-type: inline-size; container-name: iwb-editor-toolbar;
 }
 /* One line, always: a squeezed segment must clip, never wrap inside the
    30px toolbar. The breadcrumb takes the free width, so its box is exactly
@@ -268,6 +284,38 @@ export const CSS = `
   position: relative; flex: 1 1 auto; display: flex; align-items: center; gap: 4px;
   min-width: 0; overflow: hidden; white-space: nowrap;
 }
+/* The controls of the bar never wrap and never shrink: a button that is too
+   narrow for its label would otherwise break the label onto a second line
+   inside the 30px bar (the "编/辑", "utf-/8" look). When the bar cannot hold
+   the labels any more, the measured marker below drops them instead. */
+.iwb-editor-toolbar > button,
+.iwb-editor-toolbar > .iwb-seg,
+.iwb-editor-toolbar > .iwb-encoding,
+.iwb-toolbar-actions > button,
+.iwb-toolbar-actions > .iwb-seg,
+.iwb-toolbar-actions > .iwb-encoding { flex: 0 0 auto; white-space: nowrap; }
+/* The right-hand cluster is measured as one block: its natural width plus the
+   room a readable breadcrumb needs is what decides the compact mode. */
+.iwb-toolbar-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; min-width: 0; }
+.iwb-toolbar-label { white-space: nowrap; }
+.iwb-encoding {
+  font-family: var(--iwb-mono); font-size: 11px; letter-spacing: .02em;
+  color: var(--iwb-muted);
+}
+/* The compact spelling is off until the bar is narrow (see the query below). */
+.iwb-encoding-short { display: none; }
+/* A narrow document pane shows ICON-ONLY controls: the labels live in the
+   tooltip of each button (they are set as the button title), and the encoding
+   keeps its first letter (utf-8 -> u, GBK -> G) with the whole value on hover.
+   The compact spelling is driven by a MEASURED marker (the data-compact
+   attribute), not by a fixed width: the toolbar measures how wide its controls
+   really are and how much room a readable breadcrumb needs, so a longer
+   translation or a bigger font drops the labels at the right moment. */
+.iwb-editor-toolbar[data-compact='true'] .iwb-toolbar-label { display: none; }
+.iwb-editor-toolbar[data-compact='true'] .iwb-encoding-full { display: none; }
+.iwb-editor-toolbar[data-compact='true'] .iwb-encoding-short { display: inline; }
+.iwb-editor-toolbar[data-compact='true'] .iwb-textbtn { gap: 0; padding: 0 6px; }
+.iwb-editor-toolbar[data-compact='true'] .iwb-encoding { letter-spacing: 0; }
 .iwb-breadcrumb > * { flex-shrink: 0; }
 .iwb-breadcrumb .iwb-sep { opacity: .5; }
 .iwb-breadcrumb b { color: var(--iwb-fg); font-weight: 600; flex-shrink: 0; }
@@ -576,7 +624,15 @@ export const CSS = `
 .iwb-file-row:hover .iwb-file-stat { display: none; }
 
 .iwb-diff { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.iwb-diff-scroll { flex: 1; min-height: 0; overflow: auto; font-family: var(--iwb-mono); font-size: 12.5px; line-height: 20px; position: relative; }
+/* The ONE horizontal scroll surface of both layouts. tab-size: 4 is the tab
+   stop the width measure of diff.js assumes (DIFF_TAB_SIZE): a tab in a line
+   must reserve the same four columns the stylesheet gives it. */
+.iwb-diff-scroll { flex: 1; min-height: 0; overflow: auto; font-family: var(--iwb-mono); font-size: 12.5px; line-height: 20px; position: relative; tab-size: 4; }
+/* Rows are absolutely positioned (left: 0; right: 0), so the viewer writes
+   the measured width of the longest visible line onto this element; that is
+   what gives the scroll surface a scrollable width and lets the row
+   backgrounds cover every pixel of it. The 100% min-width keeps the fallback
+   width (no measurement) at the width of the panel. */
 .iwb-diff-inner { position: relative; min-width: 100%; }
 .iwb-diff-row { display: flex; height: 20px; white-space: pre; }
 .iwb-diff-row.iwb-add { background: rgba(79, 180, 119, .12); }
@@ -592,7 +648,14 @@ export const CSS = `
   font-variant-numeric: tabular-nums; user-select: none;
 }
 .iwb-diff-sign { width: 16px; flex: 0 0 16px; text-align: center; user-select: none; color: var(--iwb-muted); }
+/* The text of a row takes the rest of the row; it carries no min-width of its
+   own, because the same class is used in the side-by-side cells, whose two
+   columns must stay deterministic (see the minmax() tracks below). */
 .iwb-diff-text { flex: 1; padding-right: 24px; }
+/* Only the unified row needs the flex item to keep its whole line: the row has
+   no second column that could be pushed around, so the line overflows
+   horizontally into the shared scroll surface instead of being shrunk. */
+.iwb-diff-row .iwb-diff-text { min-width: max-content; }
 .iwb-diff-row.iwb-selected { outline: 1px solid rgba(76, 154, 255, .55); background: rgba(76, 154, 255, .22) !important; }
 .iwb-diff-row.iwb-diff-find, .iwb-diff-side.iwb-diff-find { outline: 1px solid rgba(215,162,74,.65); outline-offset: -1px; }
 .iwb-diff-row.iwb-diff-find-active, .iwb-diff-side.iwb-diff-find-active { outline: 2px solid var(--iwb-accent); outline-offset: -2px; background: rgba(76,154,255,.2); }
@@ -613,11 +676,21 @@ export const CSS = `
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); font-size: 11.5px; color: var(--iwb-muted);
 }
 .iwb-diff-toolbar .iwb-spacer { flex: 1; }
-.iwb-diff-side { display: grid; grid-template-columns: 1fr 1fr; min-width: 100%; }
-.iwb-diff-side-cell { display: flex; height: 20px; min-width: 0; border-right: 1px solid var(--iwb-border); overflow: hidden; }
+/* Two equal columns: minmax(0, 1fr) lets the tracks stay exactly half of the
+   measured inner width, so the split never moves with the length of one row -
+   a plain 1fr would take its minimum from the text and every long line would
+   push the second column around. */
+.iwb-diff-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-width: 100%; }
+/* Both cells render the raw text: white-space: pre keeps the leading
+   indentation, the runs of spaces and the trailing spaces that normal
+   collapses (the package-lock.json indentation bug). The cell keeps
+   overflow: hidden because the inner width has already been measured wide
+   enough for the longest line (diffInnerWidth); clipping only a few pixels of
+   the estimation error is better than a line spilling into the other column.
+   The left edge of the second column therefore never moves. */
+.iwb-diff-side-cell { display: flex; height: 20px; min-width: 0; white-space: pre; overflow: hidden; border-right: 1px solid var(--iwb-border); }
 .iwb-diff-side-cell.iwb-add { background: rgba(79, 180, 119, .12); }
 .iwb-diff-side-cell.iwb-del { background: rgba(226, 104, 111, .12); }
-.iwb-diff-side-cell .iwb-diff-text { overflow: hidden; }
 .iwb-diff-side-cell.iwb-blank { background: rgba(127, 127, 127, .05); }
 .iwb-diff-side .iwb-diff-num { width: 44px; flex: 0 0 44px; }
 .iwb-diff-side-head { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; color: var(--iwb-muted); font-size: 11px; background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border); }
@@ -1124,6 +1197,26 @@ export const CSS = `
   border: 1px solid currentColor; border-radius: 999px; padding: 0 5px; flex: 0 0 auto;
 }
 
+/* ── Git Blame annotation (V6 blame) ────────────────────────────────────────
+   The annotation is an INLINE COLUMN: a CodeMirror gutter of its own, placed
+   left of the line numbers (see blame-gutter.js), not a side panel. It is
+   painted by the gutter machinery, so it scrolls with the document and stays
+   fixed horizontally like the numbers do. One cell carries the day and the
+   author; a line that is not committed yet has no cell at all. */
+.iwb-blame-gutter { border-right: 1px solid var(--iwb-border); }
+/* The numbers keep their own padding; the annotate cell only needs a small gap
+   from the number column so the two do not touch. */
+.iwb-blame-gutter .cm-gutterElement { padding: 0 8px 0 6px; }
+.iwb-blame-note {
+  font-family: var(--iwb-mono); font-size: 11px; line-height: 20px;
+  color: var(--iwb-muted); white-space: nowrap; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.iwb-blame-note:hover { color: var(--iwb-accent); text-decoration: underline; }
+/* The active line is part of the annotate column too, so it answers the same
+   way the numbers do instead of looking like a hole. */
+.iwb-blame-gutter .cm-activeLineGutter { background: transparent; color: var(--iwb-fg); }
+
 @container ide-workbench (max-width: 760px) {
   .iwb-topbar { gap: 4px; padding: 0 6px; }
   .iwb-project-select { flex: 1; padding: 0 3px; }
@@ -1151,6 +1244,19 @@ export const CSS = `
   .iwb-left { width: 100% !important; min-width: 0; max-width: none; flex: 0 1 38%; min-height: 120px; border-right: 0; border-bottom: 1px solid var(--iwb-border); }
   .iwb-left-resizer { display: none; }
   .iwb-center { min-height: 140px; }
+  /* Right mode stacks exactly like the left one: the paint order and the
+     mirrored edges of the side-by-side layout are undone, so the stripe is
+     the top bar and the dock sits between it and the editor again. Without
+     this reset the right-side rules would leak their order (the stripe
+     would fall to the bottom) and their border (a stray left line). */
+  .iwb-side-right .iwb-body > .iwb-center,
+  .iwb-side-right .iwb-body > .iwb-left,
+  .iwb-side-right .iwb-body > .iwb-stripe { order: 0; }
+  .iwb-side-right .iwb-stripe { border-left: 0; }
+  .iwb-side-right .iwb-left { border-left: 0; }
+  .iwb-side-right .iwb-stripe-btn.iwb-on::before {
+    left: 6px; right: 6px; top: auto; bottom: -3px; width: auto; height: 2px;
+  }
   /* Stacked: the stripe is a horizontal bar, so the dock needs no left gutter.
      The percentage basis is the root height now, not the editor column. */
   .iwb-bottom { max-height: 60%; min-height: 100px; }

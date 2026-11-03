@@ -192,6 +192,86 @@ for (const [label, directory] of [['core', core], ['codeintel', intel]]) {
   check('the worker of the codeintel is published', publishes && exists)
 }
 
+// ── every file the entry imports is actually published ──────────────────────
+//
+// The defect behind the white screen of a core-only install: the split moved
+// the contract into `src/contract/` and updated the imports, but the `files`
+// whitelist of `package.json` was not extended. `npm pack` then shipped a
+// package whose `src/index.js` imported a file that was not inside the
+// tarball: the host half failed to import, the plugin never mounted, and the
+// IDE tab of a previous version rendered an empty pane. A source-level check
+// cannot see this - the file IS on disk - so the check walks the import graph
+// of the published entry and asks the whitelist whether each file ships.
+{
+  /**
+   * Whether one package-relative path is covered by the `files` whitelist.
+   * npm's rules are simple enough for the shapes this repository uses:
+   * a plain path, a directory prefix, or a `*`/`**` glob.
+   * @param {string[]} files the `files` array of the manifest
+   * @param {string} path package-relative path with forward slashes
+   * @returns {boolean} whether npm would ship the file
+   */
+  const isPublished = (files, path) => files.some((entry) => {
+    const target = String(entry).split('\\').join('/').replace(/\/+$/, '')
+    if (target === path) return true
+    if (path.startsWith(`${target}/`)) return true
+    if (!target.includes('*')) return false
+    const pattern = new RegExp(`^${target
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*\*/g, '\u0000')
+      .replace(/\*/g, '[^/]*')
+      .replace(/\u0000/g, '.*')}$`)
+    return pattern.test(path)
+  })
+
+  /**
+   * The package-relative files one entry imports, resolved on the disk.
+   * @param {string} directory the package directory
+   * @returns {Promise<string[]>} package-relative paths
+   */
+  const importedFilesOf = async (directory) => {
+    const out = new Set()
+    const queue = ['src/index.js']
+    while (queue.length > 0) {
+      const current = queue.shift()
+      if (out.has(current)) continue
+      out.add(current)
+      const source = await textOf(resolve(directory, current))
+      for (const match of source.matchAll(/(?:from|import)\s*\(?\s*'(\.[^']+)'/g)) {
+        const base = resolve(directory, current, '..', match[1])
+        const candidate = [base, `${base}.js`, `${base}.jsx`, join(base, 'index.js')]
+          .find(path => existsSync(path) && /\.(js|jsx)$/.test(path))
+        if (candidate === undefined) continue
+        const rel = relative(directory, candidate).split('\\').join('/')
+        // The published entry must not reach into another package.
+        if (rel.startsWith('..')) continue
+        queue.push(rel)
+      }
+    }
+    return [...out]
+  }
+
+  for (const [label, directory] of [['core', core], ['codeintel', intel]]) {
+    const manifest = JSON.parse(await textOf(resolve(directory, 'package.json')))
+    const files = Array.isArray(manifest.files) ? manifest.files : []
+    const imported = await importedFilesOf(directory)
+    const unpublished = imported.filter(path => !isPublished(files, path))
+    check(
+      `every file the ${label} entry imports is published`,
+      unpublished.length === 0,
+      unpublished.join(', '),
+    )
+    // The two artifacts a plugin cannot run without: the host entry itself and
+    // the client bundle the host serves.
+    for (const required of ['src/index.js', 'dist/client.js', 'cordis.patch.yml', 'dsh.plugin.json']) {
+      check(
+        `the ${label} publishes ${required}`,
+        existsSync(resolve(directory, required)) && isPublished(files, required),
+      )
+    }
+  }
+}
+
 // ── the ONE CodeMirror runtime (the strongest form of R6 / ISO-03) ─────────
 //
 // The build of the codeintel ALIASES the CodeMirror packages to the shims,

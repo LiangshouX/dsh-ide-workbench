@@ -23,6 +23,7 @@
   "files": [
     "src/index.js",
     "src/host",
+    "src/contract",
     "dist/client.js",
     "cordis.patch.yml",
     "dsh.plugin.json",

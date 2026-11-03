@@ -21,7 +21,7 @@ import { SettingsForm } from './SettingsPanel.jsx'
 import { QuickOpen } from './QuickOpen.jsx'
 import { ContextMenu, ConfirmModal, Kbd, Toast } from './ui.jsx'
 import { baseName } from './util.js'
-import { STACK_WIDTH } from './layout.js'
+import { DEFAULT_ENTRY_SIDE, STACK_WIDTH } from './layout.js'
 import { createContract } from './contract.js'
 import { SLOT_KEYS } from '../contract/index.js'
 
@@ -516,6 +516,10 @@ function SettingsModal({ store, state, contract = null, renderSlot = null, onClo
  */
 export function Workbench({ store, visible = true, fullscreen = false, renderSlot = null }) {
   const state = useWorkbench(store)
+  // The side the four entries dock on. The settings document may not have
+  // loaded yet (or may predate this option), so only an explicit 'left'
+  // moves the stripe: everything else falls back to the default side.
+  const entrySide = state.settings?.layout?.entrySide === 'left' ? 'left' : DEFAULT_ENTRY_SIDE
   const [settingsOpen, setSettingsOpen] = useState(false)
   const leftRef = useRef(null)
   const rootRef = useRef(null)
@@ -553,7 +557,12 @@ export function Workbench({ store, visible = true, fullscreen = false, renderSlo
     const startX = event.clientX
     const startWidth = state.layout.leftWidth
     const move = (moveEvent) => {
-      store.setLayout({ leftWidth: Math.max(220, Math.min(680, startWidth + moveEvent.clientX - startX)) })
+      // The dock grows away from the editor column. With the entries on the
+      // right the dock sits on the right of the editor, so a pointer moving
+      // right has to shrink it - the same gesture must widen the dock on
+      // whichever side it is docked.
+      const delta = entrySide === 'right' ? -(moveEvent.clientX - startX) : moveEvent.clientX - startX
+      store.setLayout({ leftWidth: Math.max(220, Math.min(680, startWidth + delta)) })
     }
     const up = () => {
       window.removeEventListener('pointermove', move)
@@ -616,7 +625,10 @@ export function Workbench({ store, visible = true, fullscreen = false, renderSlo
       )
     : null
 
-  return React.createElement('div', { className: 'iwb-root', ref: rootRef },
+  // The side rides on the root so one class switches the whole layout: the
+  // stylesheet reorders the body and mirrors its borders, and the left
+  // (default) side keeps every existing rule untouched.
+  return React.createElement('div', { className: `iwb-root iwb-side-${entrySide}`, ref: rootRef },
     React.createElement(TopBar, { store, state, fullscreen, onOpenSettings: () => setSettingsOpen(true) }),
     React.createElement('div', { className: 'iwb-body' },
       React.createElement(Stripe, { store, state }),

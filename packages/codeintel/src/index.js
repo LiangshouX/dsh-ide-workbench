@@ -21,7 +21,7 @@ import { dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LspManager, shutdownAll } from './host/lsp.js'
 import { registerLspWebSocket, shutdownLspWebSocket } from './host/lsp-ws.js'
-import { SettingsStore, knownRootsOfSettings, settingsFile } from './host/settings-store.js'
+import { SettingsStore, knownRootsOfSettings, setProfileBase, settingsFile } from './host/settings-store.js'
 import { ApiError, readJsonBody, writeError, writeOk } from './host/wire.js'
 import { installPluginFaultBoundary } from './contract/fault-registry.js'
 import { CONTRACT_VERSION, HOST_SERVICE } from './contract/index.js'
@@ -89,6 +89,10 @@ function contractStateOf(core) {
  * @param {any} ctx cordis host context
  */
 export function apply(ctx) {
+  // Which profile this process really serves: the environment variable can
+  // describe a different instance (see `setProfileBase`). Recorded before the
+  // settings store can write or read another profile's document.
+  setProfileBase(ctx.get?.('profileContext')?.dir ?? '')
   // The store takes the context: a settings document that cannot be written
   // has to leave a trace in the log of the plugin.
   const settings = new SettingsStore(ctx)

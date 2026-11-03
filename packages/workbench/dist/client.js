@@ -33158,7 +33158,19 @@ var en = {
   "status.changes": "changes",
   "nav.textMatch": "Text match",
   "nav.usagesCount": "{count} usages",
-  "nav.noUsages": "No usages found"
+  "nav.noUsages": "No usages found",
+  // v6 layout
+  "settings.layoutGroup": "Layout",
+  "settings.toolWindowSide": "Tool window entries",
+  "settings.toolWindowSideHint": '"Left" docks the entries at the left edge; "Right" keeps the chat next to the code',
+  "settings.toolWindowSideLeft": "Left",
+  "settings.toolWindowSideRight": "Right",
+  // v6 blame — the inline annotate column (date + author left of the numbers)
+  "blame.annotate": "Annotate with Git Blame",
+  "blame.closeAnnotate": "Close Git Blame",
+  "blame.failed": "Git blame failed",
+  "blame.outsideRepo": "This file is outside the repository the Git window reads",
+  "blame.truncated": "The file is long: the annotation stops at the line limit"
 };
 var zh = {
   "meta.title": "IDE \u5DE5\u4F5C\u53F0",
@@ -33603,7 +33615,19 @@ var zh = {
   "status.changes": "\u9879\u6539\u52A8",
   "nav.textMatch": "\u6587\u672C\u5339\u914D",
   "nav.usagesCount": "{count} \u5904\u5F15\u7528",
-  "nav.noUsages": "\u672A\u627E\u5230\u5F15\u7528"
+  "nav.noUsages": "\u672A\u627E\u5230\u5F15\u7528",
+  // v6 layout
+  "settings.layoutGroup": "\u5E03\u5C40",
+  "settings.toolWindowSide": "\u5DE5\u5177\u7A97\u53E3\u5165\u53E3\u4F4D\u7F6E",
+  "settings.toolWindowSideHint": "\u5DE6\u4FA7\u4F1A\u5360\u6EE1\u5DE5\u4F5C\u53F0\u5DE6\u7F18\uFF1B\u53F3\u4FA7\u8BA9\u804A\u5929\u533A\u548C\u4EE3\u7801\u5185\u5BB9\u533A\u76F8\u90BB",
+  "settings.toolWindowSideLeft": "\u5DE6\u4FA7",
+  "settings.toolWindowSideRight": "\u53F3\u4FA7",
+  // v6 blame —— 行号左侧的内联注解列（日期 + 作者）
+  "blame.annotate": "\u6CE8\u89E3 Git Blame",
+  "blame.closeAnnotate": "\u5173\u95ED Git \u6CE8\u89E3",
+  "blame.failed": "Git \u6CE8\u89E3\u5931\u8D25",
+  "blame.outsideRepo": "\u8BE5\u6587\u4EF6\u4E0D\u5728 Git \u7A97\u53E3\u5F53\u524D\u8BFB\u53D6\u7684\u4ED3\u5E93\u5185",
+  "blame.truncated": "\u6587\u4EF6\u8FC7\u957F\uFF1A\u6CE8\u89E3\u5728\u884C\u6570\u4E0A\u9650\u5904\u505C\u6B62"
 };
 
 // src/client/api.js
@@ -33773,6 +33797,10 @@ function baseName(path2) {
   if (typeof path2 !== "string") return "";
   const index = Math.max(path2.lastIndexOf("/"), path2.lastIndexOf("\\"));
   return index < 0 ? path2 : path2.slice(index + 1);
+}
+function shortEncoding(encoding) {
+  const text = typeof encoding === "string" ? encoding.trim() : "";
+  return text === "" ? "" : [...text][0];
 }
 function formatGitDate(value, compact = false) {
   if (typeof value !== "string" || value === "") return "";
@@ -34312,6 +34340,7 @@ var CORE_PRIORITY = 0;
 
 // src/client/editor-seam.js
 init_dist();
+init_dist2();
 init_dist7();
 
 // src/client/cm-runtime.js
@@ -37801,7 +37830,7 @@ function coreExtensionSlots() {
     {
       key: "closeBrackets",
       priority: CORE_PRIORITY,
-      extensions: [closeBrackets(), closeBracketsKeymap]
+      extensions: [closeBrackets(), keymap.of(closeBracketsKeymap)]
     }
   ];
 }
@@ -38155,6 +38184,23 @@ function isPlainRelativeLinkPath(path2) {
 function normalizeNewlines(text) {
   return typeof text === "string" ? text.replace(/\r\n/g, "\n") : text;
 }
+function emptyBlame() {
+  return {
+    open: false,
+    /** Absolute path of the annotated file (the tab path, not a repo path). */
+    path: "",
+    /** The line the user asked about, highlighted in the panel. */
+    line: null,
+    loading: false,
+    error: null,
+    lines: [],
+    commits: {},
+    /** True when the host cut the annotation at its line limit. */
+    truncated: false,
+    /** When the current annotation arrived, for a "stale" marker if needed. */
+    at: 0
+  };
+}
 function initialState() {
   return {
     phase: "booting",
@@ -38266,6 +38312,8 @@ function initialState() {
       shells: [],
       shellsLoaded: false
     },
+    /** The Git Blame panel of the active document (see `emptyBlame`). */
+    blame: emptyBlame(),
     rootPicker: false,
     confirm: null,
     toast: null,
@@ -38298,6 +38346,7 @@ var WorkbenchStore = class {
     this.treeTokens = /* @__PURE__ */ new Map();
     this.gitRequestToken = 0;
     this.gitDetailToken = 0;
+    this.blameToken = 0;
     this.searchToken = 0;
     this.searchIndex = -1;
     this.settingsFile = "";
@@ -38888,6 +38937,7 @@ var WorkbenchStore = class {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      blame: emptyBlame(),
       // The commit selection belongs to the repository it was made in
       // (PRD-v4 §3.2): it must not survive the switch.
       commit: this.#resetCommitSelection()
@@ -38985,6 +39035,7 @@ var WorkbenchStore = class {
       status: initialState().status,
       git: { ...initialState().git },
       search: initialState().search,
+      blame: emptyBlame(),
       // The checked paths and the group pins belong to the repository they
       // were made in (PRD-v4 §3.2): a path of repository A must not stay
       // pinned in the Unversioned group of repository B.
@@ -39829,6 +39880,7 @@ ${target}`,
     const tabs = this.state.tabs.filter((tab3) => tab3.kind !== "file" || !roots.some((root) => tab3.path === root || tab3.path.startsWith(`${root}\\`) || tab3.path.startsWith(`${root}/`)));
     const activeId = tabs.some((tab3) => tab3.id === this.state.activeId) ? this.state.activeId : tabs[tabs.length - 1]?.id ?? null;
     this.set({ tabs, activeId });
+    if (this.state.blame.path !== "" && !tabs.some((tab3) => tab3.path === this.state.blame.path)) this.closeBlame();
   }
   /** Reveal one path in the native file manager. */
   async reveal(path2) {
@@ -39923,6 +39975,7 @@ ${target}`,
     if (existing !== void 0) {
       const tabs2 = this.state.tabs.map((tab4) => tab4 === existing ? { ...tab4, preview: tab4.preview && options.preview === true } : tab4);
       this.set({ tabs: tabs2, activeId: existing.id });
+      this.#syncBlameToTab(existing.id);
       if (Number.isInteger(options.line)) {
         this.#updateTab(existing.id, {
           revealLine: options.line,
@@ -39977,6 +40030,7 @@ ${target}`,
       tabs = [...tabs, tab3];
     }
     this.set({ tabs, activeId: tab3.id });
+    this.#syncBlameToTab(tab3.id);
     this.setSelectedPath(path2);
     void this.ensureTabContent(tab3.id);
     this.persist();
@@ -40046,6 +40100,7 @@ ${target}`,
     this.set({ activeId: id2 });
     const tab3 = this.state.tabs.find((item) => item.id === id2);
     if (tab3?.kind === "file") this.setSelectedPath(tab3.path);
+    this.#syncBlameToTab(id2);
     void this.ensureTabContent(id2);
     this.persist();
   }
@@ -40095,6 +40150,7 @@ ${target}`,
       activeId = next?.id ?? null;
     }
     this.set({ tabs, activeId });
+    this.#syncBlameToTab(activeId);
     this.persist();
   }
   async closeOtherTabs(id2) {
@@ -40842,6 +40898,96 @@ ${outcome.output ?? ""}`.trim();
   closeCommitDetail() {
     this.gitDetailToken += 1;
     this.patch("git", { detail: null, detailHash: null, detailLoading: false });
+  }
+  // ── git blame ─────────────────────────────────────────────────────────
+  /**
+   * Annotate the open file with the commit of every line.
+   *
+   * The request names the tab (`path`, absolute) and, when the caller has it,
+   * the project-relative `rel`. The host route works on paths relative to the
+   * repository the Git window reads, so the absolute path is converted against
+   * `gitRoot` instead of trusting `rel`: the two roots are independent, and a
+   * file of another project would otherwise be annotated from the wrong one.
+   *
+   * The answer is token-guarded: a second annotate (or a closed panel) must
+   * not have an older answer repaint the panel with another file's rows.
+   * @param {{ path?: string, rel?: string, line?: number }} [request]
+   */
+  async annotateBlame(request = {}) {
+    const absolute = typeof request?.path === "string" && request.path !== "" ? request.path : this.activeTab?.kind === "file" ? this.activeTab.path : "";
+    if (absolute === "") return;
+    const relative = relativePathWithin(this.gitRoot, absolute);
+    const token2 = ++this.blameToken;
+    const line = Number.isInteger(request?.line) ? request.line : null;
+    this.set({
+      blame: {
+        ...emptyBlame(),
+        open: true,
+        path: absolute,
+        line,
+        loading: true,
+        at: Date.now()
+      }
+    });
+    if (relative === null || relative === "") {
+      const message = this.t("blame.outsideRepo");
+      this.patch("blame", { loading: false, error: message });
+      this.toast("error", this.t("blame.failed"), message);
+      return;
+    }
+    try {
+      const result = await call2("git.blame", { root: this.gitRoot, path: relative });
+      if (token2 !== this.blameToken || this.state.blame.path !== absolute) return;
+      this.patch("blame", {
+        loading: false,
+        error: null,
+        lines: Array.isArray(result?.lines) ? result.lines : [],
+        commits: result?.commits !== null && typeof result?.commits === "object" ? result.commits : {},
+        truncated: result?.truncated === true,
+        at: Date.now()
+      });
+      if (result?.truncated === true) this.toast("info", this.t("blame.truncated"));
+    } catch (error) {
+      if (token2 !== this.blameToken) return;
+      const message = error instanceof Error ? error.message : String(error);
+      this.patch("blame", { loading: false, error: message });
+      this.toast("error", this.t("blame.failed"), message);
+    }
+  }
+  /** Close the annotate column (also cancels an answer that is still in flight). */
+  closeBlame() {
+    this.blameToken += 1;
+    if (this.state.blame.open !== true && this.state.blame.path === "") return;
+    this.set({ blame: emptyBlame() });
+  }
+  /**
+   * Jump to one annotated commit in the Git window.
+   *
+   * The commit is selected and its detail drawer is opened; a commit that the
+   * drawer already shows is not fetched again, so the reader does not lose the
+   * scroll position of the drawer by clicking another line of it.
+   * @param {string} hash the commit of the cell
+   */
+  openBlameCommit(hash3) {
+    if (typeof hash3 !== "string" || hash3 === "" || /^0+$/.test(hash3)) return;
+    this.showTool("git");
+    this.selectCommit(hash3);
+    if (this.state.git.detailHash === hash3 && this.state.git.detail !== null) return;
+    void this.openCommitDetail(hash3);
+  }
+  /**
+   * Close the blame panel when the document it annotates is off screen.
+   *
+   * The rows name the lines of ONE document; leaving that document with the
+   * panel open would show them next to another file (and the line numbers
+   * would point at the wrong code).
+   * @param {string | null} activeId the tab that is active now
+   */
+  #syncBlameToTab(activeId) {
+    if (this.state.blame.open !== true) return;
+    const active = this.state.tabs.find((tab3) => tab3.id === activeId);
+    const path2 = active?.kind === "file" ? active.path : "";
+    if (path2 !== this.state.blame.path) this.closeBlame();
   }
   /**
    * UI entry for branch switching: refuse a dirty worktree, then confirm.
@@ -54020,8 +54166,104 @@ function replaceAllMatches(text, query, options = {}, replacement = "") {
   return { text: output, count: matches.length };
 }
 
+// src/client/blame-gutter.js
+init_dist();
+init_dist2();
+var setBlameAnnotations = StateEffect.define();
+var blameField = StateField.define({
+  create: () => /* @__PURE__ */ new Map(),
+  update(value, transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(setBlameAnnotations)) return effect.value;
+    }
+    return value;
+  }
+});
+function blameDate(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  const date = new Date(value * 1e3);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+}
+function blameLabel(entry) {
+  if (entry === null || typeof entry !== "object") return "";
+  if (entry.committed === false) return "";
+  const date = blameDate(entry.authorTime);
+  const author = typeof entry.author === "string" ? entry.author.trim() : "";
+  if (author === "") return date;
+  return date === "" ? author : `${date} ${author}`;
+}
+function blameMapOf(lines) {
+  const map = /* @__PURE__ */ new Map();
+  for (const line of Array.isArray(lines) ? lines : []) {
+    if (line === null || typeof line !== "object" || !Number.isInteger(line.line)) continue;
+    if (line.committed === false) continue;
+    if (typeof line.hash !== "string" || line.hash === "" || /^0+$/.test(line.hash)) continue;
+    if (blameLabel(line) === "") continue;
+    map.set(line.line, line);
+  }
+  return map;
+}
+var BlameMarker = class _BlameMarker extends GutterMarker {
+  /**
+   * @param {string} label the text of the cell
+   * @param {object} entry the annotation behind it
+   * @param {(hash: string) => void} openCommit opens the commit in Git
+   */
+  constructor(label3, entry, openCommit) {
+    super();
+    this.label = label3;
+    this.entry = entry;
+    this.openCommit = openCommit;
+  }
+  /** Two cells with the same text and commit paint the same. */
+  eq(other) {
+    return other instanceof _BlameMarker && other.label === this.label && other.entry?.hash === this.entry?.hash;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "iwb-blame-note";
+    span.textContent = this.label;
+    const short = typeof this.entry?.shortHash === "string" ? this.entry.shortHash : "";
+    const summary = typeof this.entry?.summary === "string" ? this.entry.summary : "";
+    span.title = [short, summary].filter((part) => part !== "").join(" \xB7 ");
+    span.dataset.hash = this.entry?.hash ?? "";
+    span.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    span.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.openCommit?.(this.entry?.hash ?? "");
+    });
+    return span;
+  }
+};
+function blameGutter(openCommit) {
+  return Prec.high(gutter({
+    class: "iwb-blame-gutter",
+    lineMarker(view, line) {
+      const map = view.state.field(blameField, false);
+      if (map === void 0 || map.size === 0) return null;
+      const number2 = view.state.doc.lineAt(line.from).number;
+      const entry = map.get(number2);
+      if (entry === void 0) return null;
+      const label3 = blameLabel(entry);
+      if (label3 === "") return null;
+      return new BlameMarker(label3, entry, openCommit);
+    },
+    // Reserve the width of a typical cell before the first annotation is
+    // measured: the column must not make the text jump sideways when it is
+    // switched on.
+    initialSpacer: () => new BlameMarker("2026/10/30 LiangshouX", { hash: "", shortHash: "", summary: "" }, null)
+  }));
+}
+
 // src/client/CodeEditor.jsx
 var languageCompartment = new Compartment();
+var blameCompartment = new Compartment();
 var LANGUAGE_PACKAGES = {
   javascript: () => Promise.resolve().then(() => (init_dist10(), dist_exports8)).then((module2) => module2.javascript()),
   "javascript-jsx": () => Promise.resolve().then(() => (init_dist10(), dist_exports8)).then((module2) => module2.javascript({ jsx: true })),
@@ -54198,6 +54440,17 @@ function revealPosition(state, line, column) {
   const lineEnd2 = target.from + target.text.length;
   return Math.min(target.from + column - 1, lineEnd2);
 }
+function gutterLineOf(view, element, point) {
+  const text = typeof element?.textContent === "string" ? element.textContent.trim() : "";
+  const lines = view?.state?.doc?.lines ?? 0;
+  if (/^\d+$/.test(text)) {
+    const line = Number(text);
+    if (line > 0) return lines > 0 ? Math.min(line, lines) : line;
+  }
+  const position = point !== void 0 && typeof view?.posAtCoords === "function" ? view.posAtCoords(point) : null;
+  if (typeof position === "number" && position >= 0) return view.state.doc.lineAt(position).number;
+  return 1;
+}
 function CodeEditor({
   value,
   path: path2,
@@ -54213,6 +54466,12 @@ function CodeEditor({
   onSave,
   onCursor,
   onSendToChat,
+  onAnnotateBlame = null,
+  annotateLabel = "Annotate with Git Blame",
+  blame = null,
+  onBlameCommit = null,
+  onBlameClose = null,
+  closeAnnotateLabel = "Close Git Blame",
   chatLabels = {},
   contract = null,
   renderSlot = null
@@ -54225,6 +54484,15 @@ function CodeEditor({
   const [, setSeamVersion] = (0, import_react9.useState)(0);
   const onSendToChatRef = (0, import_react9.useRef)(onSendToChat);
   onSendToChatRef.current = onSendToChat;
+  const onAnnotateBlameRef = (0, import_react9.useRef)(onAnnotateBlame);
+  onAnnotateBlameRef.current = onAnnotateBlame;
+  const onBlameCommitRef = (0, import_react9.useRef)(onBlameCommit);
+  const onBlameCloseRef = (0, import_react9.useRef)(onBlameClose);
+  onBlameCommitRef.current = onBlameCommit;
+  onBlameCloseRef.current = onBlameClose;
+  const blameActive = blame !== null && blame !== void 0 && blame.open === true && blame.path === path2;
+  const blameLines = Array.isArray(blame?.lines) ? blame.lines : [];
+  const buildBlameGutter = () => blameGutter((hash3) => onBlameCommitRef.current?.(hash3));
   const onChangeRef = (0, import_react9.useRef)(onChange);
   const onSaveRef = (0, import_react9.useRef)(onSave);
   const onCursorRef = (0, import_react9.useRef)(onCursor);
@@ -54247,7 +54515,7 @@ function CodeEditor({
           view.dispatch({
             effects: [
               extensionCompartment.reconfigure(seam.extensionSlots),
-              keymapCompartment.reconfigure(seam.keymap)
+              keymapCompartment.reconfigure(keymap.of(seam.keymap))
             ]
           });
         } catch {
@@ -54256,9 +54524,30 @@ function CodeEditor({
       setSeamVersion((version) => version + 1);
     });
   }, [seam]);
+  const commandItems = (seam?.commandItems ?? []).flat().filter((item) => item !== null && typeof item === "object");
   const onContextMenu = (event) => {
     const view = viewRef.current;
     if (view === null) return;
+    const target = event?.target;
+    const gutter2 = target !== null && target !== void 0 && typeof target.closest === "function" ? target.closest(".cm-lineNumbers .cm-gutterElement") : null;
+    if (gutter2 !== null) {
+      if (typeof onAnnotateBlameRef.current !== "function" && commandItems.length === 0) return;
+      event.preventDefault();
+      const selection = view.state.selection.main;
+      const hasSelection4 = selection.empty === false;
+      const line = gutterLineOf(view, gutter2, { x: event.clientX, y: event.clientY });
+      setMenu({
+        x: event.clientX,
+        y: event.clientY,
+        kind: "gutter",
+        hasSelection: hasSelection4,
+        line,
+        text: hasSelection4 ? view.state.sliceDoc(selection.from, selection.to) : "",
+        fromLine: hasSelection4 ? view.state.doc.lineAt(selection.from).number : line,
+        toLine: hasSelection4 ? view.state.doc.lineAt(selection.to).number : line
+      });
+      return;
+    }
     const range = view.state.selection.main;
     const hasSelection3 = range.empty === false;
     if (!hasSelection3) return;
@@ -54268,6 +54557,9 @@ function CodeEditor({
     setMenu({
       x: event.clientX,
       y: event.clientY,
+      kind: "selection",
+      hasSelection: hasSelection3,
+      line: fromLine,
       text: view.state.sliceDoc(range.from, range.to),
       fromLine,
       toLine
@@ -54304,8 +54596,9 @@ function CodeEditor({
       extensionCompartment.of(seam?.extensionSlots ?? []),
       // The key bindings of the plugins. They come BEFORE the default keymap,
       // otherwise `Enter` and `Tab` would be swallowed by it and a registered
-      // shortcut could never fire.
-      keymapCompartment.of(seam?.keymap ?? []),
+      // shortcut could never fire. `keymap.of` is what turns the flat binding
+      // list of the seam into an extension (see the reconfigure effect above).
+      keymapCompartment.of(keymap.of(seam?.keymap ?? [])),
       keymap.of([
         ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOnly2 }),
         ...editorKeymapRest()
@@ -54314,6 +54607,11 @@ function CodeEditor({
       // the compartment starts empty and the editor renders without
       // highlighting until the package arrives.
       languageCompartment.of([]),
+      // The annotate column: the field carries the annotation, the
+      // compartment the gutter itself (it is switched on and off while the
+      // document stays open, see `blame-gutter.js`).
+      blameField,
+      blameCompartment.of(blameActive ? buildBlameGutter() : []),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
         if (update.selectionSet || update.docChanged) {
@@ -54435,6 +54733,19 @@ function CodeEditor({
   (0, import_react9.useEffect)(() => {
     const view = viewRef.current;
     if (view === null) return;
+    try {
+      view.dispatch({
+        effects: [
+          setBlameAnnotations.of(blameMapOf(blameActive ? blameLines : [])),
+          blameCompartment.reconfigure(blameActive ? buildBlameGutter() : [])
+        ]
+      });
+    } catch {
+    }
+  }, [blameActive, blameLines, path2]);
+  (0, import_react9.useEffect)(() => {
+    const view = viewRef.current;
+    if (view === null) return;
     const position = revealPosition(view.state, revealLine, revealColumn);
     if (position === null) return;
     view.dispatch({ selection: { anchor: position }, scrollIntoView: true });
@@ -54444,7 +54755,50 @@ function CodeEditor({
     if (current === null) return;
     onSendToChatRef.current?.({ text: current.text, fromLine: current.fromLine, toLine: current.toLine });
   };
-  const commandItems = (seam?.commandItems ?? []).flat().filter((item) => item !== null && typeof item === "object");
+  const items = [];
+  if (menu !== null) {
+    if (menu.kind === "gutter" && typeof onAnnotateBlameRef.current === "function") {
+      items.push({
+        key: "annotate",
+        text: annotateLabel,
+        action: () => {
+          onAnnotateBlameRef.current?.(menu.line);
+        }
+      });
+      if (blameActive && typeof onBlameCloseRef.current === "function") {
+        items.push({
+          key: "blame-close",
+          text: closeAnnotateLabel,
+          action: () => {
+            onBlameCloseRef.current?.();
+          }
+        });
+      }
+      items.push(null);
+    }
+    if (menu.kind !== "gutter" || menu.hasSelection === true) {
+      items.push({ key: "send", text: chatLabels.send ?? "Send to chat", action: sendSelection });
+      items.push({
+        key: "copy",
+        text: chatLabels.copy ?? "Copy",
+        action: () => {
+          void navigator.clipboard.writeText(menu.text).catch(() => {
+          });
+        }
+      });
+    }
+    if (commandItems.length > 0) {
+      items.push(null, ...commandItems.map((item) => ({
+        key: item.key,
+        text: item.label,
+        shortcut: item.shortcut,
+        disabled: typeof item.enabled === "function" ? item.enabled() !== true : item.enabled === false,
+        action: () => {
+          item.run?.();
+        }
+      })));
+    }
+  }
   return import_react9.default.createElement(
     import_react9.default.Fragment,
     null,
@@ -54453,26 +54807,7 @@ function CodeEditor({
       x: menu.x,
       y: menu.y,
       onClose: () => setMenu(null),
-      items: [
-        { key: "send", text: chatLabels.send ?? "Send to chat", action: sendSelection },
-        {
-          key: "copy",
-          text: chatLabels.copy ?? "Copy",
-          action: () => {
-            void navigator.clipboard.writeText(menu.text).catch(() => {
-            });
-          }
-        },
-        ...commandItems.length === 0 ? [] : [null, ...commandItems.map((item) => ({
-          key: item.key,
-          text: item.label,
-          shortcut: item.shortcut,
-          disabled: typeof item.enabled === "function" ? item.enabled() !== true : item.enabled === false,
-          action: () => {
-            item.run?.();
-          }
-        }))]
-      ],
+      items,
       // The commands of the plugins that come through the slot of the
       // contract: the occupant draws its own entry (PRD-v6 §3.2).
       extra: renderSlot !== null && contract !== null ? renderSlot(SLOT_KEYS.commandItem, { contract }) : null
@@ -55130,6 +55465,9 @@ function wordSegments(leftText, rightText) {
   }
   return { left, right };
 }
+function wordLevelDefault(settings) {
+  return settings?.git?.wordLevel !== false;
+}
 function hunkChangeIndexes(file, hunkIndex) {
   const hunk = file?.hunks[hunkIndex];
   if (hunk === void 0) return [];
@@ -55175,6 +55513,57 @@ function buildPatch(file, selection) {
   if (changedHunks === 0) return "";
   return `${output.join("\n")}
 `;
+}
+var DIFF_GUTTER_WIDTH = 22;
+var DIFF_LINE_NUMBER_WIDTH = 44;
+var DIFF_SIGN_WIDTH = 16;
+var DIFF_TEXT_PADDING = 24;
+var DIFF_SIDE_BORDER = 1;
+var DIFF_TAB_SIZE = 4;
+function diffChromeWidth(mode) {
+  if (mode === "side") {
+    return 2 * (DIFF_GUTTER_WIDTH + DIFF_LINE_NUMBER_WIDTH + DIFF_TEXT_PADDING + DIFF_SIDE_BORDER);
+  }
+  return DIFF_GUTTER_WIDTH + 2 * DIFF_LINE_NUMBER_WIDTH + DIFF_SIGN_WIDTH + DIFF_TEXT_PADDING;
+}
+function isFullWidth(code2) {
+  return code2 >= 4352 && code2 <= 4447 || code2 >= 11904 && code2 <= 42191 || code2 >= 44032 && code2 <= 55203 || code2 >= 63744 && code2 <= 64255 || code2 >= 65072 && code2 <= 65103 || code2 >= 65280 && code2 <= 65376 || code2 >= 65504 && code2 <= 65510 || code2 >= 127744 && code2 <= 129791 || code2 >= 131072 && code2 <= 262141;
+}
+function diffLineWidth(text) {
+  if (typeof text !== "string" || text === "") return 0;
+  let columns = 0;
+  for (const char of text) {
+    const code2 = char.codePointAt(0);
+    if (code2 === 9) columns += DIFF_TAB_SIZE - columns % DIFF_TAB_SIZE;
+    else columns += isFullWidth(code2) ? 2 : 1;
+  }
+  return columns;
+}
+function diffInnerWidth(rows, mode = "unified") {
+  const side = mode === "side";
+  const list = Array.isArray(rows) ? rows : [];
+  let chars = 0;
+  let measured = false;
+  for (const row of list) {
+    if (row === null || typeof row !== "object") continue;
+    if (side) {
+      if (row.kind !== "change" && row.kind !== "context") continue;
+      measured = true;
+      chars = Math.max(chars, diffLineWidth(row.left?.text), diffLineWidth(row.right?.text));
+    } else {
+      if (row.kind !== "context" && row.kind !== "add" && row.kind !== "del") continue;
+      measured = true;
+      chars = Math.max(chars, diffLineWidth(row.text));
+    }
+  }
+  const chromePx = diffChromeWidth(mode);
+  if (!measured) return { chars: 0, chromePx, width: "100%" };
+  const columns = side ? 2 : 1;
+  return {
+    chars,
+    chromePx,
+    width: `max(100%, calc(${chars * columns}ch + ${chromePx}px))`
+  };
 }
 
 // src/client/FindBar.jsx
@@ -55402,7 +55791,7 @@ function DiffView({ store, tab: tab3 }) {
   const [viewport, setViewport] = (0, import_react13.useState)(400);
   const [applying, setApplying] = (0, import_react13.useState)(false);
   const [openBlocks, setOpenBlocks] = (0, import_react13.useState)(() => /* @__PURE__ */ new Set());
-  const [wordLevel, setWordLevel] = (0, import_react13.useState)(false);
+  const [wordLevel, setWordLevel] = (0, import_react13.useState)(() => wordLevelDefault(store.state.settings));
   const [findOpen, setFindOpen] = (0, import_react13.useState)(false);
   const [findRows, setFindRows] = (0, import_react13.useState)(() => /* @__PURE__ */ new Set());
   const [findActiveRow, setFindActiveRow] = (0, import_react13.useState)(-1);
@@ -55477,6 +55866,7 @@ function DiffView({ store, tab: tab3 }) {
     flush();
     return output;
   }, [rows, source.stageable, openBlocks]);
+  const innerWidth = (0, import_react13.useMemo)(() => diffInnerWidth(viewRows, mode), [viewRows, mode]);
   const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - 8);
   const end = Math.min(viewRows.length, Math.ceil((scrollTop + viewport) / LINE_HEIGHT) + 8);
   rowsRef.current = viewRows;
@@ -55618,6 +56008,12 @@ ${row.right?.text ?? ""}`;
   };
   const stageLabel = source.staged ? t2("commit.unstageSelection") : t2("commit.stageSelection");
   const hunkLabel = source.staged ? t2("commit.unstageHunk") : t2("commit.stageHunk");
+  const toggleWordLevel = () => {
+    const next = !wordLevel;
+    setWordLevel(next);
+    void store.updateSettings({ git: { wordLevel: next } }).catch(() => {
+    });
+  };
   const rowStyle = (offset) => ({ position: "absolute", top: `${offset * LINE_HEIGHT}px`, left: 0, right: 0, height: `${LINE_HEIGHT}px` });
   const renderChromeRow = (row, offset) => {
     if (row.kind === "file") {
@@ -55751,7 +56147,7 @@ ${row.right?.text ?? ""}`;
       type: "button",
       className: `iwb-textbtn iwb-small ${wordLevel ? "iwb-primary" : ""}`,
       title: t2("commit.wordLevel"),
-      onClick: () => setWordLevel((value) => !value)
+      onClick: toggleWordLevel
     }, "Aa"),
     source.stageable && selection.size > 0 ? import_react13.default.createElement("button", {
       type: "button",
@@ -55778,7 +56174,10 @@ ${row.right?.text ?? ""}`;
     },
     viewRows.length === 0 ? import_react13.default.createElement("div", { className: "iwb-empty" }, t2("commit.selectFile")) : import_react13.default.createElement(
       "div",
-      { className: "iwb-diff-inner", style: { height: `${viewRows.length * LINE_HEIGHT}px` } },
+      {
+        className: "iwb-diff-inner",
+        style: { height: `${viewRows.length * LINE_HEIGHT}px`, minWidth: innerWidth.width }
+      },
       viewRows.slice(start, end).map((row, index) => {
         const offset = start + index;
         if (row.kind === "collapsed") {
@@ -55976,7 +56375,12 @@ function selectEditorSlice(state) {
     shortcuts: state.settings?.shortcuts,
     root: state.root,
     projects: state.projects,
-    confirm: state.confirm
+    confirm: state.confirm,
+    // The blame panel is a sibling of the document, so the editor has to know
+    // whether it is open. The slice is only as fresh as the store's object
+    // identity: a blame update re-renders the editor area, which is what makes
+    // the panel follow a new annotation without a second subscription.
+    blame: state.blame
   };
 }
 function Welcome({ store, slice }) {
@@ -56039,6 +56443,16 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
   (0, import_react15.useEffect)(() => () => {
     if (scrollTimer.current !== null) clearTimeout(scrollTimer.current);
   }, []);
+  const annotateBlame = (line) => {
+    void store.annotateBlame({ path: tab3.path, rel: tab3.rel, line });
+  };
+  const blame = slice.blame?.open === true && slice.blame.path === tab3.path ? slice.blame : null;
+  const blameProps = {
+    blame,
+    onBlameCommit: (hash3) => store.openBlameCommit(hash3),
+    onBlameClose: () => store.closeBlame(),
+    closeAnnotateLabel: t2("blame.closeAnnotate")
+  };
   const onScrollTop = (top2) => {
     if (scrollTimer.current !== null) clearTimeout(scrollTimer.current);
     scrollTimer.current = setTimeout(() => {
@@ -56092,6 +56506,9 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
       },
       onCursor: (position) => store.setCursor(position),
       onSendToChat: (selection) => store.sendSelectionToChat({ path: tab3.path, rel: tab3.rel, ...selection }),
+      onAnnotateBlame: annotateBlame,
+      annotateLabel: t2("blame.annotate"),
+      ...blameProps,
       chatLabels: { send: t2("chat.sendToChat"), copy: t2("common.copy") },
       contract,
       renderSlot
@@ -56133,6 +56550,9 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
     onReady: onEditorReady,
     onCursor: (position) => store.setCursor(position),
     onSendToChat: (selection) => store.sendSelectionToChat({ path: tab3.path, rel: tab3.rel, ...selection }),
+    onAnnotateBlame: annotateBlame,
+    annotateLabel: t2("blame.annotate"),
+    ...blameProps,
     chatLabels: { send: t2("chat.sendToChat"), copy: t2("common.copy") },
     contract,
     renderSlot
@@ -56264,7 +56684,10 @@ function EditorToolbar({ store, tab: tab3 }) {
   const t2 = store.t;
   const [diffMenu, setDiffMenu] = (0, import_react15.useState)(null);
   const [overflow, setOverflow] = (0, import_react15.useState)(false);
+  const [compact, setCompact] = (0, import_react15.useState)(false);
   const breadcrumbRef = (0, import_react15.useRef)(null);
+  const toolbarRef = (0, import_react15.useRef)(null);
+  const actionsRef = (0, import_react15.useRef)(null);
   (0, import_react15.useEffect)(() => {
     const element = breadcrumbRef.current;
     if (element === null) return void 0;
@@ -56277,6 +56700,25 @@ function EditorToolbar({ store, tab: tab3 }) {
     observer.observe(element);
     return () => observer.disconnect();
   }, [tab3.id, tab3.rel]);
+  const TOOLBAR_BREADCRUMB_MIN = 140;
+  (0, import_react15.useLayoutEffect)(() => {
+    const element = toolbarRef.current;
+    const actions = actionsRef.current;
+    if (element === null || actions === null) return void 0;
+    const measure = () => {
+      const previous = element.getAttribute("data-compact");
+      element.setAttribute("data-compact", "false");
+      const needed = actions.getBoundingClientRect().width + TOOLBAR_BREADCRUMB_MIN;
+      if (previous === null) element.removeAttribute("data-compact");
+      else element.setAttribute("data-compact", previous);
+      setCompact(element.clientWidth < needed);
+    };
+    measure();
+    if (typeof ResizeObserver !== "function") return void 0;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [tab3.id, tab3.rel, tab3.view, tab3.editing, tab3.dirty, t2]);
   if (tab3.kind === "diff") {
     const variant = tab3.compare !== void 0 ? `${tab3.compare.a.slice(0, 7)} \u2194 ${tab3.compare.b.slice(0, 7)}` : tab3.against === "head" ? t2("commit.lastRevision") : tab3.against === "latest" ? t2("commit.latest") : tab3.staged === true ? t2("commit.staged") : tab3.untracked === true ? t2("commit.untracked") : t2("commit.workingTree");
     const readOnly2 = tab3.readOnly === true;
@@ -56363,7 +56805,11 @@ function EditorToolbar({ store, tab: tab3 }) {
     "div",
     {
       className: "iwb-editor-toolbar",
-      "data-overflow": overflow === true ? "true" : void 0
+      "data-overflow": overflow === true ? "true" : void 0,
+      // `false` is written on purpose: the stylesheet asks for the natural
+      // width, the measurement below reads it, and only then flips the marker.
+      "data-compact": compact === true ? "true" : "false",
+      ref: toolbarRef
     },
     import_react15.default.createElement(
       "div",
@@ -56379,79 +56825,118 @@ function EditorToolbar({ store, tab: tab3 }) {
       )
     ),
     import_react15.default.createElement("div", { className: "iwb-spacer" }),
-    payload?.truncated === true ? import_react15.default.createElement("span", { style: { color: "var(--iwb-warn)" } }, t2("editor.truncated")) : null,
-    isText2 && markdown2 && !editing ? import_react15.default.createElement(
+    // Everything to the right of the path is one measured cluster: the
+    // compact switch compares its natural width with the width of the bar.
+    import_react15.default.createElement(
       "div",
-      { className: "iwb-seg" },
-      import_react15.default.createElement("button", {
+      { className: "iwb-toolbar-actions", ref: actionsRef },
+      payload?.truncated === true ? import_react15.default.createElement("span", { style: { color: "var(--iwb-warn)" } }, t2("editor.truncated")) : null,
+      isText2 && markdown2 && !editing ? import_react15.default.createElement(
+        "div",
+        { className: "iwb-seg" },
+        import_react15.default.createElement(
+          "button",
+          {
+            type: "button",
+            className: view === "preview" ? "iwb-on" : "",
+            title: t2("editor.preview"),
+            onClick: () => store.setTabView(tab3.id, "preview")
+          },
+          import_react15.default.createElement(IconEye, { width: 12, height: 12 }),
+          // The label is the first thing the compact mode drops: the
+          // tooltip above is what a narrow toolbar shows on hover.
+          import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, t2("editor.preview"))
+        ),
+        import_react15.default.createElement(
+          "button",
+          {
+            type: "button",
+            className: view === "code" ? "iwb-on" : "",
+            title: t2("editor.source"),
+            onClick: () => store.setTabView(tab3.id, "code")
+          },
+          import_react15.default.createElement(IconCode, { width: 12, height: 12 }),
+          import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, t2("editor.source"))
+        )
+      ) : null,
+      isText2 && markdown2 && !editing && view === "preview" ? import_react15.default.createElement("button", {
         type: "button",
-        className: view === "preview" ? "iwb-on" : "",
-        title: t2("editor.preview"),
-        onClick: () => store.setTabView(tab3.id, "preview")
-      }, import_react15.default.createElement(IconEye, { width: 12, height: 12 }), t2("editor.preview")),
-      import_react15.default.createElement("button", {
-        type: "button",
-        className: view === "code" ? "iwb-on" : "",
-        title: t2("editor.source"),
-        onClick: () => store.setTabView(tab3.id, "code")
-      }, import_react15.default.createElement(IconCode, { width: 12, height: 12 }), t2("editor.source"))
-    ) : null,
-    isText2 && markdown2 && !editing && view === "preview" ? import_react15.default.createElement("button", {
-      type: "button",
-      className: `iwb-iconbtn ${tab3.outlineOpen === true ? "iwb-on" : ""}`,
-      title: t2("editor.outline"),
-      onClick: () => store.updateActiveTab({ outlineOpen: tab3.outlineOpen !== true })
-    }, import_react15.default.createElement(IconOutline, { width: 14, height: 14 })) : null,
-    isText2 ? import_react15.default.createElement(
-      "button",
-      {
-        type: "button",
-        className: "iwb-textbtn iwb-small",
-        title: editing ? t2("editor.toReadOnly") : t2("editor.toEdit"),
-        onClick: () => store.setTabEditing(tab3.id, !editing)
-      },
-      import_react15.default.createElement(editing ? IconLock : IconEdit, { width: 12, height: 12 }),
-      editing ? t2("editor.readonly") : t2("editor.edit")
-    ) : null,
-    editing && isText2 ? import_react15.default.createElement(
-      import_react15.default.Fragment,
-      null,
-      import_react15.default.createElement("button", {
-        type: "button",
-        className: `iwb-textbtn iwb-small ${dirty ? "iwb-primary" : ""}`,
-        disabled: !dirty || saving,
-        title: "Ctrl+S",
-        onClick: () => {
-          void store.saveTab(tab3.id);
-        }
-      }, import_react15.default.createElement(IconSave, { width: 12, height: 12 }), saving ? t2("editor.saving") : t2("editor.save")),
-      import_react15.default.createElement("button", {
-        type: "button",
-        className: "iwb-iconbtn",
-        disabled: !dirty,
-        title: t2("editor.restore"),
-        onClick: () => store.discardDraft(tab3.id)
-      }, import_react15.default.createElement(IconRestore, { width: 14, height: 14 }))
-    ) : isText2 && dirty ? import_react15.default.createElement(
-      import_react15.default.Fragment,
-      null,
-      import_react15.default.createElement("button", {
-        type: "button",
-        className: "iwb-textbtn iwb-primary iwb-small",
-        disabled: saving,
-        title: "Ctrl+S",
-        onClick: () => {
-          void store.saveTab(tab3.id);
-        }
-      }, import_react15.default.createElement(IconSave, { width: 12, height: 12 }), saving ? t2("editor.saving") : t2("editor.save")),
-      import_react15.default.createElement("button", {
-        type: "button",
-        className: "iwb-iconbtn",
-        title: t2("editor.restore"),
-        onClick: () => store.discardDraft(tab3.id)
-      }, import_react15.default.createElement(IconRestore, { width: 14, height: 14 }))
-    ) : null,
-    import_react15.default.createElement("span", null, payload?.encoding ?? "utf-8")
+        className: `iwb-iconbtn ${tab3.outlineOpen === true ? "iwb-on" : ""}`,
+        title: t2("editor.outline"),
+        onClick: () => store.updateActiveTab({ outlineOpen: tab3.outlineOpen !== true })
+      }, import_react15.default.createElement(IconOutline, { width: 14, height: 14 })) : null,
+      isText2 ? import_react15.default.createElement(
+        "button",
+        {
+          type: "button",
+          className: "iwb-textbtn iwb-small",
+          title: editing ? t2("editor.toReadOnly") : t2("editor.toEdit"),
+          onClick: () => store.setTabEditing(tab3.id, !editing)
+        },
+        import_react15.default.createElement(editing ? IconLock : IconEdit, { width: 12, height: 12 }),
+        import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, editing ? t2("editor.readonly") : t2("editor.edit"))
+      ) : null,
+      editing && isText2 ? import_react15.default.createElement(
+        import_react15.default.Fragment,
+        null,
+        import_react15.default.createElement(
+          "button",
+          {
+            type: "button",
+            className: `iwb-textbtn iwb-small ${dirty ? "iwb-primary" : ""}`,
+            disabled: !dirty || saving,
+            title: `${t2("editor.save")} \xB7 Ctrl+S`,
+            onClick: () => {
+              void store.saveTab(tab3.id);
+            }
+          },
+          import_react15.default.createElement(IconSave, { width: 12, height: 12 }),
+          import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, saving ? t2("editor.saving") : t2("editor.save"))
+        ),
+        import_react15.default.createElement("button", {
+          type: "button",
+          className: "iwb-iconbtn",
+          disabled: !dirty,
+          title: t2("editor.restore"),
+          onClick: () => store.discardDraft(tab3.id)
+        }, import_react15.default.createElement(IconRestore, { width: 14, height: 14 }))
+      ) : isText2 && dirty ? import_react15.default.createElement(
+        import_react15.default.Fragment,
+        null,
+        import_react15.default.createElement(
+          "button",
+          {
+            type: "button",
+            className: "iwb-textbtn iwb-primary iwb-small",
+            disabled: saving,
+            title: `${t2("editor.save")} \xB7 Ctrl+S`,
+            onClick: () => {
+              void store.saveTab(tab3.id);
+            }
+          },
+          import_react15.default.createElement(IconSave, { width: 12, height: 12 }),
+          import_react15.default.createElement("span", { className: "iwb-toolbar-label" }, saving ? t2("editor.saving") : t2("editor.save"))
+        ),
+        import_react15.default.createElement("button", {
+          type: "button",
+          className: "iwb-iconbtn",
+          title: t2("editor.restore"),
+          onClick: () => store.discardDraft(tab3.id)
+        }, import_react15.default.createElement(IconRestore, { width: 14, height: 14 }))
+      ) : null,
+      // The encoding is a word in a 30px bar: the compact toolbar shows its
+      // first letter only (utf-8 -> u, GBK -> G) and keeps the whole value in
+      // the tooltip. The two spans are switched by the stylesheet.
+      import_react15.default.createElement(
+        "span",
+        {
+          className: "iwb-encoding",
+          title: payload?.encoding === void 0 ? "" : `${payload.encoding} \xB7 ${payload.eol === "\r\n" ? "CRLF" : "LF"}`
+        },
+        import_react15.default.createElement("span", { className: "iwb-encoding-full" }, payload?.encoding ?? "utf-8"),
+        import_react15.default.createElement("span", { className: "iwb-encoding-short" }, shortEncoding(payload?.encoding ?? "utf-8"))
+      )
+    )
   );
 }
 function isHtmlPath(path2) {
@@ -56681,6 +57166,10 @@ function EditorArea({ store, state: _state, contract = null, renderSlot = null }
       readOnly: active.editing !== true,
       onClose: () => setFindOpen(false)
     }) : null,
+    // The annotation is an inline gutter of the editor itself (left of the
+    // line numbers, see `blame-gutter.js`), not a dock: the editor receives
+    // the blame slice only for the document it belongs to, so a stale answer
+    // can never annotate another file's lines.
     content2,
     // The contract bridge of the editor (PRD-v6 §3.3): the occupant sits on
     // the same level as the editor itself and receives the contract as its
@@ -56697,6 +57186,13 @@ function EditorArea({ store, state: _state, contract = null, renderSlot = null }
 
 // src/client/SettingsPanel.jsx
 var import_react16 = __toESM(require("react"), 1);
+
+// src/client/layout.js
+var STACK_WIDTH = 560;
+var LEFT_PANE_RATIO = 42;
+var DEFAULT_ENTRY_SIDE = "right";
+
+// src/client/SettingsPanel.jsx
 var SHORTCUT_FIELDS = [
   ["project", "projectShortcut"],
   ["commit", "commitShortcut"],
@@ -56759,6 +57255,7 @@ function resetPatch() {
 function SettingsForm({ store, state, compact, contract = null, renderSlot = null, onStatusChange }) {
   const t2 = store.t;
   const settings = state.settings ?? {};
+  const entrySide = state.settings?.layout?.entrySide === "left" ? "left" : DEFAULT_ENTRY_SIDE;
   const [draft, setDraft] = (0, import_react16.useState)(settings);
   const [saved, setSaved] = (0, import_react16.useState)(false);
   const [saving, setSaving] = (0, import_react16.useState)(false);
@@ -57132,6 +57629,26 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
     ),
     import_react16.default.createElement(
       Group,
+      { title: t2("settings.layoutGroup") },
+      import_react16.default.createElement(
+        Row,
+        { label: t2("settings.toolWindowSide"), hint: t2("settings.toolWindowSideHint") },
+        import_react16.default.createElement(
+          "select",
+          {
+            className: "iwb-input",
+            value: entrySide,
+            onChange: (event) => {
+              void store.updateSettings({ layout: { entrySide: event.target.value === "left" ? "left" : "right" } });
+            }
+          },
+          import_react16.default.createElement("option", { value: "left" }, t2("settings.toolWindowSideLeft")),
+          import_react16.default.createElement("option", { value: "right" }, t2("settings.toolWindowSideRight"))
+        )
+      )
+    ),
+    import_react16.default.createElement(
+      Group,
       { title: t2("settings.appearanceGroup") },
       import_react16.default.createElement(
         Row,
@@ -57286,10 +57803,6 @@ function QuickOpen({ store, state }) {
     )
   );
 }
-
-// src/client/layout.js
-var STACK_WIDTH = 560;
-var LEFT_PANE_RATIO = 42;
 
 // src/client/Workbench.jsx
 function label2(t2, key, fallback2) {
@@ -57809,6 +58322,7 @@ function SettingsModal({ store, state, contract = null, renderSlot = null, onClo
 }
 function Workbench({ store, visible = true, fullscreen = false, renderSlot = null }) {
   const state = useWorkbench(store);
+  const entrySide = state.settings?.layout?.entrySide === "left" ? "left" : DEFAULT_ENTRY_SIDE;
   const [settingsOpen, setSettingsOpen] = (0, import_react18.useState)(false);
   const leftRef = (0, import_react18.useRef)(null);
   const rootRef = (0, import_react18.useRef)(null);
@@ -57838,7 +58352,8 @@ function Workbench({ store, visible = true, fullscreen = false, renderSlot = nul
     const startX = event.clientX;
     const startWidth = state.layout.leftWidth;
     const move = (moveEvent) => {
-      store.setLayout({ leftWidth: Math.max(220, Math.min(680, startWidth + moveEvent.clientX - startX)) });
+      const delta = entrySide === "right" ? -(moveEvent.clientX - startX) : moveEvent.clientX - startX;
+      store.setLayout({ leftWidth: Math.max(220, Math.min(680, startWidth + delta)) });
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
@@ -57899,7 +58414,7 @@ function Workbench({ store, visible = true, fullscreen = false, renderSlot = nul
   ) : null;
   return import_react18.default.createElement(
     "div",
-    { className: "iwb-root", ref: rootRef },
+    { className: `iwb-root iwb-side-${entrySide}`, ref: rootRef },
     import_react18.default.createElement(TopBar, { store, state, fullscreen, onOpenSettings: () => setSettingsOpen(true) }),
     import_react18.default.createElement(
       "div",
@@ -58154,6 +58669,24 @@ var CSS2 = `
 .iwb-panel-body { flex: 1; min-height: 0; overflow: auto; position: relative; }
 
 .iwb-center { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--iwb-bg); }
+
+/* \u2500\u2500 the side of the four tool-window entries (v6 layout) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The left side is the original layout: every base rule above stays
+   unprefixed and is the pixel-identical fallback for iwb-side-left. The
+   right side is a mirror built on the order property, so the DOM order (stripe, dock,
+   editor) and every ref/key stay as they were - only the paint order and
+   the edges change. The stack query at the end of this file resets these
+   rules: stacked, the stripe is a top bar again, exactly as before. */
+.iwb-side-right .iwb-body > .iwb-center { order: 1; }
+.iwb-side-right .iwb-body > .iwb-left { order: 2; }
+.iwb-side-right .iwb-body > .iwb-stripe { order: 3; }
+/* The divider belongs to the editor-facing edge of each panel now. */
+.iwb-side-right .iwb-left { border-right: 0; border-left: 1px solid var(--iwb-border); }
+.iwb-side-right .iwb-stripe { border-right: 0; border-left: 1px solid var(--iwb-border); }
+/* The active marker of the stripe points into the editor column. */
+.iwb-side-right .iwb-stripe-btn.iwb-on::before { left: auto; right: -6px; }
+/* The drag handle of the dock faces the editor, which is on its left. */
+.iwb-side-right .iwb-left-resizer { right: auto; left: -3px; }
 .iwb-tabbar {
   height: 34px; flex: 0 0 34px; display: flex; align-items: stretch; border-bottom: 1px solid var(--iwb-border);
   background: var(--iwb-panel); overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
@@ -58197,8 +58730,6 @@ var CSS2 = `
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;
-  /* Own container: the document pane may be narrow while the window is wide. */
-  container-type: inline-size; container-name: iwb-editor-toolbar;
 }
 /* One line, always: a squeezed segment must clip, never wrap inside the
    30px toolbar. The breadcrumb takes the free width, so its box is exactly
@@ -58207,6 +58738,38 @@ var CSS2 = `
   position: relative; flex: 1 1 auto; display: flex; align-items: center; gap: 4px;
   min-width: 0; overflow: hidden; white-space: nowrap;
 }
+/* The controls of the bar never wrap and never shrink: a button that is too
+   narrow for its label would otherwise break the label onto a second line
+   inside the 30px bar (the "\u7F16/\u8F91", "utf-/8" look). When the bar cannot hold
+   the labels any more, the measured marker below drops them instead. */
+.iwb-editor-toolbar > button,
+.iwb-editor-toolbar > .iwb-seg,
+.iwb-editor-toolbar > .iwb-encoding,
+.iwb-toolbar-actions > button,
+.iwb-toolbar-actions > .iwb-seg,
+.iwb-toolbar-actions > .iwb-encoding { flex: 0 0 auto; white-space: nowrap; }
+/* The right-hand cluster is measured as one block: its natural width plus the
+   room a readable breadcrumb needs is what decides the compact mode. */
+.iwb-toolbar-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; min-width: 0; }
+.iwb-toolbar-label { white-space: nowrap; }
+.iwb-encoding {
+  font-family: var(--iwb-mono); font-size: 11px; letter-spacing: .02em;
+  color: var(--iwb-muted);
+}
+/* The compact spelling is off until the bar is narrow (see the query below). */
+.iwb-encoding-short { display: none; }
+/* A narrow document pane shows ICON-ONLY controls: the labels live in the
+   tooltip of each button (they are set as the button title), and the encoding
+   keeps its first letter (utf-8 -> u, GBK -> G) with the whole value on hover.
+   The compact spelling is driven by a MEASURED marker (the data-compact
+   attribute), not by a fixed width: the toolbar measures how wide its controls
+   really are and how much room a readable breadcrumb needs, so a longer
+   translation or a bigger font drops the labels at the right moment. */
+.iwb-editor-toolbar[data-compact='true'] .iwb-toolbar-label { display: none; }
+.iwb-editor-toolbar[data-compact='true'] .iwb-encoding-full { display: none; }
+.iwb-editor-toolbar[data-compact='true'] .iwb-encoding-short { display: inline; }
+.iwb-editor-toolbar[data-compact='true'] .iwb-textbtn { gap: 0; padding: 0 6px; }
+.iwb-editor-toolbar[data-compact='true'] .iwb-encoding { letter-spacing: 0; }
 .iwb-breadcrumb > * { flex-shrink: 0; }
 .iwb-breadcrumb .iwb-sep { opacity: .5; }
 .iwb-breadcrumb b { color: var(--iwb-fg); font-weight: 600; flex-shrink: 0; }
@@ -58515,7 +59078,15 @@ var CSS2 = `
 .iwb-file-row:hover .iwb-file-stat { display: none; }
 
 .iwb-diff { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.iwb-diff-scroll { flex: 1; min-height: 0; overflow: auto; font-family: var(--iwb-mono); font-size: 12.5px; line-height: 20px; position: relative; }
+/* The ONE horizontal scroll surface of both layouts. tab-size: 4 is the tab
+   stop the width measure of diff.js assumes (DIFF_TAB_SIZE): a tab in a line
+   must reserve the same four columns the stylesheet gives it. */
+.iwb-diff-scroll { flex: 1; min-height: 0; overflow: auto; font-family: var(--iwb-mono); font-size: 12.5px; line-height: 20px; position: relative; tab-size: 4; }
+/* Rows are absolutely positioned (left: 0; right: 0), so the viewer writes
+   the measured width of the longest visible line onto this element; that is
+   what gives the scroll surface a scrollable width and lets the row
+   backgrounds cover every pixel of it. The 100% min-width keeps the fallback
+   width (no measurement) at the width of the panel. */
 .iwb-diff-inner { position: relative; min-width: 100%; }
 .iwb-diff-row { display: flex; height: 20px; white-space: pre; }
 .iwb-diff-row.iwb-add { background: rgba(79, 180, 119, .12); }
@@ -58531,7 +59102,14 @@ var CSS2 = `
   font-variant-numeric: tabular-nums; user-select: none;
 }
 .iwb-diff-sign { width: 16px; flex: 0 0 16px; text-align: center; user-select: none; color: var(--iwb-muted); }
+/* The text of a row takes the rest of the row; it carries no min-width of its
+   own, because the same class is used in the side-by-side cells, whose two
+   columns must stay deterministic (see the minmax() tracks below). */
 .iwb-diff-text { flex: 1; padding-right: 24px; }
+/* Only the unified row needs the flex item to keep its whole line: the row has
+   no second column that could be pushed around, so the line overflows
+   horizontally into the shared scroll surface instead of being shrunk. */
+.iwb-diff-row .iwb-diff-text { min-width: max-content; }
 .iwb-diff-row.iwb-selected { outline: 1px solid rgba(76, 154, 255, .55); background: rgba(76, 154, 255, .22) !important; }
 .iwb-diff-row.iwb-diff-find, .iwb-diff-side.iwb-diff-find { outline: 1px solid rgba(215,162,74,.65); outline-offset: -1px; }
 .iwb-diff-row.iwb-diff-find-active, .iwb-diff-side.iwb-diff-find-active { outline: 2px solid var(--iwb-accent); outline-offset: -2px; background: rgba(76,154,255,.2); }
@@ -58552,11 +59130,21 @@ var CSS2 = `
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); font-size: 11.5px; color: var(--iwb-muted);
 }
 .iwb-diff-toolbar .iwb-spacer { flex: 1; }
-.iwb-diff-side { display: grid; grid-template-columns: 1fr 1fr; min-width: 100%; }
-.iwb-diff-side-cell { display: flex; height: 20px; min-width: 0; border-right: 1px solid var(--iwb-border); overflow: hidden; }
+/* Two equal columns: minmax(0, 1fr) lets the tracks stay exactly half of the
+   measured inner width, so the split never moves with the length of one row -
+   a plain 1fr would take its minimum from the text and every long line would
+   push the second column around. */
+.iwb-diff-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-width: 100%; }
+/* Both cells render the raw text: white-space: pre keeps the leading
+   indentation, the runs of spaces and the trailing spaces that normal
+   collapses (the package-lock.json indentation bug). The cell keeps
+   overflow: hidden because the inner width has already been measured wide
+   enough for the longest line (diffInnerWidth); clipping only a few pixels of
+   the estimation error is better than a line spilling into the other column.
+   The left edge of the second column therefore never moves. */
+.iwb-diff-side-cell { display: flex; height: 20px; min-width: 0; white-space: pre; overflow: hidden; border-right: 1px solid var(--iwb-border); }
 .iwb-diff-side-cell.iwb-add { background: rgba(79, 180, 119, .12); }
 .iwb-diff-side-cell.iwb-del { background: rgba(226, 104, 111, .12); }
-.iwb-diff-side-cell .iwb-diff-text { overflow: hidden; }
 .iwb-diff-side-cell.iwb-blank { background: rgba(127, 127, 127, .05); }
 .iwb-diff-side .iwb-diff-num { width: 44px; flex: 0 0 44px; }
 .iwb-diff-side-head { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; color: var(--iwb-muted); font-size: 11px; background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border); }
@@ -59063,6 +59651,26 @@ var CSS2 = `
   border: 1px solid currentColor; border-radius: 999px; padding: 0 5px; flex: 0 0 auto;
 }
 
+/* \u2500\u2500 Git Blame annotation (V6 blame) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The annotation is an INLINE COLUMN: a CodeMirror gutter of its own, placed
+   left of the line numbers (see blame-gutter.js), not a side panel. It is
+   painted by the gutter machinery, so it scrolls with the document and stays
+   fixed horizontally like the numbers do. One cell carries the day and the
+   author; a line that is not committed yet has no cell at all. */
+.iwb-blame-gutter { border-right: 1px solid var(--iwb-border); }
+/* The numbers keep their own padding; the annotate cell only needs a small gap
+   from the number column so the two do not touch. */
+.iwb-blame-gutter .cm-gutterElement { padding: 0 8px 0 6px; }
+.iwb-blame-note {
+  font-family: var(--iwb-mono); font-size: 11px; line-height: 20px;
+  color: var(--iwb-muted); white-space: nowrap; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.iwb-blame-note:hover { color: var(--iwb-accent); text-decoration: underline; }
+/* The active line is part of the annotate column too, so it answers the same
+   way the numbers do instead of looking like a hole. */
+.iwb-blame-gutter .cm-activeLineGutter { background: transparent; color: var(--iwb-fg); }
+
 @container ide-workbench (max-width: 760px) {
   .iwb-topbar { gap: 4px; padding: 0 6px; }
   .iwb-project-select { flex: 1; padding: 0 3px; }
@@ -59090,6 +59698,19 @@ var CSS2 = `
   .iwb-left { width: 100% !important; min-width: 0; max-width: none; flex: 0 1 38%; min-height: 120px; border-right: 0; border-bottom: 1px solid var(--iwb-border); }
   .iwb-left-resizer { display: none; }
   .iwb-center { min-height: 140px; }
+  /* Right mode stacks exactly like the left one: the paint order and the
+     mirrored edges of the side-by-side layout are undone, so the stripe is
+     the top bar and the dock sits between it and the editor again. Without
+     this reset the right-side rules would leak their order (the stripe
+     would fall to the bottom) and their border (a stray left line). */
+  .iwb-side-right .iwb-body > .iwb-center,
+  .iwb-side-right .iwb-body > .iwb-left,
+  .iwb-side-right .iwb-body > .iwb-stripe { order: 0; }
+  .iwb-side-right .iwb-stripe { border-left: 0; }
+  .iwb-side-right .iwb-left { border-left: 0; }
+  .iwb-side-right .iwb-stripe-btn.iwb-on::before {
+    left: 6px; right: 6px; top: auto; bottom: -3px; width: auto; height: 2px;
+  }
   /* Stacked: the stripe is a horizontal bar, so the dock needs no left gutter.
      The percentage basis is the root height now, not the editor column. */
   .iwb-bottom { max-height: 60%; min-height: 100px; }

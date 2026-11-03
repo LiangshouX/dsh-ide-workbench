@@ -586,6 +586,160 @@ export async function commitDetail(env, hash) {
   }
 }
 
+/**
+ * How many annotated lines one blame answer carries.
+ *
+ * `git blame --porcelain` prints a metadata block for every *commit*, and one
+ * header plus one content record for every line, so a generated file of a
+ * hundred thousand lines would answer with megabytes of JSON. The editor opens
+ * a file of that size read-only anyway, and the annotate panel is read by
+ * scrolling: the cap keeps one answer bounded and says that it was cut.
+ */
+export const MAX_BLAME_LINES = 20_000
+
+/** A blame of one huge file may take a moment on a cold object store. */
+const BLAME_TIMEOUT_MS = 20_000
+
+/** The all-zero SHA-1 git prints for a line that is not committed yet. */
+const UNCOMMITTED_BLAME_HASH = '0000000000000000000000000000000000000000'
+
+/** The author git shows for a line that lives only in the worktree. */
+const UNCOMMITTED_AUTHOR = 'Not Committed Yet'
+
+/** The `^` marks a boundary commit in the header of the porcelain output. */
+const BLAME_HEADER = /^\^?([0-9a-fA-F]{40}) (\d+) (\d+)(?: (\d+))?$/
+
+/**
+ * Parse `git blame --porcelain` output.
+ *
+ * The format is line oriented. One record starts with
+ * `<sha> <orig-line> <final-line> [<group-size>]`; the commit metadata follows
+ * only the FIRST record of a commit, and git then reuses it - a later header
+ * of the same commit carries no metadata block at all. The parser therefore
+ * keeps the metadata of every sha it has seen and lets the following headers
+ * inherit it. The line's own text follows as a TAB-prefixed record; that
+ * record is the marker that the current line is complete, which is what makes
+ * a cut-off (unterminated) output survive without a phantom line.
+ * @param {string} output the porcelain output
+ * @param {{ limit?: number }} [options] the line cap
+ * @returns {{ lines: Array<{ line: number, hash: string, shortHash: string, author: string,
+ *   authorTime: number, summary: string, committed: boolean }>,
+ *   commits: Record<string, { hash: string, shortHash: string, author: string,
+ *   authorTime: number, summary: string, committed: boolean }>,
+ *   truncated: boolean }}
+ */
+export function parseBlame(output, options = {}) {
+  const limit = Number.isInteger(options.limit) && options.limit > 0 ? options.limit : MAX_BLAME_LINES
+  const result = { lines: [], commits: {}, truncated: false }
+  /** The metadata of every sha seen so far: porcelain repeats none of it. */
+  const known = new Map()
+  /** The header of the line being read; null between lines. */
+  let header = null
+  /** The metadata object the current header belongs to. */
+  let commit = null
+  for (const raw of String(output ?? '').split('\n')) {
+    // Windows git writes '\n' on a pipe, but a caller may hand us a CRLF
+    // buffer; a stray CR would make every header unparseable.
+    const record = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+    if (record === '') continue
+    if (record.charCodeAt(0) === 9) {
+      // The content of the line announced above: the line is complete now.
+      if (header === null || commit === null) continue
+      if (result.lines.length >= limit) {
+        result.truncated = true
+        break
+      }
+      const committed = commit.committed === true
+      // An uncommitted line has no commit of its own: git prints the
+      // pseudo-author "Not Committed Yet", and so does the panel.
+      const author = committed ? commit.author : UNCOMMITTED_AUTHOR
+      const summary = committed ? commit.summary : ''
+      result.lines.push({
+        line: header.finalLine,
+        hash: commit.hash,
+        shortHash: commit.shortHash,
+        author,
+        authorTime: commit.authorTime,
+        summary,
+        committed,
+      })
+      if (result.commits[commit.hash] === undefined) {
+        result.commits[commit.hash] = {
+          hash: commit.hash, shortHash: commit.shortHash, author, authorTime: commit.authorTime, summary, committed,
+        }
+      }
+      header = null
+      commit = null
+      continue
+    }
+    const match = BLAME_HEADER.exec(record)
+    if (match !== null) {
+      const hash = match[1].toLowerCase()
+      header = { hash, finalLine: Number(match[3]) }
+      // The metadata was printed with the first record of this commit; every
+      // later record (and the next line of the same group) inherits it.
+      commit = known.get(hash) ?? null
+      if (commit === null) {
+        commit = {
+          hash,
+          shortHash: hash.slice(0, 8),
+          author: '',
+          authorTime: 0,
+          summary: '',
+          committed: hash !== UNCOMMITTED_BLAME_HASH,
+        }
+        known.set(hash, commit)
+      }
+      continue
+    }
+    if (header === null || commit === null) continue
+    // A metadata record: the key is the first token, the value the rest of
+    // the line (a summary and a file name may both contain spaces).
+    const space = record.indexOf(' ')
+    const key = space < 0 ? record : record.slice(0, space)
+    const value = space < 0 ? '' : record.slice(space + 1)
+    if (key === 'author') commit.author = value
+    else if (key === 'author-time') {
+      const seconds = Number(value)
+      commit.authorTime = Number.isFinite(seconds) ? seconds : 0
+    } else if (key === 'summary') commit.summary = value
+    // `author-mail`, `author-tz`, `committer*`, `filename` and `previous` are
+    // part of the format but not of the answer: the panel shows the author,
+    // the time, the hash and the summary of the line.
+  }
+  // The panel groups consecutive rows, and git may print the groups of one
+  // commit in a different order: the line number is the reading order.
+  result.lines.sort((left, right) => left.line - right.line)
+  return result
+}
+
+/**
+ * Annotate one file with the commit of every line.
+ *
+ * The worktree is annotated (no `-w`): whitespace-only edits are real edits
+ * for the panel, and hiding them would blame a different commit than the one
+ * the file shows. A path without a committed version yet (an untracked file,
+ * or a file added to the index but never committed) is a normal answer - no
+ * commit information - not an error.
+ * @param {{ gitPath?: string, root: string }} env
+ * @param {string} repoPath repository-relative path
+ * @param {{ limit?: number }} [options]
+ */
+export async function blame(env, repoPath, options = {}) {
+  if (typeof repoPath !== 'string' || repoPath === '') throw new ApiError('bad-request', 'no path')
+  const result = await runGit(env, ['blame', '--porcelain', '--', repoPath], {
+    timeoutMs: BLAME_TIMEOUT_MS,
+    allowFailure: true,
+  })
+  if (result.code !== 0) {
+    if (/no such path|no such ref|unknown revision|has no commits yet/i.test(result.stderr)) {
+      return { lines: [], commits: {}, truncated: false }
+    }
+    throw new GitError(['blame', '--porcelain', '--', repoPath], result.code, result.stderr, result.stdout)
+  }
+  return parseBlame(result.stdout, { limit: options.limit })
+}
+
 /** Two-ended diff (commit..commit, branch..branch). */
 export async function diffRefs(env, a, b) {
   const result = await runGit(env, ['diff', '--no-color', '--no-ext-diff', '--unified=3', a, b], { allowFailure: true })

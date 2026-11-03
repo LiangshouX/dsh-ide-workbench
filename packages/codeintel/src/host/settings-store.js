@@ -81,8 +81,29 @@ export const DEFAULT_SETTINGS = {
   legacyImported: false,
 }
 
+/**
+ * The profile directory the running app was actually booted for.
+ *
+ * `DSH_PROFILE_DIR` comes from the shell that launched the app, so a DSH
+ * booted from another DSH's terminal carries the variable of the OTHER
+ * profile and would write its settings there. The host publishes the truth as
+ * the `profileContext` service (`{ name, dir }`), and `apply()` records it
+ * here before the first write. `''` means "no context yet, use the variable".
+ * @type {string}
+ */
+let bootedProfileDir = ''
+
+/**
+ * Record the profile directory of the running app (or forget it with `''`).
+ * @param {string} [directory] the directory the app was booted for
+ */
+export function setProfileBase(directory) {
+  bootedProfileDir = typeof directory === 'string' ? directory.trim() : ''
+}
+
 /** The directory of the active DSH profile (falls back to the home install). */
 export function profileBase() {
+  if (bootedProfileDir !== '') return bootedProfileDir
   const profileDir = process.env.DSH_PROFILE_DIR
   if (typeof profileDir === 'string' && profileDir !== '') return profileDir
   const dshHome = process.env.DSH_HOME

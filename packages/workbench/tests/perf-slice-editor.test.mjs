@@ -204,8 +204,12 @@ test('the editor slice exposes exactly the fields the panel reads', async () => 
   const mod = await loadModule()
   const store = mod.createStore()
   const slice = mod.selectEditorSlice(store.state)
+  // `blame` is the dock the editor area mounts beside the document (V6): it
+  // is a non-primitive, so a blame update re-renders the editor area - which
+  // is what makes the panel follow a new annotation without a second
+  // subscription.
   assert.deepEqual(Object.keys(slice).sort(), [
-    'activeId', 'confirm', 'fontSize', 'projects', 'root', 'shortcuts', 'status', 'tabs',
+    'activeId', 'blame', 'confirm', 'fontSize', 'projects', 'root', 'shortcuts', 'status', 'tabs',
   ])
   assert.equal(slice.tabs, store.state.tabs)
   assert.equal(slice.activeId, store.state.activeId)

@@ -53,14 +53,22 @@ function oldDocument() {
 }
 
 test('the defaults of the core hold no settings of the other plugin', () => {
-  assert.equal(SETTINGS_VERSION, 3)
-  assert.equal(DEFAULT_SETTINGS.version, 3)
+  assert.equal(SETTINGS_VERSION, 4)
+  assert.equal(DEFAULT_SETTINGS.version, 4)
   assert.equal(DEFAULT_SETTINGS.lsp, undefined, 'the core must not know the section of the other plugin')
   for (const key of FOREIGN_SHORTCUTS) {
     assert.equal(DEFAULT_SETTINGS.shortcuts[key], undefined, `the core must not know the shortcut ${key}`)
   }
   // The shortcuts of the core are still there.
   assert.equal(DEFAULT_SETTINGS.shortcuts.quickOpen, 'Ctrl+Shift+N')
+})
+
+test('version 4 adds the two defaults of the V6 enhancements', () => {
+  // Both keys are additions: an old document has neither, the deep merge fills
+  // them in, and the client reads them with the same fallback when the file
+  // has not loaded yet (V6).
+  assert.equal(DEFAULT_SETTINGS.git.wordLevel, true, 'word-level diff is on by default')
+  assert.equal(DEFAULT_SETTINGS.layout.entrySide, 'right', 'the tool-window entries sit on the right by default')
 })
 
 test('the migration drops the section and the shortcuts of the other plugin', async (t) => {

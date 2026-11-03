@@ -21,6 +21,7 @@
  * and the winner is the same whatever order the plugins were loaded in.
  */
 import { Compartment } from '@codemirror/state'
+import { keymap } from '@codemirror/view'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { CORE_PRIORITY, mergeExtensionSlots } from '../contract/index.js'
 import { cmRuntime } from './cm-runtime.js'
@@ -56,6 +57,12 @@ export const keymapCompartment = new Compartment()
  * The slots are built ONCE: `closeBrackets()` returns a state field, and a
  * new one on every refresh would throw the state of the editor away.
  *
+ * The binding list has to be wrapped in `keymap.of`: a raw list of key
+ * bindings is NOT an extension, and handing it to the editor as one made
+ * `EditorState.create` throw ("Unrecognized extension value in extension
+ * set"). The workbench without the codeintel has no higher-priority slot to
+ * replace this one, so the core-only editor could never mount.
+ *
  * The core declares NO completion: the completion of the local words belongs
  * to the codeintel (PRD-v6 §2.2, acceptance R8).
  *
@@ -66,7 +73,7 @@ export function coreExtensionSlots() {
     {
       key: 'closeBrackets',
       priority: CORE_PRIORITY,
-      extensions: [closeBrackets(), closeBracketsKeymap],
+      extensions: [closeBrackets(), keymap.of(closeBracketsKeymap)],
     },
   ]
 }

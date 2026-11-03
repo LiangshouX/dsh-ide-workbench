@@ -21,6 +21,9 @@
  */
 import { CODEINTEL_PRIORITY } from '../contract/index.js'
 import { autocompletion, closeBrackets, closeBracketsKeymap, startCompletion } from '@codemirror/autocomplete'
+// The keymap facet comes from the shim of the view package (the runtime of the
+// core), so the wrapping lives in the same CodeMirror instance as the editor.
+import { keymap } from '@codemirror/view'
 import { lspLibrary } from './lsp-lib.js'
 import { findUsagesText as runTextUsageSearch, keymapKeyFor, lspExtensions } from './lsp-session.js'
 
@@ -31,6 +34,14 @@ import { findUsagesText as runTextUsageSearch, keymapKeyFor, lspExtensions } fro
  * plugin brings one too (decision D9): the slot with the higher priority
  * wins, and the loser is never installed - so there is no second state field
  * and no second input handler in the editor.
+ *
+ * The key bindings are wrapped in `keymap.of`: a raw list of key bindings is
+ * NOT an extension, and handing it to the editor as one makes
+ * `EditorState.create` throw ("Unrecognized extension value in extension
+ * set"). With both plugins installed THIS slot wins, so the editor of a
+ * double install crashed on its first mount and the workbench panel went
+ * blank - the same failure the core had alone (see the core's
+ * `editor-seam.js`). The core alone never hit this one.
  *
  * The call has to happen AFTER the contract arrived: the extensions are
  * built from the CodeMirror runtime of the core, and the runtime only exists
@@ -43,7 +54,7 @@ export function codeintelExtensionSlots() {
     {
       key: 'closeBrackets',
       priority: CODEINTEL_PRIORITY,
-      extensions: [closeBrackets(), closeBracketsKeymap],
+      extensions: [closeBrackets(), keymap.of(closeBracketsKeymap)],
     },
     {
       key: 'autocomplete',

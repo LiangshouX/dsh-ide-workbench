@@ -11,6 +11,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ShortcutCapture } from './ui.jsx'
 import { IDE_OPTIONS } from './ide-menu.js'
+import { DEFAULT_ENTRY_SIDE } from './layout.js'
 import { SLOT_KEYS } from '../contract/index.js'
 
 const SHORTCUT_FIELDS = [
@@ -97,6 +98,10 @@ export function resetPatch() {
 export function SettingsForm({ store, state, compact, contract = null, renderSlot = null, onStatusChange }) {
   const t = store.t
   const settings = state.settings ?? {}
+  // The side is read from the live store state, not from the local draft:
+  // this row writes straight through, so the workbench flips while the page
+  // is still open and a draft copy would only lag behind it.
+  const entrySide = state.settings?.layout?.entrySide === 'left' ? 'left' : DEFAULT_ENTRY_SIDE
   const [draft, setDraft] = useState(settings)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -419,6 +424,23 @@ export function SettingsForm({ store, state, compact, contract = null, renderSlo
           value: draft.commit?.cleanupCommand ?? '',
           onChange: event => update({ commit: { cleanupCommand: event.target.value } }),
         }),
+      ),
+    ),
+    React.createElement(Group, { title: t('settings.layoutGroup') },
+      React.createElement(Row, { label: t('settings.toolWindowSide'), hint: t('settings.toolWindowSideHint') },
+        React.createElement('select', {
+          className: 'iwb-input',
+          value: entrySide,
+          onChange: event => {
+            // Write through at once: the root class of the workbench follows
+            // the saved settings, so the entries move as the user picks a
+            // side instead of waiting for the debounced form save.
+            void store.updateSettings({ layout: { entrySide: event.target.value === 'left' ? 'left' : 'right' } })
+          },
+        },
+          React.createElement('option', { value: 'left' }, t('settings.toolWindowSideLeft')),
+          React.createElement('option', { value: 'right' }, t('settings.toolWindowSideRight')),
+        ),
       ),
     ),
     React.createElement(Group, { title: t('settings.appearanceGroup') },

@@ -13,13 +13,21 @@ import { ApiError } from './wire.js'
 /**
  * The settings schema version this build writes.
  *
- * The number went DOWN (5 to 3), and that is not a rollback: the file format
- * changed. The document of the core no longer carries the section of the code
- * intelligence plugin, and the version says so - a document written by this
- * build is not a document of the old schema any more, even though it has
- * fewer keys.
+ * The number went DOWN once (5 to 3), and that was not a rollback: the file
+ * format changed. The document of the core no longer carries the section of
+ * the code intelligence plugin, and the version said so - a document written
+ * by that build is not a document of the old schema any more, even though it
+ * has fewer keys.
+ *
+ * Version 4 (the V6 enhancements) adds two keys and nothing else:
+ * `git.wordLevel` (word-level highlighting, on by default) and
+ * `layout.entrySide` (`'left'` or `'right'`: where the four tool-window
+ * entries sit). The migration is the deep merge below: a version-3 document
+ * has neither key, every missing key is filled from DEFAULT_SETTINGS, and
+ * every key the document does carry - above all the settings of the user -
+ * is kept. Reading an old file is therefore additive, never destructive.
  */
-export const SETTINGS_VERSION = 3
+export const SETTINGS_VERSION = 4
 
 /**
  * The keys of the settings document that belong to another plugin.
@@ -48,6 +56,13 @@ export const DEFAULT_SETTINGS = {
     colors: true,
     commitTemplate: '',
     diffStyle: 'side',
+    /**
+     * Word-level highlighting of the changed lines of a diff (the 'Aa'
+     * button). On by default (V6): reading the file with `!== false` keeps an
+     * old document - and a document that has not loaded yet - enabled, and
+     * only the explicit `false` of the user who turned it off disables it.
+     */
+    wordLevel: true,
     structuralOnly: false,
     logPageSize: 200,
   },
@@ -100,6 +115,17 @@ export const DEFAULT_SETTINGS = {
   },
   /** Tool-window layout, per tool: dock side, mode, pin/auto-hide, size. */
   layout: {
+    /**
+     * Where the four tool-window entries (Project / Commit / Git / Terminal)
+     * live: the vertical stripe on the left edge, or the mirror image on the
+     * right edge.
+     *
+     * The default is 'right' (V6): the workbench is usually docked beside the
+     * conversation, and 'right' keeps the chat next to the code instead of
+     * putting the file tree between them. 'left' is the layout every version
+     * up to 0.5.1 shipped, and it keeps working exactly as before.
+     */
+    entrySide: 'right',
     tools: {
       project: { dock: 'left', mode: 'docked', pinned: true, autoHide: false, size: 300 },
       commit: { dock: 'left', mode: 'docked', pinned: true, autoHide: false, size: 300 },
@@ -146,8 +172,37 @@ export const DEFAULT_SETTINGS = {
   workspaceState: {},
 }
 
+/**
+ * The profile directory the running app was actually booted for.
+ *
+ * `DSH_PROFILE_DIR` is inherited from whatever shell started the process, so
+ * it is only correct when the launcher set it for THIS process. A DSH instance
+ * started from a terminal of another DSH (or from a fixture script) carries the
+ * variable of the OTHER profile - and a settings write would then land in that
+ * profile's directory. The host publishes the truth as the `profileContext`
+ * service (`{ name, dir }`, provided by the CLI before the plugins mount), and
+ * `apply()` records it here before the first write.
+ *
+ * Kept as a module-level value because `settingsFile()` is a plain function
+ * (the tests call it without a context); `''` means "no context yet, use the
+ * environment".
+ * @type {string}
+ */
+let bootedProfileDir = ''
+
+/**
+ * Record the profile directory of the running app (or forget it with `''`).
+ * @param {string} [directory] the directory the app was booted for
+ */
+export function setProfileBase(directory) {
+  bootedProfileDir = typeof directory === 'string' ? directory.trim() : ''
+}
+
 /** The directory of the active DSH profile (falls back to the home install). */
 export function profileBase() {
+  // The booted profile wins over the variable: the variable may describe a
+  // different profile than the one this process serves (see above).
+  if (bootedProfileDir !== '') return bootedProfileDir
   const profileDir = process.env.DSH_PROFILE_DIR
   if (typeof profileDir === 'string' && profileDir !== '') return profileDir
   const dshHome = process.env.DSH_HOME

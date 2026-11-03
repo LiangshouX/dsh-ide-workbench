@@ -7,7 +7,7 @@
  * (CodeMirror) with save/restore, and Markdown opens in the rendered preview
  * with an optional document outline.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CodeEditor } from './CodeEditor.jsx'
 import { MarkdownView } from './MarkdownView.jsx'
 import { DiffView } from './DiffView.jsx'
@@ -18,7 +18,7 @@ import {
   FileTypeIcon, IconChrome, IconClose, IconCode, IconEdit, IconEye, IconGlobe, IconLock,
   IconMore, IconOutline, IconPin, IconRestore, IconSave, StripeIcon,
 } from './icons.jsx'
-import { baseName } from './util.js'
+import { baseName, shortEncoding } from './util.js'
 import { openInIdeMenu } from './ide-menu.js'
 import { isMarkdownPath } from './store.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
@@ -46,6 +46,11 @@ export function selectEditorSlice(state) {
     root: state.root,
     projects: state.projects,
     confirm: state.confirm,
+    // The blame panel is a sibling of the document, so the editor has to know
+    // whether it is open. The slice is only as fresh as the store's object
+    // identity: a blame update re-renders the editor area, which is what makes
+    // the panel follow a new annotation without a second subscription.
+    blame: state.blame,
   }
 }
 
@@ -96,6 +101,20 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
   const t = store.t
   const scrollTimer = useRef(null)
   useEffect(() => () => { if (scrollTimer.current !== null) clearTimeout(scrollTimer.current) }, [])
+  // The line a gutter right-click asked about: the file of THIS tab is
+  // annotated, never whatever the store happens to consider active by the
+  // time the answer arrives (the user may have switched tabs meanwhile).
+  const annotateBlame = (line) => { void store.annotateBlame({ path: tab.path, rel: tab.rel, line }) }
+  // The annotation of THIS document. The editor only paints the column when
+  // the slice belongs to its own path, so an answer that arrives after a tab
+  // switch cannot annotate the wrong file.
+  const blame = slice.blame?.open === true && slice.blame.path === tab.path ? slice.blame : null
+  const blameProps = {
+    blame,
+    onBlameCommit: hash => store.openBlameCommit(hash),
+    onBlameClose: () => store.closeBlame(),
+    closeAnnotateLabel: t('blame.closeAnnotate'),
+  }
   const onScrollTop = (top) => {
     if (scrollTimer.current !== null) clearTimeout(scrollTimer.current)
     scrollTimer.current = setTimeout(() => {
@@ -145,6 +164,9 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
       onSave: () => { void store.saveTab(tab.id) },
       onCursor: position => store.setCursor(position),
       onSendToChat: selection => store.sendSelectionToChat({ path: tab.path, rel: tab.rel, ...selection }),
+      onAnnotateBlame: annotateBlame,
+      annotateLabel: t('blame.annotate'),
+      ...blameProps,
       chatLabels: { send: t('chat.sendToChat'), copy: t('common.copy') },
       contract,
       renderSlot,
@@ -188,6 +210,9 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
     onReady: onEditorReady,
     onCursor: position => store.setCursor(position),
     onSendToChat: selection => store.sendSelectionToChat({ path: tab.path, rel: tab.rel, ...selection }),
+    onAnnotateBlame: annotateBlame,
+    annotateLabel: t('blame.annotate'),
+    ...blameProps,
     chatLabels: { send: t('chat.sendToChat'), copy: t('common.copy') },
     contract,
     renderSlot,
@@ -321,7 +346,10 @@ function EditorToolbar({ store, tab }) {
   const t = store.t
   const [diffMenu, setDiffMenu] = useState(null)
   const [overflow, setOverflow] = useState(false)
+  const [compact, setCompact] = useState(false)
   const breadcrumbRef = useRef(null)
+  const toolbarRef = useRef(null)
+  const actionsRef = useRef(null)
 
   // The path collapses only when it really does not fit: the toolbar is
   // marked and the stylesheet folds the middle segments away.
@@ -337,6 +365,39 @@ function EditorToolbar({ store, tab }) {
     observer.observe(element)
     return () => observer.disconnect()
   }, [tab.id, tab.rel])
+
+  // How much room a squeezed toolbar still owes to the path before it drops
+  // the labels of its controls. It is the only fixed number here: the width of
+  // the controls themselves is measured (see below), so a longer translation
+  // or a bigger font moves the switch on its own. 140px is about one long file
+  // name plus the collapsed marker - below that the path is a single truncated
+  // word, and the labels are spending room the path needs more.
+  const TOOLBAR_BREADCRUMB_MIN = 140
+
+  // The compact spelling (icons only, one-letter encoding) is decided by a
+  // MEASURED marker, not by a fixed width of the pane: the controls are laid
+  // out at their natural width for a synchronous read, and the labels go only
+  // when they no longer leave room for a readable path. The forcing happens in
+  // a layout effect, so the browser never paints the intermediate state.
+  useLayoutEffect(() => {
+    const element = toolbarRef.current
+    const actions = actionsRef.current
+    if (element === null || actions === null) return undefined
+    const measure = () => {
+      const previous = element.getAttribute('data-compact')
+      element.setAttribute('data-compact', 'false')
+      const needed = actions.getBoundingClientRect().width + TOOLBAR_BREADCRUMB_MIN
+      if (previous === null) element.removeAttribute('data-compact')
+      else element.setAttribute('data-compact', previous)
+      setCompact(element.clientWidth < needed)
+    }
+    measure()
+    if (typeof ResizeObserver !== 'function') return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab.id, tab.rel, tab.view, tab.editing, tab.dirty, t])
 
   if (tab.kind === 'diff') {
     const variant = tab.compare !== undefined
@@ -425,6 +486,10 @@ function EditorToolbar({ store, tab }) {
   return React.createElement('div', {
     className: 'iwb-editor-toolbar',
     'data-overflow': overflow === true ? 'true' : undefined,
+    // `false` is written on purpose: the stylesheet asks for the natural
+    // width, the measurement below reads it, and only then flips the marker.
+    'data-compact': compact === true ? 'true' : 'false',
+    ref: toolbarRef,
   },
     React.createElement('div', { className: 'iwb-breadcrumb', title: tab.path, ref: breadcrumbRef },
       ...breadcrumbParts(directories, middle, fileSegment, 'visible'),
@@ -436,63 +501,91 @@ function EditorToolbar({ store, tab }) {
       ),
     ),
     React.createElement('div', { className: 'iwb-spacer' }),
-    payload?.truncated === true ? React.createElement('span', { style: { color: 'var(--iwb-warn)' } }, t('editor.truncated')) : null,
-    isText && markdown && !editing
-      ? React.createElement('div', { className: 'iwb-seg' },
-          React.createElement('button', {
-            type: 'button', className: view === 'preview' ? 'iwb-on' : '', title: t('editor.preview'),
-            onClick: () => store.setTabView(tab.id, 'preview'),
-          }, React.createElement(IconEye, { width: 12, height: 12 }), t('editor.preview')),
-          React.createElement('button', {
-            type: 'button', className: view === 'code' ? 'iwb-on' : '', title: t('editor.source'),
-            onClick: () => store.setTabView(tab.id, 'code'),
-          }, React.createElement(IconCode, { width: 12, height: 12 }), t('editor.source')),
-        )
-      : null,
-    isText && markdown && !editing && view === 'preview'
-      ? React.createElement('button', {
-          type: 'button', className: `iwb-iconbtn ${tab.outlineOpen === true ? 'iwb-on' : ''}`, title: t('editor.outline'),
-          onClick: () => store.updateActiveTab({ outlineOpen: tab.outlineOpen !== true }),
-        }, React.createElement(IconOutline, { width: 14, height: 14 }))
-      : null,
-    isText
-      ? React.createElement('button', {
-          type: 'button',
-          className: 'iwb-textbtn iwb-small',
-          title: editing ? t('editor.toReadOnly') : t('editor.toEdit'),
-          onClick: () => store.setTabEditing(tab.id, !editing),
-        },
-          React.createElement(editing ? IconLock : IconEdit, { width: 12, height: 12 }),
-          editing ? t('editor.readonly') : t('editor.edit'),
-        )
-      : null,
-    editing && isText
-      ? React.createElement(React.Fragment, null,
-          React.createElement('button', {
+    // Everything to the right of the path is one measured cluster: the
+    // compact switch compares its natural width with the width of the bar.
+    React.createElement('div', { className: 'iwb-toolbar-actions', ref: actionsRef },
+      payload?.truncated === true ? React.createElement('span', { style: { color: 'var(--iwb-warn)' } }, t('editor.truncated')) : null,
+      isText && markdown && !editing
+        ? React.createElement('div', { className: 'iwb-seg' },
+            React.createElement('button', {
+              type: 'button', className: view === 'preview' ? 'iwb-on' : '', title: t('editor.preview'),
+              onClick: () => store.setTabView(tab.id, 'preview'),
+            },
+              React.createElement(IconEye, { width: 12, height: 12 }),
+              // The label is the first thing the compact mode drops: the
+              // tooltip above is what a narrow toolbar shows on hover.
+              React.createElement('span', { className: 'iwb-toolbar-label' }, t('editor.preview')),
+            ),
+            React.createElement('button', {
+              type: 'button', className: view === 'code' ? 'iwb-on' : '', title: t('editor.source'),
+              onClick: () => store.setTabView(tab.id, 'code'),
+            },
+              React.createElement(IconCode, { width: 12, height: 12 }),
+              React.createElement('span', { className: 'iwb-toolbar-label' }, t('editor.source')),
+            ),
+          )
+        : null,
+      isText && markdown && !editing && view === 'preview'
+        ? React.createElement('button', {
+            type: 'button', className: `iwb-iconbtn ${tab.outlineOpen === true ? 'iwb-on' : ''}`, title: t('editor.outline'),
+            onClick: () => store.updateActiveTab({ outlineOpen: tab.outlineOpen !== true }),
+          }, React.createElement(IconOutline, { width: 14, height: 14 }))
+        : null,
+      isText
+        ? React.createElement('button', {
             type: 'button',
-            className: `iwb-textbtn iwb-small ${dirty ? 'iwb-primary' : ''}`,
-            disabled: !dirty || saving,
-            title: 'Ctrl+S',
-            onClick: () => { void store.saveTab(tab.id) },
-          }, React.createElement(IconSave, { width: 12, height: 12 }), saving ? t('editor.saving') : t('editor.save')),
-          React.createElement('button', {
-            type: 'button', className: 'iwb-iconbtn', disabled: !dirty, title: t('editor.restore'),
-            onClick: () => store.discardDraft(tab.id),
-          }, React.createElement(IconRestore, { width: 14, height: 14 })),
-        )
-      : (isText && dirty
-          ? React.createElement(React.Fragment, null,
-              React.createElement('button', {
-                type: 'button', className: 'iwb-textbtn iwb-primary iwb-small', disabled: saving, title: 'Ctrl+S',
-                onClick: () => { void store.saveTab(tab.id) },
-              }, React.createElement(IconSave, { width: 12, height: 12 }), saving ? t('editor.saving') : t('editor.save')),
-              React.createElement('button', {
-                type: 'button', className: 'iwb-iconbtn', title: t('editor.restore'),
-                onClick: () => store.discardDraft(tab.id),
-              }, React.createElement(IconRestore, { width: 14, height: 14 })),
-            )
-          : null),
-    React.createElement('span', null, payload?.encoding ?? 'utf-8'),
+            className: 'iwb-textbtn iwb-small',
+            title: editing ? t('editor.toReadOnly') : t('editor.toEdit'),
+            onClick: () => store.setTabEditing(tab.id, !editing),
+          },
+            React.createElement(editing ? IconLock : IconEdit, { width: 12, height: 12 }),
+            React.createElement('span', { className: 'iwb-toolbar-label' }, editing ? t('editor.readonly') : t('editor.edit')),
+          )
+        : null,
+      editing && isText
+        ? React.createElement(React.Fragment, null,
+            React.createElement('button', {
+              type: 'button',
+              className: `iwb-textbtn iwb-small ${dirty ? 'iwb-primary' : ''}`,
+              disabled: !dirty || saving,
+              title: `${t('editor.save')} · Ctrl+S`,
+              onClick: () => { void store.saveTab(tab.id) },
+            },
+              React.createElement(IconSave, { width: 12, height: 12 }),
+              React.createElement('span', { className: 'iwb-toolbar-label' }, saving ? t('editor.saving') : t('editor.save')),
+            ),
+            React.createElement('button', {
+              type: 'button', className: 'iwb-iconbtn', disabled: !dirty, title: t('editor.restore'),
+              onClick: () => store.discardDraft(tab.id),
+            }, React.createElement(IconRestore, { width: 14, height: 14 })),
+          )
+        : (isText && dirty
+            ? React.createElement(React.Fragment, null,
+                React.createElement('button', {
+                  type: 'button', className: 'iwb-textbtn iwb-primary iwb-small', disabled: saving,
+                  title: `${t('editor.save')} · Ctrl+S`,
+                  onClick: () => { void store.saveTab(tab.id) },
+                },
+                  React.createElement(IconSave, { width: 12, height: 12 }),
+                  React.createElement('span', { className: 'iwb-toolbar-label' }, saving ? t('editor.saving') : t('editor.save')),
+                ),
+                React.createElement('button', {
+                  type: 'button', className: 'iwb-iconbtn', title: t('editor.restore'),
+                  onClick: () => store.discardDraft(tab.id),
+                }, React.createElement(IconRestore, { width: 14, height: 14 })),
+              )
+            : null),
+      // The encoding is a word in a 30px bar: the compact toolbar shows its
+      // first letter only (utf-8 -> u, GBK -> G) and keeps the whole value in
+      // the tooltip. The two spans are switched by the stylesheet.
+      React.createElement('span', {
+        className: 'iwb-encoding',
+        title: payload?.encoding === undefined ? '' : `${payload.encoding} · ${payload.eol === '\r\n' ? 'CRLF' : 'LF'}`,
+      },
+        React.createElement('span', { className: 'iwb-encoding-full' }, payload?.encoding ?? 'utf-8'),
+        React.createElement('span', { className: 'iwb-encoding-short' }, shortEncoding(payload?.encoding ?? 'utf-8')),
+      ),
+    ),
   )
 }
 
@@ -779,6 +872,10 @@ export function EditorArea({ store, state: _state, contract = null, renderSlot =
           onClose: () => setFindOpen(false),
         })
       : null,
+    // The annotation is an inline gutter of the editor itself (left of the
+    // line numbers, see `blame-gutter.js`), not a dock: the editor receives
+    // the blame slice only for the document it belongs to, so a stale answer
+    // can never annotate another file's lines.
     content,
     // The contract bridge of the editor (PRD-v6 §3.3): the occupant sits on
     // the same level as the editor itself and receives the contract as its

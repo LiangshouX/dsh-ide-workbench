@@ -19,8 +19,8 @@ import { stat, unlink } from 'node:fs/promises'
 import { dirname, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
-import { runGit, repoRootOf, status as gitStatus, diff as gitDiff, diffRev as gitDiffRev, diffRefs as gitDiffRefs, stage as gitStage, unstage as gitUnstage, discard as gitDiscard, applyPatch as gitApplyPatch, commit as gitCommit, push as gitPush, log as gitLog, branches as gitBranches, checkout as gitCheckout, revert as gitRevert, commitDetail, commitFileDiff, showFile, recentMessages } from './host/git.js'
-import { SettingsStore, settingsFile } from './host/settings-store.js'
+import { runGit, repoRootOf, status as gitStatus, diff as gitDiff, diffRev as gitDiffRev, diffRefs as gitDiffRefs, stage as gitStage, unstage as gitUnstage, discard as gitDiscard, applyPatch as gitApplyPatch, commit as gitCommit, push as gitPush, log as gitLog, branches as gitBranches, checkout as gitCheckout, revert as gitRevert, commitDetail, commitFileDiff, showFile, recentMessages, blame as gitBlame } from './host/git.js'
+import { SettingsStore, setProfileBase, settingsFile } from './host/settings-store.js'
 import { openInIdea, openInIde } from './host/idea.js'
 import { openExternalUrl } from './host/shell.js'
 import {
@@ -83,6 +83,13 @@ function clamp(value, min, max, fallback) {
  * @param {any} ctx cordis host context
  */
 export function apply(ctx) {
+  // Which profile this process really serves. `DSH_PROFILE_DIR` is inherited
+  // from the shell that launched the app, so a DSH booted from another DSH's
+  // terminal carries the wrong one; the profileContext service is the truth.
+  // Recorded before the settings store can write, and before any route reads
+  // the document (PRD-v6 enhancement: the settings must never land in the
+  // profile of a different instance).
+  setProfileBase(ctx.get?.('profileContext')?.dir ?? '')
   // The store takes the context: a settings document that cannot be written
   // has to leave a trace in the log of the plugin (review R3).
   const settings = new SettingsStore(ctx)
@@ -487,6 +494,13 @@ export function apply(ctx) {
     'git.detail': async (payload) => {
       const env = await repoEnv(payload)
       return commitDetail(env, requireString(payload, 'hash'))
+    },
+
+    /** Annotate one file: the commit of every line of its worktree version. */
+    'git.blame': async (payload) => {
+      const env = await repoEnv(payload)
+      const path = toRepoPath(env, requireString(payload, 'path'))
+      return gitBlame(env, path)
     },
 
     'git.show': async (payload) => {

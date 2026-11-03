@@ -55,6 +55,46 @@
 - 状态栏的「语义分析」格、设置页的「语言服务器」分组、内存预算面板、索引决策弹窗 ——
   它们随 codeintel 一起搬走了。**双装时它们原样回来**。
 
+### 发布后修复与 V6 增量（同日）
+
+- **只装 core 时白屏（三个叠加根因，都会让工作台打不开）**
+  - **发布包漏了契约副本**：`files` 白名单没有 `src/contract`，`npm pack` 出来的 tarball 里
+    `src/index.js` 却静态 import 它 ⇒ 宿主半边 `failed to import`，插件整体不挂载（入口消失；
+    若 profile 里残留旧版布局，点开就是空面板）。两个包的白名单都补上 `src/contract`，
+    并在 `verify:split` 里新增「entry 的相对 import 图必须全部落在 `files` 里」的检查
+    （已做负向验证：删掉该行会 FAIL）。
+  - **键绑定数组被当扩展安装（core 侧）**：core 的扩展槽位把 `closeBracketsKeymap`（**原始键绑定
+    数组**，不是 Extension）直接放进 `extensions`，`EditorState.create` 抛
+    `Unrecognized extension value in extension set`；双装时被 codeintel 更高优先级的槽位掩盖，
+    只装 core 时必崩。改为 `keymap.of(closeBracketsKeymap)`。
+  - **键绑定数组被当扩展安装（双装侧，两处）**：① codeintel 的 `closeBrackets` 槽位有同样的
+    问题，而**双装时正是它胜出**；② core 把 `EditorSeam.keymap`（契约交付的是**摊平后的绑定数组**）
+    直接塞进 `keymapCompartment`，codeintel 一旦注册语义快捷键（双装必然）就崩。
+    两处都改为 `keymap.of(...)`。三处都有回归测试 + 双装实机验收。
+
+**四项体验增强**（规格见 `docs/prd/v6/PRD-v6-增强需求.md`）
+
+- **工具窗口入口可配置在左/右（默认右）**：`settings.layout.entrySide`；右侧布局让聊天区与
+  代码内容区相邻。左模式不新增任何选择器 ⇒ 与旧版逐像素一致；窄面板堆叠仍是「入口在顶部」。
+- **diff 保真**：并排模式加 `white-space: pre`（缩进 / 连续空格 / 行尾空格不再被折叠），
+  `tab-size: 4`；`git.wordLevel` 默认开启（工具栏 Aa 仍可关，选择持久化）。
+- **diff 超长行横向滚动**：按可视行最宽处量测 `.iwb-diff-inner` 的 `min-width`
+  （`max(100%, calc(Nch + Xpx))`），形成**单一横向滚动面**，并排两栏保持确定性等宽。
+- **Git Blame annotate（行号左侧内联列）**：在行号上右键「Annotate with Git Blame」，编辑器出现
+  一列**位于行号左侧**的注解（CodeMirror gutter），每行一格、只显示 `YYYY/M/D 作者`；工作区里
+  改动/新增（未提交）的行该格**留空**，不打印伪作者；点击某一格打开 Git 工具窗口并定位到该提交
+  的详情（复用现有提交详情）。同一菜单里多一项「关闭 Git 注解」。宿主新增 `git.blame` 路由
+  （porcelain 解析、20k 行上限、20s 超时）。
+- **设置不再写进别的 profile**：`profileBase()` 以前优先从父 shell 继承的 `DSH_PROFILE_DIR`，
+  从另一个 DSH 终端启动的实例会把设置写进那个 profile；现在优先 `ctx.get('profileContext').dir`，
+  环境变量只作 fallback。设置文档版本 3 → **4**（只新增 `layout.entrySide` 与 `git.wordLevel`，
+  读旧文件是深合并，不丢任何键）。
+- **内容工具栏在窄面板只留图标**：路径右边那组控件（预览 / 源码 / 编辑 / 保存 / 编码）现在
+  **不许换行、不许收缩** —— 旧版被挤到按钮内部的「编/辑」「utf-/8」折行就是它们能收缩造成的。
+  同时按**实测宽度**打 `data-compact` 标记：把控件量出来的自然宽度 + 140px 的路径预算，与工具栏
+  实际宽度比较，放不下就只留图标（文字进 tooltip），编码只留首字母（`utf-8` → `u`、`GBK` → `G`），
+  完整编码与换行符在 tooltip 里。测量放在 layout effect 中，浏览器不会画出「先换行再收紧」的中间态。
+
 ## 0.5.1
 
 这一版的重点是**让语义分析（代码索引）在真实机器上站得住**：内存的账算对了、

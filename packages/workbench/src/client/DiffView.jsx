@@ -6,7 +6,7 @@
  * `git apply --cached` changes exactly the selected lines.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { buildPatch, firstFile, hunkChangeIndexes, parseUnifiedDiff, sideBySideRows, unifiedRows, wordSegments } from './diff.js'
+import { buildPatch, diffInnerWidth, firstFile, hunkChangeIndexes, parseUnifiedDiff, sideBySideRows, unifiedRows, wordLevelDefault, wordSegments } from './diff.js'
 import { IconRefresh } from './icons.jsx'
 import { FindBar } from './FindBar.jsx'
 import { buildFindRegExp } from './find.js'
@@ -63,7 +63,10 @@ export function DiffView({ store, tab }) {
   const [viewport, setViewport] = useState(400)
   const [applying, setApplying] = useState(false)
   const [openBlocks, setOpenBlocks] = useState(() => new Set())
-  const [wordLevel, setWordLevel] = useState(false)
+  // Word-level highlighting is on by default (V6): the viewer starts from the
+  // saved choice, and an unloaded settings document leaves it on. The state
+  // is local so the button answers a click immediately.
+  const [wordLevel, setWordLevel] = useState(() => wordLevelDefault(store.state.settings))
   const [findOpen, setFindOpen] = useState(false)
   const [findRows, setFindRows] = useState(() => new Set())
   const [findActiveRow, setFindActiveRow] = useState(-1)
@@ -145,6 +148,14 @@ export function DiffView({ store, tab }) {
     flush()
     return output
   }, [rows, source.stageable, openBlocks])
+
+  // Rows are absolutely positioned inside `.iwb-diff-inner`, so the inner has
+  // no intrinsic width: without a measurement a long line is clipped by the
+  // panel and there is no horizontal scrollbar. Measuring the visible rows (and
+  // not just the viewport lines that happen to be rendered) keeps the surface a
+  // single, stable scroller for both layouts; the calculation is memoized so the
+  // scroll handler below does not re-walk the lines on every frame.
+  const innerWidth = useMemo(() => diffInnerWidth(viewRows, mode), [viewRows, mode])
 
   const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - 8)
   const end = Math.min(viewRows.length, Math.ceil((scrollTop + viewport) / LINE_HEIGHT) + 8)
@@ -295,6 +306,21 @@ export function DiffView({ store, tab }) {
   const stageLabel = source.staged ? t('commit.unstageSelection') : t('commit.stageSelection')
   const hunkLabel = source.staged ? t('commit.unstageHunk') : t('commit.stageHunk')
 
+  /**
+   * Toggle word-level highlighting and remember the choice.
+   *
+   * The local state flips first so the highlight answers the click, not the
+   * round-trip of the settings write. The write is fire-and-forget: a failed
+   * write must not roll the UI back to a state the user did not pick (the
+   * store reports the failure itself with a toast), and the catch keeps a
+   * store that rejects from becoming an unhandled rejection in the viewer.
+   */
+  const toggleWordLevel = () => {
+    const next = !wordLevel
+    setWordLevel(next)
+    void store.updateSettings({ git: { wordLevel: next } }).catch(() => {})
+  }
+
   const rowStyle = (offset) => ({ position: 'absolute', top: `${offset * LINE_HEIGHT}px`, left: 0, right: 0, height: `${LINE_HEIGHT}px` })
 
   const renderChromeRow = (row, offset) => {
@@ -405,7 +431,7 @@ export function DiffView({ store, tab }) {
       : null,
     React.createElement('button', {
       type: 'button', className: `iwb-textbtn iwb-small ${wordLevel ? 'iwb-primary' : ''}`,
-      title: t('commit.wordLevel'), onClick: () => setWordLevel(value => !value),
+      title: t('commit.wordLevel'), onClick: toggleWordLevel,
     }, 'Aa'),
     source.stageable && selection.size > 0
       ? React.createElement('button', {
@@ -428,7 +454,14 @@ export function DiffView({ store, tab }) {
   },
     viewRows.length === 0
       ? React.createElement('div', { className: 'iwb-empty' }, t('commit.selectFile'))
-      : React.createElement('div', { className: 'iwb-diff-inner', style: { height: `${viewRows.length * LINE_HEIGHT}px` } },
+      // `minWidth` is the measured width of the widest visible line plus the
+      // chrome; `max(100%, …)` keeps the surface at least as wide as the panel,
+      // so row backgrounds, selection and find outlines still cover the whole
+      // visible width while one scrollbar pans the long lines of both layouts.
+      : React.createElement('div', {
+          className: 'iwb-diff-inner',
+          style: { height: `${viewRows.length * LINE_HEIGHT}px`, minWidth: innerWidth.width },
+        },
           viewRows.slice(start, end).map((row, index) => {
             const offset = start + index
             if (row.kind === 'collapsed') {

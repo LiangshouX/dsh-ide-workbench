@@ -1,7 +1,8 @@
 # PRD-v6 实施进展 —— 插件拆分（core ⇄ codeintel）
 
-> **状态**：实施中（M0–M6 主体已落地，M7 实机验收待做）。
+> **状态**：实施完成（M0–M6 主体 + M7 实机验收已完成，2026-11-03）。
 > **规格**：`PRD-v6-插件拆分.md`（归属与装载方式）｜**接口**：`PRD-v6-实施契约.md`（两包之间写死的东西）。
+> **V6 增量**：`PRD-v6-增强需求.md`（core 白屏修复 + 四项体验增强，2026-11-03 已实施并实机验收）。
 > **代码基线**：`dsh-ide-workbench` `b2317fa`（0.5.1）⇒ 仓库改为 monorepo。
 
 ---
@@ -13,11 +14,11 @@
 | 仓库 | **monorepo**：`packages/{contract,workbench,codeintel}`，npm workspaces |
 | core | `dsh-ide-workbench` **0.6.0**（插件 ID 不变 ⇒ 原地升级） |
 | codeintel | `dsh-ide-codeintel` **0.1.0**（独立版本线） |
-| core 的测试 | **412 / 412 通过** |
-| codeintel 的测试 | **815 / 815 通过** |
+| core 的测试 | **461 / 461 通过** |
+| codeintel 的测试 | **818 / 818 通过** |
 | 契约测试（根级） | **26 / 26 通过** |
-| 机械验收（`npm run verify:split`） | **15 / 15 通过** |
-| core 的客户端产物 | 2752 KiB（拆分前 3.0 MB —— 少了 LSP 客户端与补全） |
+| 机械验收（`npm run verify:split`） | **25 / 25 通过** |
+| core 的客户端产物 | 2781 KiB（拆分前 3.0 MB —— 少了 LSP 客户端与补全） |
 | codeintel 的客户端产物 | **430 KiB** —— **不含任何 CodeMirror 副本**（机械验收里有这一条） |
 | core 的语言服务器依赖 | **零**（`typescript` / `basedpyright` / `yaml-language-server` 全部移出） |
 | M2 spike S1 | ✅ **通过**（但**规格 §3.5.3 的 CJS Proxy 写法被实测证伪**，见 §3） |
@@ -35,7 +36,7 @@
 | **M4** | 客户端接缝：四个槽位 + `EditorSeam` + 扩展槽位 | ✅ |
 | **M5** | 切分污染文件（store / Workbench / CodeEditor / SettingsPanel / styles / i18n / settings-store / EditorArea） | ✅ |
 | **M6** | 设置迁移 + 构建发版 | ✅（发版流程按包分线） |
-| **M7** | 三态验收（只装 core / 只装 codeintel / 双装）+ 隔离性 | ⏳ **实机验收未做** —— 见 §6 |
+| **M7** | 三态验收（只装 core / 只装 codeintel / 双装）+ 隔离性 | ✅ **已实机验收**（2026-11-03；见 §9 与 `PRD-v6-增强需求.md`§6）。验收中发现并修复了两个只有 core-only 才暴露的缺陷（打包缺 `src/contract`；编辑器扩展槽位把键绑定当 Extension），以及一个跨 profile 写设置的缺陷 |
 
 ---
 
@@ -156,7 +157,7 @@ CI（`.github/workflows/publish.yml`）据此选包、核对 `package.json` 与 
 
 | # | 缺口 | 说明 |
 |---|---|---|
-| **1** | **M7 实机验收未做** | 只装 core / 只装 codeintel / 双装三种状态**没有在真实 DSH 里跑过**。规格 §5 的 A1–A8 / B1–B6 / C1–C17 / I1–I8 里，**B1、C16、C17、I1、I3、R5–R8 有自动化证据**（单元、契约测试与产物级检查），**其余需要实机** |
+| **1** | ~~M7 实机验收未做~~ **已完成（2026-11-03）** | 三态在真实 DSH 里跑过，README 化的夹具在 `.e2e/`（`make-profile` / `start-profile` / `smoke` / `upgrade-0.5-to-0.6` / `repro-missing-contract` / `lead-verify`）。实机验收直接暴露了两个只有 core-only 才出现的缺陷，见 §9 |
 | **2** | **codeintel 的客户端用例是重写的，不是搬过去的** | 旧的客户端测试驱动的是 `WorkbenchStore`；新的客户端有自己的 `CodeIntelStore`。逐条取舍记录在 §8 |
 | **3** | **core 的索引徽标被移除了** | 「已索引 / 已被回收」的项目徽标是 codeintel 的功能，core 不知道 codeintel ⇒ core 的项目选择器不再显示它。规格 §2.2 的职责表没有给这一项归属 |
 | **4** | **Java 的设置仍无 UI** | 决策 O4 ②：本轮只搬家，不加功能。`javaHome` / `jdtlsHome` / `javaSearchRoots` / `javaArgs` 仍只能手改设置文件 |
@@ -203,3 +204,20 @@ CI（`.github/workflows/publish.yml`）据此选包、核对 `package.json` 与 
 | `packages/codeintel/tests/client-degraded-mode.test.mjs` | 没有契约时的降级：引导、**不启动任何语言服务器**、不抛异常 |
 | `packages/codeintel/tests/lsp-plugin-host.test.mjs` | 路由前缀、自己的设置文件、一次性导入、core 缺席时不抛错、插件的故障不打到宿主 |
 | `packages/workbench/tests/host-contract.test.mjs`、`settings-migration.test.mjs` | 宿主契约的形状；设置迁移丢 `lsp` 段与四个快捷键、其余不丢 |
+
+---
+
+## 9. V6 增量（2026-11-03，详见 `PRD-v6-增强需求.md`）
+
+用户报告「只装 workbench 后工作台打开白屏」，并要求三项体验增强。实施 + 实机验收的结果：
+
+| 条目 | 结论 |
+|---|---|
+| **白屏（三个叠加根因）** | ① `files` 白名单漏 `src/contract` ⇒ 宿主 import 失败、插件不挂载；② 「原始键绑定数组当 Extension」共三处：core 的 `editor-seam.js`（**只装 core** 崩）、codeintel 的 `extensions.js`（**双装时该槽位胜出**，也崩）、core 的 `keymapCompartment.of(seam.keymap)`（**双装时 codeintel 注册了快捷键**才崩）⇒ `EditorState.create` 抛错、React 卸载工作台 ⇒ 白屏 |
+| **入口左右可配置** | `settings.layout.entrySide`（默认 `right`），镜像布局只影响 `.iwb-side-right`；左模式零新增选择器 |
+| **diff 增强** | 并排 `white-space:pre` 保留空白；`git.wordLevel` 默认开；`diffInnerWidth` 量测给出**单一横向滚动面** |
+| **Git Blame** | 行号右键 → **行号左侧的内联注解列**（每行 `日期 作者`，未提交行留空）→ 点击跳转 Git 提交；宿主 `git.blame` porcelain 解析 |
+| **窄面板工具栏** | 控件不换行不收缩（旧版「编/辑」「utf-/8」折行的根因）；实测 `data-compact` 标记在控件自然宽度 + 140px 路径预算放不下时切「只留图标 + tooltip + 编码首字母」 |
+| **跨 profile 写设置** | `profileBase()` 改为优先 `ctx.get('profileContext').dir`，环境变量只作 fallback |
+| **新增防回归** | `verify:split` 增加「entry 的 import 图必须全部在 `files` 里」+ 4 个必需产物检查（负向验证过）；`profile-dir` / `git-blame` / `blame-gutter` / `diff-view` / `toolwindow-side` / `toolbar-compact` 六个测试文件 + codeintel 的「合法扩展集」用例 |
+| **最终数字** | core **461** / codeintel **818** / 契约 **26**；`verify:split` **25/25**；实机：lead-verify **47/47**、升级 **19/19**、双装 **13/13**，0 console/pageerror |

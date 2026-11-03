@@ -258,6 +258,22 @@ export function wordSegments(leftText, rightText) {
   return { left, right }
 }
 
+/**
+ * Word-level highlighting starts enabled unless the settings say otherwise.
+ *
+ * The viewer reads the saved choice as the initial state. An unloaded settings
+ * document (`undefined`/`null`) and an old document without the key both start
+ * enabled: only the explicit boolean `false` of a user who turned the feature
+ * off disables it. The host keeps the same default in
+ * `DEFAULT_SETTINGS.git.wordLevel`, and the 'Aa' button writes the decision
+ * back through `settings.update`.
+ * @param {any} settings the settings document of the store (may be null)
+ * @returns {boolean} whether 'Aa' highlighting starts enabled
+ */
+export function wordLevelDefault(settings) {
+  return settings?.git?.wordLevel !== false
+}
+
 /** Every change (add or delete) index of one hunk. */
 export function hunkChangeIndexes(file, hunkIndex) {
   const hunk = file?.hunks[hunkIndex]
@@ -325,4 +341,153 @@ export function changeLabel(xy) {
   if (x === 'D' || y === 'D') return 'deleted'
   if (x === 'A') return 'added'
   return 'modified'
+}
+
+/* ── the horizontal measure of the shared diff surface ─────────────────────
+   Rows of BOTH layouts are absolutely positioned in one scroll surface
+   (`left: 0; right: 0`), so the surface has no intrinsic width of its own: a
+   long line would be clipped by the panel and there would be nothing to pan.
+   The viewer measures the widest visible line and writes it onto
+   `.iwb-diff-inner`; these constants are the chrome widths that are not text.
+   Every number mirrors a rule of styles.js, and tests/diff-view.test.mjs
+   reads the stylesheet and fails when the two drift apart. */
+
+/** `.iwb-diff-gutter` (width: 22px). */
+export const DIFF_GUTTER_WIDTH = 22
+/** One `.iwb-diff-num` column (width: 44px); the unified view shows two. */
+export const DIFF_LINE_NUMBER_WIDTH = 44
+/** The `.iwb-diff-sign` column of the unified view (width: 16px). */
+export const DIFF_SIGN_WIDTH = 16
+/** The right padding of `.iwb-diff-text` (padding-right: 24px). */
+export const DIFF_TEXT_PADDING = 24
+/** The border between the two cells of the side-by-side view (1px). */
+export const DIFF_SIDE_BORDER = 1
+/** The `tab-size` of the scroll surface: a tab advances to this column. */
+export const DIFF_TAB_SIZE = 4
+
+/**
+ * The fixed width one visible row spends on chrome, in CSS pixels.
+ *
+ * unified: [gutter][old number][new number][sign][text + padding]
+ *          = 22 + 44 + 44 + 16 + 24 = 150
+ * side: two equal columns (minmax(0, 1fr) each), every column is
+ *       [gutter][number][text + padding][border] = 22 + 44 + 24 + 1 = 91,
+ *       so the row spends 2 * 91 = 182 on chrome
+ *
+ * The side view splits the measured inner width into two deterministic equal
+ * columns, so this is the chrome of the whole row, not of one column.
+ *
+ * @param {'unified'|'side'} [mode] the layout of the viewer
+ * @returns {number} the CSS pixels that are not line text
+ */
+export function diffChromeWidth(mode) {
+  if (mode === 'side') {
+    return 2 * (DIFF_GUTTER_WIDTH + DIFF_LINE_NUMBER_WIDTH + DIFF_TEXT_PADDING + DIFF_SIDE_BORDER)
+  }
+  return DIFF_GUTTER_WIDTH + 2 * DIFF_LINE_NUMBER_WIDTH + DIFF_SIGN_WIDTH + DIFF_TEXT_PADDING
+}
+
+/**
+ * Whether a code point paints as a full-width glyph.
+ *
+ * A monospace font gives CJK, Hangul and emoji an advance of about two Latin
+ * cells, so a line of them needs twice the `ch` width a raw code-point count
+ * would reserve. The ranges below are the common East Asian Wide/Fullwidth
+ * blocks of UAX #11 - an approximation (the font owns the real advance), but
+ * the safe direction: it keeps full-width text from running past the measured
+ * surface, which is exactly the failure the user sees as a cut line.
+ * @param {number} code the code point
+ * @returns {boolean} true when the glyph is about two columns wide
+ */
+function isFullWidth(code) {
+  return (
+    (code >= 0x1100 && code <= 0x115f) // Hangul Jamo
+    || (code >= 0x2e80 && code <= 0xa4cf) // CJK radicals .. Yi
+    || (code >= 0xac00 && code <= 0xd7a3) // Hangul syllables
+    || (code >= 0xf900 && code <= 0xfaff) // CJK compatibility ideographs
+    || (code >= 0xfe30 && code <= 0xfe4f) // CJK compatibility forms
+    || (code >= 0xff00 && code <= 0xff60) // full-width forms
+    || (code >= 0xffe0 && code <= 0xffe6)
+    || (code >= 0x1f300 && code <= 0x1faff) // emoji
+    || (code >= 0x20000 && code <= 0x3fffd) // CJK extensions
+  )
+}
+
+/**
+ * The width of one line in `ch` columns.
+ *
+ * A tab advances to the next `tab-size` stop (the stylesheet sets
+ * `tab-size: 4`, and `DIFF_TAB_SIZE` mirrors it) instead of counting as one
+ * column; every other code point counts one or two columns (see
+ * `isFullWidth`). This is a character-count approximation: the browser knows
+ * the real advances, but `ch` follows the font and the estimate only has to
+ * be good enough to expose the horizontal scrollbar at the right width.
+ * @param {string} text the line text
+ * @returns {number} the approximate column count
+ */
+export function diffLineWidth(text) {
+  if (typeof text !== 'string' || text === '') return 0
+  let columns = 0
+  for (const char of text) {
+    const code = char.codePointAt(0)
+    if (code === 0x09) columns += DIFF_TAB_SIZE - (columns % DIFF_TAB_SIZE)
+    else columns += isFullWidth(code) ? 2 : 1
+  }
+  return columns
+}
+
+/**
+ * The width of the ONE horizontal scroll surface of the diff.
+ *
+ * `width` is the CSS `min-width` for `.iwb-diff-inner`: never narrower than
+ * the panel (`100%`), and always wide enough for the widest visible line plus
+ * the chrome of its layout. Rows are absolutely positioned with
+ * `left: 0; right: 0`, so this value is also what makes their backgrounds,
+ * selection and find outlines cover the whole surface and pan with it.
+ *
+ * The side-by-side view splits the inner into two equal columns (`1fr 1fr`),
+ * so both columns get the width of the wider side: the surface reserves the
+ * widest line twice, not once.
+ *
+ * Only line rows are measured. A file label or a hunk header is chrome - it
+ * carries `text-overflow: ellipsis` and must not push the whole surface wide.
+ *
+ * `chars` is the widest line in `ch` columns. That unit answers to the font,
+ * not to the exact glyphs, so the result is an approximation; it errs on the
+ * wide side (full-width glyphs count two), which keeps the tail of a line
+ * reachable by the scrollbar.
+ *
+ * @param {Array<object>} rows the visible rows of the viewer
+ * @param {'unified'|'side'} [mode] the layout of the viewer
+ * @returns {{ chars: number, chromePx: number, width: string }} the measure
+ */
+export function diffInnerWidth(rows, mode = 'unified') {
+  const side = mode === 'side'
+  const list = Array.isArray(rows) ? rows : []
+  let chars = 0
+  let measured = false
+  for (const row of list) {
+    if (row === null || typeof row !== 'object') continue
+    if (side) {
+      if (row.kind !== 'change' && row.kind !== 'context') continue
+      measured = true
+      chars = Math.max(chars, diffLineWidth(row.left?.text), diffLineWidth(row.right?.text))
+    } else {
+      if (row.kind !== 'context' && row.kind !== 'add' && row.kind !== 'del') continue
+      measured = true
+      chars = Math.max(chars, diffLineWidth(row.text))
+    }
+  }
+  const chromePx = diffChromeWidth(mode)
+  // No line row at all (empty diff): stay at the width of the panel instead
+  // of reserving the chrome of a line that is not there.
+  if (!measured) return { chars: 0, chromePx, width: '100%' }
+  // Two columns need room for both cells; a context line is drawn on both
+  // sides, so the widest line is what each of the two columns has to hold.
+  const columns = side ? 2 : 1
+  return {
+    chars,
+    chromePx,
+    width: `max(100%, calc(${chars * columns}ch + ${chromePx}px))`,
+  }
 }

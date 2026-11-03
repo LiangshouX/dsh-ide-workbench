@@ -6801,6 +6801,7 @@ var import_react = __toESM(require("react"), 1);
 
 // src/client/extensions.js
 init_cm_autocomplete();
+init_cm_view();
 
 // src/client/lsp-lib.js
 var library = null;
@@ -8954,7 +8955,7 @@ function codeintelExtensionSlots() {
     {
       key: "closeBrackets",
       priority: CODEINTEL_PRIORITY,
-      extensions: [closeBrackets(), closeBracketsKeymap]
+      extensions: [closeBrackets(), keymap.of(closeBracketsKeymap)]
     },
     {
       key: "autocomplete",
