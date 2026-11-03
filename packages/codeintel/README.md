@@ -18,15 +18,20 @@ DeepSeek Harness 的**代码智能**插件：本地与语义补全、跳转定�
 | 查找用法（文本，标注「文本匹配」） | `Alt+F8` |
 | 悬浮 / 签名提示 | 悬停 / 触发签名 |
 | Ctrl-hover 高亮 | 按住 Ctrl |
-| 搜索弹层 | 查找在文件中，含上下文预览 |
+| 查找用法弹层 | `Alt+F8` 的结果浮在工作台上，含上下文预览 |
 | 状态栏「语义分析」格 | 就绪 / 休眠 / 保守版 / 启动中 |
 | 记忆预算 | 设置页与诊断面板 |
+
+> 全项目查找（`Ctrl+Shift+R`）由工作台自己提供，不是本插件的功能。
 
 ## 安装
 
 ```bash
 dsh plugin --profile web add dsh-ide-codeintel
 ```
+
+离线安装：Release 里的 `dsh-ide-codeintel-<版本>-offline.zip` 自带 `node_modules`（含语言服务器）
+与安装脚本，解压后运行 `install-offline.ps1` / `install-offline.sh` 即可，不需要网络。
 
 ## 设置
 

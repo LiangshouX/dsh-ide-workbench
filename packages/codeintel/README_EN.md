@@ -20,15 +20,21 @@ Java-JDTLS / YAML) and their memory budget.
 | Find usages (text, marked "text match") | `Alt+F8` |
 | Hover / signature help | hover / trigger the signature |
 | Ctrl-hover highlight | hold Ctrl |
-| Search popup | find in files, with a context preview |
+| Find-usages popup | the `Alt+F8` results float over the workbench, with a context preview |
 | The "semantic analysis" cell of the status bar | ready / idle / conservative / starting |
 | The memory budget | the settings page and the diagnostics panel |
+
+> Find in Files (`Ctrl+Shift+R`) belongs to the workbench itself, not to this plugin.
 
 ## Install
 
 ```bash
 dsh plugin --profile web add dsh-ide-codeintel
 ```
+
+Offline: the Release ships `dsh-ide-codeintel-<version>-offline.zip` with the `node_modules` (language
+servers included) and an install script; unpack it and run `install-offline.ps1` / `install-offline.sh`.
+No network access is needed.
 
 ## Settings
 

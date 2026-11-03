@@ -15,7 +15,8 @@
     "test": "npm run test --workspace packages/workbench && npm run test --workspace packages/codeintel && npm run test:contract",
     "test:contract": "node --test tests/*.test.mjs",
     "verify:split": "node scripts/verify-split.mjs",
-    "verify": "npm run build && npm test && npm run verify:split"
+    "verify": "npm run build && npm test && npm run verify:split",
+    "make:offline": "node scripts/make-offline.mjs"
   },
   "engines": {
     "node": ">=18"

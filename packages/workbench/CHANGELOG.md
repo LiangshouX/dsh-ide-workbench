@@ -6,108 +6,43 @@
 
 ## 0.6.0
 
-这一版是 **V6 插件拆分**的 core 侧：工作台回到**干净基线**，代码智能整体搬去了新的插件
-`dsh-ide-codeintel`。**本包名与插件 ID 不变**（`dsh-ide-workbench`），已装用户**原地升级**，
+这一版把工作台拆成两个可独立安装的插件：**本包（core）** 保持 `dsh-ide-workbench` 的包名与
+插件 ID，代码智能整体搬到 `dsh-ide-codeintel`（独立版本线，另行发版）。已装用户**原地升级**，
 不会出现第二个「工作台」。
 
-### 变轻了
+### core 的边界
 
-- **core 不再带任何语言服务器**：`typescript` / `basedpyright` / `yaml-language-server` /
-  `typescript-language-server` 全部移出本包的依赖。装 core 的进程树里**零个**语言服务器。
-- **core 不再有任何补全**：语义补全、跳转定义、查找用法、悬浮与签名提示全部归 codeintel。
-  在 `.ts` 文件里敲 `fo` **不会**出现补全弹窗。
-- **core 不再有本地补全**（`autocompletion`），但**保留自动闭合括号** —— 它是一般编辑能力，
-  不是代码智能。敲 `(` 得到 `()`，在括号中间按 Backspace 删掉一对。
-- **代价（如实记录）**：为了留住自动闭合括号，core 的客户端产物里多带了
-  `@codemirror/autocomplete` 这一个包（数十 KB 量级）。core **仍然不安装** `autocompletion()`，
-  所以补全一点也没有。
-- **内存与进程**：core 的常驻内存回到基线量级，不再为语言服务器预留额度。
+- 不再随包提供任何语言服务器（`typescript` / `basedpyright` / `yaml-language-server` /
+  `typescript-language-server`）：装 core 的进程树里**零个**语言服务器，常驻内存回到基线量级。
+- 不再有补全（语义与本地都没有）；**保留自动闭合括号** —— 它是一般编辑能力，不是代码智能。
+- 与 codeintel 之间是一份带版本的契约：编辑器接缝、四个客户端槽位、CodeMirror 单实例。
+  两包的加载顺序无关；双装时同一能力由优先级最高的一方生效（自动闭合括号由 codeintel 接管）。
+- 状态栏的「语义分析」格与设置页的「语言服务器」分组随 codeintel 一起搬走，双装时原样回来。
 
-### 变成了契约的一方
+### 体验
 
-- core 在 Cordis 服务总线上提供 `dsh-ide-workbench.contract`：项目根、作用域根、读文件、
-  文本搜索、项目根变化订阅、健康状态。
-- core 声明四个客户端槽位（编辑器桥 / 状态栏条目 / 设置分组 / 编辑器命令），codeintel 通过
-  `ctx.slots.inject` 注册 —— **加载顺序无关**。
-- core 提供**编辑器接缝**：扩展槽位、快捷键、命令、文档订阅、跳转落点。
-- **扩展槽位与让位**：同一个 key 的能力只保留优先级最高的那一份。core 的自动闭合括号
-  优先级 0，codeintel 的是 100 ⇒ **双装时由 codeintel 生效，且与插件加载顺序无关**。
-- **CodeMirror 单实例**：core 独占 CodeMirror 运行时，codeintel 通过契约与惰性代理取用 ——
-  页面上**只有一份** `@codemirror/state`，`instanceof` 判定不会失效。
+- **工具窗入口可放左/右（默认右）**：设置页可改，即时生效并持久化；左模式与旧版一致。
+- **全项目查找回到弹窗**：`Ctrl+Shift+R` 不再占用编辑器标签，结果浮在工作台上 —— 上半是命中
+  文件列表、下半是选中文件的命中与上下文；双击打开并关闭，`Esc` / 遮罩 / ✕ 关闭。
+- **选中即带入搜索框**：`Ctrl+F`（编辑器 / Markdown 预览）与 `Ctrl+Shift+R` 在触发时有选中
+  文本时，直接把它填进搜索框（IDE 行为）；没有选中时不清空已输入的查询。
+- **diff**：并排保留原始空白（缩进 / 连续空格 / 行尾空格），单词级高亮默认开启；并排布局改为
+  **两栏各占内容区一半、各自横向滚动并联动**，超长行只在自己的栏内平移。
+- **Git Blame 注解**：在行号上右键 → 行号**左侧**出现内联注解列（`日期 作者`，未提交的行留空），
+  点击某一格打开该提交的详情。
+- **窄面板工具栏**：文字不换行；空间不足时只留图标（文字进悬停提示），编码只留首字母。
 
-### 故障不再拖垮别人
+### 修复
 
-- **归属注册表**：异常先问「这是谁的」——栈命中某个插件自己声明的目录就是它的责任，
-  一个都不命中才交回宿主原有的 fail-loud 策略。
-- **全进程只装一个** `uncaughtException` / `unhandledRejection` 处理器 ⇒ 同一次异常**只转交一次**。
-- core 自己的异常留在 core 内（降级对应功能），**不杀 DSH 宿主**。
+- **只装 core 时白屏**（三处叠加根因）：发布包补齐契约副本；三处「原始键绑定数组被当扩展安装」
+  改为 `keymap.of(...)`。
+- **设置不再写进别的 profile**：优先使用宿主提供的 `profileContext` 目录，环境变量只作兜底。
+- **切换标签后 `Ctrl+F` 静默不弹查找条**：编辑器 API 只由编辑器自己交还。
 
-### 设置
+### 升级说明
 
-- core 的设置文件仍是 `<profile>/ide-workbench/settings.json`，但**不再有 `lsp` 段**。
-- 设置文档的版本号由 5 改为 **3**（这是**换了文件格式**，不是倒退）；旧的 `lsp` 段与四个
-  语义快捷键在读取时被**丢弃**，但**不会从文件里删掉** —— 降级到旧版仍然可用。
-- 记忆预算、空闲策略与索引记忆**由 codeintel 一次性导入**到它自己的设置文件
-  （`<profile>/dsh-codeintel/settings.json`）。
-
-### 与旧版相比少掉的
-
-- 状态栏的「语义分析」格、设置页的「语言服务器」分组、内存预算面板、索引决策弹窗 ——
-  它们随 codeintel 一起搬走了。**双装时它们原样回来**。
-
-### 发布后修复与 V6 增量（同日）
-
-- **只装 core 时白屏（三个叠加根因，都会让工作台打不开）**
-  - **发布包漏了契约副本**：`files` 白名单没有 `src/contract`，`npm pack` 出来的 tarball 里
-    `src/index.js` 却静态 import 它 ⇒ 宿主半边 `failed to import`，插件整体不挂载（入口消失；
-    若 profile 里残留旧版布局，点开就是空面板）。两个包的白名单都补上 `src/contract`，
-    并在 `verify:split` 里新增「entry 的相对 import 图必须全部落在 `files` 里」的检查
-    （已做负向验证：删掉该行会 FAIL）。
-  - **键绑定数组被当扩展安装（core 侧）**：core 的扩展槽位把 `closeBracketsKeymap`（**原始键绑定
-    数组**，不是 Extension）直接放进 `extensions`，`EditorState.create` 抛
-    `Unrecognized extension value in extension set`；双装时被 codeintel 更高优先级的槽位掩盖，
-    只装 core 时必崩。改为 `keymap.of(closeBracketsKeymap)`。
-  - **键绑定数组被当扩展安装（双装侧，两处）**：① codeintel 的 `closeBrackets` 槽位有同样的
-    问题，而**双装时正是它胜出**；② core 把 `EditorSeam.keymap`（契约交付的是**摊平后的绑定数组**）
-    直接塞进 `keymapCompartment`，codeintel 一旦注册语义快捷键（双装必然）就崩。
-    两处都改为 `keymap.of(...)`。三处都有回归测试 + 双装实机验收。
-
-**四项体验增强**（规格见 `docs/prd/v6/PRD-v6-增强需求.md`）
-
-- **工具窗口入口可配置在左/右（默认右）**：`settings.layout.entrySide`；右侧布局让聊天区与
-  代码内容区相邻。左模式不新增任何选择器 ⇒ 与旧版逐像素一致；窄面板堆叠仍是「入口在顶部」。
-- **diff 保真**：并排模式加 `white-space: pre`（缩进 / 连续空格 / 行尾空格不再被折叠），
-  `tab-size: 4`；`git.wordLevel` 默认开启（工具栏 Aa 仍可关，选择持久化）。
-- **diff 超长行横向滚动**：按可视行最宽处量测 `.iwb-diff-inner` 的 `min-width`
-  （`max(100%, calc(Nch + Xpx))`）。统一模式是**一个**横向滚动面；并排模式改成 IDE 的做法：
-  **两栏各占内容区一半**（`grid-template-columns: minmax(0,1fr) minmax(0,1fr)`，随内容区拉伸而
-  等分），每栏是**自己的**滚动面并按**本栏**最宽的行测量，两栏的横向/竖向滚动**联动** ——
-  拖任意一栏的滚动条，另一栏以「距左端点相同的距离」跟随；可滚动长度不一致时较短的一栏夹在
-  自己的端点，且夹取结果不会回拉用户正在拖的那一栏。
-- **Git Blame annotate（行号左侧内联列）**：在行号上右键「Annotate with Git Blame」，编辑器出现
-  一列**位于行号左侧**的注解（CodeMirror gutter），每行一格、只显示 `YYYY/M/D 作者`；工作区里
-  改动/新增（未提交）的行该格**留空**，不打印伪作者；点击某一格打开 Git 工具窗口并定位到该提交
-  的详情（复用现有提交详情）。同一菜单里多一项「关闭 Git 注解」。宿主新增 `git.blame` 路由
-  （porcelain 解析、20k 行上限、20s 超时）。
-- **设置不再写进别的 profile**：`profileBase()` 以前优先从父 shell 继承的 `DSH_PROFILE_DIR`，
-  从另一个 DSH 终端启动的实例会把设置写进那个 profile；现在优先 `ctx.get('profileContext').dir`，
-  环境变量只作 fallback。设置文档版本 3 → **4**（只新增 `layout.entrySide` 与 `git.wordLevel`，
-  读旧文件是深合并，不丢任何键）。
-- **全局查找回到弹窗**：`Ctrl+Shift+R` / `Ctrl+Alt+F` 不再在编辑器里开一个 `search:in-files`
-  标签（拆分时 `SearchPopup.jsx` 被搬进 codeintel，core 退回了标签页，PRD-v5 FIND-01 的回归）。
-  搜索是**浮在编辑器上的弹窗**：上半是命中文件列表，下半是选中文件的命中与上下文；双击打开并关闭、
-  `Esc`/遮罩/✕ 关闭、`↑↓`/`Enter`/`F8` 键盘操作；不开标签、不切换当前文档。旧标签页视图删除。
-- **选中即带入搜索框**：`Ctrl+F`（编辑器 / Markdown 预览）与 `Ctrl+Shift+R` 在触发时有选中文本时
-  直接把它填进搜索框（IDE 行为）。编辑器的选中优先，其次是页面选中；单行取原样（行内空格保留），
-  多行取第一条非空行（全项目查找是逐行 grep）；没有选中时不清空已输入的查询。
-- **修复：切换标签后 `Ctrl+F` 静默不弹查找条** —— `EditorArea` 的 `[active?.id]` effect 会清空
-  编辑器 API，而 React 先跑子组件 effect，于是刚挂载的编辑器交出的 API 被抹掉，查找条（它要求
-  API 存在才渲染）不再出现。现在 API 只由编辑器自己交还（卸载时 `onReady(null)`）。
-- **内容工具栏在窄面板只留图标**：路径右边那组控件（预览 / 源码 / 编辑 / 保存 / 编码）现在
-  **不许换行、不许收缩** —— 旧版被挤到按钮内部的「编/辑」「utf-/8」折行就是它们能收缩造成的。
-  同时按**实测宽度**打 `data-compact` 标记：把控件量出来的自然宽度 + 140px 的路径预算，与工具栏
-  实际宽度比较，放不下就只留图标（文字进 tooltip），编码只留首字母（`utf-8` → `u`、`GBK` → `G`），
-  完整编码与换行符在 tooltip 里。测量放在 layout effect 中，浏览器不会画出「先换行再收紧」的中间态。
+- 设置文件版本 3 → 4：新增 `layout.entrySide` 与 `git.wordLevel`；读旧文件是深合并，不丢键。
+  旧的 `lsp` 段与四个语义快捷键在读取时被忽略，但**不会从文件里删除** —— 降级到旧版仍可用。
 
 ## 0.5.1
 
