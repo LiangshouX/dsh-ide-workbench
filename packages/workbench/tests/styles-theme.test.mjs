@@ -173,35 +173,56 @@ const fallbackForeground = () => {
 const scenarios = () => [
   {
     name: 'the light host theme',
+    branch: 'light',
     foreground: HOST_LIGHT_FOREGROUND,
     backgrounds: [LIGHT_EDITOR],
   },
   {
     name: 'the dark host theme',
+    branch: 'dark',
     foreground: HOST_DARK_FOREGROUND,
     backgrounds: [DARK_EDITOR, DARK_CODE_LAYER],
   },
   {
     name: 'a host without a palette',
+    branch: 'dark',
     foreground: fallbackForeground(),
     backgrounds: [DARK_EDITOR, DARK_CODE_LAYER],
   },
 ]
 
 /**
- * The declaration of a syntax token: the hue it is built from and the share
- * of that hue in the mix with the theme text colour.
+ * The declaration of a syntax token: the two theme branches of the palette.
+ *
+ * A token is written as three declarations:
+ *
+ *   --iwb-syn-keyword-light: color-mix(in oklab, #9455b5 80%, var(--iwb-fg) 20%);
+ *   --iwb-syn-keyword-dark:  color-mix(in oklab, #9455b5 52%, var(--iwb-fg) 48%);
+ *   --iwb-syn-keyword:       light-dark(var(--iwb-syn-keyword-light), var(--iwb-syn-keyword-dark));
+ *
+ * The branch follows the host theme (the `color-scheme` it declares), and the
+ * share of the hue differs per theme - see the comment in styles.js.
  */
 const readSyntaxToken = (token) => {
-  const match = new RegExp(
-    `${token}:\\s*color-mix\\(in oklab,\\s*(#[0-9a-f]{6})\\s+(\\d+(?:\\.\\d+)?)%,\\s*var\\(--iwb-fg\\)\\s+(\\d+(?:\\.\\d+)?)%\\)\\s*;`,
-    'i',
-  ).exec(styles)
-  assert.ok(match !== null, `${token} is a colour mixed with the theme text colour`)
-  const hueShare = Number(match[2])
-  const textShare = Number(match[3])
-  assert.ok(Math.abs(hueShare + textShare - 100) < 1e-9, `${token} mixes its two parts to 100%`)
-  return { hue: match[1].toLowerCase(), hueShare: hueShare / 100 }
+  const branch = (suffix) => {
+    const match = new RegExp(
+      `${token}-${suffix}:\\s*color-mix\\(in oklab,\\s*(#[0-9a-f]{6})\\s+(\\d+(?:\\.\\d+)?)%,\\s*var\\(--iwb-fg\\)\\s+(\\d+(?:\\.\\d+)?)%\\)\\s*;`,
+      'i',
+    ).exec(styles)
+    assert.ok(match !== null, `${token}-${suffix} is a colour mixed with the theme text colour`)
+    const hueShare = Number(match[2])
+    const textShare = Number(match[3])
+    assert.ok(Math.abs(hueShare + textShare - 100) < 1e-9, `${token}-${suffix} mixes its two parts to 100%`)
+    return { hue: match[1].toLowerCase(), hueShare: hueShare / 100 }
+  }
+  const light = branch('light')
+  const dark = branch('dark')
+  // The identity of a token must not change with the theme: both branches
+  // start from the same hue.
+  assert.equal(light.hue, dark.hue, `${token} changes its hue between the themes`)
+  const switcher = new RegExp(`${token}:\\s*light-dark\\(var\\(${token}-light\\),\\s*var\\(${token}-dark\\)\\)\\s*;`, 'i')
+  assert.match(styles, switcher, `${token} picks its branch with light-dark()`)
+  return { light, dark }
 }
 
 test('the stylesheet has no hard-coded smart-code colours left', () => {
@@ -228,8 +249,8 @@ test('every syntax token is derived from the theme text colour', () => {
   // The palette must not wait for the host: it has no syntax aliases, and
   // the fallback has to stand on its own.
   for (const token of SYNTAX_TOKENS) {
-    const { hue } = readSyntaxToken(token)
-    assert.match(hue, /^#[0-9a-f]{6}$/, `${token} is built from a hue of its own`)
+    const { light } = readSyntaxToken(token)
+    assert.match(light.hue, /^#[0-9a-f]{6}$/, `${token} is built from a hue of its own`)
   }
   assert.doesNotMatch(styles, /--dsw-alias-code-/, 'the palette must not depend on a host syntax alias')
   // The host theme is not the system theme, so nothing may switch on it.
@@ -286,16 +307,18 @@ test('every syntax token is readable on the light and on the dark surfaces', () 
   // Every token has to clear 4.5:1 on every surface of every theme. One
   // fixed colour cannot do that - it would need a relative luminance of
   // 0.183 or less for white and 0.269 or more for the dark code layer -
-  // which is why the palette is mixed with the theme text colour.
+  // which is why the palette is mixed with the theme text colour, and why
+  // the share of the mix differs per theme.
   for (const token of SYNTAX_TOKENS) {
-    const { hue, hueShare } = readSyntaxToken(token)
+    const { light, dark } = readSyntaxToken(token)
     for (const scenario of scenarios()) {
-      const resolved = mixInOklab(hue, scenario.foreground, hueShare)
+      const branch = scenario.branch === 'light' ? light : dark
+      const resolved = mixInOklab(branch.hue, scenario.foreground, branch.hueShare)
       for (const background of scenario.backgrounds) {
         const ratio = contrastRatio(resolved, background)
         assert.ok(
           ratio >= 4.5,
-          `${token} (${hue}) is ${resolved} on ${background} in ${scenario.name}: ` +
+          `${token} (${branch.hue}) is ${resolved} on ${background} in ${scenario.name}: ` +
           `${ratio.toFixed(2)}:1, it needs 4.5:1`,
         )
       }
@@ -308,9 +331,10 @@ test('the syntax palette keeps a margin over the 4.5:1 bar', () => {
   // later change of a hue cannot quietly eat the margin.
   let worst = Infinity
   for (const token of SYNTAX_TOKENS) {
-    const { hue, hueShare } = readSyntaxToken(token)
+    const { light, dark } = readSyntaxToken(token)
     for (const scenario of scenarios()) {
-      const resolved = mixInOklab(hue, scenario.foreground, hueShare)
+      const branch = scenario.branch === 'light' ? light : dark
+      const resolved = mixInOklab(branch.hue, scenario.foreground, branch.hueShare)
       for (const background of scenario.backgrounds) {
         worst = Math.min(worst, contrastRatio(resolved, background))
       }
@@ -324,20 +348,44 @@ test('the syntax palette keeps its hues', () => {
   // not its identity: the hue angle may hardly move and the colour has to
   // keep a good part of the chroma of its hue.
   for (const token of SYNTAX_TOKENS) {
-    const { hue, hueShare } = readSyntaxToken(token)
-    for (const scenario of scenarios()) {
-      const resolved = mixInOklab(hue, scenario.foreground, hueShare)
-      const shift = Math.abs(hueAngle(resolved) - hueAngle(hue))
-      assert.ok(
-        Math.min(shift, 360 - shift) <= 8,
-        `${token} (${hue}) is ${resolved} in ${scenario.name}: the hue moved by ${shift.toFixed(1)}°`,
-      )
-      assert.ok(
-        chroma(resolved) >= chroma(hue) * 0.4,
-        `${token} (${hue}) is ${resolved} in ${scenario.name}: the colour lost its chroma`,
-      )
-      assert.ok(hueShare > 0 && hueShare < 1, `${token} mixes both of its parts`)
+    const { light, dark } = readSyntaxToken(token)
+    for (const branch of [light, dark]) {
+      for (const scenario of scenarios()) {
+        const resolved = mixInOklab(branch.hue, scenario.foreground, branch.hueShare)
+        const shift = Math.abs(hueAngle(resolved) - hueAngle(branch.hue))
+        assert.ok(
+          Math.min(shift, 360 - shift) <= 8,
+          `${token} (${branch.hue}) is ${resolved} in ${scenario.name}: the hue moved by ${shift.toFixed(1)}°`,
+        )
+        assert.ok(
+          chroma(resolved) >= chroma(branch.hue) * 0.4,
+          `${token} (${branch.hue}) is ${resolved} in ${scenario.name}: the colour lost its chroma`,
+        )
+        assert.ok(branch.hueShare > 0 && branch.hueShare < 1, `${token} mixes both of its parts`)
+      }
     }
+  }
+})
+
+test('the light branch keeps the colour of a token visible', () => {
+  // The complaint that started this: in a light theme the tokens were mixed
+  // with the near-black text colour at the dark theme's share, so the violet of
+  // a keyword came out as a dull near-black and the code looked unhighlighted.
+  // The light branch therefore keeps a large share of the hue - and the token
+  // has to stay apart from the plain text of the line.
+  for (const token of SYNTAX_TOKENS) {
+    const { light } = readSyntaxToken(token)
+    assert.ok(light.hueShare >= 0.75, `${token} keeps ${(light.hueShare * 100).toFixed(0)}% of its hue in the light theme`)
+    const resolved = mixInOklab(light.hue, HOST_LIGHT_FOREGROUND, light.hueShare)
+    const plain = mixInOklab(light.hue, HOST_LIGHT_FOREGROUND, 0)
+    assert.ok(
+      chroma(resolved) >= chroma(light.hue) * 0.7,
+      `${token} is ${resolved} in the light theme: the colour lost its chroma`,
+    )
+    assert.ok(
+      chroma(resolved) > chroma(plain),
+      `${token} is ${resolved} in the light theme: it is not more colourful than the plain text`,
+    )
   }
 })
 

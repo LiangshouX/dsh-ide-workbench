@@ -52,20 +52,48 @@ export const CSS = `
      while the lightness comes from the host - and that is what makes one
      token readable on a light theme and on a dark one. Nothing switches on
      prefers-color-scheme, and nothing waits for the host.
-     52% hue / 48% theme text is the largest share of the hue that keeps
-     every token at 5:1 or better on white, on the editor background and on
-     the code layer; tests/styles-theme.test.mjs does the oklab maths and
-     checks all three surfaces. */
-  --iwb-syn-comment: color-mix(in oklab, #6b7482 52%, var(--iwb-fg) 48%);
-  --iwb-syn-string: color-mix(in oklab, #2a8359 52%, var(--iwb-fg) 48%);
-  --iwb-syn-keyword: color-mix(in oklab, #9455b5 52%, var(--iwb-fg) 48%);
-  --iwb-syn-type: color-mix(in oklab, #12838d 52%, var(--iwb-fg) 48%);
-  --iwb-syn-number: color-mix(in oklab, #a1651c 52%, var(--iwb-fg) 48%);
-  --iwb-syn-function: color-mix(in oklab, #2a6cbd 52%, var(--iwb-fg) 48%);
-  --iwb-syn-property: color-mix(in oklab, #4a63b8 52%, var(--iwb-fg) 48%);
-  --iwb-syn-tag: color-mix(in oklab, #bb404f 52%, var(--iwb-fg) 48%);
-  --iwb-syn-heading: color-mix(in oklab, #1e70e2 52%, var(--iwb-fg) 48%);
-  --iwb-syn-invalid: color-mix(in oklab, #bb352c 52%, var(--iwb-fg) 48%);
+     The SHARE of the hue is what differs per theme, and it has to: in a light
+     theme the text is near-black, so a LARGE share of the hue keeps the token
+     a colour (with the dark theme's 52% the violet washed out to near-black
+     and the code looked unhighlighted); in a dark theme the text is
+     near-white, so a SMALL share lifts the hue just far enough to clear the
+     dark code layer. The branch follows the host through light-dark(),
+     which resolves on the color-scheme the host declares for its theme
+     (the DSH host writes :root { color-scheme: light|dark } for every
+     theme - app or system). Nothing switches on prefers-color-scheme, and
+     nothing waits for the host. tests/styles-theme.test.mjs does the oklab
+     maths and checks every token, in both branches, on all three surfaces
+     (white, the editor background and the code layer). */
+  --iwb-syn-comment-light: color-mix(in oklab, #6b7482 80%, var(--iwb-fg) 20%);
+  --iwb-syn-comment-dark: color-mix(in oklab, #6b7482 52%, var(--iwb-fg) 48%);
+  --iwb-syn-comment: light-dark(var(--iwb-syn-comment-light), var(--iwb-syn-comment-dark));
+  --iwb-syn-string-light: color-mix(in oklab, #2a8359 80%, var(--iwb-fg) 20%);
+  --iwb-syn-string-dark: color-mix(in oklab, #2a8359 52%, var(--iwb-fg) 48%);
+  --iwb-syn-string: light-dark(var(--iwb-syn-string-light), var(--iwb-syn-string-dark));
+  --iwb-syn-keyword-light: color-mix(in oklab, #9455b5 80%, var(--iwb-fg) 20%);
+  --iwb-syn-keyword-dark: color-mix(in oklab, #9455b5 52%, var(--iwb-fg) 48%);
+  --iwb-syn-keyword: light-dark(var(--iwb-syn-keyword-light), var(--iwb-syn-keyword-dark));
+  --iwb-syn-type-light: color-mix(in oklab, #12838d 80%, var(--iwb-fg) 20%);
+  --iwb-syn-type-dark: color-mix(in oklab, #12838d 52%, var(--iwb-fg) 48%);
+  --iwb-syn-type: light-dark(var(--iwb-syn-type-light), var(--iwb-syn-type-dark));
+  --iwb-syn-number-light: color-mix(in oklab, #a1651c 80%, var(--iwb-fg) 20%);
+  --iwb-syn-number-dark: color-mix(in oklab, #a1651c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-number: light-dark(var(--iwb-syn-number-light), var(--iwb-syn-number-dark));
+  --iwb-syn-function-light: color-mix(in oklab, #2a6cbd 80%, var(--iwb-fg) 20%);
+  --iwb-syn-function-dark: color-mix(in oklab, #2a6cbd 52%, var(--iwb-fg) 48%);
+  --iwb-syn-function: light-dark(var(--iwb-syn-function-light), var(--iwb-syn-function-dark));
+  --iwb-syn-property-light: color-mix(in oklab, #4a63b8 80%, var(--iwb-fg) 20%);
+  --iwb-syn-property-dark: color-mix(in oklab, #4a63b8 52%, var(--iwb-fg) 48%);
+  --iwb-syn-property: light-dark(var(--iwb-syn-property-light), var(--iwb-syn-property-dark));
+  --iwb-syn-tag-light: color-mix(in oklab, #bb404f 80%, var(--iwb-fg) 20%);
+  --iwb-syn-tag-dark: color-mix(in oklab, #bb404f 52%, var(--iwb-fg) 48%);
+  --iwb-syn-tag: light-dark(var(--iwb-syn-tag-light), var(--iwb-syn-tag-dark));
+  --iwb-syn-heading-light: color-mix(in oklab, #1e70e2 80%, var(--iwb-fg) 20%);
+  --iwb-syn-heading-dark: color-mix(in oklab, #1e70e2 52%, var(--iwb-fg) 48%);
+  --iwb-syn-heading: light-dark(var(--iwb-syn-heading-light), var(--iwb-syn-heading-dark));
+  --iwb-syn-invalid-light: color-mix(in oklab, #bb352c 80%, var(--iwb-fg) 20%);
+  --iwb-syn-invalid-dark: color-mix(in oklab, #bb352c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-invalid: light-dark(var(--iwb-syn-invalid-light), var(--iwb-syn-invalid-dark));
   --iwb-sidebar: var(--dsw-specific-sidebar-fill, #181b21);
   --iwb-mod: #4c9aff;
   --iwb-add: #4fb477;
