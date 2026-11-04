@@ -157,6 +157,8 @@ for (const entry of PACKAGES) {
   built.push({ name, version, zip: zipPath, sha256: digest, sizeMb, dependencyCount })
   console.log(`[offline]   ${basename(zipPath)}  ${sizeMb} MB  sha256 ${digest.slice(0, 16)}…`)
   rmSync(tarball, { force: true })
+  // The staging copy has served its purpose: the archive carries it.
+  rmSync(stage, { recursive: true, force: true })
 }
 
 rmSync(join(outDir, '.pack'), { recursive: true, force: true })

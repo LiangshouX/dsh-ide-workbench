@@ -1,17 +1,27 @@
 name: Publish
-# 发布到 npm：打 tag（<包>-v*）即触发。
+# 发布到 npm + GitHub Release：打 tag 即触发。
 # 自动发布需要在 npm 包页面一次性配置 Trusted Publisher：
 #   Settings → Trusted Publisher → GitHub Actions
 #   owner: LiangshouX / repo: dsh-ide-workbench / workflow: publish.yml / environment: 留空
 #   详见 https://docs.npmjs.com/trusted-publishers
 #
-# 两个包有**独立的版本线**（PRD-v6 REL-01）：
-#   workbench-v<版本>  → packages/workbench  → dsh-ide-workbench
+# 两个包有**独立的版本线**（PRD-v6 REL-01），一次发版只动一个包：契约的版本是独立的，
+# 只有 major 变更才要求另一方一起升。
+#
+#   v<版本>            → packages/workbench  → dsh-ide-workbench   （core 的历史 tag 形式）
+#   workbench-v<版本>  → packages/workbench  → dsh-ide-workbench   （兼容旧的写法）
 #   codeintel-v<版本>  → packages/codeintel  → dsh-ide-codeintel
-# 一次发版只动一个包：契约的版本是独立的，只有 major 变更才要求另一方一起升。
+#
+# tag 必须与包的 package.json 版本一致（下面会校验），否则这一版会被发错。
 on:
   push:
-    tags: ['workbench-v*', 'codeintel-v*']
+    tags: ['v*', 'workbench-v*', 'codeintel-v*']
+  # 已经推上去的 tag 也可以手动补发一次（不用删 tag 重推）。
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag to publish (e.g. v0.6.0)'
+        required: true
 permissions:
   contents: write         # 创建 GitHub Release（源码包用 tag 自动附加）
   id-token: write         # OIDC 换取 npm 免密发布凭证
@@ -19,7 +29,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      # 手动补发时必须检出 tag 本身：默认检出的是分支，版本号可能已经和
+      # tag 对不上了（下面的版本校验会因此失败，或者把别的代码发成这一版）。
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       # 不要给 setup-node 设置 registry-url：它会写一份 .npmrc 而
       # `_authToken=${NODE_AUTH_TOKEN}` 会被展开成占位符 XXXXX-XXXXX-XXXXX。
       # npm 见到那个 token 夹具会拒绝登录，跳过 Trusted Publisher（OIDC）；
@@ -61,14 +75,17 @@ jobs:
       - run: npm run build               # dist/client.js 必须在发布前重建
       - name: Resolve the package of the tag
         id: target
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          TAG="$RELEASE_TAG"
           case "$TAG" in
+            v*) DIR="packages/workbench" ;;
             workbench-v*) DIR="packages/workbench" ;;
             codeintel-v*) DIR="packages/codeintel" ;;
             *) echo "unknown tag $TAG" >&2; exit 1 ;;
           esac
-          VERSION="${TAG#*v}"
+          VERSION="${TAG##*v}"
           PKG_VERSION="$(node -p "require('./$DIR/package.json').version")"
           if [ "$VERSION" != "$PKG_VERSION" ]; then
             echo "tag $TAG != $DIR/package.json version $PKG_VERSION" >&2
@@ -81,34 +98,58 @@ jobs:
             exit 1
           fi
           echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "key=$(basename "$DIR")" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
-      - name: Publish to npm
-        working-directory: ${{ steps.target.outputs.dir }}
-        run: npm publish --access public
-      # 离线分发包：把运行时依赖（ws）一起打进 tarball，DSH 可以不联网直接安装。
-      # package.json 的 bundleDependencies 让 npm 把 node_modules/ws 收进包里 ——
-      # 也就是说 npm 上的这个包本身也是自包含的，两处是同一份内容。
-      - name: Pack the offline bundle (with node_modules)
-        working-directory: ${{ steps.target.outputs.dir }}
+      # 两个离线分发包，都放在仓库根的 artifacts/ 下（Release 步骤从这里取）：
+      #   1. npm tarball：package.json 的 bundleDependencies 让 npm 把 node_modules/ws
+      #      收进包里，所以 npm 上的这个包本身就是自包含的；
+      #   2. <name>-offline.zip：连同语言服务器（codeintel）一起打进去，附带安装
+      #      脚本，**完全断网**的机器也能装（npm run make:offline）。
+      #
+      # 这一步排在发布之前：它要在解包后的目录里装生产依赖，是整条流水线里
+      # 唯一会碰网络的一步。它失败的话，npm 和 Release 都还没有动过 —— 状态
+      # 是干净的，重跑一次即可。
+      - name: Pack the offline artifacts
+        env:
+          DIR: ${{ steps.target.outputs.dir }}
+          KEY: ${{ steps.target.outputs.key }}
         run: |
           mkdir -p artifacts
-          npm pack --pack-destination artifacts
+          npm pack --workspace "$DIR" --pack-destination artifacts
+          npm run make:offline -- --only "$KEY" --no-build --out "$PWD/artifacts"
+      - name: Publish to npm
+        working-directory: ${{ steps.target.outputs.dir }}
+        env:
+          NAME: ${{ steps.target.outputs.name }}
+          VERSION: ${{ steps.target.outputs.version }}
+        run: |
+          # 补发一个已经发过的 tag 时，npm 上的这一版已经在了；再 publish 一次
+          # 会以 403 失败，把整条流水线（含 GitHub Release）一起拖垮。所以先
+          # 问一句 registry：已经在上面了就跳过发布，继续做 Release。
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION is already on npm - skipping the publish"
+          else
+            npm publish --access public
+          fi
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           NAME: ${{ steps.target.outputs.name }}
           VERSION: ${{ steps.target.outputs.version }}
+          DIR: ${{ steps.target.outputs.dir }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          TAG="$GITHUB_REF_NAME"
-          ASSET=$(ls artifacts/*.tgz | head -n 1)
-          ASSET_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$(basename "$ASSET")"
+          TAG="$RELEASE_TAG"
+          TGZ=$(ls artifacts/*.tgz | head -n 1)
+          OFFLINE=$(ls artifacts/*-offline.zip | head -n 1)
+          TGZ_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$(basename "$TGZ")"
           # 变更说明优先取 CHANGELOG.md 里这一版的小节；没有就退回 GitHub 按提交
           # 生成的说明。两边都拿不到时给一段占位说明，不能让发布整个失败。
           BODY="$(awk -v want="$VERSION" '
             /^## / { inside = ($0 ~ ("^## " want "([^0-9]|$)")); next }
             inside { print }
-          ' "${{ steps.target.outputs.dir }}/CHANGELOG.md" 2>/dev/null || true)"
+          ' "$DIR/CHANGELOG.md" 2>/dev/null || true)"
           if [ -z "$(printf "%s" "$BODY" | tr -d "[:space:]")" ]; then
             BODY="$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
               -f tag_name="$TAG" --jq .body 2>/dev/null || true)"
@@ -122,13 +163,25 @@ jobs:
             printf "### 安装\n\n"
             printf '```bash\n'
             printf "# 离线包（自带 node_modules，不联网也能装）\n"
-            printf 'dsh plugin --profile web add %s\n' "$ASSET_URL"
+            printf 'dsh plugin --profile web add %s\n' "$TGZ_URL"
             printf "\n"
             printf "# 或从 npm 装（同一个自包含 tarball）\n"
             printf 'dsh plugin --profile web add %s@%s\n' "$NAME" "$VERSION"
             printf '```\n'
           } > artifacts/notes.md
-          gh release create "$TAG" \
-            --title "$NAME $TAG" \
-            --notes-file artifacts/notes.md \
-            "$ASSET"
+          # 这一版可能已经有 Release 了：补发一个推上去的 tag，或者上一次跑到
+          # 一半留下了半个 Release。有了就改说明、换掉附件，而不是失败 ——
+          # 失败会让「补发」这条路根本走不通。
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --title "$NAME $TAG" \
+              --notes-file artifacts/notes.md
+            gh release upload "$TAG" "$TGZ" "$OFFLINE" --clobber
+          else
+            gh release create "$TAG" \
+              --title "$NAME $TAG" \
+              --notes-file artifacts/notes.md \
+              --verify-tag \
+              "$TGZ" \
+              "$OFFLINE"
+          fi

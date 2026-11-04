@@ -66,11 +66,11 @@ dsh-ide-workbench/
 **发版**：两个包各有独立版本线，tag 决定发哪个包：
 
 ```
-git tag workbench-v0.6.0 && git push --tags   # → dsh-ide-workbench
+git tag v0.6.0 && git push --tags   # → dsh-ide-workbench（core 沿用历史 tag 形式）
 git tag codeintel-v0.1.0 && git push --tags   # → dsh-ide-codeintel
 ```
 
-CI（`.github/workflows/publish.yml`）据此选包、核对 `package.json` 与 `dsh.plugin.json` 的版本一致、跑全部测试与构建、再发布。
+CI（`.github/workflows/publish.yml`）据此选包、核对 `package.json` 与 `dsh.plugin.json` 的版本一致、跑全部测试与构建、再发布。core 的 tag 也接受 `workbench-v<版本>` 这个旧写法，两个都触发同一条流水线。
 
 ---
 
