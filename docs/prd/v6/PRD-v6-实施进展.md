@@ -13,7 +13,7 @@
 |---|---|
 | 仓库 | **monorepo**：`packages/{contract,workbench,codeintel}`，npm workspaces |
 | core | `dsh-ide-workbench` **0.6.0**（插件 ID 不变 ⇒ 原地升级） |
-| codeintel | `dsh-ide-codeintel` **0.1.0**（独立版本线） |
+| codeintel | `dsh-ide-codeintel` **0.1.0-alpha**（独立版本线，预发布版） |
 | core 的测试 | **483 / 483 通过** |
 | codeintel 的测试 | **818 / 818 通过** |
 | 契约测试（根级） | **26 / 26 通过** |
@@ -67,7 +67,7 @@ dsh-ide-workbench/
 
 ```
 git tag v0.6.0 && git push --tags   # → dsh-ide-workbench（core 沿用历史 tag 形式）
-git tag codeintel-v0.1.0 && git push --tags   # → dsh-ide-codeintel
+git tag codeintel-v0.1.0-alpha && git push --tags   # → dsh-ide-codeintel
 ```
 
 CI（`.github/workflows/publish.yml`）据此选包、核对 `package.json` 与 `dsh.plugin.json` 的版本一致、跑全部测试与构建、再发布。core 的 tag 也接受 `workbench-v<版本>` 这个旧写法，两个都触发同一条流水线。

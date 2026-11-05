@@ -209,7 +209,7 @@ ctx.effect(() => ctx.slots.inject(SLOT_KEYS.editorBridge, () =>
 | `packages/workbench` | `dist/client.js`（esbuild；external: `react`, `@deepseek-ai/dsh-client-ui-primitives`） | `src/index.js` + `src/host/**` |
 | `packages/codeintel` | `dist/client.js`（esbuild；**alias** `@codemirror/*` → shim；external 同上） | `src/index.js` + `src/host/**`（**必须含 `lsp-worker.js`**） |
 
-- 两个包**独立版本线**：core `0.6.0`，codeintel `0.1.0`。
+- 两个包**独立版本线**：core `0.6.0`，codeintel `0.1.0-alpha`。
 - `dsh.plugin.json.version` 与 `package.json.version` 必须一致。
 
 ---

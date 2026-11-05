@@ -48,7 +48,7 @@ npm test             # 两个包的测试 + 跨包契约测试
 
 ```bash
 git tag v0.6.0            && git push --follow-tags   # 发布 dsh-ide-workbench 0.6.0
-git tag codeintel-v0.1.0  && git push --follow-tags   # 发布 dsh-ide-codeintel 0.1.0
+git tag codeintel-v0.1.0-alpha && git push --follow-tags   # 发布 dsh-ide-codeintel 0.1.0-alpha
 ```
 
 - core 沿用历史 tag 形式（`v0.4.0` … `v0.6.0`）；codeintel 用 `codeintel-v<版本>` 前缀区分。
