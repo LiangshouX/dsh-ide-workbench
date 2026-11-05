@@ -1,6 +1,6 @@
 {
   "name": "dsh-ide-codeintel",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha",
   "description": "Code intelligence for the DeepSeek Harness IDE workbench: local and semantic completion, go to definition, find usages, hover and signature help, plus the language servers (TypeScript, Python, Java/JDTLS, YAML) with their memory budget. Needs the IDE workbench plugin. | DSH 插件：代码智能——本地与语义补全、跳转定义、查找用法、悬浮与签名提示，并自带语言服务器（TypeScript / Python / Java / YAML）与其内存预算。需与 IDE 工作台插件配合使用。",
   "type": "module",
   "repository": {
