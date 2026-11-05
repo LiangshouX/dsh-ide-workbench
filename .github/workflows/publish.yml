@@ -130,7 +130,16 @@ jobs:
           if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
             echo "$NAME@$VERSION is already on npm - skipping the publish"
           else
-            npm publish --access public
+            # 预发布版本必须显式带 --tag：npm >= 11 在没给 tag 时会直接拒绝
+            # （"You must specify a tag using --tag when publishing a prerelease
+            # version."）。用 latest 而不是 next —— 市场探测读的就是
+            # dist-tags.latest，挂在别的 tag 上市场就搜不到这个版本。
+            # 正式版本保持默认 tag，行为不变。
+            if [[ "$VERSION" == *-* ]]; then
+              npm publish --access public --tag latest
+            else
+              npm publish --access public
+            fi
           fi
       - name: Create the GitHub Release
         env:
