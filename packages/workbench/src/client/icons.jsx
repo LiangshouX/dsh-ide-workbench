@@ -95,10 +95,13 @@ export function IconSearch(props = {}) {
   ], props)
 }
 
+/** A cog: eight flat-topped teeth around a ring. The previous glyph was a
+ *  circle with eight spokes, which reads as a sun/brightness mark, not as the
+ *  settings gear the toolbar expects. */
 export function IconGear(props = {}) {
   return svg([
-    React.createElement('circle', { key: 'a', cx: 8, cy: 8, r: 2.4, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
-    path('M8 1.6v1.9M8 12.5v1.9M1.6 8h1.9M12.5 8h1.9M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3', { key: 'b' }),
+    path('M6.52 3.17L6.84 1.76L9.16 1.76L9.48 3.17L10.37 3.54L11.6 2.77L13.23 4.4L12.46 5.63L12.83 6.52L14.24 6.84L14.24 9.16L12.83 9.48L12.46 10.37L13.23 11.6L11.6 13.23L10.37 12.46L9.48 12.83L9.16 14.24L6.84 14.24L6.52 12.83L5.63 12.46L4.4 13.23L2.77 11.6L3.54 10.37L3.17 9.48L1.76 9.16L1.76 6.84L3.17 6.52L3.54 5.63L2.77 4.4L4.4 2.77L5.63 3.54Z', { key: 'a' }),
+    React.createElement('circle', { key: 'b', cx: 8, cy: 8, r: 2.15, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
   ], props)
 }
 

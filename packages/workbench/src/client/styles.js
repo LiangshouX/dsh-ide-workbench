@@ -34,10 +34,13 @@ export const CSS = `
   --iwb-code-fg: var(--dsw-alias-label-primary, #ccd2da);
   --iwb-code-border: var(--dsw-alias-border-l1, #333a45);
   --iwb-code-muted: var(--dsw-alias-label-secondary, #8a93a1);
-  /* The text on a solid brand surface. The host knows how bright its brand
-     colour is; the fallback is dark on purpose - a light brand colour with
-     white text is unreadable. */
-  --iwb-on-accent: var(--dsw-alias-label-on-brand, #0d1117);
+  /* The text on a solid brand surface. The host's brand colour is
+     theme-relative - near-black (#0f1115) in the light theme, near-white
+     (#f9fafb) in the dark one - so the readable label is the colour of the
+     surface underneath it, which is exactly the bg-base token. (The host
+     defines no "on brand" token: a fixed dark fallback made the primary
+     button black on black in the light theme.) */
+  --iwb-on-accent: var(--dsw-alias-label-on-brand, var(--dsw-alias-bg-base, #fff));
   --iwb-shadow: var(--dsw-alias-shadow-1, rgba(0, 0, 0, .32));
   /* ── the syntax palette (THEME-03) ──────────────────────────────────────
      The host has no syntax aliases, and no single colour can serve both of
@@ -206,8 +209,9 @@ export const CSS = `
 .iwb-stripe-btn.iwb-on::before {
   content: ''; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--iwb-accent);
 }
-/* The badge counts something on the brand colour: its text is the host's
-   "on brand" label, so a pale brand colour keeps the number readable. */
+/* The badge counts something on the brand colour: its text is the colour of
+   the surface underneath the badge, so the number stays readable in both
+   themes. */
 .iwb-badge {
   position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; padding: 0 4px;
   border-radius: 999px; background: var(--iwb-accent); color: var(--iwb-on-accent); font-size: 10px; font-weight: 700;
