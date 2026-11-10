@@ -257,18 +257,17 @@ test('every syntax token is derived from the theme text colour', () => {
   assert.doesNotMatch(styles, /@media[^{]*prefers-color-scheme/, 'the palette must not switch on the system theme')
 })
 
-test('the text on the accent colour falls back to a dark colour', () => {
-  // A light brand colour with white text is unreadable, so the fallback has
-  // to be dark - the host decides the real value when it knows its brand.
-  const declaration = /--iwb-on-accent:\s*var\(--dsw-alias-[a-z0-9-]+,\s*([^)]+)\);/
-  const match = declaration.exec(styles)
-  assert.ok(match !== null, '--iwb-on-accent is declared')
-  const fallback = match[1].trim().toLowerCase()
-  assert.match(fallback, /^#[0-9a-f]{6}$/, 'the fallback is a hex colour')
-  const red = parseInt(fallback.slice(1, 3), 16)
-  const green = parseInt(fallback.slice(3, 5), 16)
-  const blue = parseInt(fallback.slice(5, 7), 16)
-  assert.ok((red + green + blue) / 3 < 128, `the fallback ${fallback} is a dark colour`)
+test('the text on the accent colour follows the theme instead of a fixed colour', () => {
+  // The host's brand colour is theme-relative: near-black (#0f1115) in the
+  // light theme, near-white (#f9fafb) in the dark one. A fixed fallback can
+  // therefore only be right in one of the two themes - a dark one painted the
+  // primary button black on black in the light theme. The label is the colour
+  // of the surface underneath the brand colour instead.
+  const declaration = /--iwb-on-accent:\s*var\(--dsw-alias-label-on-brand,\s*var\(--dsw-alias-bg-base,\s*([^)]+)\)\);/.exec(styles)
+  assert.ok(declaration !== null, '--iwb-on-accent prefers the host on-brand label and falls back to the theme surface')
+  // The last resort is the light surface, which is what the light theme's
+  // near-black brand colour needs.
+  assert.equal(declaration[1].trim().toLowerCase(), '#fff', 'the last-resort label is the light surface colour')
 })
 
 test('the oklab maths matches the CSS Color 4 reference', () => {

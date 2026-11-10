@@ -41596,8 +41596,8 @@ function IconSearch(props = {}) {
 }
 function IconGear(props = {}) {
   return svg2([
-    import_react3.default.createElement("circle", { key: "a", cx: 8, cy: 8, r: 2.4, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M8 1.6v1.9M8 12.5v1.9M1.6 8h1.9M12.5 8h1.9M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3", { key: "b" })
+    path("M6.52 3.17L6.84 1.76L9.16 1.76L9.48 3.17L10.37 3.54L11.6 2.77L13.23 4.4L12.46 5.63L12.83 6.52L14.24 6.84L14.24 9.16L12.83 9.48L12.46 10.37L13.23 11.6L11.6 13.23L10.37 12.46L9.48 12.83L9.16 14.24L6.84 14.24L6.52 12.83L5.63 12.46L4.4 13.23L2.77 11.6L3.54 10.37L3.17 9.48L1.76 9.16L1.76 6.84L3.17 6.52L3.54 5.63L2.77 4.4L4.4 2.77L5.63 3.54Z", { key: "a" }),
+    import_react3.default.createElement("circle", { key: "b", cx: 8, cy: 8, r: 2.15, fill: "none", stroke: "currentColor", strokeWidth: 1.35 })
   ], props);
 }
 function IconCopy(props = {}) {
@@ -58717,10 +58717,13 @@ var CSS2 = `
   --iwb-code-fg: var(--dsw-alias-label-primary, #ccd2da);
   --iwb-code-border: var(--dsw-alias-border-l1, #333a45);
   --iwb-code-muted: var(--dsw-alias-label-secondary, #8a93a1);
-  /* The text on a solid brand surface. The host knows how bright its brand
-     colour is; the fallback is dark on purpose - a light brand colour with
-     white text is unreadable. */
-  --iwb-on-accent: var(--dsw-alias-label-on-brand, #0d1117);
+  /* The text on a solid brand surface. The host's brand colour is
+     theme-relative - near-black (#0f1115) in the light theme, near-white
+     (#f9fafb) in the dark one - so the readable label is the colour of the
+     surface underneath it, which is exactly the bg-base token. (The host
+     defines no "on brand" token: a fixed dark fallback made the primary
+     button black on black in the light theme.) */
+  --iwb-on-accent: var(--dsw-alias-label-on-brand, var(--dsw-alias-bg-base, #fff));
   --iwb-shadow: var(--dsw-alias-shadow-1, rgba(0, 0, 0, .32));
   /* \u2500\u2500 the syntax palette (THEME-03) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
      The host has no syntax aliases, and no single colour can serve both of
@@ -58889,8 +58892,9 @@ var CSS2 = `
 .iwb-stripe-btn.iwb-on::before {
   content: ''; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--iwb-accent);
 }
-/* The badge counts something on the brand colour: its text is the host's
-   "on brand" label, so a pale brand colour keeps the number readable. */
+/* The badge counts something on the brand colour: its text is the colour of
+   the surface underneath the badge, so the number stays readable in both
+   themes. */
 .iwb-badge {
   position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; padding: 0 4px;
   border-radius: 999px; background: var(--iwb-accent); color: var(--iwb-on-accent); font-size: 10px; font-weight: 700;
