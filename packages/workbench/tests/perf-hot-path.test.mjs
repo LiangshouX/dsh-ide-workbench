@@ -34,6 +34,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import vm from 'node:vm'
 import { listFiles } from '../src/host/search.js'
+import { pdfLicenseBanner, pdfVirtualPlugin } from '../../../scripts/pdf-assets.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 // The workspace hoists the packages to the root of the repository.
@@ -132,6 +133,7 @@ const commonBuild = {
     '@xterm/xterm/css/xterm.css': moduleRequire.resolve('@xterm/xterm/css/xterm.css'),
     '@xterm/xterm': join(root, 'tests/stubs/xterm.js'),
     '@xterm/addon-fit': join(root, 'tests/stubs/addon-fit.js'),
+    'virtual:pdf-worker': join(root, 'tests/stubs/pdf-worker.js'),
   },
   loader: { '.css': 'text' },
   jsx: 'transform',
@@ -208,10 +210,18 @@ async function productionBuildOptions(outfile) {
     bundlePath: outfile,
     JSON,
     resolve,
+    pdfVirtualPlugin,
+    pdfLicenseBanner,
+    banner: { js: pdfLicenseBanner() },
   })
   // The options come from another realm: a copy puts them back into this one,
-  // so that a deep comparison against a plain array works.
-  return structuredClone(options)
+  // so that a deep comparison against a plain array works. The plugin list is
+  // the one exception: its entries are functions, which `structuredClone`
+  // refuses - it is carried over as it is.
+  const { plugins, ...rest } = options
+  const cloned = structuredClone(rest)
+  if (plugins !== undefined) cloned.plugins = plugins
+  return cloned
 }
 
 /**
@@ -223,13 +233,12 @@ async function productionBuildOptions(outfile) {
 async function buildProductBundle(outfile, extra = {}) {
   const options = await productionBuildOptions(outfile)
   await mkdir(dirname(outfile), { recursive: true })
-  await build({
-    ...options,
-    // The log level decides what is printed, not what is written: the
-    // artifact is the one of the product build, byte for byte.
-    logLevel: 'silent',
-    ...extra,
-  })
+  // A caller's plugin is ADDED to the plugins of the product build (the PDF
+  // worker resolver); replacing them would build an artifact the product
+  // never ships.
+  const merged = { ...options, ...extra, logLevel: 'silent' }
+  if (Array.isArray(extra.plugins)) merged.plugins = [...(options.plugins ?? []), ...extra.plugins]
+  await build(merged)
   const text = await readFile(outfile, 'utf8')
   return { text, bytes: Buffer.byteLength(text), outfile }
 }
@@ -586,12 +595,12 @@ test('PERF-03: the production bundle defers the language packages to the first f
   }
 
   // The initializers are reached through the dynamic-import promise: sixteen
-  // loaders for thirteen packages (the JavaScript variants share one
-  // package).
+  // loaders for thirteen language packages (the JavaScript variants share
+  // one package), plus the PDF engine, which is loaded on the first PDF.
   const promiseSites = [...text.matchAll(/Promise\.resolve\(\)\.then\(\(\) => \((init_[A-Za-z0-9_$]+)\(\), /g)]
-  assert.equal(promiseSites.length, 16, `sixteen loaders are expected, found ${promiseSites.length}`)
+  assert.equal(promiseSites.length, 17, `seventeen loaders are expected, found ${promiseSites.length}`)
   const promised = new Set(promiseSites.map(match => match[1]))
-  assert.equal(promised.size, 13, `thirteen packages are loaded on demand, found ${promised.size}`)
+  assert.equal(promised.size, 14, `fourteen modules are loaded on demand (thirteen packages and the PDF engine), found ${promised.size}`)
   for (const name of LANGUAGE_PACKAGES) {
     const initializer = initializerOf(initializers, `node_modules/@codemirror/lang-${name}/dist/index.js`)
     assert.ok(promised.has(initializer), `the ${name} package must be reached through the dynamic import`)

@@ -144,7 +144,7 @@ in the process tree.
 - **Session continuity**: conversations of one DSH workspace share one workbench state — the file tree, open tabs and Git context survive switching (and creating) sessions; when the workbench was visible in the conversation being left, it reopens in the new one. Switching conversations keeps the terminal; switching sessions rebuilds the PTY and the editor undo history.
 - **Chat file links**: user `@` references and assistant Markdown links open in the workbench, expand the tree and land on the `#L24` line; files outside the workspace fall back to the DSH sidebar; files inside the workspace but outside the IDE project ask before widening it to the workspace root. Settings → IDE Workbench → chat file links can switch back to always using the DSH sidebar.
 - **Send to chat**: from the project tree or the editor, send files, folders or selected code lines to the composer. Paths become `@path` references; code lines carry `(Lstart-Lend)` and a code block.
-- **Preview fallback**: right click a file or tab to open it in a DSH sidebar tab, rendered by the host; HTML files get two floating actions ("preview in the DSH sidebar", "open in the default browser").
+- **In-place previews**: text, Markdown, images and PDFs open right in the editor tab; PDFs support continuous paging, page jumps, zoom and fit width, while a PDF over 32 MB still opens through the sidebar or the default app. Office and archive formats go to a DSH sidebar tab from the context menu; HTML files get two floating actions ("preview in the DSH sidebar", "open in the default browser").
 - **Theme**: only `--dsw-alias-*` tokens, so light/dark and skins follow the host exactly.
 
 ## Security and data
@@ -160,6 +160,7 @@ in the process tree.
 - DSH restarts do not restore terminal sessions (the PTY dies with the process).
 - The host sidebar icon has no numeric badge (the plugin draws its own stripe badge).
 - The Markdown preview does not rewrite relative images / links to local paths (http(s) works).
+- The PDF preview paints into a canvas: text selection, in-document find and form filling are not available yet; files over 32 MB use the sidebar or the default app.
 - Not done: interactive rebase, three-way merge editing, stash, fetch/pull, split terminals.
 - `Ctrl+Shift+R` is Chromium's **hard reload** in the plain browser form (DSH Web); the page cannot intercept it, so it reloads the whole page and loses unsaved buffers. **Use `Ctrl+Alt+F` in the browser**; DSH Desktop is unaffected.
 - **Send to chat** relies on the chat composer action the host publishes to the session slot; when it is missing the plugin says so instead of dropping the input. Code references are `@file (Lx-Ly)` plus a code block (`@` syntax has no line suffix of its own).

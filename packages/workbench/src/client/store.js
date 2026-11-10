@@ -2297,8 +2297,10 @@ export class WorkbenchStore {
           ...(keepDraft ? {} : { draft: text, dirty: false }),
           ...(rebuilt ? { resetToken: (latest?.resetToken ?? 0) + 1 } : {}),
           // Decision C: a file above the editable threshold opens read-only
-          // even though the tab was created optimistically editable.
-          ...(result.kind === 'text' && result.truncated !== true && !editable ? { editing: false } : {}),
+          // even though the tab was created optimistically editable. A
+          // binary payload (image, PDF, office document) has no editor at
+          // all, so it must never keep the optimistic edit flag.
+          ...(result.kind !== 'text' || result.truncated === true || !editable ? { editing: false } : {}),
         })
       } else if (tab.kind === 'diff') {
         const result = tab.compare !== undefined

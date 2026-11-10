@@ -76,6 +76,7 @@ async function loadModule() {
         '@xterm/xterm/css/xterm.css': moduleRequire.resolve('@xterm/xterm/css/xterm.css'),
         '@xterm/xterm': join(root, 'tests/stubs/xterm.js'),
         '@xterm/addon-fit': join(root, 'tests/stubs/addon-fit.js'),
+        'virtual:pdf-worker': join(root, 'tests/stubs/pdf-worker.js'),
       },
       loader: { '.css': 'text' },
       jsx: 'transform',
@@ -364,7 +365,8 @@ test('client opens a native sidebar tab without registering a central page', asy
     // Inside the workspace but outside the selected project still claims: the
     // bridge then asks whether to widen the IDE project to the workspace root.
     assert.equal(types[0].canOpen('dsh-resource://file/session/session-1/lib/a.ts'), true)
-    assert.equal(types[0].canOpen('dsh-resource://file/session/session-1/report.pdf'), false)
+    // PDFs are rendered by the workbench now, so the IDE claims them too.
+    assert.equal(types[0].canOpen('dsh-resource://file/session/session-1/report.pdf'), true)
     // A link outside the DSH workspace falls through to DSH's own sidebar.
     assert.equal(types[0].canOpen('dsh-resource://file/session/session-1/C:/outside/a.ts'), false)
     assert.equal(types[0].canOpen('dsh-resource://file/absolute/D:/outside/a.ts'), false)

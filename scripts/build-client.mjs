@@ -16,6 +16,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
+import { pdfLicenseBanner, pdfVirtualPlugin } from './pdf-assets.mjs'
 
 const dev = process.argv.includes('--dev')
 const packageRoot = resolve(process.argv[2] ?? process.cwd())
@@ -41,6 +42,11 @@ if (packageJson.name === 'dsh-ide-codeintel') {
 
 await mkdir(resolve(packageRoot, 'dist'), { recursive: true })
 
+// PDF.js is bundled into the core artifact only (Apache-2.0): its license
+// rides along with the code that carries it. The codeintel never imports
+// the engine, so it does not get the banner.
+const banner = packageJson.name === 'dsh-ide-workbench' ? { js: pdfLicenseBanner() } : {}
+
 await build({
   absWorkingDir: packageRoot,
   entryPoints: [resolve(packageRoot, 'src', 'client', 'index.jsx')],
@@ -50,10 +56,15 @@ await build({
   target: ['chrome110'],
   external: ['react', '@deepseek-ai/dsh-client-ui-primitives'],
   alias,
+  plugins: [pdfVirtualPlugin()],
+  banner,
   loader: { '.css': 'text' },
   jsx: 'transform',
   define: { 'process.env.NODE_ENV': JSON.stringify(dev ? 'development' : 'production') },
-  legalComments: 'none',
+  // The bundle carries PDF.js (Apache-2.0): its `@licstart` block must
+  // survive the build. `eof` collects the legal comments at the end instead
+  // of dropping them with the rest of the minification.
+  legalComments: 'eof',
   outfile: bundlePath,
   logLevel: 'info',
 })

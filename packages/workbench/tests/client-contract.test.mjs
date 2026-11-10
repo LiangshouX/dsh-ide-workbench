@@ -99,6 +99,7 @@ async function loadRenderModule() {
         '@xterm/xterm/css/xterm.css': moduleRequire.resolve('@xterm/xterm/css/xterm.css'),
         '@xterm/xterm': join(root, 'tests/stubs/xterm.js'),
         '@xterm/addon-fit': join(root, 'tests/stubs/addon-fit.js'),
+        'virtual:pdf-worker': join(root, 'tests/stubs/pdf-worker.js'),
       },
       loader: { '.css': 'text' },
       jsx: 'transform',

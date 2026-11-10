@@ -10,6 +10,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CodeEditor } from './CodeEditor.jsx'
 import { MarkdownView } from './MarkdownView.jsx'
+import { PdfViewer } from './PdfViewer.jsx'
+import { isPdfPath } from './pdf-view.js'
 import { DiffView } from './DiffView.jsx'
 import { FindBar } from './FindBar.jsx'
 import { ConfirmModal, ContextMenu, Kbd } from './ui.jsx'
@@ -135,11 +137,29 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
       React.createElement('span', null, `${tab.rel} · ${payload.size} B`),
     )
   }
+  if (payload.kind === 'pdf') {
+    return React.createElement(PdfViewer, {
+      key: `${tab.id}:${payload.mtimeMs ?? 0}`,
+      t,
+      data: payload.data,
+      size: payload.size,
+      name: tab.name,
+      onOpenExternal: () => { void store.openInDefaultBrowser(tab.path) },
+    })
+  }
   if (payload.kind === 'binary') {
     return React.createElement('div', { className: 'iwb-editor-empty' }, t('common.binary'))
   }
   if (payload.kind === 'too-large') {
-    return React.createElement('div', { className: 'iwb-editor-empty' }, t('common.tooLarge'))
+    return React.createElement('div', { className: 'iwb-editor-empty', style: { flexDirection: 'column', gap: 12 } },
+      React.createElement('span', null, t('common.tooLarge')),
+      isPdfPath(tab.path)
+        ? React.createElement('button', {
+            type: 'button', className: 'iwb-textbtn iwb-small',
+            onClick: () => { void store.openInDefaultBrowser(tab.path) },
+          }, t('pdf.openExternal'))
+        : null,
+    )
   }
   if (payload.kind !== 'text') {
     return React.createElement('div', { className: 'iwb-editor-empty' }, t('common.binary'))
@@ -578,13 +598,19 @@ function EditorToolbar({ store, tab }) {
       // The encoding is a word in a 30px bar: the compact toolbar shows its
       // first letter only (utf-8 -> u, GBK -> G) and keeps the whole value in
       // the tooltip. The two spans are switched by the stylesheet.
-      React.createElement('span', {
-        className: 'iwb-encoding',
-        title: payload?.encoding === undefined ? '' : `${payload.encoding} · ${payload.eol === '\r\n' ? 'CRLF' : 'LF'}`,
-      },
-        React.createElement('span', { className: 'iwb-encoding-full' }, payload?.encoding ?? 'utf-8'),
-        React.createElement('span', { className: 'iwb-encoding-short' }, shortEncoding(payload?.encoding ?? 'utf-8')),
-      ),
+      // Binary payloads have no encoding: a PDF says what it is, and an image
+      // or a binary file says nothing at all.
+      payload?.kind === 'text'
+        ? React.createElement('span', {
+            className: 'iwb-encoding',
+            title: payload?.encoding === undefined ? '' : `${payload.encoding} · ${payload.eol === '\r\n' ? 'CRLF' : 'LF'}`,
+          },
+            React.createElement('span', { className: 'iwb-encoding-full' }, payload.encoding ?? 'utf-8'),
+            React.createElement('span', { className: 'iwb-encoding-short' }, shortEncoding(payload?.encoding ?? 'utf-8')),
+          )
+        : (payload?.kind === 'pdf'
+            ? React.createElement('span', { className: 'iwb-encoding', title: t('editor.pdf') }, 'PDF')
+            : null),
     ),
   )
 }

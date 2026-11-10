@@ -65,11 +65,11 @@ test('resolves dot segments and absolute paths', () => {
   assert.equal(resolveFileAddress(outside, 'C:\\work\\demo'), 'D:\\outside\\a.ts')
 })
 
-test('claims text and images but leaves office/binary formats to the sidebar', () => {
+test('claims text, images and PDFs but leaves office/binary formats to the sidebar', () => {
   assert.equal(isIdeViewableAddress('dsh-resource://file/session/s1/src/a.ts'), true)
   assert.equal(isIdeViewableAddress('dsh-resource://file/session/s1/README.md'), true)
   assert.equal(isIdeViewableAddress('dsh-resource://file/session/s1/logo.png'), true)
-  assert.equal(isIdeViewableAddress('dsh-resource://file/session/s1/report.pdf'), false)
+  assert.equal(isIdeViewableAddress('dsh-resource://file/session/s1/report.pdf'), true)
   assert.equal(isIdeViewableAddress('dsh-resource://file/session/s1/sheet.xlsx'), false)
   assert.equal(isIdeViewableAddress('dsh-resource://file/session/s1/spec.docx'), false)
   assert.equal(isIdeViewableAddress('dsh-resource://file/session/s1/LICENSE'), true)
