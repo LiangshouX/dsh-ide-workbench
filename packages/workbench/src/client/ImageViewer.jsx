@@ -190,14 +190,23 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
       setDragging(false)
       setView({ zoom: 1, pan: { x: 0, y: 0 } })
     }
+    // Chromium starts a NATIVE drag of a picture when the mouse is dragged
+    // over it, and that drag swallows the move events - the picture would
+    // never follow the pointer. The drag of the picture is ours, so the
+    // native one is refused.
+    const onDragStart = (event) => {
+      if (typeof event.preventDefault === 'function') event.preventDefault()
+    }
 
     surface.addEventListener('pointerdown', onDown)
     surface.addEventListener('mousedown', onDown)
     surface.addEventListener('dblclick', onDouble)
+    surface.addEventListener('dragstart', onDragStart)
     return () => {
       surface.removeEventListener('pointerdown', onDown)
       surface.removeEventListener('mousedown', onDown)
       surface.removeEventListener('dblclick', onDouble)
+      surface.removeEventListener('dragstart', onDragStart)
       onUp()
     }
   }, [clampFor])
@@ -225,6 +234,8 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
       }),
     ),
     React.createElement('div', { className: 'iwb-image-caption' },
-      caption === '' ? zoomPercent(zoom) : `${caption} · ${zoomPercent(zoom)}`),
+      caption === ''
+        ? zoomPercent(zoom)
+        : `${caption} · ${zoomPercent(zoom)}${pan.x === 0 && pan.y === 0 ? '' : ` · ${Math.round(pan.x)}, ${Math.round(pan.y)}`}`),
   )
 }

@@ -74968,13 +74968,18 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
       setDragging(false);
       setView({ zoom: 1, pan: { x: 0, y: 0 } });
     };
+    const onDragStart = (event) => {
+      if (typeof event.preventDefault === "function") event.preventDefault();
+    };
     surface.addEventListener("pointerdown", onDown);
     surface.addEventListener("mousedown", onDown);
     surface.addEventListener("dblclick", onDouble);
+    surface.addEventListener("dragstart", onDragStart);
     return () => {
       surface.removeEventListener("pointerdown", onDown);
       surface.removeEventListener("mousedown", onDown);
       surface.removeEventListener("dblclick", onDouble);
+      surface.removeEventListener("dragstart", onDragStart);
       onUp();
     };
   }, [clampFor]);
@@ -75007,7 +75012,7 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
     import_react10.default.createElement(
       "div",
       { className: "iwb-image-caption" },
-      caption === "" ? zoomPercent(zoom) : `${caption} \xB7 ${zoomPercent(zoom)}`
+      caption === "" ? zoomPercent(zoom) : `${caption} \xB7 ${zoomPercent(zoom)}${pan.x === 0 && pan.y === 0 ? "" : ` \xB7 ${Math.round(pan.x)}, ${Math.round(pan.y)}`}`
     )
   );
 }
@@ -79913,6 +79918,9 @@ var CSS2 = `
   flex: 1; min-height: 0; min-width: 0; position: relative; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
   background: var(--iwb-bg); cursor: grab; touch-action: none;
+  /* The picture is dragged by the surface: the browser must not start a
+     native drag of it, and the pointer must not select the text around it. */
+  user-select: none; -webkit-user-drag: none;
 }
 .iwb-image-surface[data-dragging='true'] { cursor: grabbing; }
 .iwb-image-img {

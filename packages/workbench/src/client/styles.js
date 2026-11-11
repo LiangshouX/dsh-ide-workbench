@@ -482,6 +482,9 @@ export const CSS = `
   flex: 1; min-height: 0; min-width: 0; position: relative; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
   background: var(--iwb-bg); cursor: grab; touch-action: none;
+  /* The picture is dragged by the surface: the browser must not start a
+     native drag of it, and the pointer must not select the text around it. */
+  user-select: none; -webkit-user-drag: none;
 }
 .iwb-image-surface[data-dragging='true'] { cursor: grabbing; }
 .iwb-image-img {
