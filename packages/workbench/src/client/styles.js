@@ -471,6 +471,30 @@ export const CSS = `
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   color: #9aa3af; font-size: 11px; font-variant-numeric: tabular-nums;
 }
+
+/* ── image preview ───────────────────────────────────────────────────────
+   The picture sits on a surface that clips it: the wheel zooms it around
+   the centre of the view, the left button drags it, a double click resets
+   it. The zoom is a transform, so a change never relayouts the picture -
+   the surface only has to be repainted. */
+.iwb-image { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--iwb-bg); }
+.iwb-image-surface {
+  flex: 1; min-height: 0; min-width: 0; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--iwb-bg); cursor: grab; touch-action: none;
+}
+.iwb-image-surface[data-dragging='true'] { cursor: grabbing; }
+.iwb-image-img {
+  display: block; width: auto; height: auto; max-width: 92%; max-height: 82%;
+  transform-origin: center center; border-radius: 6px; border: 1px solid var(--iwb-border);
+  user-select: none; -webkit-user-drag: none;
+}
+.iwb-image-caption {
+  flex: 0 0 auto; padding: 5px 12px; border-top: 1px solid var(--iwb-border);
+  background: var(--iwb-panel); color: var(--iwb-muted); font-size: 11.5px;
+  text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
 .iwb-outline {
   position: absolute; top: 10px; right: 14px; width: 274px; max-height: min(62%, 520px); z-index: 12;
   display: flex; flex-direction: column; border-radius: 8px; border: 1px solid var(--iwb-border-strong);

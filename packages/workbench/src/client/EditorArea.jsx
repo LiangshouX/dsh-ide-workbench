@@ -9,6 +9,7 @@
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CodeEditor } from './CodeEditor.jsx'
+import { ImageViewer } from './ImageViewer.jsx'
 import { MarkdownView } from './MarkdownView.jsx'
 import { PdfViewer } from './PdfViewer.jsx'
 import { isPdfPath } from './pdf-view.js'
@@ -135,10 +136,16 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
   const payload = tab.payload
   if (payload === undefined || payload === null) return null
   if (payload.kind === 'image') {
-    return React.createElement('div', { className: 'iwb-editor-empty', style: { flexDirection: 'column', gap: 12 } },
-      React.createElement('img', { src: payload.dataUrl, alt: tab.name, style: { maxWidth: '92%', maxHeight: '82%', objectFit: 'contain', borderRadius: 6, border: '1px solid var(--iwb-border)' } }),
-      React.createElement('span', null, `${tab.rel} · ${payload.size} B`),
-    )
+    // The picture has its own surface: the wheel zooms it around the centre
+    // of the view, the left button drags it, a double click resets it. The
+    // caption keeps the file and its size and adds the current zoom.
+    return React.createElement(ImageViewer, {
+      key: `${tab.id}:${payload.mtimeMs ?? 0}`,
+      src: payload.dataUrl,
+      alt: tab.name,
+      caption: `${tab.rel} · ${payload.size} B`,
+      t,
+    })
   }
   if (payload.kind === 'pdf') {
     return React.createElement(PdfViewer, {
