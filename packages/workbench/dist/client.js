@@ -61194,21 +61194,20 @@ function aggregateStatus(entries) {
   const files = /* @__PURE__ */ new Map();
   const ignored = new IgnoredPaths();
   const conflictDirs = /* @__PURE__ */ new Set();
-  const ignoredRoots = [];
-  const otherPaths = [];
   for (const entry of list) {
     if (entry === null || typeof entry !== "object" || typeof entry.path !== "string") continue;
     const kind = fileStatusKind(entry);
     if (kind === null) continue;
     if (kind === "ignored") {
-      const isDir = entry.ignoredDir === true || entry.path.endsWith("/");
       const path2 = entry.path.replace(/\/+$/, "");
       if (path2 === "") continue;
+      if (entry.ignoredLevel === true) {
+        ignored.addLevel(path2);
+        continue;
+      }
       ignored.addRoot(path2);
-      ignoredRoots.push({ path: path2, isDir });
       continue;
     }
-    otherPaths.push(entry.path.replace(/\/+$/, ""));
     if (entry.path.endsWith("/")) {
       const dir = entry.path.replace(/\/+$/, "");
       setDirStatus(dirs, conflictDirs, dir, kind);
@@ -61217,14 +61216,6 @@ function aggregateStatus(entries) {
     }
     files.set(entry.path, kind);
     for (const dir of ancestorsOf(entry.path)) setDirStatus(dirs, conflictDirs, dir, kind);
-  }
-  for (const root of ignoredRoots) {
-    if (!root.isDir) continue;
-    for (const ancestor of ancestorsOf(root.path)) {
-      const prefix = `${ancestor}/`;
-      if (otherPaths.some((path2) => path2.startsWith(prefix))) continue;
-      ignored.addLevel(ancestor);
-    }
   }
   return { dirs, files, ignored, conflictDirs, entries: list };
 }
@@ -61240,6 +61231,7 @@ function sameStatusEntries(left, right) {
     if (one.path !== other.path) return false;
     if (fileStatusKind(one) !== fileStatusKind(other)) return false;
     if (one.ignoredDir === true !== (other.ignoredDir === true)) return false;
+    if (one.ignoredLevel === true !== (other.ignoredLevel === true)) return false;
   }
   return true;
 }
@@ -61324,6 +61316,8 @@ function compactLabelFitted(node, maxChars, sep = ".") {
 
 // src/client/ProjectPanel.jsx
 var ROW_HEIGHT = 22;
+var STICKY_CHAR_WIDTH = 7;
+var STICKY_CHROME = 40;
 var SHORTCUT_FALLBACK = {
   rename: "F2",
   delete: "Delete",
@@ -61466,13 +61460,49 @@ function visibleAncestorOf(path2, paths, root) {
   }
   return null;
 }
-function currentFolderPathOf(rows, scrollTop, paths, root) {
-  if (!Array.isArray(rows) || rows.length === 0) return null;
+function currentFolderChainOf(rows, scrollTop, paths, root) {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
   const offset = Number.isFinite(scrollTop) ? scrollTop : 0;
   const index = Math.min(rows.length - 1, Math.max(0, Math.floor(offset / ROW_HEIGHT)));
   const row = rows[index];
-  if (row?.entry === void 0) return null;
-  return visibleAncestorOf(row.entry.path, paths, root);
+  if (row?.entry === void 0) return [];
+  const byPath = /* @__PURE__ */ new Map();
+  for (const item of rows) {
+    if (item.kind === "dir" && item.entry !== void 0) byPath.set(item.entry.path, item);
+  }
+  const chain = [];
+  let current = row.entry.path;
+  const seen = /* @__PURE__ */ new Set();
+  while (current !== "" && current !== root) {
+    if (seen.has(current)) break;
+    seen.add(current);
+    const parent = visibleAncestorOf(current, paths, root);
+    if (parent === null) break;
+    const item = byPath.get(parent);
+    if (item === void 0) break;
+    chain.unshift({
+      path: parent,
+      // A merged row stands for a chain of folders: it names all of them.
+      label: item.merged === true && Array.isArray(item.segments) && item.segments.length > 1 ? item.segments.join(".") : item.entry?.name ?? "",
+      title: item.entry?.rel ?? ""
+    });
+    current = parent;
+  }
+  return chain;
+}
+function fitFolderChain(chain, width) {
+  const steps = Array.isArray(chain) ? chain : [];
+  if (steps.length === 0) return [];
+  const limit = typeof width === "number" && Number.isFinite(width) && width > 0 ? Math.max(8, Math.floor((width - STICKY_CHROME) / STICKY_CHAR_WIDTH)) : void 0;
+  if (limit === void 0) return steps;
+  const length = steps.map((step) => step.label).join(" \u203A ").length;
+  if (length <= limit) return steps;
+  if (steps.length === 1) return steps;
+  const first = steps[0];
+  const last2 = steps[steps.length - 1];
+  const middle = [{ label: first.label, path: first.path, title: first.title }, { label: "\u2026", path: null, title: "" }, last2];
+  if (middle.map((step) => step.label).join(" \u203A ").length <= limit) return middle;
+  return [{ label: "\u2026", path: null, title: "" }, last2];
 }
 function resolveEntryPath(value) {
   const raw = typeof value === "string" ? value.trim() : "";
@@ -61790,7 +61820,8 @@ function NewEntryDialog({
     )
   );
 }
-function FrozenFolderBar({ path: path2, label: label3, title, foldTitle, onJump, onToggle }) {
+function FrozenFolderBar({ chain, foldTitle, onJump, onToggle }) {
+  const current = chain.length > 0 ? chain[chain.length - 1] : void 0;
   return import_react5.default.createElement(
     "div",
     {
@@ -61801,7 +61832,7 @@ function FrozenFolderBar({ path: path2, label: label3, title, foldTitle, onJump,
     },
     import_react5.default.createElement("span", {
       className: "iwb-tree-twisty iwb-tree-twisty-click",
-      title: foldTitle ?? title,
+      title: foldTitle ?? (current?.title ?? ""),
       // The twisty sits inside the bar, which jumps on click: without
       // stopPropagation one click would jump *and* fold the folder. A double
       // click sends two clicks plus a dblclick: only the first click may
@@ -61809,15 +61840,21 @@ function FrozenFolderBar({ path: path2, label: label3, title, foldTitle, onJump,
       onClick: (event) => {
         event.stopPropagation();
         if (event.detail > 1) return;
-        onToggle(path2);
+        if (current?.path) onToggle(current.path);
       },
       onDoubleClick: (event) => event.stopPropagation()
     }, import_react5.default.createElement(ChevronDown, null)),
-    import_react5.default.createElement("span", {
-      className: "iwb-tree-sticky-item",
-      title,
-      onClick: () => onJump(path2)
-    }, label3)
+    ...chain.map((step, index) => import_react5.default.createElement(
+      import_react5.default.Fragment,
+      { key: `${step.label}-${index}` },
+      index > 0 ? import_react5.default.createElement("span", { className: "iwb-tree-sticky-sep" }, "\u203A") : null,
+      // A step without a path is the ellipsis of a shortened chain.
+      step.path === null ? import_react5.default.createElement("span", { className: "iwb-tree-sticky-sep" }, step.label) : import_react5.default.createElement("span", {
+        className: "iwb-tree-sticky-item",
+        title: step.title,
+        onClick: () => onJump(step.path)
+      }, step.label)
+    ))
   );
 }
 function projectSlice(state) {
@@ -61850,6 +61887,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const [menu, setMenu] = (0, import_react5.useState)(null);
   const [scrollTop, setScrollTop] = (0, import_react5.useState)(initialScrollTop);
   const [viewport, setViewport] = (0, import_react5.useState)(600);
+  const [panelWidth, setPanelWidth] = (0, import_react5.useState)(0);
   const [locateTick, setLocateTick] = (0, import_react5.useState)(0);
   const [renaming, setRenaming] = (0, import_react5.useState)(null);
   const [dialog, setDialog] = (0, import_react5.useState)(null);
@@ -61892,9 +61930,13 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   (0, import_react5.useEffect)(() => {
     if (scrollRef.current === null) return void 0;
     const element = scrollRef.current;
-    const observer = new ResizeObserver(() => setViewport(element.clientHeight));
+    const observer = new ResizeObserver(() => {
+      setViewport(element.clientHeight);
+      setPanelWidth(element.clientWidth);
+    });
     observer.observe(element);
     setViewport(element.clientHeight);
+    setPanelWidth(element.clientWidth);
     return () => observer.disconnect();
   }, []);
   (0, import_react5.useEffect)(() => {
@@ -61924,23 +61966,34 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     }
     return map;
   }, [rows]);
-  const stickyPath = quickList ? null : currentFolderPathOf(rows, scrollTop, rowPathSet, slice.root);
+  const stickyChain = (0, import_react5.useMemo)(() => {
+    if (quickList) return [];
+    const steps = currentFolderChainOf(rows, scrollTop, rowPathSet, slice.root);
+    if (steps.length === 0) return [];
+    const rootName = baseName(slice.root);
+    if (rootName === "") return steps;
+    return [{ path: slice.root, label: rootName, title: slice.root, root: true }, ...steps];
+  }, [quickList, rows, scrollTop, rowPathSet, slice.root]);
+  const stickySteps = (0, import_react5.useMemo)(
+    () => fitFolderChain(stickyChain, panelWidth),
+    [stickyChain, panelWidth]
+  );
+  const stickyPath = stickyChain.length > 0 ? stickyChain[stickyChain.length - 1].path : null;
   const stickyRow = stickyPath === null ? void 0 : dirRows.get(stickyPath);
   const onStickyJump = (0, import_react5.useCallback)((path2) => {
     if (typeof path2 !== "string" || path2 === "") return;
+    if (path2 === slice.root) {
+      if (scrollRef.current !== null) scrollRef.current.scrollTop = 0;
+      setScrollTop(0);
+      return;
+    }
     store.setSelectedPath(path2);
     setLocateTick((tick) => tick + 1);
-  }, [store]);
+  }, [store, slice.root]);
   const onStickyToggle = (0, import_react5.useCallback)((path2) => {
     if (typeof path2 !== "string" || path2 === "") return;
     store.toggleDir(path2);
   }, [store]);
-  const stickyLabel = stickyRow === void 0 ? "" : stickyRow.merged === true && Array.isArray(stickyRow.segments) && stickyRow.segments.length > 1 ? stickyRow.segments.map((segment, index) => import_react5.default.createElement(
-    import_react5.default.Fragment,
-    { key: `${segment}-${index}` },
-    index > 0 ? import_react5.default.createElement("span", { className: "iwb-tree-sticky-sep" }, ".") : null,
-    import_react5.default.createElement("span", null, segment)
-  )) : stickyRow.label ?? stickyRow.entry?.name ?? "";
   const selection = (0, import_react5.useMemo)(
     () => slice.selectedPaths instanceof Set ? slice.selectedPaths : new Set(slice.selectedPath === "" ? [] : [slice.selectedPath]),
     [slice.selectedPaths, slice.selectedPath]
@@ -62380,10 +62433,8 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     store.setSelectedPath(activeTab.path);
     setLocateTick((tick) => tick + 1);
   }, [store, activeTab]);
-  const stickyBar = stickyRow === void 0 ? null : import_react5.default.createElement(FrozenFolderBar, {
-    path: stickyPath,
-    label: stickyLabel,
-    title: stickyRow.entry?.rel ?? "",
+  const stickyBar = stickySteps.length === 0 ? null : import_react5.default.createElement(FrozenFolderBar, {
+    chain: stickySteps,
     foldTitle: t3("project.currentFolder"),
     onJump: onStickyJump,
     onToggle: onStickyToggle
@@ -79748,7 +79799,8 @@ var CSS2 = `
 /* \u2500\u2500 the frozen "current folder" bar (R4) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
    The tree rows are absolutely positioned (the tree is virtualised), so CSS
    position:sticky cannot hold a row in place: the bar is a layer of its
-   own inside the scrolling body and carries the folder the viewport sits in.
+   own inside the scrolling body and carries the chain of folders the
+   viewport sits in - from the project root down to the current one.
    It is a navigation bar, not a tree row - it never joins the selection, and
    it is hidden entirely in the flat quick-file list (there is no hierarchy
    there to point at). */
@@ -79759,12 +79811,16 @@ var CSS2 = `
   background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border);
   font-size: 12px; color: var(--iwb-muted); white-space: nowrap; overflow: hidden;
 }
+/* Every step of the chain is a link; the last one is the folder the viewport
+   is in, and it never shrinks away. */
 .iwb-tree-sticky-item {
+  flex: 0 1 auto; min-width: 0;
   color: var(--iwb-fg); font-weight: 500; padding: 0 4px; border-radius: 4px;
   overflow: hidden; text-overflow: ellipsis; cursor: pointer;
 }
+.iwb-tree-sticky-item:last-child { flex: 0 0 auto; font-weight: 600; }
 .iwb-tree-sticky-item:hover { color: var(--iwb-accent); background: rgba(127, 127, 127, .14); }
-.iwb-tree-sticky-sep { opacity: .55; }
+.iwb-tree-sticky-sep { opacity: .55; flex: 0 0 auto; }
 
 .iwb-filter {
   display: flex; align-items: center; gap: 6px; margin: 6px 8px; height: 26px; padding: 0 8px;

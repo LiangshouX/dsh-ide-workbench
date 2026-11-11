@@ -443,9 +443,12 @@ export function apply(ctx) {
       const current = await settings.get()
       // The ignored entries are always asked for - the client setting only
       // decides whether they are shown - and the per-file line counts are
-      // only computed for the Commit window.
+      // only computed for the Commit window. The levels above an ignored
+      // directory are only needed when the ignored entries are shown, and
+      // they cost one `git ls-files` call.
       const snapshot = await gitStatus(env, {
         ignored: current.project.showIgnored === true,
+        levels: current.project.showIgnored === true,
         numstat: payload?.numstat === true,
       })
       return {

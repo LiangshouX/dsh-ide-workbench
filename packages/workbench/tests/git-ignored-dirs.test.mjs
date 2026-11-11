@@ -160,9 +160,66 @@ test('an ignored directory carries its whole subtree', async (t) => {
   assert.equal(rollup.files.has('target/sub/b.txt'), false)
 })
 
+test('a level that holds tracked files is not greyed', async (t) => {
+  // The everyday case: `packages/workbench/node_modules` is ignored, but
+  // `packages/workbench` holds a TRACKED file. The folder is a normal folder,
+  // so the host must not mark it as a level.
+  const root = await temp(t)
+  if (root === null) return
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
+  git('init', '-q', '-b', 'main')
+  git('config', 'user.name', 'IDE Test')
+  git('config', 'user.email', 'ide@test.local')
+  await writeFile(join(root, '.gitignore'), 'node_modules/\n')
+  await mkdir(join(root, 'packages', 'workbench', 'node_modules'), { recursive: true })
+  await writeFile(join(root, 'packages', 'workbench', 'node_modules', 'x.txt'), 'x\n')
+  await writeFile(join(root, 'packages', 'workbench', 'package.json'), '{}\n')
+  git('add', '-A')
+  git('commit', '-q', '-m', 'first')
+
+  const snapshot = await status({ root, gitPath: '' }, { levels: true })
+  const levels = snapshot.entries.filter(entry => entry.ignoredLevel === true).map(entry => entry.path)
+  assert.deepEqual(levels, [], 'a folder with a tracked file is not a level')
+  // The ignored folder itself is still an ignored directory.
+  const ignored = snapshot.entries.filter(entry => entry.ignored === true && entry.ignoredLevel !== true)
+  assert.deepEqual(ignored.map(entry => entry.path), ['packages/workbench/node_modules'])
+  assert.equal(ignored[0].ignoredDir, true)
+})
+
+test('a level that holds nothing but ignored content is greyed', async (t) => {
+  // The negation case: `build/` holds nothing but an ignored `build/sub`.
+  const root = await temp(t)
+  if (root === null) return
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
+  git('init', '-q', '-b', 'main')
+  git('config', 'user.name', 'IDE Test')
+  git('config', 'user.email', 'ide@test.local')
+  await writeFile(join(root, '.gitignore'), 'build/*\n')
+  await mkdir(join(root, 'build', 'sub'), { recursive: true })
+  await writeFile(join(root, 'build', 'sub', 'b.txt'), 'b\n')
+  await writeFile(join(root, 'kept.txt'), 'kept\n')
+  git('add', '-A')
+  git('commit', '-q', '-m', 'first')
+
+  const snapshot = await status({ root, gitPath: '' }, { levels: true })
+  const levels = snapshot.entries.filter(entry => entry.ignoredLevel === true).map(entry => entry.path)
+  assert.deepEqual(levels, ['build'])
+  // The client greys the level and the ignored subtree, but not the content
+  // next to it.
+  const rollup = aggregateStatus(snapshot.entries)
+  assert.equal(rollup.ignored.has('build'), true)
+  assert.equal(rollup.ignored.has('build/sub'), true)
+  assert.equal(rollup.ignored.has('build/sub/b.txt'), true)
+  assert.equal(rollup.ignored.has('kept.txt'), false)
+})
+
 test('the levels above the deepest ignored directory are ignored too', () => {
   // The negation case: git reports the deepest ignored sub-directory only.
-  const rollup = aggregateStatus([{ path: 'target/sub', xy: '!!', ignored: true, ignoredDir: true }])
+  // The host marks the levels above it, and the client greys them.
+  const rollup = aggregateStatus([
+    { path: 'target/sub', xy: '!!', ignored: true, ignoredDir: true },
+    { path: 'target', xy: '!!', ignored: true, ignoredLevel: true },
+  ])
   assert.equal(rollup.ignored.has('target/sub'), true)
   assert.equal(rollup.ignored.has('target'), true)
   assert.equal(rollup.ignored.has('target/sub/file.txt'), true)
@@ -187,8 +244,8 @@ test('a porcelain path with a trailing slash is normalized', () => {
 test('a tracked file next to an ignored folder keeps its own colour', () => {
   // The everyday case: `node_modules/` is ignored, the folder around it holds
   // tracked files. The ignored folder is grey, the folder itself and its
-  // tracked content are NOT - the ancestor of an ignored directory is a
-  // LEVEL, not a root, so it greys its own row and nothing below it.
+  // tracked content are NOT - the host marks the levels, and a level greys
+  // its own row and nothing below it.
   const rollup = aggregateStatus([
     { path: 'packages/workbench/node_modules', xy: '!!', ignored: true, ignoredDir: true },
     { path: 'packages/workbench/src/index.js', xy: '.M', modified: true },
@@ -197,20 +254,20 @@ test('a tracked file next to an ignored folder keeps its own colour', () => {
   assert.equal(rollup.ignored.has('packages/workbench/node_modules/react/index.js'), true)
   // The tracked file next to it keeps its own colour.
   assert.equal(rollup.ignored.has('packages/workbench/src/index.js'), false)
-  // The folder that holds it is not grey either: git said something about it.
+  // The host did not mark the folder as a level, so it is not grey.
   assert.equal(rollup.ignored.has('packages/workbench'), false)
   assert.equal(rollup.ignored.has('packages'), false)
 })
 
-test('an ignored folder does not grey the tracked content of its level', () => {
-  // The same case without any other status entry: the level above the ignored
-  // directory is grey, but its own content is not - a level greys its row.
+test('a level greys its own row and nothing below it', () => {
+  // The same case with the host's mark: the level is grey, the content next
+  // to the ignored folder is not.
   const rollup = aggregateStatus([
     { path: 'packages/workbench/node_modules', xy: '!!', ignored: true, ignoredDir: true },
+    { path: 'packages/workbench', xy: '!!', ignored: true, ignoredLevel: true },
   ])
   assert.equal(rollup.ignored.has('packages/workbench/node_modules'), true)
   assert.equal(rollup.ignored.has('packages/workbench/src/index.js'), false)
-  // The level above it is grey (the negation case of the level rule).
   assert.equal(rollup.ignored.has('packages/workbench'), true)
 })
 

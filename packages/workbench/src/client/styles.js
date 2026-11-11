@@ -608,7 +608,8 @@ export const CSS = `
 /* ── the frozen "current folder" bar (R4) ───────────────────────────────────
    The tree rows are absolutely positioned (the tree is virtualised), so CSS
    position:sticky cannot hold a row in place: the bar is a layer of its
-   own inside the scrolling body and carries the folder the viewport sits in.
+   own inside the scrolling body and carries the chain of folders the
+   viewport sits in - from the project root down to the current one.
    It is a navigation bar, not a tree row - it never joins the selection, and
    it is hidden entirely in the flat quick-file list (there is no hierarchy
    there to point at). */
@@ -619,12 +620,16 @@ export const CSS = `
   background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border);
   font-size: 12px; color: var(--iwb-muted); white-space: nowrap; overflow: hidden;
 }
+/* Every step of the chain is a link; the last one is the folder the viewport
+   is in, and it never shrinks away. */
 .iwb-tree-sticky-item {
+  flex: 0 1 auto; min-width: 0;
   color: var(--iwb-fg); font-weight: 500; padding: 0 4px; border-radius: 4px;
   overflow: hidden; text-overflow: ellipsis; cursor: pointer;
 }
+.iwb-tree-sticky-item:last-child { flex: 0 0 auto; font-weight: 600; }
 .iwb-tree-sticky-item:hover { color: var(--iwb-accent); background: rgba(127, 127, 127, .14); }
-.iwb-tree-sticky-sep { opacity: .55; }
+.iwb-tree-sticky-sep { opacity: .55; flex: 0 0 auto; }
 
 .iwb-filter {
   display: flex; align-items: center; gap: 6px; margin: 6px 8px; height: 26px; padding: 0 8px;

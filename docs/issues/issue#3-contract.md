@@ -115,8 +115,8 @@ export function compactLabel(node, sep)   // sep 默认 '.'
 | 类名 | 用途 | 归属 |
 |:--|:--|:--|
 | `.cm-foldGutter` / `.cm-foldPlaceholder` | CodeMirror 折叠 gutter 与占位符（类名由 CodeMirror 自己定，lead 已落盘） | R3 |
-| `.iwb-tree-sticky` | 顶部冻结面包屑条 | R4 |
-| `.iwb-tree-sticky-sep` | 面包屑分隔符 | R4 |
+| `.iwb-tree-sticky` | 顶部冻结面包屑条（完整链路，每步一个 `.iwb-tree-sticky-item`，中间用 `.iwb-tree-sticky-sep`） | R4 |
+| `.iwb-tree-sticky-sep` | 面包屑分隔符与省略号 | R4 |
 | `.iwb-tree-sticky-item` | 面包屑里的一级目录 | R4 |
 | `.iwb-terminal-theme-*` | 终端调色板 token 组 | R9 |
 

@@ -194,11 +194,35 @@ function twistyOf(bar) {
     && child.props.className.includes('iwb-tree-twisty'))
 }
 
-/** The clickable folder of the frozen bar. */
-function itemOf(bar) {
+/** The children of the frozen bar, with the fragments opened up. */
+function barChildren(bar) {
   const children = bar.props.children
   const list = Array.isArray(children) ? children : [children]
-  return list.find(child => typeof child?.props?.className === 'string'
+  const out = []
+  for (const child of list) {
+    if (child === null || child === undefined || typeof child !== 'object') continue
+    const grand = child.props?.children
+    if (grand !== undefined && (Array.isArray(grand) || typeof grand === 'object')) {
+      const inner = Array.isArray(grand) ? grand : [grand]
+      for (const item of inner) {
+        if (item !== null && item !== undefined && typeof item === 'object') out.push(item)
+      }
+      continue
+    }
+    out.push(child)
+  }
+  return out
+}
+
+/** The clickable folder of the frozen bar. */
+function itemOf(bar) {
+  return barChildren(bar).find(child => typeof child?.props?.className === 'string'
+    && child.props.className.includes('iwb-tree-sticky-item'))
+}
+
+/** Every clickable folder of the frozen bar, in the order of the chain. */
+function itemsOf(bar) {
+  return barChildren(bar).filter(child => typeof child?.props?.className === 'string'
     && child.props.className.includes('iwb-tree-sticky-item'))
 }
 
@@ -322,7 +346,9 @@ test('clicking the folder of the frozen bar jumps to it', async () => {
   const state = baseState()
   const { store, elements } = renderPanel(state, ROW_HEIGHT * 3)
   const bar = stickyBarOf(elements)
-  const item = itemOf(bar)
+  // The LAST step of the chain is the folder the viewport is in.
+  const items = itemsOf(bar)
+  const item = items[items.length - 1]
   assert.ok(item !== undefined, 'the bar carries the folder')
 
   item.props.onClick(createEvent())
@@ -331,4 +357,47 @@ test('clicking the folder of the frozen bar jumps to it', async () => {
   assert.deepEqual(jumps[0].args, [SRC])
   assert.equal(store.calls.filter(call => call.name === 'toggleDir').length, 0,
     'jumping does not fold the folder')
+})
+
+test('the frozen bar carries the whole chain from the root', async () => {
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  const state = baseState()
+  const { store, elements } = renderPanel(state, ROW_HEIGHT * 3)
+  const bar = stickyBarOf(elements)
+  assert.ok(bar !== undefined)
+  // The chain of the viewport: the project root and the folder it sits in.
+  const items = itemsOf(bar)
+  assert.equal(items.length, 2, 'the root and the current folder')
+  assert.deepEqual(items.map(item => item.props.children), ['demo', 'src'])
+  // The root brings the tree back to the top; it is not a row.
+  items[0].props.onClick(createEvent())
+  assert.equal(store.calls.filter(call => call.name === 'setSelectedPath').length, 0,
+    'the root is not selected')
+  // The folder of the viewport is selected.
+  items[1].props.onClick(createEvent())
+  const jumps = store.calls.filter(call => call.name === 'setSelectedPath')
+  assert.equal(jumps.length, 1)
+  assert.deepEqual(jumps[0].args, [SRC])
+})
+
+test('a short panel elides the middle of the chain, then the root', async () => {
+  const mod = await loadModule()
+  const chain = [
+    { path: null, label: 'demo', title: 'demo' },
+    { path: 'a', label: 'a', title: 'a' },
+    { path: 'b', label: 'b', title: 'b' },
+    { path: 'c', label: 'c', title: 'c' },
+  ]
+  const labels = width => mod.fitFolderChain(chain, width).map(step => step.label)
+  // The whole chain fits.
+  assert.deepEqual(labels(1200), ['demo', 'a', 'b', 'c'])
+  // The middle goes first.
+  assert.deepEqual(labels(138), ['demo', '…', 'c'])
+  // The project root goes with it.
+  assert.deepEqual(labels(90), ['…', 'c'])
+  // The step that is dropped has no path: it is not clickable.
+  assert.equal(mod.fitFolderChain(chain, 90)[0].path, null)
+  // The last step is never dropped: it is the folder the viewport is in.
+  assert.equal(mod.fitFolderChain(chain, 10)[1].label, 'c')
 })

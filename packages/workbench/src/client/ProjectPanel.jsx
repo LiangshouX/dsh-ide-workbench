@@ -23,6 +23,11 @@ import { baseName, matchesShortcut } from './util.js'
 
 const ROW_HEIGHT = 22
 
+/** The width of one character of the tree label, for the width estimate. */
+const STICKY_CHAR_WIDTH = 7
+/** What the frozen bar needs besides its labels: the twisty and the padding. */
+const STICKY_CHROME = 40
+
 /** Shortcut defaults used when the running host still returns a pre-v2 document. */
 const SHORTCUT_FALLBACK = {
   rename: 'F2',
@@ -276,15 +281,63 @@ export function visibleAncestorOf(path, paths, root) {
 }
 
 /**
- * The folder the viewport sits in - the content of the frozen bar (R4).
+ * The chain of folders the viewport sits in - the content of the frozen bar
+ * (R4).
  *
  * The tree rows are absolutely positioned (the tree is virtualised), so CSS
  * `position: sticky` cannot hold one of them in place: the frozen bar is a
  * layer of its own and its content has to be rebuilt from the row model,
  * because the ancestor rows are not mounted while they are scrolled out.
  *
- * The bar points at the DIRECT PARENT of the row the viewport starts at -
- * one level, not the whole ancestor chain.
+ * The bar carries the WHOLE chain from the project root down to the folder
+ * the viewport starts in, not only the last name: a reader has to see WHERE
+ * the tree is, not just the name of the folder. The chain follows the rows
+ * that are really there, so a merged row contributes its whole chain
+ * (`src.main.java.com`) as one step.
+ *
+ * @param {Array<object>} rows the rendered rows
+ * @param {number} scrollTop the scroll offset of the tree
+ * @param {Set<string>} paths the paths of every visible row
+ * @param {string} root the project root
+ * @returns {Array<{ path: string, label: string, title: string }>} the chain,
+ *   from the topmost visible folder down to the current one
+ */
+export function currentFolderChainOf(rows, scrollTop, paths, root) {
+  if (!Array.isArray(rows) || rows.length === 0) return []
+  const offset = Number.isFinite(scrollTop) ? scrollTop : 0
+  const index = Math.min(rows.length - 1, Math.max(0, Math.floor(offset / ROW_HEIGHT)))
+  const row = rows[index]
+  if (row?.entry === undefined) return []
+  const byPath = new Map()
+  for (const item of rows) {
+    if (item.kind === 'dir' && item.entry !== undefined) byPath.set(item.entry.path, item)
+  }
+  const chain = []
+  let current = row.entry.path
+  const seen = new Set()
+  while (current !== '' && current !== root) {
+    if (seen.has(current)) break
+    seen.add(current)
+    const parent = visibleAncestorOf(current, paths, root)
+    if (parent === null) break
+    const item = byPath.get(parent)
+    if (item === undefined) break
+    chain.unshift({
+      path: parent,
+      // A merged row stands for a chain of folders: it names all of them.
+      label: item.merged === true && Array.isArray(item.segments) && item.segments.length > 1
+        ? item.segments.join('.')
+        : (item.entry?.name ?? ''),
+      title: item.entry?.rel ?? '',
+    })
+    current = parent
+  }
+  return chain
+}
+
+/**
+ * The folder the viewport sits in - the last step of the chain of the frozen
+ * bar (R4).
  *
  * @param {Array<object>} rows the rendered rows
  * @param {number} scrollTop the scroll offset of the tree
@@ -293,12 +346,44 @@ export function visibleAncestorOf(path, paths, root) {
  * @returns {string | null} the path of the current folder
  */
 export function currentFolderPathOf(rows, scrollTop, paths, root) {
-  if (!Array.isArray(rows) || rows.length === 0) return null
-  const offset = Number.isFinite(scrollTop) ? scrollTop : 0
-  const index = Math.min(rows.length - 1, Math.max(0, Math.floor(offset / ROW_HEIGHT)))
-  const row = rows[index]
-  if (row?.entry === undefined) return null
-  return visibleAncestorOf(row.entry.path, paths, root)
+  const chain = currentFolderChainOf(rows, scrollTop, paths, root)
+  if (chain.length === 0) return null
+  return chain[chain.length - 1].path
+}
+
+/**
+ * Fit the chain of the frozen bar into the width that is available (R4).
+ *
+ * The bar carries the whole path, so it can be longer than the panel. Three
+ * steps, in this order:
+ * 1. the whole chain;
+ * 2. the middle is elided: the first step and the last one stay;
+ * 3. the project root is elided as well: only the last step stays, behind an
+ *    ellipsis.
+ *
+ * The last step is the folder the viewport is in - it is never dropped: it is
+ * the one the reader needs.
+ *
+ * @param {Array<{ label: string }>} chain the steps of the chain
+ * @param {number} [width] the width of the panel, in pixels
+ * @returns {Array<string>} the labels to show
+ */
+export function fitFolderChain(chain, width) {
+  const steps = Array.isArray(chain) ? chain : []
+  if (steps.length === 0) return []
+  const limit = typeof width === 'number' && Number.isFinite(width) && width > 0
+    ? Math.max(8, Math.floor((width - STICKY_CHROME) / STICKY_CHAR_WIDTH))
+    : undefined
+  // Without a width the whole chain is shown: the bar clips it.
+  if (limit === undefined) return steps
+  const length = steps.map(step => step.label).join(' › ').length
+  if (length <= limit) return steps
+  if (steps.length === 1) return steps
+  const first = steps[0]
+  const last = steps[steps.length - 1]
+  const middle = [{ label: first.label, path: first.path, title: first.title }, { label: '…', path: null, title: '' }, last]
+  if (middle.map(step => step.label).join(' › ').length <= limit) return middle
+  return [{ label: '…', path: null, title: '' }, last]
 }
 
 /**
@@ -726,15 +811,17 @@ export function NewEntryDialog({
  * model, because the ancestor rows are not mounted while they are scrolled
  * out of the viewport.
  *
- * It is a navigation bar, not a tree row: it never joins the selection, it
- * points at the folder the viewport sits in (the direct parent of the row the
- * viewport starts at - one level), and it can fold that folder or jump to it.
+ * It is a navigation bar, not a tree row: it never joins the selection. It
+ * carries the WHOLE chain of folders the viewport sits in - from the project
+ * root down to the current one - and every step of it jumps to its folder.
+ * The fold marker folds the folder the viewport is in.
  *
- * @param {{ path: string, label: React.ReactNode, title: string,
+ * @param {{ chain: Array<{ path: string | null, label: string, title: string }>,
  *   foldTitle?: string, onJump: (path: string) => void,
  *   onToggle: (path: string) => void }} props
  */
-export function FrozenFolderBar({ path, label, title, foldTitle, onJump, onToggle }) {
+export function FrozenFolderBar({ chain, foldTitle, onJump, onToggle }) {
+  const current = chain.length > 0 ? chain[chain.length - 1] : undefined
   return React.createElement('div', {
     className: 'iwb-tree-sticky',
     // The bar is a layer on top of the tree: it must not push the rows down
@@ -743,7 +830,7 @@ export function FrozenFolderBar({ path, label, title, foldTitle, onJump, onToggl
   },
     React.createElement('span', {
       className: 'iwb-tree-twisty iwb-tree-twisty-click',
-      title: foldTitle ?? title,
+      title: foldTitle ?? (current?.title ?? ''),
       // The twisty sits inside the bar, which jumps on click: without
       // stopPropagation one click would jump *and* fold the folder. A double
       // click sends two clicks plus a dblclick: only the first click may
@@ -751,18 +838,23 @@ export function FrozenFolderBar({ path, label, title, foldTitle, onJump, onToggl
       onClick: event => {
         event.stopPropagation()
         if (event.detail > 1) return
-        onToggle(path)
+        if (current?.path) onToggle(current.path)
       },
       onDoubleClick: event => event.stopPropagation(),
     }, React.createElement(ChevronDown, null)),
-    React.createElement('span', {
-      className: 'iwb-tree-sticky-item',
-      title,
-      onClick: () => onJump(path),
-    }, label),
+    ...chain.map((step, index) => React.createElement(React.Fragment, { key: `${step.label}-${index}` },
+      index > 0 ? React.createElement('span', { className: 'iwb-tree-sticky-sep' }, '›') : null,
+      // A step without a path is the ellipsis of a shortened chain.
+      step.path === null
+        ? React.createElement('span', { className: 'iwb-tree-sticky-sep' }, step.label)
+        : React.createElement('span', {
+            className: 'iwb-tree-sticky-item',
+            title: step.title,
+            onClick: () => onJump(step.path),
+          }, step.label),
+    )),
   )
 }
-
 /**
  * The fields the Project panel reads.
  *
@@ -807,6 +899,8 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const [menu, setMenu] = useState(null)
   const [scrollTop, setScrollTop] = useState(initialScrollTop)
   const [viewport, setViewport] = useState(600)
+  // The width of the tree panel: the frozen bar fits its chain into it.
+  const [panelWidth, setPanelWidth] = useState(0)
   // Locate File asks for the active file even when it is already the selected
   // one, so the reveal needs a trigger of its own.
   const [locateTick, setLocateTick] = useState(0)
@@ -866,9 +960,13 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   useEffect(() => {
     if (scrollRef.current === null) return undefined
     const element = scrollRef.current
-    const observer = new ResizeObserver(() => setViewport(element.clientHeight))
+    const observer = new ResizeObserver(() => {
+      setViewport(element.clientHeight)
+      setPanelWidth(element.clientWidth)
+    })
     observer.observe(element)
     setViewport(element.clientHeight)
+    setPanelWidth(element.clientWidth)
     return () => observer.disconnect()
   }, [])
 
@@ -921,35 +1019,51 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     return map
   }, [rows])
   // The flat quick-file list has no hierarchy to point at: no frozen bar.
-  const stickyPath = quickList
-    ? null
-    : currentFolderPathOf(rows, scrollTop, rowPathSet, slice.root)
+  //
+  // The bar carries the WHOLE chain from the project root down to the folder
+  // the viewport sits in: a reader has to see WHERE the tree is, not only the
+  // name of the last folder. The chain follows the rows that are really
+  // there, so a merged row contributes its whole chain as one step.
+  const stickyChain = useMemo(() => {
+    if (quickList) return []
+    const steps = currentFolderChainOf(rows, scrollTop, rowPathSet, slice.root)
+    if (steps.length === 0) return []
+    const rootName = baseName(slice.root)
+    if (rootName === '') return steps
+    // The project root is the first step of the chain: it is not a row, but
+    // clicking it brings the tree back to the top.
+    return [{ path: slice.root, label: rootName, title: slice.root, root: true }, ...steps]
+  }, [quickList, rows, scrollTop, rowPathSet, slice.root])
+  // The chain is shortened when the panel is too narrow: the middle goes
+  // first, the project root after it.
+  const stickySteps = useMemo(
+    () => fitFolderChain(stickyChain, panelWidth),
+    [stickyChain, panelWidth],
+  )
+  const stickyPath = stickyChain.length > 0 ? stickyChain[stickyChain.length - 1].path : null
   const stickyRow = stickyPath === null ? undefined : dirRows.get(stickyPath)
 
   /** Jump to the folder of the frozen bar. */
   const onStickyJump = useCallback(path => {
     if (typeof path !== 'string' || path === '') return
+    // The project root is not a row: clicking it brings the tree back to the
+    // top instead of selecting it.
+    if (path === slice.root) {
+      if (scrollRef.current !== null) scrollRef.current.scrollTop = 0
+      setScrollTop(0)
+      return
+    }
     // Selecting the folder expands its ancestors; the reveal tick scrolls the
     // tree to it even when the selection did not change.
     store.setSelectedPath(path)
     setLocateTick(tick => tick + 1)
-  }, [store])
+  }, [store, slice.root])
 
   /** Fold the folder of the frozen bar. */
   const onStickyToggle = useCallback(path => {
     if (typeof path !== 'string' || path === '') return
     store.toggleDir(path)
   }, [store])
-  // The label of the frozen bar: the dot-joined chain of a merged folder, so
-  // the bar names the same folder the tree row names.
-  const stickyLabel = stickyRow === undefined
-    ? ''
-    : (stickyRow.merged === true && Array.isArray(stickyRow.segments) && stickyRow.segments.length > 1
-        ? stickyRow.segments.map((segment, index) => React.createElement(React.Fragment, { key: `${segment}-${index}` },
-            index > 0 ? React.createElement('span', { className: 'iwb-tree-sticky-sep' }, '.') : null,
-            React.createElement('span', null, segment),
-          ))
-        : (stickyRow.label ?? stickyRow.entry?.name ?? ''))
 
   const selection = useMemo(() => slice.selectedPaths instanceof Set
     ? slice.selectedPaths
@@ -1379,16 +1493,16 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
    * The frozen "current folder" bar (R4).
    *
    * The bar is a navigation bar, not a tree row: it never joins the
-   * selection, it carries the folder the viewport sits in - one level, the
-   * direct parent of the row the viewport starts at. The fold marker next to
-   * it folds that folder, the folder itself jumps to it.
+   * selection, it carries the WHOLE chain of folders the viewport sits in -
+   * from the project root down to the current one. Every step of the chain
+   * jumps to its folder, the fold marker folds the folder the viewport is
+   * in. When the panel is too narrow the chain is shortened: the middle
+   * first, the project root after it.
    */
-  const stickyBar = stickyRow === undefined
+  const stickyBar = stickySteps.length === 0
     ? null
     : React.createElement(FrozenFolderBar, {
-        path: stickyPath,
-        label: stickyLabel,
-        title: stickyRow.entry?.rel ?? '',
+        chain: stickySteps,
         foldTitle: t('project.currentFolder'),
         onJump: onStickyJump,
         onToggle: onStickyToggle,

@@ -175,14 +175,15 @@ function setDirStatus(dirs, conflictDirs, dir, kind) {
  * Build the recursive status map.
  *
  * @param {Array<{ path: string, xy?: string, untracked?: boolean, conflict?: boolean,
- *   ignored?: boolean, ignoredDir?: boolean }>} entries
+ *   ignored?: boolean, ignoredDir?: boolean, ignoredLevel?: boolean }>} entries
  *   entries carry workspace-relative `path` values
  * @returns {{ dirs: Map<string, string>, files: Map<string, string>,
  *   ignored: Set<string>, conflictDirs: Set<string>, entries: Array<object> }}
  *   `entries` is the list this aggregate was built from, so a caller can tell
  *   whether a later list still describes the same status.
  *   `ignored` holds the ignored paths without a trailing slash; `has` also
- *   answers for the paths below an ignored directory (R6).
+ *   answers for the paths below an ignored directory and for the levels the
+ *   host marked (R6).
  */
 export function aggregateStatus(entries) {
   const list = Array.isArray(entries) ? entries : []
@@ -190,10 +191,6 @@ export function aggregateStatus(entries) {
   const files = new Map()
   const ignored = new IgnoredPaths()
   const conflictDirs = new Set()
-  // The ignored roots and the paths that git said something else about. The
-  // second list decides which intermediate levels may be greyed (R6).
-  const ignoredRoots = []
-  const otherPaths = []
   for (const entry of list) {
     if (entry === null || typeof entry !== 'object' || typeof entry.path !== 'string') continue
     const kind = fileStatusKind(entry)
@@ -202,16 +199,21 @@ export function aggregateStatus(entries) {
       // The host drops the trailing slash of an ignored directory, so both
       // sides speak the same key. A path that still carries one (an older
       // host, a hand-written entry) is normalized here as well.
-      const isDir = entry.ignoredDir === true || entry.path.endsWith('/')
       const path = entry.path.replace(/\/+$/, '')
       if (path === '') continue
+      if (entry.ignoredLevel === true) {
+        // A LEVEL is the folder above an ignored directory that holds nothing
+        // but ignored content. It is grey on its own row, and the files next
+        // to the ignored directory keep their own colour (R6). Only git knows
+        // which files are tracked, so the host decides which paths are levels.
+        ignored.addLevel(path)
+        continue
+      }
       ignored.addRoot(path)
-      ignoredRoots.push({ path, isDir })
       // An ignored entry colours nothing: it must not reach the directory
       // table (`dirs`) nor the file table (`files`).
       continue
     }
-    otherPaths.push(entry.path.replace(/\/+$/, ''))
     // A porcelain entry that ends with a slash describes a DIRECTORY
     // (`? dir/`), not a file. The tree looks directories up in `dirs` and
     // files in `files`, so such an entry must never reach the file table —
@@ -225,20 +227,6 @@ export function aggregateStatus(entries) {
     files.set(entry.path, kind)
     for (const dir of ancestorsOf(entry.path)) setDirStatus(dirs, conflictDirs, dir, kind)
   }
-  // The ancestors of an ignored DIRECTORY are grey as well: git only reports
-  // the deepest ignored directory (`target/sub/`), and the levels above it
-  // have to be grey as well (R6). They are levels, not roots: a level greys
-  // its own row and nothing below it, so a tracked file next to an ignored
-  // folder keeps its own colour. A level that git said something else about
-  // is not grey either - it holds real content.
-  for (const root of ignoredRoots) {
-    if (!root.isDir) continue
-    for (const ancestor of ancestorsOf(root.path)) {
-      const prefix = `${ancestor}/`
-      if (otherPaths.some(path => path.startsWith(prefix))) continue
-      ignored.addLevel(ancestor)
-    }
-  }
   return { dirs, files, ignored, conflictDirs, entries: list }
 }
 
@@ -247,9 +235,10 @@ export function aggregateStatus(entries) {
  *
  * The aggregate depends on a file only through its path and its kind, so two
  * lists that agree on those agree on the aggregate — whatever else the host
- * sends alongside an entry does not matter here. The one exception is the
- * ignored DIRECTORY flag: it decides whether the ancestors of the path are
- * ignored as well, so it belongs to the status (R6).
+ * sends alongside an entry does not matter here. The exceptions are the two
+ * ignored flags: the DIRECTORY flag says that the whole subtree below the
+ * path is ignored, and the LEVEL flag says that the path is grey on its own
+ * row only. Both belong to the status (R6).
  *
  * @param {Array<object>} left the earlier entry list
  * @param {Array<object>} right the later entry list
@@ -267,6 +256,10 @@ export function sameStatusEntries(left, right) {
     if (one.path !== other.path) return false
     if (fileStatusKind(one) !== fileStatusKind(other)) return false
     if ((one.ignoredDir === true) !== (other.ignoredDir === true)) return false
+    // A LEVEL greys its own row only, an ignored ROOT greys its subtree: the
+    // two are different colours for the same path, so the change is a change
+    // of the status (R6).
+    if ((one.ignoredLevel === true) !== (other.ignoredLevel === true)) return false
   }
   return true
 }

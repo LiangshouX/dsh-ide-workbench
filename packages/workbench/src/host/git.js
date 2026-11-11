@@ -305,6 +305,77 @@ export function parseNumstat(output) {
 }
 
 /**
+ * The levels above an ignored directory that hold nothing but ignored
+ * content.
+ *
+ * Git does not descend into an ignored directory, so it reports only the
+ * deepest one (`target/sub/`) and the levels above it stay silent. Those
+ * levels have to be grey as well, or the tree would show a normal folder with
+ * an ignored folder inside it (R6).
+ *
+ * But a level that holds TRACKED files is a normal folder: `packages/workbench`
+ * with a tracked `package.json` and an ignored `node_modules` is not ignored.
+ * Only git knows which files are tracked, so the decision is made here - with
+ * ONE `git ls-files` call for all the candidates.
+ *
+ * @param {{ root: string }} repo the repository environment
+ * @param {Array<{ path: string, ignored?: boolean, ignoredDir?: boolean }>} entries
+ * @param {(repo: any, args: string[]) => Promise<{ stdout: string }>} run
+ * @returns {Promise<string[]>} the level paths (repository-relative)
+ */
+export async function ignoredLevels(repo, entries, run) {
+  const roots = entries
+    .filter(entry => entry?.ignored === true && entry?.ignoredDir === true && typeof entry.path === 'string')
+    .map(entry => entry.path)
+  if (roots.length === 0) return []
+  // The candidates are the ancestors of the ignored directories.
+  const candidates = new Set()
+  for (const root of roots) {
+    let dir = root
+    for (;;) {
+      const slash = dir.lastIndexOf('/')
+      if (slash <= 0) break
+      dir = dir.slice(0, slash)
+      candidates.add(dir)
+    }
+  }
+  if (candidates.size === 0) return []
+  // The tracked files say which of the candidates hold real content.
+  const tracked = new Set()
+  try {
+    const result = await run(repo, ['ls-files', '-z', '--', ...candidates])
+    for (const path of String(result.stdout ?? '').split('\0')) {
+      if (path === '') continue
+      let dir = path
+      for (;;) {
+        const slash = dir.lastIndexOf('/')
+        if (slash <= 0) break
+        dir = dir.slice(0, slash)
+        tracked.add(dir)
+      }
+    }
+  } catch {
+    // Without the index the levels stay unknown: nothing is greyed that is
+    // not an ignored path itself.
+    return []
+  }
+  // A level is an ancestor that holds no tracked file. The walk stops at the
+  // first ancestor that does: it holds tracked files, and so do its parents.
+  const levels = new Set()
+  for (const root of roots) {
+    let dir = root
+    for (;;) {
+      const slash = dir.lastIndexOf('/')
+      if (slash <= 0) break
+      dir = dir.slice(0, slash)
+      if (tracked.has(dir)) break
+      levels.add(dir)
+    }
+  }
+  return [...levels]
+}
+
+/**
  * One repository status snapshot, shaped for the three Commit groups.
  *
  * The snapshot costs one `git status` subprocess. The two `git diff --numstat`
@@ -316,11 +387,16 @@ export function parseNumstat(output) {
  * never receives them cannot grey an ignored folder at all (R6). The
  * `ignored` option is therefore accepted but no longer gates the git flag.
  *
+ * The `levels` option asks for the levels above the ignored directories (the
+ * folders that hold nothing but ignored content). They are only needed when
+ * the client SHOWS the ignored entries, and they cost one `git ls-files` call,
+ * so they are not computed for a client that hides them.
+ *
  * The entry list is bounded: a repository with a huge untracked tree would
  * otherwise make every poll tick build a list of hundreds of thousands of
  * entries (PRD-v5 supplement §11 risk #1).
  * @param {{ gitPath?: string, root: string, repoRoot?: string | null }} env
- * @param {{ ignored?: boolean, numstat?: boolean, limit?: number }} [options]
+ * @param {{ ignored?: boolean, numstat?: boolean, limit?: number, levels?: boolean }} [options]
  */
 export async function status(env, options = {}) {
   /** The git processes this snapshot spawned (PRD §1.3 counter). */
@@ -386,6 +462,27 @@ export async function status(env, options = {}) {
       unstagedLines: unstagedNumstat.get(entry.path),
     }
   })
+  // The levels above an ignored directory are grey as well, but only when
+  // they hold nothing but ignored content - a folder with tracked files is a
+  // normal folder (R6). Only git knows which files are tracked, so the host
+  // decides and tells the client which paths are levels.
+  if (options.levels === true) {
+    const levels = await ignoredLevels(repo, parsed.entries, run)
+    for (const path of levels) {
+      entries.push({
+        path,
+        xy: '!!',
+        untracked: false,
+        conflict: false,
+        ignored: true,
+        // A LEVEL is grey on its own row only: the files next to the ignored
+        // directory keep their own colour.
+        ignoredLevel: true,
+        staged: false,
+        unstaged: false,
+      })
+    }
+  }
   return {
     isRepo: true,
     root,
