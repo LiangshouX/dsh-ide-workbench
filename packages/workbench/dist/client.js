@@ -61146,17 +61146,41 @@ function ancestorsOf(rel) {
   return output;
 }
 var IgnoredPaths = class extends Set {
+  constructor() {
+    super();
+    this.roots = /* @__PURE__ */ new Set();
+    this.levels = /* @__PURE__ */ new Set();
+  }
   /**
-   * Whether the path is ignored — directly or through an ignored directory.
+   * The path git reported as ignored: it greys its whole subtree.
+   * @param {string} path the repository-relative path
+   */
+  addRoot(path2) {
+    if (typeof path2 !== "string" || path2 === "") return;
+    this.roots.add(path2);
+    super.add(path2);
+  }
+  /**
+   * An intermediate level above an ignored directory: it greys its own row.
+   * @param {string} path the repository-relative path
+   */
+  addLevel(path2) {
+    if (typeof path2 !== "string" || path2 === "") return;
+    this.levels.add(path2);
+    super.add(path2);
+  }
+  /**
+   * Whether the path is ignored — directly, below an ignored directory, or as
+   * an intermediate level above one.
    * @param {unknown} path the repository-relative path
    * @returns {boolean}
    */
   has(path2) {
     if (typeof path2 !== "string" || path2 === "") return false;
     const key = path2.replace(/\/+$/, "");
-    if (super.has(key)) return true;
-    for (const ancestor of ancestorsOf(key)) if (super.has(ancestor)) return true;
-    return false;
+    if (this.roots.has(key)) return true;
+    for (const ancestor of ancestorsOf(key)) if (this.roots.has(ancestor)) return true;
+    return this.levels.has(key);
   }
 };
 function setDirStatus(dirs, conflictDirs, dir, kind) {
@@ -61170,6 +61194,8 @@ function aggregateStatus(entries) {
   const files = /* @__PURE__ */ new Map();
   const ignored = new IgnoredPaths();
   const conflictDirs = /* @__PURE__ */ new Set();
+  const ignoredRoots = [];
+  const otherPaths = [];
   for (const entry of list) {
     if (entry === null || typeof entry !== "object" || typeof entry.path !== "string") continue;
     const kind = fileStatusKind(entry);
@@ -61178,10 +61204,11 @@ function aggregateStatus(entries) {
       const isDir = entry.ignoredDir === true || entry.path.endsWith("/");
       const path2 = entry.path.replace(/\/+$/, "");
       if (path2 === "") continue;
-      ignored.add(path2);
-      if (isDir) for (const ancestor of ancestorsOf(path2)) ignored.add(ancestor);
+      ignored.addRoot(path2);
+      ignoredRoots.push({ path: path2, isDir });
       continue;
     }
+    otherPaths.push(entry.path.replace(/\/+$/, ""));
     if (entry.path.endsWith("/")) {
       const dir = entry.path.replace(/\/+$/, "");
       setDirStatus(dirs, conflictDirs, dir, kind);
@@ -61190,6 +61217,14 @@ function aggregateStatus(entries) {
     }
     files.set(entry.path, kind);
     for (const dir of ancestorsOf(entry.path)) setDirStatus(dirs, conflictDirs, dir, kind);
+  }
+  for (const root of ignoredRoots) {
+    if (!root.isDir) continue;
+    for (const ancestor of ancestorsOf(root.path)) {
+      const prefix = `${ancestor}/`;
+      if (otherPaths.some((path2) => path2.startsWith(prefix))) continue;
+      ignored.addLevel(ancestor);
+    }
   }
   return { dirs, files, ignored, conflictDirs, entries: list };
 }
@@ -61847,7 +61882,8 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     () => flatten2(slice, slice.filter, showIgnored, status.ignored, filterMode),
     flattenInputs(slice, showIgnored, status.ignored, filterMode)
   );
-  const rows = filterMode === "files" && slice.filter.trim() !== "" ? quickRows : treeRows;
+  const quickList = filterMode === "files" && slice.filter.trim() !== "";
+  const rows = quickList ? quickRows : treeRows;
   const rowPaths = (0, import_react5.useMemo)(() => rows.filter((row) => row.entry !== void 0).map((row) => row.entry.path), [rows]);
   const excluded = slice.settings?.project?.excluded ?? [];
   const rowPathsRef = (0, import_react5.useRef)(rowPaths);
@@ -61888,7 +61924,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     }
     return map;
   }, [rows]);
-  const stickyPath = filterMode === "files" ? null : currentFolderPathOf(rows, scrollTop, rowPathSet, slice.root);
+  const stickyPath = quickList ? null : currentFolderPathOf(rows, scrollTop, rowPathSet, slice.root);
   const stickyRow = stickyPath === null ? void 0 : dirRows.get(stickyPath);
   const onStickyJump = (0, import_react5.useCallback)((path2) => {
     if (typeof path2 !== "string" || path2 === "") return;

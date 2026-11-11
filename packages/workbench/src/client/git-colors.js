@@ -85,19 +85,55 @@ function ancestorsOf(rel) {
  * The set itself stays a plain set of paths (the ignored entries and the
  * ancestors of the ignored directories), so the code that only iterates over
  * it is unaffected.
+ *
+ * Two kinds of paths live in it, and the difference matters:
+ * - the ROOTS: the paths git reported as ignored (`target/`, `node_modules/`).
+ *   Everything below a root is ignored, so a root answers for its subtree.
+ * - the LEVELS: the ancestors of a root. Git does not descend into an ignored
+ *   directory, so the levels above it hold nothing but ignored content and
+ *   have to be grey as well (R6). They are NOT roots: a tracked file that
+ *   sits next to an ignored folder must keep its own colour, so a level
+ *   greys its own row and nothing below it.
  */
 class IgnoredPaths extends Set {
+  constructor() {
+    super()
+    this.roots = new Set()
+    this.levels = new Set()
+  }
+
   /**
-   * Whether the path is ignored — directly or through an ignored directory.
+   * The path git reported as ignored: it greys its whole subtree.
+   * @param {string} path the repository-relative path
+   */
+  addRoot(path) {
+    if (typeof path !== 'string' || path === '') return
+    this.roots.add(path)
+    super.add(path)
+  }
+
+  /**
+   * An intermediate level above an ignored directory: it greys its own row.
+   * @param {string} path the repository-relative path
+   */
+  addLevel(path) {
+    if (typeof path !== 'string' || path === '') return
+    this.levels.add(path)
+    super.add(path)
+  }
+
+  /**
+   * Whether the path is ignored — directly, below an ignored directory, or as
+   * an intermediate level above one.
    * @param {unknown} path the repository-relative path
    * @returns {boolean}
    */
   has(path) {
     if (typeof path !== 'string' || path === '') return false
     const key = path.replace(/\/+$/, '')
-    if (super.has(key)) return true
-    for (const ancestor of ancestorsOf(key)) if (super.has(ancestor)) return true
-    return false
+    if (this.roots.has(key)) return true
+    for (const ancestor of ancestorsOf(key)) if (this.roots.has(ancestor)) return true
+    return this.levels.has(key)
   }
 }
 
@@ -154,6 +190,10 @@ export function aggregateStatus(entries) {
   const files = new Map()
   const ignored = new IgnoredPaths()
   const conflictDirs = new Set()
+  // The ignored roots and the paths that git said something else about. The
+  // second list decides which intermediate levels may be greyed (R6).
+  const ignoredRoots = []
+  const otherPaths = []
   for (const entry of list) {
     if (entry === null || typeof entry !== 'object' || typeof entry.path !== 'string') continue
     const kind = fileStatusKind(entry)
@@ -165,16 +205,13 @@ export function aggregateStatus(entries) {
       const isDir = entry.ignoredDir === true || entry.path.endsWith('/')
       const path = entry.path.replace(/\/+$/, '')
       if (path === '') continue
-      ignored.add(path)
-      // The ancestors of an ignored DIRECTORY are ignored as well: git only
-      // reports the deepest ignored directory (`target/sub/`), and the
-      // levels above it have to be grey as well (R6). An ignored FILE keeps
-      // its old behaviour: only the file itself is grey, not its folder.
-      if (isDir) for (const ancestor of ancestorsOf(path)) ignored.add(ancestor)
+      ignored.addRoot(path)
+      ignoredRoots.push({ path, isDir })
       // An ignored entry colours nothing: it must not reach the directory
       // table (`dirs`) nor the file table (`files`).
       continue
     }
+    otherPaths.push(entry.path.replace(/\/+$/, ''))
     // A porcelain entry that ends with a slash describes a DIRECTORY
     // (`? dir/`), not a file. The tree looks directories up in `dirs` and
     // files in `files`, so such an entry must never reach the file table —
@@ -187,6 +224,20 @@ export function aggregateStatus(entries) {
     }
     files.set(entry.path, kind)
     for (const dir of ancestorsOf(entry.path)) setDirStatus(dirs, conflictDirs, dir, kind)
+  }
+  // The ancestors of an ignored DIRECTORY are grey as well: git only reports
+  // the deepest ignored directory (`target/sub/`), and the levels above it
+  // have to be grey as well (R6). They are levels, not roots: a level greys
+  // its own row and nothing below it, so a tracked file next to an ignored
+  // folder keeps its own colour. A level that git said something else about
+  // is not grey either - it holds real content.
+  for (const root of ignoredRoots) {
+    if (!root.isDir) continue
+    for (const ancestor of ancestorsOf(root.path)) {
+      const prefix = `${ancestor}/`
+      if (otherPaths.some(path => path.startsWith(prefix))) continue
+      ignored.addLevel(ancestor)
+    }
   }
   return { dirs, files, ignored, conflictDirs, entries: list }
 }

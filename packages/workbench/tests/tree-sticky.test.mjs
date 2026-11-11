@@ -270,6 +270,22 @@ test('the frozen bar is hidden in the flat quick-file list', async () => {
   assert.doesNotMatch(html, /iwb-tree-sticky/)
 })
 
+test('the frozen bar shows in the default file mode, where the tree is shown', async () => {
+  // The 'files' mode only changes WHAT THE FILTER SEARCHES IN - the panel
+  // shows the TREE until a filter is typed. The bar must not be switched off
+  // with the mode, or it would never appear in the default configuration.
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  const state = baseState()
+  state.filterMode = 'files'
+  state.filter = ''
+  const { html, elements } = renderPanel(state, ROW_HEIGHT * 3)
+  const bar = stickyBarOf(elements)
+  assert.ok(bar !== undefined, 'the frozen bar is rendered in the default mode')
+  assert.match(html, /iwb-tree-sticky/)
+  assert.match(html, />src</)
+})
+
 test('the fold marker of the frozen bar folds that folder once', async () => {
   const mod = await loadModule()
   ProjectPanel = mod.ProjectPanel

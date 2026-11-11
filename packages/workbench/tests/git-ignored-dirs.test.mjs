@@ -184,6 +184,36 @@ test('a porcelain path with a trailing slash is normalized', () => {
   assert.equal(rollup.ignored.has('target/sub'), true)
 })
 
+test('a tracked file next to an ignored folder keeps its own colour', () => {
+  // The everyday case: `node_modules/` is ignored, the folder around it holds
+  // tracked files. The ignored folder is grey, the folder itself and its
+  // tracked content are NOT - the ancestor of an ignored directory is a
+  // LEVEL, not a root, so it greys its own row and nothing below it.
+  const rollup = aggregateStatus([
+    { path: 'packages/workbench/node_modules', xy: '!!', ignored: true, ignoredDir: true },
+    { path: 'packages/workbench/src/index.js', xy: '.M', modified: true },
+  ])
+  assert.equal(rollup.ignored.has('packages/workbench/node_modules'), true)
+  assert.equal(rollup.ignored.has('packages/workbench/node_modules/react/index.js'), true)
+  // The tracked file next to it keeps its own colour.
+  assert.equal(rollup.ignored.has('packages/workbench/src/index.js'), false)
+  // The folder that holds it is not grey either: git said something about it.
+  assert.equal(rollup.ignored.has('packages/workbench'), false)
+  assert.equal(rollup.ignored.has('packages'), false)
+})
+
+test('an ignored folder does not grey the tracked content of its level', () => {
+  // The same case without any other status entry: the level above the ignored
+  // directory is grey, but its own content is not - a level greys its row.
+  const rollup = aggregateStatus([
+    { path: 'packages/workbench/node_modules', xy: '!!', ignored: true, ignoredDir: true },
+  ])
+  assert.equal(rollup.ignored.has('packages/workbench/node_modules'), true)
+  assert.equal(rollup.ignored.has('packages/workbench/src/index.js'), false)
+  // The level above it is grey (the negation case of the level rule).
+  assert.equal(rollup.ignored.has('packages/workbench'), true)
+})
+
 test('the ignored set keeps its identity while the status is unchanged', async () => {
   const entries = [{ path: 'target', xy: '!!', ignored: true, ignoredDir: true }]
   const first = aggregateStatus(entries)

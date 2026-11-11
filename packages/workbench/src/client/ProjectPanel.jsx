@@ -849,7 +849,11 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     () => flatten(slice, slice.filter, showIgnored, status.ignored, filterMode),
     flattenInputs(slice, showIgnored, status.ignored, filterMode),
   )
-  const rows = filterMode === 'files' && slice.filter.trim() !== '' ? quickRows : treeRows
+  // The flat quick-file list is only in use when the mode asks for it AND a
+  // filter is typed - the panel shows the TREE otherwise, even in the 'files'
+  // mode (that mode only changes what the filter searches in).
+  const quickList = filterMode === 'files' && slice.filter.trim() !== ''
+  const rows = quickList ? quickRows : treeRows
   const rowPaths = useMemo(() => rows.filter(row => row.entry !== undefined).map(row => row.entry.path), [rows])
   const excluded = slice.settings?.project?.excluded ?? []
   // The callbacks handed to the memoized rows must keep their identity: a
@@ -917,7 +921,7 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     return map
   }, [rows])
   // The flat quick-file list has no hierarchy to point at: no frozen bar.
-  const stickyPath = filterMode === 'files'
+  const stickyPath = quickList
     ? null
     : currentFolderPathOf(rows, scrollTop, rowPathSet, slice.root)
   const stickyRow = stickyPath === null ? undefined : dirRows.get(stickyPath)
