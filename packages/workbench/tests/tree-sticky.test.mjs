@@ -4,9 +4,10 @@
  *   - the tree rows are absolutely positioned (the tree is virtualised), so
  *     the bar is a layer of its own and its content is rebuilt from the row
  *     model;
- *   - the bar points at the DIRECT PARENT of the row the viewport starts at
- *     (one level), and it follows the scroll;
- *   - the fold marker folds that folder, the folder itself jumps to it;
+ *   - the bar points at the WHOLE CHAIN of folders the viewport starts in,
+ *     and it follows the scroll;
+ *   - the fold marker folds that folder, every step of the chain jumps to
+ *     its folder;
  *   - the bar is a navigation bar: it never joins the selection;
  *   - no bar on a short tree, none in the flat quick-file list.
  *
@@ -18,7 +19,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import React from 'react'
@@ -255,7 +256,7 @@ test('the frozen bar names the folder the viewport sits in', async () => {
   assert.match(html, />src</)
 })
 
-test('the frozen bar follows the scroll and names one level only', async () => {
+test('the frozen bar follows the scroll and names the folder of the viewport', async () => {
   const mod = await loadModule()
   ProjectPanel = mod.ProjectPanel
   const state = baseState()
@@ -381,8 +382,30 @@ test('the frozen bar carries the whole chain from the root', async () => {
   assert.deepEqual(jumps[0].args, [SRC])
 })
 
-test('a short panel elides the middle of the chain, then the root', async () => {
-  const mod = await loadModule()
+test('the frozen bar covers the padding of the scroll container', async () => {
+  // A sticky element stops at the edge of the padding of its scroll
+  // container, so the bar used to float a few pixels below the panel header.
+  // It covers that padding instead: the negative margin lifts it to the
+  // header, and the negative margin below cancels its own height so the rows
+  // do not move.
+  const styles = await readFile(join(root, 'src/client/styles.js'), 'utf8')
+  const tree = /\.iwb-tree \{([^}]*)\}/.exec(styles)
+  assert.ok(tree !== null, 'the tree rule is in the stylesheet')
+  const padding = /padding:\s*(\d+)px 0 \d+px/.exec(tree[1])
+  assert.ok(padding !== null, 'the tree has a padding on top')
+  const bar = /\.iwb-tree-sticky \{([^}]*)\}/.exec(styles)
+  assert.ok(bar !== null, 'the frozen bar is in the stylesheet')
+  const margin = /margin:\s*-(\d+)px 0 -(\d+)px/.exec(bar[1])
+  assert.ok(margin !== null, 'the bar lifts itself over the padding')
+  const height = /height:\s*(\d+)px/.exec(bar[1])
+  assert.ok(height !== null, 'the bar has a height')
+  assert.equal(Number(margin[1]), Number(padding[1]),
+    'the bar covers exactly the padding of the scroll container')
+  assert.equal(Number(margin[2]), Number(height[1]),
+    'the bar cancels its own height, so the rows do not move')
+})
+
+test('a short panel elides the middle of the chain, then the root', async () => {  const mod = await loadModule()
   const chain = [
     { path: null, label: 'demo', title: 'demo' },
     { path: 'a', label: 'a', title: 'a' },

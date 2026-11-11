@@ -846,9 +846,8 @@ export function FrozenFolderBar({ chain, foldTitle, onJump, onToggle }) {
   const current = chain.length > 0 ? chain[chain.length - 1] : undefined
   return React.createElement('div', {
     className: 'iwb-tree-sticky',
-    // The bar is a layer on top of the tree: it must not push the rows down
-    // when it appears, or the tree would jump on every scroll step.
-    style: { marginBottom: '-22px' },
+    // The geometry of the bar lives in the stylesheet: it has to cover the
+    // padding of the scroll container, or it floats below the header.
   },
     React.createElement('span', {
       className: 'iwb-tree-twisty iwb-tree-twisty-click',

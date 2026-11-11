@@ -61851,10 +61851,9 @@ function FrozenFolderBar({ chain, foldTitle, onJump, onToggle }) {
   return import_react5.default.createElement(
     "div",
     {
-      className: "iwb-tree-sticky",
-      // The bar is a layer on top of the tree: it must not push the rows down
-      // when it appears, or the tree would jump on every scroll step.
-      style: { marginBottom: "-22px" }
+      className: "iwb-tree-sticky"
+      // The geometry of the bar lives in the stylesheet: it has to cover the
+      // padding of the scroll container, or it floats below the header.
     },
     import_react5.default.createElement("span", {
       className: "iwb-tree-twisty iwb-tree-twisty-click",
@@ -79830,7 +79829,14 @@ var CSS2 = `
 .iwb-tree-sticky {
   position: sticky; top: 0; z-index: 3;
   display: flex; align-items: center; gap: 4px;
-  height: 22px; padding: 0 8px 0 12px;
+  /* The scroll container of the tree has a padding on top, and a sticky
+     element stops at the edge of that padding - so the bar would float a few
+     pixels below the header. The bar covers the padding instead: the negative
+     margin lifts it to the edge of the header, the extra height carries the
+     padding it now covers, and the negative margin below cancels the whole
+     bar so the rows are not pushed down. */
+  margin: -4px 0 -26px;
+  height: 26px; padding: 4px 8px 0 12px;
   background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border);
   font-size: 12px; color: var(--iwb-muted); white-space: nowrap; overflow: hidden;
 }

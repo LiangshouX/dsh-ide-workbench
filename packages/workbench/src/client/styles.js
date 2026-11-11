@@ -613,7 +613,14 @@ export const CSS = `
 .iwb-tree-sticky {
   position: sticky; top: 0; z-index: 3;
   display: flex; align-items: center; gap: 4px;
-  height: 22px; padding: 0 8px 0 12px;
+  /* The scroll container of the tree has a padding on top, and a sticky
+     element stops at the edge of that padding - so the bar would float a few
+     pixels below the header. The bar covers the padding instead: the negative
+     margin lifts it to the edge of the header, the extra height carries the
+     padding it now covers, and the negative margin below cancels the whole
+     bar so the rows are not pushed down. */
+  margin: -4px 0 -26px;
+  height: 26px; padding: 4px 8px 0 12px;
   background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border);
   font-size: 12px; color: var(--iwb-muted); white-space: nowrap; overflow: hidden;
 }
