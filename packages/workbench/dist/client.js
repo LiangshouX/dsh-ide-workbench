@@ -74854,7 +74854,6 @@ function zoomPercent(zoom) {
 function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
   const surfaceRef = (0, import_react10.useRef)(null);
   const imgRef = (0, import_react10.useRef)(null);
-  const dragRef = (0, import_react10.useRef)(null);
   const [viewport, setViewport] = (0, import_react10.useState)({ width: 0, height: 0 });
   const [imageSize, setImageSize] = (0, import_react10.useState)({ width: 0, height: 0 });
   const [loads, setLoads] = (0, import_react10.useState)(0);
@@ -74881,11 +74880,16 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
     const height = img.offsetHeight;
     setImageSize((previous) => previous.width === width && previous.height === height ? previous : { width, height });
   }, [viewport.width, viewport.height, loads]);
-  const clampFor = (0, import_react10.useCallback)((value, factor) => clampPan(
-    value,
-    { width: imageSize.width * factor, height: imageSize.height * factor },
-    { width: viewport.width, height: viewport.height }
-  ), [imageSize.width, imageSize.height, viewport.width, viewport.height]);
+  const clampFor = (0, import_react10.useCallback)((value, factor) => {
+    if (imageSize.width === 0 || imageSize.height === 0) {
+      return clampPan(value, { width: viewport.width, height: viewport.height }, { width: viewport.width, height: viewport.height });
+    }
+    return clampPan(
+      value,
+      { width: imageSize.width * factor, height: imageSize.height * factor },
+      { width: viewport.width, height: viewport.height }
+    );
+  }, [imageSize.width, imageSize.height, viewport.width, viewport.height]);
   (0, import_react10.useLayoutEffect)(() => {
     setView((previous) => {
       const clamped = clampFor(previous.pan, previous.zoom);
@@ -74910,47 +74914,56 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
     surface.addEventListener("wheel", onWheel, { passive: false });
     return () => surface.removeEventListener("wheel", onWheel);
   }, [clampFor]);
-  const onPointerDown = (event) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
+  (0, import_react10.useEffect)(() => {
     const surface = surfaceRef.current;
-    if (surface !== null && typeof surface.setPointerCapture === "function") {
+    if (surface === null) return void 0;
+    let drag = null;
+    const onDown = (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+      setDragging(true);
       try {
         surface.setPointerCapture(event.pointerId);
       } catch {
       }
-    }
-    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
-    setDragging(true);
-  };
-  const onPointerMove = (event) => {
-    const drag = dragRef.current;
-    if (drag === null || drag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - drag.x;
-    const dy = event.clientY - drag.y;
-    setView((previous) => ({
-      zoom: previous.zoom,
-      pan: clampFor({ x: previous.pan.x + dx, y: previous.pan.y + dy }, previous.zoom)
-    }));
-  };
-  const endDrag = (event) => {
-    const drag = dragRef.current;
-    if (drag === null || drag.pointerId !== event.pointerId) return;
-    dragRef.current = null;
-    setDragging(false);
-    const surface = surfaceRef.current;
-    if (surface !== null && typeof surface.releasePointerCapture === "function") {
+    };
+    const onMove = (event) => {
+      if (drag === null || drag.pointerId !== event.pointerId) return;
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      setView((previous) => ({
+        zoom: previous.zoom,
+        pan: clampFor({ x: previous.pan.x + dx, y: previous.pan.y + dy }, previous.zoom)
+      }));
+    };
+    const onUp = (event) => {
+      if (drag === null || drag.pointerId !== event.pointerId) return;
+      drag = null;
+      setDragging(false);
       try {
         surface.releasePointerCapture(event.pointerId);
       } catch {
       }
-    }
-  };
-  const onDoubleClick = () => {
-    dragRef.current = null;
-    setDragging(false);
-    setView({ zoom: 1, pan: { x: 0, y: 0 } });
-  };
+    };
+    const onDouble = () => {
+      drag = null;
+      setDragging(false);
+      setView({ zoom: 1, pan: { x: 0, y: 0 } });
+    };
+    surface.addEventListener("pointerdown", onDown);
+    surface.addEventListener("pointermove", onMove);
+    surface.addEventListener("pointerup", onUp);
+    surface.addEventListener("pointercancel", onUp);
+    surface.addEventListener("dblclick", onDouble);
+    return () => {
+      surface.removeEventListener("pointerdown", onDown);
+      surface.removeEventListener("pointermove", onMove);
+      surface.removeEventListener("pointerup", onUp);
+      surface.removeEventListener("pointercancel", onUp);
+      surface.removeEventListener("dblclick", onDouble);
+    };
+  }, [clampFor]);
   return import_react10.default.createElement(
     "div",
     { className: "iwb-image" },
@@ -74960,11 +74973,6 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
         className: "iwb-image-surface",
         ref: surfaceRef,
         "data-dragging": dragging ? "true" : "false",
-        onPointerDown,
-        onPointerMove,
-        onPointerUp: endDrag,
-        onPointerCancel: endDrag,
-        onDoubleClick,
         "aria-label": alt !== "" ? alt : t3("common.image")
       },
       import_react10.default.createElement("img", {

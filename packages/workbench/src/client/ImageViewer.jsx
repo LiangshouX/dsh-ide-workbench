@@ -25,7 +25,6 @@ import {
 export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
   const surfaceRef = useRef(null)
   const imgRef = useRef(null)
-  const dragRef = useRef(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
   const [loads, setLoads] = useState(0)
@@ -71,11 +70,19 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
    * @param {number} factor the zoom the pan belongs to
    * @returns {{ x: number, y: number }}
    */
-  const clampFor = useCallback((value, factor) => clampPan(
-    value,
-    { width: imageSize.width * factor, height: imageSize.height * factor },
-    { width: viewport.width, height: viewport.height },
-  ), [imageSize.width, imageSize.height, viewport.width, viewport.height])
+  const clampFor = useCallback((value, factor) => {
+    // Without a measurement of the picture there is nothing to measure the
+    // overflow against; the centre of the picture may then move at most half
+    // of the view, so it always keeps some of the picture on screen.
+    if (imageSize.width === 0 || imageSize.height === 0) {
+      return clampPan(value, { width: viewport.width, height: viewport.height }, { width: viewport.width, height: viewport.height })
+    }
+    return clampPan(
+      value,
+      { width: imageSize.width * factor, height: imageSize.height * factor },
+      { width: viewport.width, height: viewport.height },
+    )
+  }, [imageSize.width, imageSize.height, viewport.width, viewport.height])
 
   // A resize or a new picture can leave the pan outside of the view; the
   // clamp runs after every measurement.
@@ -113,60 +120,65 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
   // ── the drag ───────────────────────────────────────────────────────────
   // The left button drags the picture; the pointer is captured, so the drag
   // continues when the pointer leaves the surface.
-  const onPointerDown = (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
+  //
+  // The listeners are NATIVE and not React's synthetic ones: the wheel above
+  // is native too, and a pointer that is swallowed somewhere on its way up
+  // (a listener of the host that stops the propagation) would leave the
+  // picture unp draggable.
+  useEffect(() => {
     const surface = surfaceRef.current
-    if (surface !== null && typeof surface.setPointerCapture === 'function') {
-      try {
-        surface.setPointerCapture(event.pointerId)
-      } catch { /* the pointer is already gone */ }
+    if (surface === null) return undefined
+    let drag = null
+
+    const onDown = (event) => {
+      if (event.button !== 0) return
+      // The picture is dragged by the surface, never by the browser.
+      event.preventDefault()
+      drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+      setDragging(true)
+      try { surface.setPointerCapture(event.pointerId) } catch { /* the pointer is gone */ }
     }
-    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
-    setDragging(true)
-  }
-
-  const onPointerMove = (event) => {
-    const drag = dragRef.current
-    if (drag === null || drag.pointerId !== event.pointerId) return
-    const dx = event.clientX - drag.x
-    const dy = event.clientY - drag.y
-    setView(previous => ({
-      zoom: previous.zoom,
-      pan: clampFor({ x: previous.pan.x + dx, y: previous.pan.y + dy }, previous.zoom),
-    }))
-  }
-
-  const endDrag = (event) => {
-    const drag = dragRef.current
-    if (drag === null || drag.pointerId !== event.pointerId) return
-    dragRef.current = null
-    setDragging(false)
-    const surface = surfaceRef.current
-    if (surface !== null && typeof surface.releasePointerCapture === 'function') {
-      try {
-        surface.releasePointerCapture(event.pointerId)
-      } catch { /* the capture is already gone */ }
+    const onMove = (event) => {
+      if (drag === null || drag.pointerId !== event.pointerId) return
+      const dx = event.clientX - drag.x
+      const dy = event.clientY - drag.y
+      setView(previous => ({
+        zoom: previous.zoom,
+        pan: clampFor({ x: previous.pan.x + dx, y: previous.pan.y + dy }, previous.zoom),
+      }))
     }
-  }
+    const onUp = (event) => {
+      if (drag === null || drag.pointerId !== event.pointerId) return
+      drag = null
+      setDragging(false)
+      try { surface.releasePointerCapture(event.pointerId) } catch { /* the capture is gone */ }
+    }
+    // The reset: 100 % and centred again.
+    const onDouble = () => {
+      drag = null
+      setDragging(false)
+      setView({ zoom: 1, pan: { x: 0, y: 0 } })
+    }
 
-  // The reset: 100 % and centred again.
-  const onDoubleClick = () => {
-    dragRef.current = null
-    setDragging(false)
-    setView({ zoom: 1, pan: { x: 0, y: 0 } })
-  }
+    surface.addEventListener('pointerdown', onDown)
+    surface.addEventListener('pointermove', onMove)
+    surface.addEventListener('pointerup', onUp)
+    surface.addEventListener('pointercancel', onUp)
+    surface.addEventListener('dblclick', onDouble)
+    return () => {
+      surface.removeEventListener('pointerdown', onDown)
+      surface.removeEventListener('pointermove', onMove)
+      surface.removeEventListener('pointerup', onUp)
+      surface.removeEventListener('pointercancel', onUp)
+      surface.removeEventListener('dblclick', onDouble)
+    }
+  }, [clampFor])
 
   return React.createElement('div', { className: 'iwb-image' },
     React.createElement('div', {
       className: 'iwb-image-surface',
       ref: surfaceRef,
       'data-dragging': dragging ? 'true' : 'false',
-      onPointerDown,
-      onPointerMove,
-      onPointerUp: endDrag,
-      onPointerCancel: endDrag,
-      onDoubleClick,
       'aria-label': alt !== '' ? alt : t('common.image'),
     },
       React.createElement('img', {
