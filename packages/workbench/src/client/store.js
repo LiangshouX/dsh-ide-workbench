@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The workbench store: one shared repository snapshot behind all four tool
  * windows (Project / Commit / Git / Terminal).
  *
@@ -145,6 +145,10 @@ function sameGitStatus(previous, next) {
     if (before.untracked !== after.untracked) return false
     if (before.conflict !== after.conflict) return false
     if (before.ignored !== after.ignored) return false
+    // An ignored FILE and an ignored DIRECTORY carry the same `xy` and the
+    // same path; only this flag tells them apart, and the tree colours the
+    // whole subtree of an ignored folder.
+    if (before.ignoredDir !== after.ignoredDir) return false
     if (before.stagedLines !== after.stagedLines) return false
     if (before.unstagedLines !== after.unstagedLines) return false
   }
@@ -173,6 +177,107 @@ function isPlainRelativeLinkPath(path) {
  */
 export function normalizeNewlines(text) {
   return typeof text === 'string' ? text.replace(/\r\n/g, '\n') : text
+}
+
+/**
+ * The file extensions whose content is counted (A1).
+ *
+ * Only Markdown and plain text: the number is meant to describe the prose of
+ * the document, and a source file would mix the code with the words.
+ */
+const COUNTED_EXTENSIONS = /\.(md|markdown|mdx|txt)$/i
+
+/**
+ * One run of CJK characters.
+ *
+ * The scripts are named instead of "everything wide": the East Asian width
+ * would count the CJK punctuation (`，`) as a character, and the example of
+ * the requirement (`你好，hello world` → 4) says that it must not.
+ */
+const CJK_RUN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu
+
+/**
+ * A character that turns a token into a word: a letter or a digit.
+ *
+ * A token that carries none of them is punctuation (`。`), not a word.
+ */
+const WORD_CHARACTER = /[\p{L}\p{N}]/u
+
+/**
+ * Count the words of one plain text — 口径 B (A1).
+ *
+ * A CJK character counts one by one, a Latin text counts one word per
+ * whitespace-separated word, and the two are added. The text is counted as
+ * plain text: no Markdown is parsed, so the syntax characters and the code
+ * blocks count as they are written.
+ *
+ * @param {string} text the text to count
+ * @returns {number} the number of words
+ */
+export function countWords(text) {
+  if (typeof text !== 'string' || text === '') return 0
+  let cjk = 0
+  // A CJK run becomes a separator: a Chinese word glued to an English one
+  // (`中文english`) is two units, not one.
+  const rest = text.replace(CJK_RUN, run => {
+    cjk += [...run].length
+    return ' '
+  })
+  let words = 0
+  for (const token of rest.split(/\s+/)) {
+    if (token === '') continue
+    if (WORD_CHARACTER.test(token)) words += 1
+  }
+  return cjk + words
+}
+
+/**
+ * The numbers the status bar shows for one document (A1).
+ *
+ * They are computed once, when the buffer is read or written, and never in a
+ * render path: the status bar re-renders on every keystroke and on every git
+ * poll, so a scan of the text there would be paid over and over again.
+ *
+ * @param {string} path the absolute path of the file
+ * @param {string|null} content the saved text, `null` when there is none
+ * @param {boolean} [truncated] whether the host cut the buffer short
+ * @returns {{ lines: number|undefined, words: number|undefined }} the counts
+ */
+export function documentStats(path, content, truncated = false) {
+  if (typeof content !== 'string') return { lines: undefined, words: undefined }
+  // The lines are counted without splitting the text into an array: a large
+  // file would allocate one string per line just to know how many there are.
+  let lines = 1
+  for (let at = content.indexOf('\n'); at !== -1; at = content.indexOf('\n', at + 1)) lines += 1
+  // A file the host cut short has no meaningful count, and a file that is
+  // neither Markdown nor plain text is not counted at all.
+  const words = truncated !== true && COUNTED_EXTENSIONS.test(String(path ?? ''))
+    ? countWords(content)
+    : undefined
+  return { lines, words }
+}
+
+/**
+ * The segments of one project-root-relative path, or `null` when the path is
+ * not a legal relative path (R5).
+ *
+ * A path that leaves the project root is refused before anything is written:
+ * `..`, an absolute path (POSIX, a Windows drive or a UNC share) and an empty
+ * segment all escape the fence of the workspace.
+ *
+ * @param {unknown} path the relative path
+ * @returns {string[]|null} the segments, `null` when the path is illegal
+ */
+export function relativeSegments(path) {
+  if (typeof path !== 'string') return null
+  const value = path.trim().replace(/\\/g, '/')
+  if (value === '') return null
+  if (value.startsWith('/') || /^[A-Za-z]:/.test(value)) return null
+  const segments = value.split('/')
+  for (const segment of segments) {
+    if (segment === '' || segment === '.' || segment === '..') return null
+  }
+  return segments
 }
 
 /**
@@ -1210,6 +1315,8 @@ export class WorkbenchStore {
             pinned: tab.pinned !== false,
             loading: false,
             content: null,
+            // The counts of the status bar; they arrive with the buffer (A1).
+            stats: null,
             error: null,
             scrollTop: typeof tab.scrollTop === 'number' ? tab.scrollTop : 0,
             editing: this.defaultEditing(undefined, tab.path),
@@ -1877,26 +1984,98 @@ export class WorkbenchStore {
     if (moved) this.set({ clipboard: null })
   }
 
+  /**
+   * Create one file or directory in the project tree.
+   *
+   * The default is the direct parent plus one name segment, exactly as it was.
+   * A creation target may carry a project-root-relative path instead:
+   *
+   * - `relPath` — the path of the new entry, relative to the project root and
+   *   **including its own name** (`a/b/c.md`). The parent then becomes the
+   *   project root and the name the relative path, so the host can create the
+   *   missing intermediate directories (R5).
+   * - `relDir` — the directory of the new entry, relative to the project root;
+   *   the name of the entry is appended from `name` (`a/b` + `c.md` →
+   *   `a/b/c.md`). It is the shape of a dialog that keeps the name in its own
+   *   field.
+   *
+   * `relPath` wins when both are given. A path that leaves the project root is
+   * refused before anything is written, and the user gets a readable reason.
+   *
+   * @param {string} parent the direct parent directory (absolute)
+   * @param {{
+   *   name?: string,
+   *   relPath?: string,
+   *   relDir?: string,
+   *   isDir?: boolean,
+   *   content?: string,
+   * }} [options]
+   * @returns {Promise<boolean>} true when the entry was created
+   */
   async createEntry(parent, options = {}) {
     const name = String(options.name ?? '').trim()
-    if (name === '') return
+    const relPath = String(options.relPath ?? '').trim()
+    const relDir = String(options.relDir ?? '').trim()
+    // The default target: the direct parent plus one name segment.
+    let target = parent
+    let entryName = name
+    let nested = false
+    if (relPath !== '' || relDir !== '') {
+      const segments = relPath !== ''
+        ? relativeSegments(relPath)
+        : relativeSegments(relDir)
+      if (segments === null) {
+        this.toast('error', this.t('project.pathInvalid'), relPath !== '' ? relPath : relDir)
+        return false
+      }
+      if (relPath === '' && name !== '') segments.push(name)
+      // A relative directory needs the name of the entry: without one there
+      // is nothing to create.
+      if (relPath === '' && name === '') {
+        this.toast('error', this.t('project.pathInvalid'), relDir)
+        return false
+      }
+      if (segments.length === 0) return false
+      // The path is relative to the project root: the root becomes the parent
+      // and the whole relative path the name, so the host can create the
+      // missing folders on the way.
+      target = this.state.root
+      entryName = segments.join('/')
+      nested = true
+      // Belt and braces: the joined path has to stay inside the project root.
+      if (!isPathWithin(this.state.root, this.#absoluteOf(entryName))) {
+        this.toast('error', this.t('project.pathInvalid'), relPath !== '' ? relPath : relDir)
+        return false
+      }
+    }
+    if (entryName === '') return false
     try {
       const result = await call('fs.create', {
         root: this.state.root,
-        parent,
-        name,
+        parent: target,
+        name: entryName,
         isDir: options.isDir === true,
         content: typeof options.content === 'string' ? options.content : '',
       })
-      await this.loadDir(parent, { force: true })
+      await this.loadDir(target, { force: true })
       await this.refreshStatus()
       const absolute = this.#absoluteOf(result.path)
       this.setSelection([absolute], absolute)
+      if (nested) {
+        // The new entry sits deeper than the folder that was listed: the folder
+        // that holds it is listed again, and the tree walks down to it, so the
+        // user sees what was created (R5).
+        const container = parentPath(absolute)
+        await this.loadDir(container, { force: true })
+        this.setSelectedPath(absolute)
+      }
       if (result.isDir !== true) this.openFile(absolute, { rel: result.path, preview: false })
       this.persist()
     } catch (error) {
       this.toast('error', this.t('common.error'), errorMessage(error))
+      return false
     }
+    return true
   }
 
   async renameEntry(path, name) {
@@ -2150,6 +2329,31 @@ export class WorkbenchStore {
     }
   }
 
+  /**
+   * Whether one tab holds unsaved changes.
+   *
+   * An action that hands the file to another program needs it: the file on
+   * disk is not the file on screen (R11).
+   *
+   * @param {string} id the tab id
+   * @returns {boolean} true when the tab has edits that are not on disk
+   */
+  isTabDirty(id) {
+    if (typeof id !== 'string' || id === '') return false
+    const tab = this.state.tabs.find(item => item.id === id)
+    return tab !== undefined && tab.dirty === true
+  }
+
+  /**
+   * Whether the file at `path` is open in a tab with unsaved changes.
+   * @param {string} path the absolute path of the file
+   * @returns {boolean} true when a tab of that file has unsaved edits
+   */
+  isPathDirty(path) {
+    if (typeof path !== 'string' || path === '') return false
+    return this.state.tabs.some(tab => tab.kind === 'file' && tab.path === path && tab.dirty === true)
+  }
+
   /** Effective editor open mode: explicit setting, else the legacy flag. */
   editorOpenMode() {
     const editor = this.state.settings?.editor
@@ -2224,6 +2428,9 @@ export class WorkbenchStore {
       pinned: !preview,
       loading: false,
       content: null,
+      // The counts of the status bar (lines, words); they are computed when
+      // the buffer is read or written, never in a render path (A1).
+      stats: null,
       error: null,
       scrollTop: 0,
       editing: this.defaultEditing(undefined, path),
@@ -2293,6 +2500,10 @@ export class WorkbenchStore {
           conflict: null,
           payload: text === null ? { ...result, eol } : { ...result, content: text, eol },
           content: text,
+          // The line count and the word count are counted here, once, and not
+          // in a render path (A1): the status bar re-renders on every
+          // keystroke and on every git poll.
+          stats: documentStats(tab.path, text, result.truncated === true),
           // A forced refresh (external change) must not clobber unsaved edits.
           ...(keepDraft ? {} : { draft: text, dirty: false }),
           ...(rebuilt ? { resetToken: (latest?.resetToken ?? 0) + 1 } : {}),
@@ -2501,6 +2712,9 @@ export class WorkbenchStore {
         content: text,
         draft: latestDraft,
         payload: { ...payload, content: text, size: result.size, mtimeMs: result.mtimeMs, encoding: result.encoding ?? payload.encoding },
+        // The saved text is the one that is counted: the edits of the draft
+        // are not on disk yet (A1).
+        stats: documentStats(tab.path, text),
       })
       this.toast('success', this.t('editor.saved'), baseName(tab.path))
       void this.refreshStatus({ initial: false })
@@ -3630,8 +3844,9 @@ export class WorkbenchStore {
       const before = this.state.settings?.project?.showIgnored === true
       const after = result.value?.project?.showIgnored === true
       this.set({ settings: result.value })
-      // The host only lists ignored entries while that setting is on, so the
-      // status has to be re-read as soon as the toggle changed.
+      // The host always asks git for the ignored entries; the setting only
+      // decides whether they are shown. The status therefore has to be
+      // re-read as soon as the toggle changed.
       if (before !== after) void this.refreshStatus({ silent: true, force: true })
     } catch (error) {
       this.toast('error', this.t('commit.failed'), error instanceof Error ? error.message : String(error))

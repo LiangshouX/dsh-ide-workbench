@@ -28,15 +28,15 @@ DSH 的对话很适合“边聊边改”，但真正改代码时还是要在聊�
 
 | 界面 | 功能 |
 |:--|:--|
-| ![Project 工具窗](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/project.png) | **Project 工具窗。** 惰性加载的文件树，JetBrains 状态色（红 = 未跟踪、绿 = 新增、蓝 = 已修改，目录递归染色）。单击选中、双击打开或展开；目录箭头单击即可展开/折叠。Ctrl/Shift 多选、拖拽移动（Ctrl = 复制）。新建文件/目录、F2 重命名、Delete 删除（优先进回收站）、F5 复制、F6 移动、Ctrl+X/C/V。【文件定位】一键跳到当前打开的文件、树内过滤与全项目文件名快速定位；右键菜单直接 **发送到聊天框**。 |
-| ![CodeMirror 编辑器](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/editor.png) | **内置编辑器。** CodeMirror 6，语法高亮（语法包按需加载），自动闭合括号；自动 / 始终可编辑 / 始终只读三档打开模式，自动档下 1 MiB 以内的文本可直接编辑（Markdown 默认进渲染预览）。`Ctrl+S` 原子保存并保留 UTF-8 / BOM / UTF-16 与 CRLF，脏点与“未保存”提示清晰。外部程序改动触发**居中于文档区的冲突弹窗**，可“从磁盘重新加载”或“覆盖磁盘”；同一文件被自己保存后不再误报。编辑器内查找/替换、行号右键 Git Blame 注解、光标行列与编码状态栏。 |
+| ![Project 工具窗](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/project.png) | **Project 工具窗。** 惰性加载的文件树，JetBrains 状态色（红 = 未跟踪、绿 = 新增、蓝 = 已修改，目录递归染色）。单击选中、双击打开或展开；目录箭头单击即可展开/折叠。Ctrl/Shift 多选、拖拽移动（Ctrl = 复制）。新建文件/目录、F2 重命名、Delete 删除（优先进回收站）、F5 复制、F6 移动、Ctrl+X/C/V。【文件定位】一键跳到当前打开的文件、树内过滤与全项目文件名快速定位；右键菜单直接 **发送到聊天框**。**包链折叠**：`com.liangshou.adapter.controller` 这类只有子包的目录链合并成一行（点号连接，展开即见叶子文件）。**顶部冻结目录**：树滚动变深时顶部固定一条当前目录面包屑，可跳转、可折叠。**新建弹窗可选完整路径**：默认置灰，点击后可编辑，路径以项目根为基准，中间目录自动创建，越界路径一律拒绝。**被 `.gitignore` 忽略的目录连同整棵子树灰显**，设置关闭时一起隐藏。 |
+| ![CodeMirror 编辑器](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/editor.png) | **内置编辑器。** CodeMirror 6，语法高亮（语法包按需加载），自动闭合括号；**代码折叠**：JSON 的对象/数组、代码的类体/方法体/函数体都可折叠，折叠标记随宿主主题着色，`Ctrl+Shift+-` / `Ctrl+Shift+=`（macOS 为 `Cmd+Shift+-` / `Cmd+Shift+=`）一键全部折叠 / 全部展开。自动 / 始终可编辑 / 始终只读三档打开模式，自动档下 1 MiB 以内的文本可直接编辑（Markdown 默认进渲染预览）。`Ctrl+S` 原子保存并保留 UTF-8 / BOM / UTF-16 与 CRLF，脏点与“未保存”提示清晰。外部程序改动触发**居中于文档区的冲突弹窗**，可“从磁盘重新加载”或“覆盖磁盘”；同一文件被自己保存后不再误报。编辑器内查找/替换、行号右键 Git Blame 注解、光标行列、编码与**字数**状态栏（仅 Markdown / TXT，按已保存内容统计）。 |
 | ![Markdown 预览与大纲](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/markdown.png) | **Markdown 预览。** 用宿主 `MarkdownText` 渲染，表格、任务列表、代码卡与 DSH 聊天排版一致。默认直接进入渲染预览，“预览 / 源码 / 编辑”一键切换；文档大纲可跳转并跟随滚动高亮。打开文档不再先落到源码编辑器里。 |
 | ![全项目查找](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/search.png) | **全项目查找与快速打开。** `Ctrl+Shift+R` 呼出**查找弹窗**（浏览器形态请用备用键 `Ctrl+Alt+F`）：上半是命中文件列表，下半是选中文件的命中与上下文，双击打开并关闭，不占用编辑器标签。有选中的文本时直接带入搜索框。Aa / 全词 / 正则三个开关齐全，结果显示文件数与命中数。`Ctrl+P` / `Ctrl+Shift+N` 按文件名快速打开全项目文件。 |
 | ![Commit 工具窗](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/commit.png) | **Commit 工具窗。** `Changes` / `Unversioned` 两组，勾选即纳入本次提交且列表不跳动；变更列表（Changelist）、按目录分组。Change View（工作区 / 上次修订 / 最新提交）+ 跳转到源码 + 回滚；Diff 工具栏支持行/块级暂存。提交、提交并推送、Amend、最近提交消息、可选 pre-commit 命令（测试 / 优化导入 / 清理）。 |
 | ![统一 Diff](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/diff-unified.png) | **Diff。** 并排 / 统一两种布局，单词级高亮默认开启，未变更块可折叠。并排是**两栏各占一半、各自横向滚动并联动**：超长行只在自己的栏内平移。与工作区、上次修订、任意提交或两个提交（Ctrl+点击）比较；可直接暂存/丢弃单个 hunk。HTML/二进制文件走 DSH 侧栏或系统默认程序预览。 |
-| ![Git 历史与详情抽屉](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/git.png) | **Git 历史。** 分页提交表 + 泳道式 commit graph；按分支 / 作者 / 消息 / 路径过滤。单击选中、双击（或 Enter）打开右侧详情抽屉：元信息、完整消息、变更文件，点文件看逐文件 Diff。复制 SHA、检出、回退、两提交 Compare；从项目树可对指定路径定向查看历史。 |
-| ![终端](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/terminal.png) | **Terminal。** 真实 PTY（WebSocket + xterm.js），支持多会话、重命名、关闭；shell profiles（PowerShell / Git Bash / cmd / …）。停靠 ↔ 全屏、面板缩放后自动按新宽度重排，并向 PTY 发送 resize。选中即复制、`Ctrl+Shift+V` 粘贴；工作目录跟随项目根或当前文件。 |
-| ![编辑器右键发送到聊天框](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/send-chat.png) | **与聊天协作。** 聊天里的文件链接默认在工作台打开并定位 `#L24`；工作区外自动降级到 DSH 自带侧栏。项目树 / 编辑器右键 **发送到聊天框**：文件或文件夹插入 `@路径` 引用；选中代码时追加行号与代码块。HTML 可在 DSH 侧栏或系统浏览器预览；不抢走聊天输入的焦点。 |
+| ![Git 历史与详情抽屉](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/git.png) | **Git 历史。** 分页提交表 + 泳道式 commit graph；按分支 / 作者 / 消息 / 路径过滤。单击选中、双击（或 Enter）打开右侧详情抽屉：元信息、完整消息、变更文件，点文件看逐文件 Diff。复制 SHA（右键「复制 SHA」可复制**完整 SHA** 或 **7 位短 SHA**）、检出、回退、两提交 Compare；从项目树可对指定路径定向查看历史。**变更文件树按目录链合并**：中间没有变更文件的目录链合并为一行并**默认展开**，看到叶子文件 0 次点击（双击可展开回原始多级目录）。 |
+| ![终端](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/terminal.png) | **Terminal。** 真实 PTY（WebSocket + xterm.js），支持多会话、重命名、关闭；shell profiles（PowerShell / Git Bash / cmd / …）。停靠 ↔ 全屏、面板缩放后自动按新宽度重排，并向 PTY 发送 resize。选中即复制、`Ctrl+Shift+V` 粘贴；工作目录跟随项目根或当前文件。**跟随宿主明暗主题**：背景、前景、光标、选区与 ANSI 16 色实时切换（亮色下也清晰可读），切换主题不重连、不丢 scrollback、不打断正在运行的命令；输入法组字框同样主题化。 |
+| ![编辑器右键发送到聊天框](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/send-chat.png) | **与聊天协作。** 聊天里的文件链接默认在工作台打开并定位 `#L24`，**同一个链接连点多少次都落在工作台**、右侧栏不留残标签；工作区外自动降级到 DSH 自带侧栏。**每轮对话末尾的变更预览链接也在工作台内打开**，可看变更文件列表与统一 / 并排 diff。项目树 / 编辑器右键 **发送到聊天框**：文件或文件夹插入 `@路径` 引用；选中代码时追加行号与代码块。HTML 可在 DSH 侧栏或**系统默认浏览器**预览（未保存的文件会先提示保存，打不开会给出提示而不是静默失败）；不抢走聊天输入的焦点。 |
 | ![IDE 工作台设置](https://raw.githubusercontent.com/LiangshouX/dsh-ide-workbench/main/docs/readme/settings.png) | **设置与快捷键。** 工具窗/命令快捷键、工具窗入口在左还是右、默认 shell、终端字号、打开模式、Markdown 预览、隐藏/忽略文件、聊天链接行为、外部 IDE 路径、git 路径与提交命令。修改后约 300 ms 自动落盘并显示“已保存”；关闭面板前不会丢失最后一次改动。 |
 | **代码智能（可选）** | 补全、跳转定义、查找用法、悬停与签名提示由独立插件 [**dsh-ide-codeintel**](https://github.com/LiangshouX/dsh-ide-workbench/blob/main/packages/codeintel/README.md) 提供。只装本包时**没有补全**，只保留自动闭合括号；双装时两包的编辑器能力合并到同一个编辑器里。 |
 
@@ -111,6 +111,7 @@ dsh plugin --profile web add ./dsh-ide-workbench/packages/workbench
 | 全屏 / 停靠 | `F11` |
 | 隐藏全部工具窗 | `Ctrl+Shift+F12` |
 | 编辑器内查找 | `Ctrl+F`、`F3` |
+| 全部折叠 / 全部展开 | `Ctrl+Shift+-` / `Ctrl+Shift+=`（macOS：`Cmd+Shift+-` / `Cmd+Shift+=`） |
 | 保存 / 关闭标签 | `Ctrl+S` / `Ctrl+W` |
 | 文件操作 | `Alt+Insert` 新建 · `F2` 重命名 · `F5` 复制 · `F6` 移动 · `Delete` 删除 · `Ctrl+Alt+Shift+C` 复制路径 |
 | 提交详情 | `Ctrl+Alt+D` |
@@ -160,6 +161,7 @@ dsh plugin --profile web add dsh-ide-codeintel
 - PDF 预览以画布渲染，暂不支持文本选择、PDF 内查找与表单填写；超过 32 MB 的文件改用侧栏/默认应用打开。
 - 不做：交互式 rebase、merge 冲突三方编辑、stash、fetch/pull、分屏终端。
 - `Ctrl+Shift+R` 在**纯浏览器形态**（DSH Web、Chromium 内核浏览器）里是 Chromium 的**硬刷新**快捷键，网页侧无法拦截 → 会整页刷新、丢失编辑器缓冲区。**浏览器形态请用备用键 `Ctrl+Alt+F`**；桌面形态（DSH Desktop）不受影响。
+- `Ctrl+Shift+-` / `Ctrl+Shift+=`（全部折叠 / 全部展开）在部分宿主里可能被浏览器或 Electron 的**缩放**快捷键先吃掉 —— 折叠快捷键只作用于编辑器聚焦时，且**不可配置**。
 - **发送到聊天框**依赖宿主向会话槽位发布的聊天输入动作；宿主未提供时会提示“暂时无法写入聊天输入框”，不会静默丢弃。代码行引用以 `@文件 (Lx-Ly)` + 代码块表达（`@` 语法本身没有行号后缀）。
 - 编辑器右键菜单只在**有选中内容**时接管系统菜单（提供“发送到聊天框 / 复制”），空选区保留原生菜单。
 

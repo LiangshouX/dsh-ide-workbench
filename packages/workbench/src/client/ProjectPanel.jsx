@@ -16,6 +16,7 @@ import { ChevronDown, ChevronRight, ContextMenu } from './ui.jsx'
 import { FileTypeIcon, IconChat, IconExternal, IconGlobe, IconRefresh, IconSearch } from './icons.jsx'
 import { openInIdeMenu } from './ide-menu.js'
 import { statusClass, stableAggregateStatus } from './git-colors.js'
+import { compactLabel, compactTree } from './compact-path.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 import { relativePathWithin } from './workspace-scope.js'
 import { baseName, matchesShortcut } from './util.js'
@@ -156,6 +157,67 @@ export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
   const gitRoot = gitRootOf(state)
   const visible = entry => showIgnored || !ignored.has(relativePathWithin(gitRoot, entry.path))
 
+  /**
+   * The compact view of one entry (R5).
+   *
+   * A folder that holds nothing but one sub-folder is the start of a package
+   * chain (`com/liangshou/adapter/controller`) and shows up as a single row.
+   * The children of a folder are only known when the folder has been loaded,
+   * so an unloaded folder ends a chain - deciding a merge never costs a
+   * directory read (zero extra IO).
+   */
+  const nodeOf = entry => {
+    if (!entry.isDir) return { name: entry.name, path: entry.path, kind: 'file', entry }
+    const dir = dirs.get(entry.path)
+    const loaded = dir !== undefined && dir.entries !== undefined
+    let children
+    if (loaded) {
+      // Only a folder that holds exactly one sub-folder can start a chain.
+      // The count stops at the second visible child, so a folder with many
+      // entries costs two lookups - the tree stays as cheap as it was before
+      // the merging.
+      let only = null
+      let count = 0
+      for (const child of dir.entries) {
+        if (!visible(child)) continue
+        count += 1
+        if (count > 1) break
+        only = child
+      }
+      children = count === 1 && only.isDir === true ? [nodeOf(only)] : []
+    }
+    return { name: entry.name, path: entry.path, kind: 'dir', entry, children }
+  }
+
+  /** The rows of one level, with its package chains merged. */
+  const pushLevel = (entries, depth) => {
+    for (const node of compactTree(entries.filter(visible).map(nodeOf))) {
+      if (node.kind === 'file') {
+        if (normalized !== '' && !node.name.toLowerCase().includes(normalized) && !node.entry.rel.toLowerCase().includes(normalized)) continue
+        rows.push({ kind: 'file', key: node.path, entry: node.entry, depth })
+        continue
+      }
+      // A merged row stands for the whole chain: its path is the LEAF of the
+      // chain, so the git status, the excluded background, the selection and
+      // the context menu keep working without a second set of rules.
+      const merged = node.merged === true
+      const entry = merged ? { ...node.entry, merged: true, segments: node.segments } : node.entry
+      rows.push({
+        kind: 'dir',
+        key: node.path,
+        entry,
+        depth,
+        open: isExpanded(node.path),
+        merged,
+        // The label of a merged row is the dot-joined chain; the title stays
+        // the full relative path of the chain's leaf.
+        label: merged ? compactLabel(node, '.') : undefined,
+        segments: merged ? node.segments : undefined,
+      })
+      if (isExpanded(node.path)) walk(node.path, depth + 1)
+    }
+  }
+
   const walk = (path, depth) => {
     const dir = dirs.get(path)
     if (dir === undefined || dir.entries === undefined) {
@@ -166,17 +228,7 @@ export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
       rows.push({ kind: 'error', key: `error:${path}`, depth, message: dir.error, path })
       return
     }
-    for (const entry of dir.entries) {
-      if (!visible(entry)) continue
-      if (entry.isDir) {
-        const open = isExpanded(entry.path)
-        rows.push({ kind: 'dir', key: entry.path, entry, depth, open })
-        if (open) walk(entry.path, depth + 1)
-      } else {
-        if (normalized !== '' && !entry.name.toLowerCase().includes(normalized) && !entry.rel.toLowerCase().includes(normalized)) continue
-        rows.push({ kind: 'file', key: entry.path, entry, depth })
-      }
-    }
+    pushLevel(dir.entries, depth)
     if (dir.truncated === true) rows.push({ kind: 'note', key: `trunc:${path}`, depth, message: '…' })
     if (dir.loading === true && dir.entries !== undefined) {
       rows.push({ kind: 'note', key: `busy:${path}`, depth, message: '…' })
@@ -196,18 +248,211 @@ export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
     return rows
   }
 
-  for (const entry of (dirs.get(root)?.entries ?? [])) {
-    if (!visible(entry)) continue
-    if (entry.isDir) {
-      const open = isExpanded(entry.path)
-      rows.push({ kind: 'dir', key: entry.path, entry, depth: 0, open })
-      if (open) walk(entry.path, 1)
-    } else {
-      if (normalized !== '' && !entry.name.toLowerCase().includes(normalized) && !entry.rel.toLowerCase().includes(normalized)) continue
-      rows.push({ kind: 'file', key: entry.path, entry, depth: 0 })
-    }
-  }
+  pushLevel(rootDir.entries, 0)
   return rows
+}
+
+/**
+ * The nearest ancestor of `path` that is still a visible row.
+ *
+ * A merged row hides the folders of its chain, so the exact parent of a file
+ * is not always a row any more - the walk has to skip the hidden ones. The
+ * root is not a row either: it ends the walk.
+ *
+ * @param {string} path the absolute path of a row
+ * @param {Set<string>} paths the paths of every visible row
+ * @param {string} root the project root
+ * @returns {string | null} the path of the nearest visible ancestor
+ */
+export function visibleAncestorOf(path, paths, root) {
+  if (typeof path !== 'string' || path === '') return null
+  const known = paths instanceof Set ? paths : new Set(Array.isArray(paths) ? paths : [])
+  let current = parentOf(path)
+  while (current !== '' && current !== root && current !== parentOf(current)) {
+    if (known.has(current)) return current
+    current = parentOf(current)
+  }
+  return null
+}
+
+/**
+ * The folder the viewport sits in - the content of the frozen bar (R4).
+ *
+ * The tree rows are absolutely positioned (the tree is virtualised), so CSS
+ * `position: sticky` cannot hold one of them in place: the frozen bar is a
+ * layer of its own and its content has to be rebuilt from the row model,
+ * because the ancestor rows are not mounted while they are scrolled out.
+ *
+ * The bar points at the DIRECT PARENT of the row the viewport starts at -
+ * one level, not the whole ancestor chain.
+ *
+ * @param {Array<object>} rows the rendered rows
+ * @param {number} scrollTop the scroll offset of the tree
+ * @param {Set<string>} paths the paths of every visible row
+ * @param {string} root the project root
+ * @returns {string | null} the path of the current folder
+ */
+export function currentFolderPathOf(rows, scrollTop, paths, root) {
+  if (!Array.isArray(rows) || rows.length === 0) return null
+  const offset = Number.isFinite(scrollTop) ? scrollTop : 0
+  const index = Math.min(rows.length - 1, Math.max(0, Math.floor(offset / ROW_HEIGHT)))
+  const row = rows[index]
+  if (row?.entry === undefined) return null
+  return visibleAncestorOf(row.entry.path, paths, root)
+}
+
+/**
+ * Resolve the "full path" of a new entry against the project root (R5).
+ *
+ * The path is relative to the project root. Everything that could leave the
+ * project - an absolute path, a `..` segment, an empty segment - is refused
+ * here, before a single file is written.
+ *
+ * @param {string} value the path the user typed
+ * @returns {{ ok: true, path: string, name: string } | { ok: false, detail: string }}
+ *   the resolved path, or the reason why it was refused
+ */
+export function resolveEntryPath(value) {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  if (raw === '') return { ok: false, detail: 'the path is empty' }
+  const slashed = raw.replace(/\\/g, '/')
+  if (slashed.startsWith('/') || /^[a-zA-Z]:/.test(slashed)) {
+    return { ok: false, detail: 'the path is absolute' }
+  }
+  const parts = slashed.split('/')
+  for (const part of parts) {
+    if (part === '') return { ok: false, detail: 'the path has an empty segment' }
+    if (part === '.' || part === '..') return { ok: false, detail: 'the path leaves the project root' }
+  }
+  return { ok: true, path: parts.join('/'), name: parts[parts.length - 1] }
+}
+
+/**
+ * The state of the new-entry dialog when it opens (R5).
+ *
+ * The path box starts with the full relative path of the folder the entry
+ * goes into; it is read-only until the user clicks into it.
+ *
+ * @param {string} parent the absolute path of the target folder
+ * @param {boolean} isDir whether a folder is created
+ * @param {string} root the project root
+ * @returns {object} the dialog state
+ */
+export function newEntryDialogState(parent, isDir, root) {
+  const rel = relativePathWithin(root, parent)
+  const base = rel === null ? '' : rel
+  return {
+    kind: 'new',
+    parent,
+    isDir,
+    name: '',
+    template: 'plain',
+    base,
+    path: base,
+    pathEdited: false,
+  }
+}
+
+/**
+ * Apply the name of the entry to the dialog state.
+ *
+ * The path box follows the name: while it has not been edited it points at
+ * the folder the dialog was opened on, afterwards it keeps the folder the
+ * user has chosen.
+ *
+ * @param {object} dialog the dialog state
+ * @param {string} name the new name
+ * @returns {object} the next dialog state
+ */
+export function withDialogName(dialog, name) {
+  if (dialog === null || dialog === undefined) return dialog
+  const path = name === ''
+    ? dialog.base
+    : (dialog.pathEdited === true ? replaceLastSegment(dialog.path, name) : joinRelative(dialog.base, name))
+  return { ...dialog, name, path }
+}
+
+/**
+ * Apply the path of the entry to the dialog state.
+ *
+ * The last segment of the path is the name of the entry.
+ *
+ * @param {object} dialog the dialog state
+ * @param {string} path the new path
+ * @returns {object} the next dialog state
+ */
+export function withDialogPath(dialog, path) {
+  if (dialog === null || dialog === undefined) return dialog
+  return {
+    ...dialog,
+    path,
+    pathEdited: true,
+    name: baseName(String(path).replace(/\\/g, '/')),
+  }
+}
+
+/**
+ * Unlock the path box: it is read-only until the mouse clicks into it.
+ *
+ * @param {object} dialog the dialog state
+ * @returns {object} the next dialog state
+ */
+export function withDialogPathUnlocked(dialog) {
+  if (dialog === null || dialog === undefined) return dialog
+  if (dialog.pathEdited === true) return dialog
+  return { ...dialog, pathEdited: true }
+}
+
+/**
+ * Whether a folder may be renamed (R5).
+ *
+ * A merged folder stands for a whole chain of folders and has no name of its
+ * own: renaming it would mean renaming a chain.
+ *
+ * @param {object | undefined} entry the entry of the row
+ * @returns {boolean}
+ */
+export function canRenameEntry(entry) {
+  if (entry === undefined || entry === null) return false
+  return entry.merged !== true
+}
+
+/**
+ * Resolve where a new entry is created (R5).
+ *
+ * While the path box is untouched the entry goes into the folder the dialog
+ * was opened on - the behaviour of the tree before the path box existed. Once
+ * the box has been edited the path is resolved against the project root, and
+ * a path that leaves the project is refused before anything is written.
+ *
+ * @param {{ parent: string, name: string, path?: string, pathEdited?: boolean }} dialog
+ * @param {string} root the project root
+ * @returns {{ ok: true, parent?: string, name: string, relPath?: string }
+ *   | { ok: false, reason: 'empty-name' | 'invalid-path', detail?: string }}
+ *   the folder of the entry, or the path relative to the project root
+ */
+export function resolveNewEntry(dialog, root) {
+  if (dialog?.pathEdited === true) {
+    const resolved = resolveEntryPath(dialog.path)
+    if (!resolved.ok) return { ok: false, reason: 'invalid-path', detail: dialog.path }
+    return { ok: true, name: resolved.name, relPath: resolved.path }
+  }
+  const name = typeof dialog?.name === 'string' ? dialog.name.trim() : ''
+  if (name === '') return { ok: false, reason: 'empty-name' }
+  return { ok: true, parent: dialog.parent, name }
+}
+
+/** Join a project-relative directory and a name. */
+function joinRelative(base, name) {
+  if (base === '' || base === undefined || base === null) return name
+  return `${base}/${name}`
+}
+
+/** Replace the last segment of a relative path. */
+function replaceLastSegment(path, name) {
+  if (typeof path !== 'string' || path === '') return name
+  const index = path.lastIndexOf('/')
+  return index < 0 ? name : `${path.slice(0, index)}/${name}`
 }
 
 /**
@@ -313,6 +558,7 @@ export const NEW_TEMPLATES = [
  */
 const TreeRow = React.memo(function TreeRow({
   entry,
+  label,
   depth,
   top,
   open,
@@ -381,7 +627,7 @@ const TreeRow = React.memo(function TreeRow({
       ? React.createElement(FileTypeIcon, { kind: 'folder', size: 15 })
       : React.createElement(FileTypeIcon, { path: entry.name, size: 15 }),
     isDir
-      ? React.createElement('span', { className: 'iwb-tree-name iwb-dir' }, entry.name)
+      ? React.createElement('span', { className: 'iwb-tree-name iwb-dir' }, label ?? entry.name)
       : (editing
           ? React.createElement('input', {
               className: 'iwb-rename-input',
@@ -399,6 +645,123 @@ const TreeRow = React.memo(function TreeRow({
       : null,
   )
 })
+
+/**
+ * The "new file / new directory" dialog (R5).
+ *
+ * Next to the name there is a box with the FULL path of the entry to create,
+ * relative to the project root. The box is read-only (and greyed) until the
+ * mouse clicks into it - a disabled input cannot be focused by a click, so
+ * `readOnly` is the only way to keep it clickable. While the box is
+ * untouched the entry is created in the folder the dialog was opened on;
+ * once it has been edited the path is resolved against the project root.
+ *
+ * @param {{ dialog: object, t: (key: string) => string,
+ *   onNameChange: (value: string) => void, onPathChange: (value: string) => void,
+ *   onPathFocus: () => void, onTemplateChange: (template: string) => void,
+ *   onSubmit: () => void, onCancel: () => void }} props
+ */
+export function NewEntryDialog({
+  dialog, t, onNameChange, onPathChange, onPathFocus, onTemplateChange, onSubmit, onCancel,
+}) {
+  return React.createElement('div', {
+    className: 'iwb-modal-backdrop',
+    onMouseDown: event => { if (event.target === event.currentTarget) onCancel() },
+  },
+    React.createElement('div', { className: 'iwb-modal', role: 'dialog', 'aria-modal': 'true' },
+      React.createElement('h2', null, dialog.isDir ? t('project.newDir') : t('project.newFile')),
+      React.createElement('label', { className: 'iwb-field' },
+        React.createElement('span', null, t('project.nameLabel')),
+        React.createElement('input', {
+          autoFocus: true, value: dialog.name,
+          onChange: event => onNameChange(event.target.value),
+          onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); onSubmit() } },
+        }),
+      ),
+      React.createElement('label', { className: 'iwb-field' },
+        React.createElement('span', null, t('project.pathLabel')),
+        React.createElement('input', {
+          value: dialog.path,
+          // A disabled input cannot be clicked into, so the path box is
+          // read-only (and greyed by `.iwb-input-readonly`) until the mouse
+          // clicks into it.
+          readOnly: dialog.pathEdited !== true,
+          className: dialog.pathEdited === true ? undefined : 'iwb-input-readonly',
+          title: t('project.pathHint'),
+          onFocus: onPathFocus,
+          onChange: event => onPathChange(event.target.value),
+          onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); onSubmit() } },
+        }),
+        React.createElement('span', { className: 'iwb-modal-hint' }, t('project.pathHint')),
+      ),
+      !dialog.isDir
+        ? React.createElement('label', { className: 'iwb-field' },
+            React.createElement('span', null, t('project.templateLabel')),
+            React.createElement('select', {
+              value: dialog.template,
+              onChange: event => {
+                const template = NEW_TEMPLATES.find(item => item.id === event.target.value)
+                const ext = template?.ext ?? ''
+                const name = dialog.name.includes('.') ? dialog.name : `${dialog.name}${ext}`
+                onNameChange(name)
+                onTemplateChange(event.target.value)
+              },
+            }, NEW_TEMPLATES.map(template => React.createElement('option', { key: template.id, value: template.id }, t(template.labelKey)))),
+          )
+        : null,
+      React.createElement('div', { className: 'iwb-modal-actions' },
+        React.createElement('button', { type: 'button', className: 'iwb-textbtn', onClick: onCancel }, t('common.cancel')),
+        React.createElement('button', { type: 'button', className: 'iwb-textbtn iwb-primary', onClick: onSubmit }, t('project.create')),
+      ),
+    ),
+  )
+}
+
+/**
+ * The frozen "current folder" bar (R4).
+ *
+ * The tree rows are absolutely positioned (the tree is virtualised), so CSS
+ * `position: sticky` cannot hold one of them in place: the bar is a layer of
+ * its own inside the scrolling body, and its content is rebuilt from the row
+ * model, because the ancestor rows are not mounted while they are scrolled
+ * out of the viewport.
+ *
+ * It is a navigation bar, not a tree row: it never joins the selection, it
+ * points at the folder the viewport sits in (the direct parent of the row the
+ * viewport starts at - one level), and it can fold that folder or jump to it.
+ *
+ * @param {{ path: string, label: React.ReactNode, title: string,
+ *   foldTitle?: string, onJump: (path: string) => void,
+ *   onToggle: (path: string) => void }} props
+ */
+export function FrozenFolderBar({ path, label, title, foldTitle, onJump, onToggle }) {
+  return React.createElement('div', {
+    className: 'iwb-tree-sticky',
+    // The bar is a layer on top of the tree: it must not push the rows down
+    // when it appears, or the tree would jump on every scroll step.
+    style: { marginBottom: '-22px' },
+  },
+    React.createElement('span', {
+      className: 'iwb-tree-twisty iwb-tree-twisty-click',
+      title: foldTitle ?? title,
+      // The twisty sits inside the bar, which jumps on click: without
+      // stopPropagation one click would jump *and* fold the folder. A double
+      // click sends two clicks plus a dblclick: only the first click may
+      // fold, and the dblclick must not reach the bar.
+      onClick: event => {
+        event.stopPropagation()
+        if (event.detail > 1) return
+        onToggle(path)
+      },
+      onDoubleClick: event => event.stopPropagation(),
+    }, React.createElement(ChevronDown, null)),
+    React.createElement('span', {
+      className: 'iwb-tree-sticky-item',
+      title,
+      onClick: () => onJump(path),
+    }, label),
+  )
+}
 
 /**
  * The fields the Project panel reads.
@@ -435,14 +798,14 @@ export function projectSlice(state) {
   }
 }
 
-export function ProjectPanel({ store, state: _state }) {
+export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   // The panel reads its data from a store slice; the `state` prop is still
   // accepted (Workbench.jsx passes it) but no longer used.
   const slice = useStoreSlice(store, projectSlice, shallowEqual)
   const t = store.t
   const [filterOpen, setFilterOpen] = useState(false)
   const [menu, setMenu] = useState(null)
-  const [scrollTop, setScrollTop] = useState(0)
+  const [scrollTop, setScrollTop] = useState(initialScrollTop)
   const [viewport, setViewport] = useState(600)
   // Locate File asks for the active file even when it is already the selected
   // one, so the reveal needs a trigger of its own.
@@ -540,6 +903,50 @@ export function ProjectPanel({ store, state: _state }) {
   const end = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + 6)
   const visible = rows.slice(start, end)
 
+  // The frozen "current folder" bar (R4).
+  //
+  // It is derived from the rows and the local scroll offset only: no store
+  // field is read, so the git status poll (every two seconds) cannot make it
+  // flicker, and the panel needs no extra slice field.
+  const rowPathSet = useMemo(() => new Set(rowPaths), [rowPaths])
+  const dirRows = useMemo(() => {
+    const map = new Map()
+    for (const row of rows) {
+      if (row.kind === 'dir' && row.entry !== undefined) map.set(row.entry.path, row)
+    }
+    return map
+  }, [rows])
+  // The flat quick-file list has no hierarchy to point at: no frozen bar.
+  const stickyPath = filterMode === 'files'
+    ? null
+    : currentFolderPathOf(rows, scrollTop, rowPathSet, slice.root)
+  const stickyRow = stickyPath === null ? undefined : dirRows.get(stickyPath)
+
+  /** Jump to the folder of the frozen bar. */
+  const onStickyJump = useCallback(path => {
+    if (typeof path !== 'string' || path === '') return
+    // Selecting the folder expands its ancestors; the reveal tick scrolls the
+    // tree to it even when the selection did not change.
+    store.setSelectedPath(path)
+    setLocateTick(tick => tick + 1)
+  }, [store])
+
+  /** Fold the folder of the frozen bar. */
+  const onStickyToggle = useCallback(path => {
+    if (typeof path !== 'string' || path === '') return
+    store.toggleDir(path)
+  }, [store])
+  // The label of the frozen bar: the dot-joined chain of a merged folder, so
+  // the bar names the same folder the tree row names.
+  const stickyLabel = stickyRow === undefined
+    ? ''
+    : (stickyRow.merged === true && Array.isArray(stickyRow.segments) && stickyRow.segments.length > 1
+        ? stickyRow.segments.map((segment, index) => React.createElement(React.Fragment, { key: `${segment}-${index}` },
+            index > 0 ? React.createElement('span', { className: 'iwb-tree-sticky-sep' }, '.') : null,
+            React.createElement('span', null, segment),
+          ))
+        : (stickyRow.label ?? stickyRow.entry?.name ?? ''))
+
   const selection = useMemo(() => slice.selectedPaths instanceof Set
     ? slice.selectedPaths
     : new Set(slice.selectedPath === '' ? [] : [slice.selectedPath]),
@@ -564,18 +971,33 @@ export function ProjectPanel({ store, state: _state }) {
 
   const beginRename = (entry) => {
     if (entry === undefined) return
+    // A merged folder stands for a whole chain of folders and has no name of
+    // its own: renaming it would mean renaming a chain.
+    if (!canRenameEntry(entry)) {
+      store.toast('error', t('project.compactRenameDenied'), entry.rel ?? '')
+      return
+    }
     setRenaming({ path: entry.path, value: entry.name })
   }
 
   const beginNew = (parentPath, isDir) => {
-    setDialog({
-      kind: 'new',
-      parent: parentPath,
-      isDir,
-      name: '',
-      template: isDir ? 'plain' : 'plain',
-    })
+    setDialog(newEntryDialogState(parentPath, isDir, slice.root))
   }
+
+  /** The name box changed: the full path follows it. */
+  const onDialogNameChange = useCallback(value => {
+    setDialog(current => withDialogName(current, value))
+  }, [])
+
+  /** The path box changed: the entry moves to that path. */
+  const onDialogPathChange = useCallback(value => {
+    setDialog(current => withDialogPath(current, value))
+  }, [])
+
+  /** The path box was clicked into: it becomes editable. */
+  const onDialogPathFocus = useCallback(() => {
+    setDialog(current => withDialogPathUnlocked(current))
+  }, [])
 
   const beginMove = (entries) => {
     setDialog({ kind: 'move', paths: entries.map(entry => entry.path), target: '' })
@@ -622,7 +1044,13 @@ export function ProjectPanel({ store, state: _state }) {
       null,
       { key: 'duplicate', text: t('project.duplicate'), shortcut: shortcut('duplicate'), disabled: currentPaths.length === 0, action: () => { void store.duplicateEntries(currentPaths) } },
       { key: 'delete', text: t('project.delete'), shortcut: shortcut('delete'), danger: true, disabled: currentPaths.length === 0, action: () => store.requestDelete(currentPaths) },
-      { key: 'rename', text: t('project.rename'), shortcut: shortcut('rename'), disabled: currentEntries.length !== 1, action: () => beginRename(currentEntry) },
+      {
+        key: 'rename', text: t('project.rename'), shortcut: shortcut('rename'),
+        // A merged folder cannot be renamed - the menu says why.
+        disabled: currentEntries.length !== 1 || !canRenameEntry(currentEntry),
+        title: currentEntry?.merged === true ? t('project.compactRenameDenied') : undefined,
+        action: () => beginRename(currentEntry),
+      },
       null,
       {
         key: 'copy-path', text: t('project.copyPath'), shortcut: 'Ctrl+Alt+Shift+C', disabled: entry === undefined,
@@ -745,8 +1173,10 @@ export function ProjectPanel({ store, state: _state }) {
       event.preventDefault()
       const row = rows.find(item => item.entry?.path === slice.selectedPath)
       if (row?.entry?.isDir === true && row.open) { store.toggleDir(row.entry.path); return }
-      const parent = parentOf(slice.selectedPath)
-      if (parent !== slice.root && rowPaths.includes(parent)) store.setSelection([parent], parent)
+      // The nearest VISIBLE ancestor: a merged row hides the folders of its
+      // chain, so the exact parent of a file is not always a row any more.
+      const parent = visibleAncestorOf(slice.selectedPath, rowPathSet, slice.root)
+      if (parent !== null) store.setSelection([parent], parent)
       return
     }
     if (key === 'Escape') { store.clearSelection(); return }
@@ -822,11 +1252,22 @@ export function ProjectPanel({ store, state: _state }) {
   const submitDialog = () => {
     if (dialog === null) return
     if (dialog.kind === 'new') {
-      const name = dialog.name.trim()
-      if (name === '') return
-      const content = dialog.isDir ? '' : templateContent(dialog.template, name)
+      const target = resolveNewEntry(dialog, slice.root)
+      if (!target.ok) {
+        // An illegal path is refused with a message; nothing is written.
+        if (target.reason === 'invalid-path') store.toast('error', t('project.pathInvalid'), target.detail ?? '')
+        return
+      }
+      const content = dialog.isDir ? '' : templateContent(dialog.template, target.name)
       setDialog(null)
-      void store.createEntry(dialog.parent, { name, isDir: dialog.isDir, content })
+      if (target.relPath !== undefined) {
+        // The path is resolved against the project root: the store hands the
+        // whole relative path to the host, which creates the folders of the
+        // chain that do not exist yet.
+        void store.createEntry(slice.root, { relPath: target.relPath, isDir: dialog.isDir, content })
+        return
+      }
+      void store.createEntry(target.parent, { name: target.name, isDir: dialog.isDir, content })
       return
     }
     if (dialog.kind === 'move') {
@@ -884,6 +1325,8 @@ export function ProjectPanel({ store, state: _state }) {
           return React.createElement(TreeRow, {
             key: row.key,
             entry,
+            // A merged row shows the dot-joined chain instead of one segment.
+            label: row.merged === true ? row.label : undefined,
             depth: row.depth,
             top,
             open: row.kind === 'dir' ? row.open : undefined,
@@ -927,6 +1370,25 @@ export function ProjectPanel({ store, state: _state }) {
     // one), so the reveal is requested explicitly.
     setLocateTick(tick => tick + 1)
   }, [store, activeTab])
+
+  /**
+   * The frozen "current folder" bar (R4).
+   *
+   * The bar is a navigation bar, not a tree row: it never joins the
+   * selection, it carries the folder the viewport sits in - one level, the
+   * direct parent of the row the viewport starts at. The fold marker next to
+   * it folds that folder, the folder itself jumps to it.
+   */
+  const stickyBar = stickyRow === undefined
+    ? null
+    : React.createElement(FrozenFolderBar, {
+        path: stickyPath,
+        label: stickyLabel,
+        title: stickyRow.entry?.rel ?? '',
+        foldTitle: t('project.currentFolder'),
+        onJump: onStickyJump,
+        onToggle: onStickyToggle,
+      })
 
   return React.createElement(React.Fragment, null,
     React.createElement('div', { className: 'iwb-panel-header' },
@@ -1002,40 +1464,19 @@ export function ProjectPanel({ store, state: _state }) {
       onDragOver: event => onDragOver(event, null),
       onDrop: event => onDrop(event, null),
       onContextMenu: event => { if (event.target === event.currentTarget) openMenu(event, undefined) },
-    }, rootRow),
+    }, stickyBar, rootRow),
     menu !== null ? React.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
     dialog !== null && dialog.kind === 'new'
-      ? React.createElement('div', { className: 'iwb-modal-backdrop', onMouseDown: event => { if (event.target === event.currentTarget) setDialog(null) } },
-          React.createElement('div', { className: 'iwb-modal', role: 'dialog', 'aria-modal': 'true' },
-            React.createElement('h2', null, dialog.isDir ? t('project.newDir') : t('project.newFile')),
-            React.createElement('label', { className: 'iwb-field' },
-              React.createElement('span', null, t('project.nameLabel')),
-              React.createElement('input', {
-                autoFocus: true, value: dialog.name,
-                onChange: event => setDialog({ ...dialog, name: event.target.value }),
-                onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); submitDialog() } },
-              }),
-            ),
-            !dialog.isDir
-              ? React.createElement('label', { className: 'iwb-field' },
-                  React.createElement('span', null, t('project.templateLabel')),
-                  React.createElement('select', {
-                    value: dialog.template,
-                    onChange: event => {
-                      const template = NEW_TEMPLATES.find(item => item.id === event.target.value)
-                      const ext = template?.ext ?? ''
-                      const name = dialog.name.includes('.') ? dialog.name : `${dialog.name}${ext}`
-                      setDialog({ ...dialog, template: event.target.value, name })
-                    },
-                  }, NEW_TEMPLATES.map(template => React.createElement('option', { key: template.id, value: template.id }, t(template.labelKey)))),
-                )
-              : null,
-            React.createElement('div', { className: 'iwb-modal-actions' },
-              React.createElement('button', { type: 'button', className: 'iwb-textbtn', onClick: () => setDialog(null) }, t('common.cancel')),
-              React.createElement('button', { type: 'button', className: 'iwb-textbtn iwb-primary', onClick: submitDialog }, t('project.create')),
-            ),
-          ),
-        )
+      ? React.createElement(NewEntryDialog, {
+          dialog,
+          t,
+          onNameChange: onDialogNameChange,
+          onPathChange: onDialogPathChange,
+          onPathFocus: onDialogPathFocus,
+          onTemplateChange: template => setDialog(current => current === null ? current : { ...current, template }),
+          onSubmit: submitDialog,
+          onCancel: () => setDialog(null),
+        })
       : null,
     dialog !== null && dialog.kind === 'move'
       ? React.createElement('div', { className: 'iwb-modal-backdrop', onMouseDown: event => { if (event.target === event.currentTarget) setDialog(null) } },

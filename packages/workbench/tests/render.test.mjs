@@ -297,7 +297,7 @@ test('HTML editor offers sidebar preview and default-browser actions', async () 
   assert.match(html, /iwb-html-actions/)
   assert.match(html, /editor\.htmlPreviewSidebar/)
   assert.match(html, /editor\.htmlPreviewBrowser/)
-  assert.match(html, /iwb-chrome/)
+  assert.match(html, /iwb-external/)
 })
 
 test('client opens a native sidebar tab without registering a central page', async () => {
@@ -359,6 +359,7 @@ test('client opens a native sidebar tab without registering a central page', asy
     assert.deepEqual(types[0].patterns, [
       'dsh-resource://file/session/**',
       'dsh-resource://file/absolute/**',
+      'dsh-resource://changes-review/**',
     ])
     assert.equal(types[0].priority, 'extension')
     assert.equal(types[0].canOpen('dsh-resource://file/session/session-1/src/a.ts'), true)
@@ -367,12 +368,23 @@ test('client opens a native sidebar tab without registering a central page', asy
     assert.equal(types[0].canOpen('dsh-resource://file/session/session-1/lib/a.ts'), true)
     // PDFs are rendered by the workbench now, so the IDE claims them too.
     assert.equal(types[0].canOpen('dsh-resource://file/session/session-1/report.pdf'), true)
+    // The ambiguous shape - one leading slash - names a file of the project
+    // root as well, and the claim has to agree with the resolution of the
+    // store (R1-d): the candidate fallback may not be dead code.
+    assert.equal(types[0].canOpen('dsh-resource://file/session/session-1//docs/prd/v4/PRD-v4.md'), true)
     // A link outside the DSH workspace falls through to DSH's own sidebar.
     assert.equal(types[0].canOpen('dsh-resource://file/session/session-1/C:/outside/a.ts'), false)
     assert.equal(types[0].canOpen('dsh-resource://file/absolute/D:/outside/a.ts'), false)
     // A link owned by another Session's workspace is not claimed either.
     assert.equal(types[0].canOpen('dsh-resource://file/session/session-2/src/a.ts'), false)
+    // The review of a turn of the Session on screen is claimed (R2).
+    assert.equal(types[0].canOpen('dsh-resource://changes-review/session/session-1/12/3'), true)
+    // A turn of another Session is not: its data belongs to that Session.
+    assert.equal(types[0].canOpen('dsh-resource://changes-review/session/session-2/12/3'), false)
+    // A Session the host does not know has no turn to show.
+    assert.equal(types[0].canOpen('dsh-resource://changes-review/session/session-9/12/3'), false)
     assert.equal(types[0].title('dsh-resource://file/session/session-1/src/a.ts'), 'a.ts')
+    assert.equal(types[0].title('dsh-resource://changes-review/session/session-1/12/3'), 'changesReview.title')
     assert.equal(types[0].title('sidebar://ide-workbench'), 'panelLabel')
     assert.ok(entries.some(entry => entry.name === 'sidebar.right.pane.tab'))
     assert.ok(entries.some(entry => entry.name === 'conversation.hero.options'))

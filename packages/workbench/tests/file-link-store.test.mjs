@@ -209,3 +209,31 @@ test('a candidate outside the workspace is never opened', async () => {
     restore()
   }
 })
+
+test('the second click on the same link reuses the file tab', async () => {
+  const store = fakeStore()
+  const calls = []
+  const restore = mockFetch({}, calls)
+  try {
+    const address = 'dsh-resource://file/session/s1/src/a.ts'
+    const first = await store.openExternalFile(address)
+    assert.equal(first.status, 'opened')
+    assert.equal(store.state.tabs.length, 1)
+    const tabId = store.state.tabs[0].id
+    assert.equal(store.state.activeId, tabId)
+
+    // The second click of the same link focuses the tab that is already open:
+    // no second editor tab, and the file is not read a second time.
+    const second = await store.openExternalFile(address)
+    assert.equal(second.status, 'opened')
+    assert.equal(store.state.tabs.length, 1)
+    assert.equal(store.state.tabs[0].id, tabId)
+    assert.equal(store.state.activeId, tabId)
+    const reads = calls.filter(call => call.method === 'fs.read')
+    assert.equal(reads.length, 1)
+  } finally {
+    if (store.toastTimer !== null) clearTimeout(store.toastTimer)
+    store.persist.cancel()
+    restore()
+  }
+})

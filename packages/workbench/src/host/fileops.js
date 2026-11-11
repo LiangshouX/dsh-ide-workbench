@@ -55,10 +55,39 @@ async function requireDirectory(root, path) {
 }
 
 /** Join one validated child name under an absolute parent and fence it. */
-function joinInside(root, parent, name) {
-  const absolute = join(parent, name)
+function joinInside(root, parent, names) {
+  const parts = Array.isArray(names) ? names : [names]
+  const absolute = join(parent, ...parts)
   resolveInside(root, absolute)
   return absolute
+}
+
+/**
+ * Split a name into its path segments.
+ *
+ * A single segment is the classic case and keeps its exact behaviour. A
+ * multi-segment name is a relative path below the parent: every segment is
+ * validated on its own, so a dot segment and an illegal character are still
+ * refused - the walk out of the project is impossible.
+ *
+ * @param {string} name the name of the entry, or a relative path below the parent
+ * @returns {string[]} the validated segments of the path
+ */
+export function splitEntryPath(name) {
+  const raw = typeof name === 'string' ? name.trim() : ''
+  if (raw === '') throw new ApiError('bad-request', 'name must not be empty')
+  if (!/[\\/]/.test(raw)) return [validateEntryName(raw)]
+  const segments = []
+  for (const part of raw.split(/[\\/]/)) {
+    // A dot segment would climb out of the parent and an empty one would name
+    // nothing: the single-segment contract reports both as an illegal
+    // character, and a path has to answer the same way.
+    if (part === '' || part === '.' || part === '..') {
+      throw new ApiError('bad-request', `name contains an illegal character: "${part}"`)
+    }
+    segments.push(validateEntryName(part))
+  }
+  return segments
 }
 
 /** `name-copy`, `name-copy-2`, … for a file (suffix before the extension). */
@@ -83,17 +112,31 @@ async function uniqueCopyPath(source) {
 
 /**
  * Create one file or directory. The parent must already exist.
+ *
+ * The name may be a relative path below the parent (`a/b/c/Foo.java`): every
+ * segment is validated on its own, the result stays inside the workspace and
+ * the folders of the chain are created when they do not exist yet.
+ *
  * @param {string} root canonical workspace root
  * @param {{ parent: string, name: string, isDir?: boolean, content?: string }} input
  */
 export async function createEntry(root, input) {
-  const name = validateEntryName(input.name)
+  const segments = splitEntryPath(input.name)
   const parent = await requireDirectory(root, input.parent)
-  const dest = joinInside(root, parent, name)
+  const dest = joinInside(root, parent, segments)
   if ((await statOrNull(dest)) !== null) {
     throw new ApiError('exists', `"${toRelative(root, dest)}" already exists`)
   }
   const isDir = input.isDir === true
+  if (segments.length > 1) {
+    // The chain of folders does not exist yet: create it, so a path can be
+    // created in one call instead of one call per folder.
+    try {
+      await mkdir(dirname(dest), { recursive: true })
+    } catch (error) {
+      throw new ApiError('bad-request', `could not create the folder: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
   if (isDir) {
     await mkdir(dest)
   } else {

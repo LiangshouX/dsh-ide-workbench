@@ -18406,12 +18406,12 @@ function matchBrackets(state, pos, dir, config2 = {}) {
   }
   return matchPlainBrackets(state, pos, dir, tree, node.type, maxScanDistance, brackets);
 }
-function matchMarkedBrackets(_state, _pos, dir, token2, handle, matching, brackets) {
-  let parent = token2.parent, firstToken = { from: handle.from, to: handle.to };
+function matchMarkedBrackets(_state, _pos, dir, token, handle, matching, brackets) {
+  let parent = token.parent, firstToken = { from: handle.from, to: handle.to };
   let depth2 = 0, cursor = parent === null || parent === void 0 ? void 0 : parent.cursor();
-  if (cursor && (dir < 0 ? cursor.childBefore(token2.from) : cursor.childAfter(token2.to)))
+  if (cursor && (dir < 0 ? cursor.childBefore(token.from) : cursor.childAfter(token.to)))
     do {
-      if (dir < 0 ? cursor.to <= token2.from : cursor.from >= token2.to) {
+      if (dir < 0 ? cursor.to <= token.from : cursor.from >= token.to) {
         if (depth2 == 0 && matching.indexOf(cursor.type.name) > -1 && cursor.from < cursor.to) {
           let endHandle = findHandle(cursor);
           return { start: firstToken, end: endHandle ? { from: endHandle.from, to: endHandle.to } : void 0, matched: true };
@@ -18523,10 +18523,10 @@ function findStartInFragments(lang, fragments, startPos, endPos, editorState) {
   }
   return { state: lang.streamParser.startState(editorState ? getIndentUnit(editorState) : 4), tree: Tree.empty };
 }
-function readToken(token2, stream, state) {
+function readToken(token, stream, state) {
   stream.start = stream.pos;
   for (let i3 = 0; i3 < 10; i3++) {
-    let result = token2(stream, state);
+    let result = token(stream, state);
     if (stream.pos > stream.start)
       return result;
   }
@@ -19981,9 +19981,9 @@ var init_dist6 = __esm({
           streamParser.blankLine(this.state, stream.indentUnit);
         } else {
           while (!stream.eol()) {
-            let token2 = readToken(streamParser.token, stream, this.state);
-            if (token2)
-              offset = this.emitToken(this.lang.tokenTable.resolve(token2), this.parsedPos + stream.start, this.parsedPos + stream.pos, offset);
+            let token = readToken(streamParser.token, stream, this.state);
+            if (token)
+              offset = this.emitToken(this.lang.tokenTable.resolve(token), this.parsedPos + stream.start, this.parsedPos + stream.pos, offset);
             if (stream.start > 1e4)
               break;
           }
@@ -20141,8 +20141,8 @@ function completeFromList(list) {
   let options = list.map((o3) => typeof o3 == "string" ? { label: o3 } : o3);
   let [validFor, match] = options.every((o3) => /^\w+$/.test(o3.label)) ? [/\w*$/, /\w+$/] : prefixMatch(options);
   return (context) => {
-    let token2 = context.matchBefore(match);
-    return token2 || context.explicit ? { from: token2 ? token2.from : context.pos, options, validFor } : null;
+    let token = context.matchBefore(match);
+    return token || context.explicit ? { from: token ? token.from : context.pos, options, validFor } : null;
   };
 }
 function ifIn(nodes, source) {
@@ -20632,43 +20632,43 @@ function handleClose(state, _open, close) {
     userEvent: "input.type"
   });
 }
-function handleSame(state, token2, allowTriple, config2) {
+function handleSame(state, token, allowTriple, config2) {
   let stringPrefixes = config2.stringPrefixes || defaults2.stringPrefixes;
   let dont = null, changes = state.changeByRange((range) => {
     if (!range.empty)
       return {
-        changes: [{ insert: token2, from: range.from }, { insert: token2, from: range.to }],
-        effects: closeBracketEffect.of(range.to + token2.length),
-        range: EditorSelection.range(range.anchor + token2.length, range.head + token2.length)
+        changes: [{ insert: token, from: range.from }, { insert: token, from: range.to }],
+        effects: closeBracketEffect.of(range.to + token.length),
+        range: EditorSelection.range(range.anchor + token.length, range.head + token.length)
       };
     let pos = range.head, next = nextChar(state.doc, pos), start;
-    if (next == token2) {
+    if (next == token) {
       if (nodeStart(state, pos)) {
         return {
-          changes: { insert: token2 + token2, from: pos },
-          effects: closeBracketEffect.of(pos + token2.length),
-          range: EditorSelection.cursor(pos + token2.length)
+          changes: { insert: token + token, from: pos },
+          effects: closeBracketEffect.of(pos + token.length),
+          range: EditorSelection.cursor(pos + token.length)
         };
       } else if (closedBracketAt(state, pos)) {
-        let isTriple = allowTriple && state.sliceDoc(pos, pos + token2.length * 3) == token2 + token2 + token2;
-        let content2 = isTriple ? token2 + token2 + token2 : token2;
+        let isTriple = allowTriple && state.sliceDoc(pos, pos + token.length * 3) == token + token + token;
+        let content2 = isTriple ? token + token + token : token;
         return {
           changes: { from: pos, to: pos + content2.length, insert: content2 },
           range: EditorSelection.cursor(pos + content2.length)
         };
       }
-    } else if (allowTriple && state.sliceDoc(pos - 2 * token2.length, pos) == token2 + token2 && (start = canStartStringAt(state, pos - 2 * token2.length, stringPrefixes)) > -1 && nodeStart(state, start)) {
+    } else if (allowTriple && state.sliceDoc(pos - 2 * token.length, pos) == token + token && (start = canStartStringAt(state, pos - 2 * token.length, stringPrefixes)) > -1 && nodeStart(state, start)) {
       return {
-        changes: { insert: token2 + token2 + token2 + token2, from: pos },
-        effects: closeBracketEffect.of(pos + token2.length),
-        range: EditorSelection.cursor(pos + token2.length)
+        changes: { insert: token + token + token + token, from: pos },
+        effects: closeBracketEffect.of(pos + token.length),
+        range: EditorSelection.cursor(pos + token.length)
       };
     } else if (state.charCategorizer(pos)(next) != CharCategory.Word) {
-      if (canStartStringAt(state, pos, stringPrefixes) > -1 && !probablyInString(state, pos, token2, stringPrefixes))
+      if (canStartStringAt(state, pos, stringPrefixes) > -1 && !probablyInString(state, pos, token, stringPrefixes))
         return {
-          changes: { insert: token2 + token2, from: pos },
-          effects: closeBracketEffect.of(pos + token2.length),
-          range: EditorSelection.cursor(pos + token2.length)
+          changes: { insert: token + token, from: pos },
+          effects: closeBracketEffect.of(pos + token.length),
+          range: EditorSelection.cursor(pos + token.length)
         };
     }
     return { range: dont = range };
@@ -20780,14 +20780,14 @@ var init_dist7 = __esm({
       token before `this.pos`.
       */
       tokenBefore(types2) {
-        let token2 = syntaxTree(this.state).resolveInner(this.pos, -1);
-        while (token2 && types2.indexOf(token2.name) < 0)
-          token2 = token2.parent;
-        return token2 ? {
-          from: token2.from,
+        let token = syntaxTree(this.state).resolveInner(this.pos, -1);
+        while (token && types2.indexOf(token.name) < 0)
+          token = token.parent;
+        return token ? {
+          from: token.from,
           to: this.pos,
-          text: this.state.sliceDoc(token2.from, this.pos),
-          type: token2.type
+          text: this.state.sliceDoc(token.from, this.pos),
+          type: token.type
         } : null;
       }
       /**
@@ -21970,10 +21970,10 @@ var init_dist7 = __esm({
       var _a2;
       let wordChars = (_a2 = context.state.languageDataAt("wordChars", context.pos)[0]) !== null && _a2 !== void 0 ? _a2 : "";
       let re2 = wordRE(wordChars);
-      let token2 = context.matchBefore(mapRE(re2, (s16) => s16 + "$"));
-      if (!token2 && !context.explicit)
+      let token = context.matchBefore(mapRE(re2, (s16) => s16 + "$"));
+      if (!token && !context.explicit)
         return null;
-      let from = token2 ? token2.from : context.pos;
+      let from = token ? token.from : context.pos;
       let options = collectWords(context.state.doc, wordCache(wordChars), re2, 5e4, from);
       return { from, options, validFor: mapRE(re2, (s16) => "^" + s16) };
     };
@@ -22030,11 +22030,11 @@ var init_dist7 = __esm({
       let dont = null, changes = state.changeByRange((range) => {
         if (range.empty) {
           let before = prevChar(state.doc, range.head);
-          for (let token2 of tokens2) {
-            if (token2 == before && nextChar(state.doc, range.head) == closing(codePointAt2(token2, 0)))
+          for (let token of tokens2) {
+            if (token == before && nextChar(state.doc, range.head) == closing(codePointAt2(token, 0)))
               return {
-                changes: { from: range.head - token2.length, to: range.head + token2.length },
-                range: EditorSelection.cursor(range.head - token2.length)
+                changes: { from: range.head - token.length, to: range.head + token.length },
+                range: EditorSelection.cursor(range.head - token.length)
               };
           }
         }
@@ -22139,9 +22139,9 @@ function findOffset(data2, start, term) {
       return i3 - start;
   return -1;
 }
-function overrides(token2, prev, tableData, tableOffset) {
+function overrides(token, prev, tableData, tableOffset) {
   let iPrev = findOffset(tableData, tableOffset, prev);
-  return iPrev < 0 || findOffset(tableData, tableOffset, token2) < iPrev;
+  return iPrev < 0 || findOffset(tableData, tableOffset, token) < iPrev;
 }
 function cutAt(tree, pos, side) {
   let cursor = tree.cursor(IterMode.IncludeAnonymous);
@@ -22857,18 +22857,18 @@ var init_dist8 = __esm({
       current stream position, but you can pass an offset (relative to
       the stream position) to change that.
       */
-      acceptToken(token2, endOffset = 0) {
+      acceptToken(token, endOffset = 0) {
         let end = endOffset ? this.resolveOffset(endOffset, -1) : this.pos;
         if (end == null || end < this.token.start)
           throw new RangeError("Token end out of bounds");
-        this.token.value = token2;
+        this.token.value = token;
         this.token.end = end;
       }
       /**
       Accept a token ending at a specific given position.
       */
-      acceptTokenTo(token2, endPos) {
-        this.token.value = token2;
+      acceptTokenTo(token, endPos) {
+        this.token.value = token;
         this.token.end = endPos;
       }
       getChunk() {
@@ -22924,12 +22924,12 @@ var init_dist8 = __esm({
       /**
       @internal
       */
-      reset(pos, token2) {
-        if (token2) {
-          this.token = token2;
-          token2.start = pos;
-          token2.lookAhead = pos + 1;
-          token2.value = token2.extended = -1;
+      reset(pos, token) {
+        if (token) {
+          this.token = token;
+          token.start = pos;
+          token.lookAhead = pos + 1;
+          token.value = token.extended = -1;
         } else {
           this.token = nullToken;
         }
@@ -23020,8 +23020,8 @@ var init_dist8 = __esm({
       [`acceptToken`](#lr.InputStream.acceptToken) when it finds
       one.
       */
-      constructor(token2, options = {}) {
-        this.token = token2;
+      constructor(token, options = {}) {
+        this.token = token;
         this.contextual = !!options.contextual;
         this.fallback = !!options.fallback;
         this.extend = !!options.extend;
@@ -23139,23 +23139,23 @@ var init_dist8 = __esm({
         for (let i3 = 0; i3 < tokenizers.length; i3++) {
           if ((1 << i3 & mask) == 0)
             continue;
-          let tokenizer = tokenizers[i3], token2 = this.tokens[i3];
+          let tokenizer = tokenizers[i3], token = this.tokens[i3];
           if (main && !tokenizer.fallback)
             continue;
-          if (tokenizer.contextual || token2.start != stack.pos || token2.mask != mask || token2.context != context) {
-            this.updateCachedToken(token2, tokenizer, stack);
-            token2.mask = mask;
-            token2.context = context;
+          if (tokenizer.contextual || token.start != stack.pos || token.mask != mask || token.context != context) {
+            this.updateCachedToken(token, tokenizer, stack);
+            token.mask = mask;
+            token.context = context;
           }
-          if (token2.lookAhead > token2.end + 25)
-            lookAhead = Math.max(token2.lookAhead, lookAhead);
-          if (token2.value != 0) {
+          if (token.lookAhead > token.end + 25)
+            lookAhead = Math.max(token.lookAhead, lookAhead);
+          if (token.value != 0) {
             let startIndex = actionIndex;
-            if (token2.extended > -1)
-              actionIndex = this.addActions(stack, token2.extended, token2.end, actionIndex);
-            actionIndex = this.addActions(stack, token2.value, token2.end, actionIndex);
+            if (token.extended > -1)
+              actionIndex = this.addActions(stack, token.extended, token.end, actionIndex);
+            actionIndex = this.addActions(stack, token.value, token.end, actionIndex);
             if (!tokenizer.extend) {
-              main = token2;
+              main = token;
               if (actionIndex > startIndex)
                 break;
             }
@@ -23183,37 +23183,37 @@ var init_dist8 = __esm({
         main.value = pos == p2.stream.end ? p2.parser.eofTerm : 0;
         return main;
       }
-      updateCachedToken(token2, tokenizer, stack) {
+      updateCachedToken(token, tokenizer, stack) {
         let start = this.stream.clipPos(stack.pos);
-        tokenizer.token(this.stream.reset(start, token2), stack);
-        if (token2.value > -1) {
+        tokenizer.token(this.stream.reset(start, token), stack);
+        if (token.value > -1) {
           let { parser: parser15 } = stack.p;
           for (let i3 = 0; i3 < parser15.specialized.length; i3++)
-            if (parser15.specialized[i3] == token2.value) {
-              let result = parser15.specializers[i3](this.stream.read(token2.start, token2.end), stack);
+            if (parser15.specialized[i3] == token.value) {
+              let result = parser15.specializers[i3](this.stream.read(token.start, token.end), stack);
               if (result >= 0 && stack.p.parser.dialect.allows(result >> 1)) {
                 if ((result & 1) == 0)
-                  token2.value = result >> 1;
+                  token.value = result >> 1;
                 else
-                  token2.extended = result >> 1;
+                  token.extended = result >> 1;
                 break;
               }
             }
         } else {
-          token2.value = 0;
-          token2.end = this.stream.clipPos(start + 1);
+          token.value = 0;
+          token.end = this.stream.clipPos(start + 1);
         }
       }
-      putAction(action, token2, end, index) {
+      putAction(action, token, end, index) {
         for (let i3 = 0; i3 < index; i3 += 3)
           if (this.actions[i3] == action)
             return index;
         this.actions[index++] = action;
-        this.actions[index++] = token2;
+        this.actions[index++] = token;
         this.actions[index++] = end;
         return index;
       }
-      addActions(stack, token2, end, index) {
+      addActions(stack, token, end, index) {
         let { state } = stack, { parser: parser15 } = stack.p, { data: data2 } = parser15;
         for (let set = 0; set < 2; set++) {
           for (let i3 = parser15.stateSlot(
@@ -23226,12 +23226,12 @@ var init_dist8 = __esm({
                 i3 = pair(data2, i3 + 2);
               } else {
                 if (index == 0 && data2[i3 + 1] == 2)
-                  index = this.putAction(pair(data2, i3 + 2), token2, end, index);
+                  index = this.putAction(pair(data2, i3 + 2), token, end, index);
                 break;
               }
             }
-            if (data2[i3] == token2)
-              index = this.putAction(pair(data2, i3 + 1), token2, end, index);
+            if (data2[i3] == token)
+              index = this.putAction(pair(data2, i3 + 1), token, end, index);
           }
         }
         return index;
@@ -23458,7 +23458,7 @@ var init_dist8 = __esm({
       runRecovery(stacks, tokens2, newStacks) {
         let finished = null, restarted = false;
         for (let i3 = 0; i3 < stacks.length; i3++) {
-          let stack = stacks[i3], token2 = tokens2[i3 << 1], tokenEnd = tokens2[(i3 << 1) + 1];
+          let stack = stacks[i3], token = tokens2[i3 << 1], tokenEnd = tokens2[(i3 << 1) + 1];
           let base2 = verbose ? this.stackID(stack) + " -> " : "";
           if (stack.deadEnd) {
             if (restarted)
@@ -23481,7 +23481,7 @@ var init_dist8 = __esm({
             if (verbose)
               forceBase = this.stackID(force) + " -> ";
           }
-          for (let insert2 of stack.recoverByInsert(token2)) {
+          for (let insert2 of stack.recoverByInsert(token)) {
             if (verbose)
               console.log(base2 + this.stackID(insert2) + " (via recover-insert)");
             this.advanceFully(insert2, newStacks);
@@ -23489,11 +23489,11 @@ var init_dist8 = __esm({
           if (this.stream.end > stack.pos) {
             if (tokenEnd == stack.pos) {
               tokenEnd++;
-              token2 = 0;
+              token = 0;
             }
-            stack.recoverByDelete(token2, tokenEnd);
+            stack.recoverByDelete(token, tokenEnd);
             if (verbose)
-              console.log(base2 + this.stackID(stack) + ` (via recover-delete ${this.parser.getName(token2)})`);
+              console.log(base2 + this.stackID(stack) + ` (via recover-delete ${this.parser.getName(token)})`);
             pushStackDedup(stack, newStacks);
           } else if (!finished || finished.score < force.score) {
             finished = force;
@@ -26013,9 +26013,9 @@ var init_dist13 = __esm({
         let cx = new InlineContext(this, text, offset);
         outer: for (let pos = offset; pos < cx.end; ) {
           let next = cx.char(pos);
-          for (let token2 of this.inlineParsers)
-            if (token2) {
-              let result = token2(cx, next, pos);
+          for (let token of this.inlineParsers)
+            if (token) {
+              let result = token(cx, next, pos);
               if (result >= 0) {
                 pos = result;
                 continue outer;
@@ -28226,7 +28226,7 @@ function completeAttrName(state, schema, tree, from, to) {
 function completeAttrValue(state, schema, tree, from, to) {
   var _a2;
   let nameNode = (_a2 = tree.parent) === null || _a2 === void 0 ? void 0 : _a2.getChild("AttributeName");
-  let options = [], token2 = void 0;
+  let options = [], token = void 0;
   if (nameNode) {
     let attrName2 = state.sliceDoc(nameNode.from, nameNode.to);
     let attrs = schema.globalAttrs[attrName2];
@@ -28237,19 +28237,19 @@ function completeAttrValue(state, schema, tree, from, to) {
     if (attrs) {
       let base2 = state.sliceDoc(from, to).toLowerCase(), quoteStart = '"', quoteEnd = '"';
       if (/^['"]/.test(base2)) {
-        token2 = base2[0] == '"' ? /^[^"]*$/ : /^[^']*$/;
+        token = base2[0] == '"' ? /^[^"]*$/ : /^[^']*$/;
         quoteStart = "";
         quoteEnd = state.sliceDoc(to, to + 1) == base2[0] ? "" : base2[0];
         base2 = base2.slice(1);
         from++;
       } else {
-        token2 = /^[^\s<>='"]*$/;
+        token = /^[^\s<>='"]*$/;
       }
       for (let value of attrs)
         options.push({ label: value, apply: quoteStart + value + quoteEnd, type: "constant" });
     }
   }
-  return { from, to, options, validFor: token2 };
+  return { from, to, options, validFor: token };
 }
 function htmlCompletionFor(schema, context) {
   let { state, pos } = context, tree = syntaxTree(state).resolveInner(pos, -1), around = tree.resolve(pos);
@@ -31265,9 +31265,9 @@ var init_dist24 = __esm({
         readTag(input);
         input.acceptToken(Tag2);
       } else if (input.next == 38 || input.next == 42) {
-        let token2 = input.next == 38 ? Anchor : Alias;
+        let token = input.next == 38 ? Anchor : Alias;
         readAnchor(input);
-        input.acceptToken(token2);
+        input.acceptToken(token);
       } else if (input.next == 39 || input.next == 34) {
         readQuoted(input, false);
         input.acceptToken(QuotedLiteral);
@@ -51540,8 +51540,9 @@ var en = {
   "links.openInDefaultSidebar": "No, open in the default sidebar",
   "sidebar.openFailed": "Could not open this file in the sidebar",
   "browser.openFailed": "Could not open the default browser",
-  "settings.showIgnored": "Show ignored files",
-  "settings.showIgnoredHint": "List .gitignore matches in grey (hidden by default)",
+  "browser.unsavedChanges": "Save the file before opening it in the browser",
+  "settings.showIgnored": "Show ignored files and folders",
+  "settings.showIgnoredHint": "List .gitignore matches and their folders in grey (hidden by default)",
   "settings.groupByDirectory": "Group changes by directory",
   "settings.groupByDirectoryHint": "Default display mode of the Commit window",
   "settings.useRecycleBin": "Move deleted files to the recycle bin",
@@ -51640,6 +51641,12 @@ var en = {
   "project.newFile": "New File\u2026",
   "project.newDir": "New Directory\u2026",
   "project.nameLabel": "Name",
+  "project.pathLabel": "Full path",
+  "project.pathHint": "Relative to the project root. Leave it unchanged to create in the current folder.",
+  "project.pathInvalid": "Invalid path \u2014 it must stay inside the project root.",
+  "project.compactDir": "Merged folder",
+  "project.compactRenameDenied": "A merged folder cannot be renamed",
+  "project.currentFolder": "Current folder",
   "project.templateLabel": "Template",
   "project.create": "Create",
   "project.cut": "Cut",
@@ -51788,7 +51795,9 @@ var en = {
   "git.currentBranchOnly": "Current branch only",
   "git.noCommits": "No commits",
   "git.loadMore": "Load more",
-  "git.copySha": "Copy Full SHA",
+  "git.copySha": "Copy SHA",
+  "git.copyFullSha": "Copy Full SHA",
+  "git.copyShortSha": "Copy Short SHA (7)",
   "git.checkout": "Checkout",
   "git.checkoutConfirm": "Check out this commit? HEAD will become detached.",
   "git.checkoutBranchConfirm": "Check out this branch? The working tree must be clean.",
@@ -51818,6 +51827,7 @@ var en = {
   "git.closeDetail": "Close details",
   "git.openDetails": "Open details",
   "git.fileList": "Changed files",
+  "git.expandOriginalTree": "Expand as original folders",
   "git.noFiles": "No file changes",
   "git.inlineDiff": "Inline diff",
   "git.openFileDiff": "Open full file diff",
@@ -51910,6 +51920,8 @@ var en = {
   "editor.noResults": "No results",
   "editor.findNext": "Next match",
   "editor.findPrevious": "Previous match",
+  "editor.foldAll": "Fold all",
+  "editor.unfoldAll": "Unfold all",
   "editor.replaceOne": "Replace",
   "editor.replaceAll": "Replace all",
   "editor.invalidPattern": "Invalid regular expression",
@@ -51943,6 +51955,19 @@ var en = {
   "quickOpen.recent": "Files",
   "status.ready": "Ready",
   "status.changes": "changes",
+  "status.words": "words",
+  "status.wordsHint": "CJK characters count one by one; Latin text counts one word per space",
+  // The turn change preview (R2) — the diff of one conversation turn.
+  "changesReview.title": "Changes in this turn",
+  "changesReview.empty": "No file changes in this turn",
+  "changesReview.files": "Changed files",
+  "changesReview.unified": "Unified",
+  "changesReview.sideBySide": "Side by side",
+  "changesReview.binary": "Binary file \u2014 no text diff",
+  "changesReview.oversized": "File is too large to show a diff",
+  "changesReview.expired": "The data of this turn is no longer available",
+  "changesReview.loadFailed": "Could not load the changes of this turn",
+  "changesReview.outsideWorkspace": "Outside the workspace \u2014 shown read-only",
   "nav.textMatch": "Text match",
   "nav.usagesCount": "{count} usages",
   "nav.noUsages": "No usages found",
@@ -52018,8 +52043,9 @@ var zh = {
   "links.openInDefaultSidebar": "\u5426\uFF0C\u7528\u9ED8\u8BA4\u65B9\u5F0F\u6253\u5F00",
   "sidebar.openFailed": "\u65E0\u6CD5\u5728\u4FA7\u680F\u4E2D\u6253\u5F00\u8BE5\u6587\u4EF6",
   "browser.openFailed": "\u65E0\u6CD5\u6253\u5F00\u9ED8\u8BA4\u6D4F\u89C8\u5668",
-  "settings.showIgnored": "\u663E\u793A\u88AB\u5FFD\u7565\u7684\u6587\u4EF6",
-  "settings.showIgnoredHint": "\u4EE5\u7070\u8272\u5217\u51FA .gitignore \u547D\u4E2D\u7684\u6587\u4EF6\uFF08\u9ED8\u8BA4\u9690\u85CF\uFF09",
+  "browser.unsavedChanges": "\u8BF7\u5148\u4FDD\u5B58\u6587\u4EF6\u518D\u5728\u6D4F\u89C8\u5668\u4E2D\u6253\u5F00",
+  "settings.showIgnored": "\u663E\u793A\u88AB\u5FFD\u7565\u7684\u6587\u4EF6\u548C\u76EE\u5F55",
+  "settings.showIgnoredHint": "\u4EE5\u7070\u8272\u5217\u51FA .gitignore \u547D\u4E2D\u7684\u6587\u4EF6\u4E0E\u76EE\u5F55\uFF08\u9ED8\u8BA4\u9690\u85CF\uFF09",
   "settings.groupByDirectory": "\u6309\u76EE\u5F55\u5206\u7EC4\u663E\u793A\u6539\u52A8",
   "settings.groupByDirectoryHint": "Commit \u7A97\u53E3\u7684\u9ED8\u8BA4\u5C55\u793A\u65B9\u5F0F",
   "settings.useRecycleBin": "\u5220\u9664\u6587\u4EF6\u65F6\u79FB\u5165\u56DE\u6536\u7AD9",
@@ -52118,6 +52144,12 @@ var zh = {
   "project.newFile": "\u65B0\u5EFA\u6587\u4EF6\u2026",
   "project.newDir": "\u65B0\u5EFA\u76EE\u5F55\u2026",
   "project.nameLabel": "\u540D\u79F0",
+  "project.pathLabel": "\u5B8C\u6574\u8DEF\u5F84",
+  "project.pathHint": "\u76F8\u5BF9\u4E8E\u9879\u76EE\u6839\u76EE\u5F55\uFF1B\u4E0D\u4FEE\u6539\u5219\u5728\u5F53\u524D\u76EE\u5F55\u521B\u5EFA\u3002",
+  "project.pathInvalid": "\u8DEF\u5F84\u65E0\u6548\uFF1A\u5FC5\u987B\u4F4D\u4E8E\u9879\u76EE\u6839\u76EE\u5F55\u5185\u3002",
+  "project.compactDir": "\u5408\u5E76\u76EE\u5F55",
+  "project.compactRenameDenied": "\u5408\u5E76\u76EE\u5F55\u4E0D\u652F\u6301\u91CD\u547D\u540D",
+  "project.currentFolder": "\u5F53\u524D\u76EE\u5F55",
   "project.templateLabel": "\u6A21\u677F",
   "project.create": "\u521B\u5EFA",
   "project.cut": "\u526A\u5207",
@@ -52266,7 +52298,9 @@ var zh = {
   "git.currentBranchOnly": "\u4EC5\u5F53\u524D\u5206\u652F",
   "git.noCommits": "\u6CA1\u6709\u63D0\u4EA4",
   "git.loadMore": "\u52A0\u8F7D\u66F4\u591A",
-  "git.copySha": "\u590D\u5236\u5B8C\u6574 SHA",
+  "git.copySha": "\u590D\u5236 SHA",
+  "git.copyFullSha": "\u590D\u5236\u5B8C\u6574 SHA",
+  "git.copyShortSha": "\u590D\u5236\u77ED SHA\uFF087 \u4F4D\uFF09",
   "git.checkout": "\u68C0\u51FA",
   "git.checkoutConfirm": "\u68C0\u51FA\u6B64\u63D0\u4EA4\uFF1FHEAD \u5C06\u8FDB\u5165\u6E38\u79BB\u72B6\u6001\u3002",
   "git.checkoutBranchConfirm": "\u68C0\u51FA\u8BE5\u5206\u652F\uFF1F\u5DE5\u4F5C\u533A\u5FC5\u987B\u5E72\u51C0\u3002",
@@ -52296,6 +52330,7 @@ var zh = {
   "git.closeDetail": "\u5173\u95ED\u8BE6\u60C5",
   "git.openDetails": "\u6253\u5F00\u8BE6\u60C5",
   "git.fileList": "\u53D8\u66F4\u6587\u4EF6",
+  "git.expandOriginalTree": "\u5C55\u5F00\u4E3A\u539F\u59CB\u76EE\u5F55",
   "git.noFiles": "\u6CA1\u6709\u6587\u4EF6\u53D8\u66F4",
   "git.inlineDiff": "\u5185\u8054\u5DEE\u5F02",
   "git.openFileDiff": "\u6253\u5F00\u5B8C\u6574\u6587\u4EF6\u5DEE\u5F02",
@@ -52388,6 +52423,8 @@ var zh = {
   "editor.noResults": "\u65E0\u7ED3\u679C",
   "editor.findNext": "\u4E0B\u4E00\u4E2A\u5339\u914D",
   "editor.findPrevious": "\u4E0A\u4E00\u4E2A\u5339\u914D",
+  "editor.foldAll": "\u5168\u90E8\u6298\u53E0",
+  "editor.unfoldAll": "\u5168\u90E8\u5C55\u5F00",
   "editor.replaceOne": "\u66FF\u6362",
   "editor.replaceAll": "\u5168\u90E8\u66FF\u6362",
   "editor.invalidPattern": "\u6B63\u5219\u8868\u8FBE\u5F0F\u65E0\u6548",
@@ -52420,6 +52457,19 @@ var zh = {
   "quickOpen.recent": "\u6587\u4EF6",
   "status.ready": "\u5C31\u7EEA",
   "status.changes": "\u9879\u6539\u52A8",
+  "status.words": "\u5B57",
+  "status.wordsHint": "\u4E2D\u6587\u9010\u5B57\u8BA1\u6570\uFF0C\u82F1\u6587\u6309\u7A7A\u767D\u5206\u8BCD\u8BA1\u6570\uFF0C\u4E24\u8005\u76F8\u52A0",
+  // 回合变更预览（R2）—— 一轮对话产生的文件差异。
+  "changesReview.title": "\u672C\u8F6E\u53D8\u66F4",
+  "changesReview.empty": "\u672C\u8F6E\u6CA1\u6709\u6587\u4EF6\u53D8\u66F4",
+  "changesReview.files": "\u53D8\u66F4\u6587\u4EF6",
+  "changesReview.unified": "\u7EDF\u4E00",
+  "changesReview.sideBySide": "\u5E76\u6392",
+  "changesReview.binary": "\u4E8C\u8FDB\u5236\u6587\u4EF6\uFF0C\u65E0\u6587\u672C\u5DEE\u5F02",
+  "changesReview.oversized": "\u6587\u4EF6\u8FC7\u5927\uFF0C\u65E0\u6CD5\u663E\u793A\u5DEE\u5F02",
+  "changesReview.expired": "\u672C\u8F6E\u6570\u636E\u5DF2\u8FC7\u671F",
+  "changesReview.loadFailed": "\u65E0\u6CD5\u52A0\u8F7D\u672C\u8F6E\u7684\u53D8\u66F4",
+  "changesReview.outsideWorkspace": "\u5DE5\u4F5C\u533A\u4E4B\u5916\uFF0C\u4EC5\u53EA\u8BFB\u5C55\u793A",
   "nav.textMatch": "\u6587\u672C\u5339\u914D",
   "nav.usagesCount": "{count} \u5904\u5F15\u7528",
   "nav.noUsages": "\u672A\u627E\u5230\u5F15\u7528",
@@ -52579,8 +52629,8 @@ function comboOf(event) {
   if (event.altKey) parts.push("alt");
   if (event.shiftKey) parts.push("shift");
   if (event.metaKey) parts.push("meta");
-  const token2 = keyToken(event);
-  if (token2 !== "") parts.push(token2);
+  const token = keyToken(event);
+  if (token !== "") parts.push(token);
   return parts.join("+");
 }
 function normalizeShortcut(value) {
@@ -52781,6 +52831,17 @@ function relativeLinkCandidateEntries(path2, bases) {
   }
   return entries;
 }
+function relativeLinkCandidates(path2, bases) {
+  return relativeLinkCandidateEntries(path2, bases).map((entry) => entry.absolute);
+}
+function linkResolvesInsideWorkspace(parsed, workspace, cwd, bases) {
+  if (parsed === void 0 || parsed === null) return false;
+  if (typeof workspace !== "string" || workspace === "") return false;
+  const absolute = resolveFileAddress(parsed, typeof cwd === "string" && cwd !== "" ? cwd : workspace);
+  if (absolute !== void 0 && isWithinRoot(workspace, absolute)) return true;
+  const list = Array.isArray(bases) ? bases : [];
+  return relativeLinkCandidates(parsed.path, list).some((candidate) => isWithinRoot(workspace, candidate));
+}
 var NON_IDE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".doc",
   ".docx",
@@ -52866,6 +52927,62 @@ function defaultSidebarKind(ctx, address, ownKind) {
   }
   return void 0;
 }
+function findCarrierTab(ctx, tabId, options = {}) {
+  const sidebar = serviceOf(ctx, "sidebarRight");
+  let inventory;
+  try {
+    inventory = sidebar?.openTabs?.getSnapshot?.();
+  } catch {
+    inventory = void 0;
+  }
+  if (Array.isArray(inventory)) {
+    const byId = inventory.find((tab3) => tab3?.id === tabId);
+    if (byId !== void 0) return byId;
+    const contentId = options.contentId;
+    if (typeof contentId === "string" && contentId !== "") {
+      return inventory.find((tab3) => tab3?.contentId === contentId && tab3?.kind === options.kind) ?? null;
+    }
+    return null;
+  }
+  try {
+    const active = sidebar?.active?.();
+    if (active !== void 0 && active !== null) return active.id === tabId ? active : null;
+  } catch {
+  }
+  return void 0;
+}
+function carrierTabAlive(ctx, tabId, options = {}) {
+  const tab3 = findCarrierTab(ctx, tabId, options);
+  if (tab3 === void 0) return null;
+  return tab3 !== null;
+}
+function closeCarrierTab(ctx, tabId, options = {}) {
+  const sidebar = serviceOf(ctx, "sidebarRight");
+  if (typeof sidebar?.close !== "function") return { closed: false };
+  const tab3 = findCarrierTab(ctx, tabId, options);
+  const target = tab3 !== void 0 && tab3 !== null && typeof tab3.id === "string" ? tab3.id : tabId;
+  try {
+    sidebar.close(target);
+  } catch (error) {
+    return { closed: carrierTabAlive(ctx, tabId, options) !== true, error };
+  }
+  return { closed: carrierTabAlive(ctx, tabId, options) !== true };
+}
+function replaceCarrierTab(ctx, tabId, options = {}) {
+  const sidebar = serviceOf(ctx, "sidebarRight");
+  const kind = typeof options.kind === "string" && options.kind !== "" ? options.kind : "ide-workbench";
+  try {
+    sidebar.openTab(kind, { replaceTab: tabId });
+  } catch (error) {
+    return { ok: false, fate: "unknown", error };
+  }
+  const alive = carrierTabAlive(ctx, tabId, { ...options, kind });
+  if (alive === false) return { ok: true, fate: "replaced" };
+  if (alive === null) return { ok: false, fate: "unknown" };
+  const closed = closeCarrierTab(ctx, tabId, { ...options, kind });
+  if (closed.closed === true) return { ok: true, fate: "closed" };
+  return { ok: false, fate: "unknown", error: closed.error };
+}
 function openInDefaultSidebar(ctx, address, options = {}) {
   const sidebar = serviceOf(ctx, "sidebarRight");
   if (typeof sidebar?.openResource !== "function") return false;
@@ -52874,6 +52991,7 @@ function openInDefaultSidebar(ctx, address, options = {}) {
     revealIfOpened: true,
     ...options.replaceTab === void 0 ? {} : { replaceTab: options.replaceTab }
   };
+  const carrier = options.replaceTab === void 0 ? {} : { contentId: address, kind: options.ownKind };
   const kinds = [];
   if (typeof options.kind === "string" && options.kind !== "") kinds.push(options.kind);
   const probed = defaultSidebarKind(ctx, address, options.ownKind);
@@ -52881,6 +52999,7 @@ function openInDefaultSidebar(ctx, address, options = {}) {
   for (const kind of kinds) {
     try {
       sidebar.openResource(address, { ...placement, kind });
+      if (options.replaceTab !== void 0) closeCarrierTab(ctx, options.replaceTab, carrier);
       return true;
     } catch {
     }
@@ -52890,6 +53009,7 @@ function openInDefaultSidebar(ctx, address, options = {}) {
   try {
     release = options.suppressSelf();
     sidebar.openResource(address, placement);
+    if (options.replaceTab !== void 0) closeCarrierTab(ctx, options.replaceTab, carrier);
     return true;
   } catch {
     return false;
@@ -54323,8 +54443,8 @@ function changeBlockComment(option, state, ranges = state.selection.ranges) {
     let changes = [];
     for (let i3 = 0, comment2; i3 < comments.length; i3++)
       if (comment2 = comments[i3]) {
-        let token2 = tokens2[i3], { open, close } = comment2;
-        changes.push({ from: open.pos - token2.open.length, to: open.pos + open.margin }, { from: close.pos - close.margin, to: close.pos + token2.close.length });
+        let token = tokens2[i3], { open, close } = comment2;
+        changes.push({ from: open.pos - token.open.length, to: open.pos + open.margin }, { from: close.pos - close.margin, to: close.pos + token.close.length });
       }
     return { changes };
   }
@@ -54334,22 +54454,22 @@ function changeLineComment(option, state, ranges = state.selection.ranges) {
   let lines = [];
   let prevLine = -1;
   ranges: for (let { from, to } of ranges) {
-    let startI = lines.length, minIndent = 1e9, token2;
+    let startI = lines.length, minIndent = 1e9, token;
     for (let pos = from; pos <= to; ) {
       let line = state.doc.lineAt(pos);
-      if (token2 == void 0) {
-        token2 = getConfig(state, line.from).line;
-        if (!token2)
+      if (token == void 0) {
+        token = getConfig(state, line.from).line;
+        if (!token)
           continue ranges;
       }
       if (line.from > prevLine && (from == to || to > line.from)) {
         prevLine = line.from;
         let indent2 = /^\s*/.exec(line.text)[0].length;
         let empty2 = indent2 == line.length;
-        let comment2 = line.text.slice(indent2, indent2 + token2.length) == token2 ? indent2 : -1;
+        let comment2 = line.text.slice(indent2, indent2 + token.length) == token ? indent2 : -1;
         if (indent2 < line.text.length && indent2 < minIndent)
           minIndent = indent2;
-        lines.push({ line, comment: comment2, token: token2, indent: indent2, empty: empty2, single: false });
+        lines.push({ line, comment: comment2, token, indent: indent2, empty: empty2, single: false });
       }
       pos = line.to + 1;
     }
@@ -54363,16 +54483,16 @@ function changeLineComment(option, state, ranges = state.selection.ranges) {
   }
   if (option != 2 && lines.some((l2) => l2.comment < 0 && (!l2.empty || l2.single))) {
     let changes = [];
-    for (let { line, token: token2, indent: indent2, empty: empty2, single } of lines)
+    for (let { line, token, indent: indent2, empty: empty2, single } of lines)
       if (single || !empty2)
-        changes.push({ from: line.from + indent2, insert: token2 + " " });
+        changes.push({ from: line.from + indent2, insert: token + " " });
     let changeSet = state.changes(changes);
     return { changes: changeSet, selection: state.selection.map(changeSet, 1) };
   } else if (option != 1 && lines.some((l2) => l2.comment >= 0)) {
     let changes = [];
-    for (let { line, comment: comment2, token: token2 } of lines)
+    for (let { line, comment: comment2, token } of lines)
       if (comment2 >= 0) {
-        let from = line.from + comment2, to = from + token2.length;
+        let from = line.from + comment2, to = from + token.length;
         if (line.text[to - line.from] == " ")
           to++;
         changes.push({ from, to });
@@ -56997,6 +57117,7 @@ function sameGitStatus(previous, next) {
     if (before.untracked !== after.untracked) return false;
     if (before.conflict !== after.conflict) return false;
     if (before.ignored !== after.ignored) return false;
+    if (before.ignoredDir !== after.ignoredDir) return false;
     if (before.stagedLines !== after.stagedLines) return false;
     if (before.unstagedLines !== after.unstagedLines) return false;
   }
@@ -57008,6 +57129,41 @@ function isPlainRelativeLinkPath(path2) {
 }
 function normalizeNewlines(text) {
   return typeof text === "string" ? text.replace(/\r\n/g, "\n") : text;
+}
+var COUNTED_EXTENSIONS = /\.(md|markdown|mdx|txt)$/i;
+var CJK_RUN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+/gu;
+var WORD_CHARACTER = /[\p{L}\p{N}]/u;
+function countWords(text) {
+  if (typeof text !== "string" || text === "") return 0;
+  let cjk = 0;
+  const rest = text.replace(CJK_RUN, (run) => {
+    cjk += [...run].length;
+    return " ";
+  });
+  let words = 0;
+  for (const token of rest.split(/\s+/)) {
+    if (token === "") continue;
+    if (WORD_CHARACTER.test(token)) words += 1;
+  }
+  return cjk + words;
+}
+function documentStats(path2, content2, truncated = false) {
+  if (typeof content2 !== "string") return { lines: void 0, words: void 0 };
+  let lines = 1;
+  for (let at3 = content2.indexOf("\n"); at3 !== -1; at3 = content2.indexOf("\n", at3 + 1)) lines += 1;
+  const words = truncated !== true && COUNTED_EXTENSIONS.test(String(path2 ?? "")) ? countWords(content2) : void 0;
+  return { lines, words };
+}
+function relativeSegments(path2) {
+  if (typeof path2 !== "string") return null;
+  const value = path2.trim().replace(/\\/g, "/");
+  if (value === "") return null;
+  if (value.startsWith("/") || /^[A-Za-z]:/.test(value)) return null;
+  const segments = value.split("/");
+  for (const segment of segments) {
+    if (segment === "" || segment === "." || segment === "..") return null;
+  }
+  return segments;
 }
 function emptyBlame() {
   return {
@@ -57927,6 +58083,8 @@ var WorkbenchStore = class {
       pinned: tab3.pinned !== false,
       loading: false,
       content: null,
+      // The counts of the status bar; they arrive with the buffer (A1).
+      stats: null,
       error: null,
       scrollTop: typeof tab3.scrollTop === "number" ? tab3.scrollTop : 0,
       editing: this.defaultEditing(void 0, tab3.path),
@@ -58177,19 +58335,19 @@ var WorkbenchStore = class {
     const existing = this.state.dirs.get(path2);
     if (existing !== void 0 && existing.loading === true && options.force !== true) return;
     if (existing !== void 0 && existing.entries !== void 0 && options.force !== true) return;
-    const token2 = (this.treeTokens.get(path2) ?? 0) + 1;
-    this.treeTokens.set(path2, token2);
+    const token = (this.treeTokens.get(path2) ?? 0) + 1;
+    this.treeTokens.set(path2, token);
     const dirs = new Map(this.state.dirs);
     dirs.set(path2, { ...existing ?? {}, loading: true, error: null });
     this.set({ dirs });
     try {
       const listing = await call2("fs.tree", { root, path: path2 });
-      if (this.state.root !== root || this.treeTokens.get(path2) !== token2) return;
+      if (this.state.root !== root || this.treeTokens.get(path2) !== token) return;
       const next = new Map(this.state.dirs);
       next.set(path2, { loading: false, entries: listing.entries, truncated: listing.truncated, error: null });
       this.set({ dirs: next });
     } catch (error) {
-      if (this.state.root !== root || this.treeTokens.get(path2) !== token2) return;
+      if (this.state.root !== root || this.treeTokens.get(path2) !== token) return;
       const next = new Map(this.state.dirs);
       next.set(path2, { loading: false, entries: existing?.entries, error: errorMessage(error) });
       this.set({ dirs: next });
@@ -58416,19 +58574,19 @@ var WorkbenchStore = class {
       wholeWord: options.wholeWord ?? this.state.search.wholeWord,
       regexp: options.regexp ?? this.state.search.regexp
     };
-    const token2 = ++this.searchToken;
+    const token = ++this.searchToken;
     this.patch("search", {
       query: value,
       ...flags,
       loading: value !== "",
       error: null,
       results: value === "" ? [] : this.state.search.results,
-      token: token2
+      token
     });
     if (value === "") return;
     try {
       const result = await call2("fs.search", { root: this.state.root, query: value, ...flags });
-      if (token2 !== this.searchToken) return;
+      if (token !== this.searchToken) return;
       this.patch("search", {
         loading: false,
         results: result.files ?? [],
@@ -58437,7 +58595,7 @@ var WorkbenchStore = class {
         error: null
       });
     } catch (error) {
-      if (token2 !== this.searchToken) return;
+      if (token !== this.searchToken) return;
       this.patch("search", {
         loading: false,
         results: [],
@@ -58502,26 +58660,86 @@ var WorkbenchStore = class {
     await this.moveEntries(clipboard.paths, target, !moved);
     if (moved) this.set({ clipboard: null });
   }
+  /**
+   * Create one file or directory in the project tree.
+   *
+   * The default is the direct parent plus one name segment, exactly as it was.
+   * A creation target may carry a project-root-relative path instead:
+   *
+   * - `relPath` — the path of the new entry, relative to the project root and
+   *   **including its own name** (`a/b/c.md`). The parent then becomes the
+   *   project root and the name the relative path, so the host can create the
+   *   missing intermediate directories (R5).
+   * - `relDir` — the directory of the new entry, relative to the project root;
+   *   the name of the entry is appended from `name` (`a/b` + `c.md` →
+   *   `a/b/c.md`). It is the shape of a dialog that keeps the name in its own
+   *   field.
+   *
+   * `relPath` wins when both are given. A path that leaves the project root is
+   * refused before anything is written, and the user gets a readable reason.
+   *
+   * @param {string} parent the direct parent directory (absolute)
+   * @param {{
+   *   name?: string,
+   *   relPath?: string,
+   *   relDir?: string,
+   *   isDir?: boolean,
+   *   content?: string,
+   * }} [options]
+   * @returns {Promise<boolean>} true when the entry was created
+   */
   async createEntry(parent, options = {}) {
     const name2 = String(options.name ?? "").trim();
-    if (name2 === "") return;
+    const relPath = String(options.relPath ?? "").trim();
+    const relDir = String(options.relDir ?? "").trim();
+    let target = parent;
+    let entryName = name2;
+    let nested = false;
+    if (relPath !== "" || relDir !== "") {
+      const segments = relPath !== "" ? relativeSegments(relPath) : relativeSegments(relDir);
+      if (segments === null) {
+        this.toast("error", this.t("project.pathInvalid"), relPath !== "" ? relPath : relDir);
+        return false;
+      }
+      if (relPath === "" && name2 !== "") segments.push(name2);
+      if (relPath === "" && name2 === "") {
+        this.toast("error", this.t("project.pathInvalid"), relDir);
+        return false;
+      }
+      if (segments.length === 0) return false;
+      target = this.state.root;
+      entryName = segments.join("/");
+      nested = true;
+      if (!isPathWithin(this.state.root, this.#absoluteOf(entryName))) {
+        this.toast("error", this.t("project.pathInvalid"), relPath !== "" ? relPath : relDir);
+        return false;
+      }
+    }
+    if (entryName === "") return false;
     try {
       const result = await call2("fs.create", {
         root: this.state.root,
-        parent,
-        name: name2,
+        parent: target,
+        name: entryName,
         isDir: options.isDir === true,
         content: typeof options.content === "string" ? options.content : ""
       });
-      await this.loadDir(parent, { force: true });
+      await this.loadDir(target, { force: true });
       await this.refreshStatus();
       const absolute = this.#absoluteOf(result.path);
       this.setSelection([absolute], absolute);
+      if (nested) {
+        const container = parentPath(absolute);
+        await this.loadDir(container, { force: true });
+        this.setSelectedPath(absolute);
+      }
       if (result.isDir !== true) this.openFile(absolute, { rel: result.path, preview: false });
       this.persist();
     } catch (error) {
       this.toast("error", this.t("common.error"), errorMessage(error));
+      return false;
     }
+    return true;
   }
   async renameEntry(path2, name2) {
     const next = String(name2 ?? "").trim();
@@ -58774,6 +58992,29 @@ ${target}`,
       dirty: tab3.dirty === true
     };
   }
+  /**
+   * Whether one tab holds unsaved changes.
+   *
+   * An action that hands the file to another program needs it: the file on
+   * disk is not the file on screen (R11).
+   *
+   * @param {string} id the tab id
+   * @returns {boolean} true when the tab has edits that are not on disk
+   */
+  isTabDirty(id2) {
+    if (typeof id2 !== "string" || id2 === "") return false;
+    const tab3 = this.state.tabs.find((item) => item.id === id2);
+    return tab3 !== void 0 && tab3.dirty === true;
+  }
+  /**
+   * Whether the file at `path` is open in a tab with unsaved changes.
+   * @param {string} path the absolute path of the file
+   * @returns {boolean} true when a tab of that file has unsaved edits
+   */
+  isPathDirty(path2) {
+    if (typeof path2 !== "string" || path2 === "") return false;
+    return this.state.tabs.some((tab3) => tab3.kind === "file" && tab3.path === path2 && tab3.dirty === true);
+  }
   /** Effective editor open mode: explicit setting, else the legacy flag. */
   editorOpenMode() {
     const editor = this.state.settings?.editor;
@@ -58843,6 +59084,9 @@ ${target}`,
       pinned: !preview,
       loading: false,
       content: null,
+      // The counts of the status bar (lines, words); they are computed when
+      // the buffer is read or written, never in a render path (A1).
+      stats: null,
       error: null,
       scrollTop: 0,
       editing: this.defaultEditing(void 0, path2),
@@ -58904,6 +59148,10 @@ ${target}`,
           conflict: null,
           payload: text === null ? { ...result, eol: eol2 } : { ...result, content: text, eol: eol2 },
           content: text,
+          // The line count and the word count are counted here, once, and not
+          // in a render path (A1): the status bar re-renders on every
+          // keystroke and on every git poll.
+          stats: documentStats(tab3.path, text, result.truncated === true),
           // A forced refresh (external change) must not clobber unsaved edits.
           ...keepDraft ? {} : { draft: text, dirty: false },
           ...rebuilt ? { resetToken: (latest?.resetToken ?? 0) + 1 } : {},
@@ -59093,7 +59341,10 @@ ${target}`,
         dirty: latestDraft !== text,
         content: text,
         draft: latestDraft,
-        payload: { ...payload, content: text, size: result.size, mtimeMs: result.mtimeMs, encoding: result.encoding ?? payload.encoding }
+        payload: { ...payload, content: text, size: result.size, mtimeMs: result.mtimeMs, encoding: result.encoding ?? payload.encoding },
+        // The saved text is the one that is counted: the edits of the draft
+        // are not on disk yet (A1).
+        stats: documentStats(tab3.path, text)
       });
       this.toast("success", this.t("editor.saved"), baseName(tab3.path));
       void this.refreshStatus({ initial: false });
@@ -59685,7 +59936,7 @@ ${outcome.output ?? ""}`.trim();
   async loadLog(reset, options = {}) {
     if (this.state.root === "") return;
     if (this.state.git.loading && !reset) return;
-    const token2 = ++this.gitRequestToken;
+    const token = ++this.gitRequestToken;
     const pageSize = 200;
     const skip = reset ? 0 : this.state.git.skip;
     this.patch("git", { loading: true, error: null });
@@ -59696,7 +59947,7 @@ ${outcome.output ?? ""}`.trim();
         count: pageSize,
         ...this.state.git.filters
       });
-      if (token2 !== this.gitRequestToken) return;
+      if (token !== this.gitRequestToken) return;
       const commits = reset ? result.commits : [...this.state.git.commits, ...result.commits];
       const selectedStillVisible = this.state.git.selectedHash === null || commits.some((commit) => commit.hash === this.state.git.selectedHash);
       this.patch("git", {
@@ -59711,7 +59962,7 @@ ${outcome.output ?? ""}`.trim();
         this.patch("git", { selectedHash: commits[0].hash });
       }
     } catch (error) {
-      if (token2 !== this.gitRequestToken) return;
+      if (token !== this.gitRequestToken) return;
       this.patch("git", { loading: false, error: error instanceof Error ? error.message : String(error) });
     }
   }
@@ -59726,14 +59977,14 @@ ${outcome.output ?? ""}`.trim();
   /** Double click / Enter: load the commit into the right-hand Drawer. */
   async openCommitDetail(hash3) {
     if (typeof hash3 !== "string" || hash3 === "") return;
-    const token2 = ++this.gitDetailToken;
+    const token = ++this.gitDetailToken;
     this.patch("git", { selectedHash: hash3, detailHash: hash3, detailLoading: true, detail: null });
     try {
       const detail = await call2("git.detail", { root: this.gitRoot, hash: hash3 });
-      if (token2 !== this.gitDetailToken || this.state.git.detailHash !== hash3) return;
+      if (token !== this.gitDetailToken || this.state.git.detailHash !== hash3) return;
       this.patch("git", { detail, detailLoading: false });
     } catch (error) {
-      if (token2 !== this.gitDetailToken) return;
+      if (token !== this.gitDetailToken) return;
       this.patch("git", {
         detailLoading: false,
         detail: null,
@@ -59763,7 +60014,7 @@ ${outcome.output ?? ""}`.trim();
     const absolute = typeof request?.path === "string" && request.path !== "" ? request.path : this.activeTab?.kind === "file" ? this.activeTab.path : "";
     if (absolute === "") return;
     const relative = relativePathWithin(this.gitRoot, absolute);
-    const token2 = ++this.blameToken;
+    const token = ++this.blameToken;
     const line = Number.isInteger(request?.line) ? request.line : null;
     this.set({
       blame: {
@@ -59783,7 +60034,7 @@ ${outcome.output ?? ""}`.trim();
     }
     try {
       const result = await call2("git.blame", { root: this.gitRoot, path: relative });
-      if (token2 !== this.blameToken || this.state.blame.path !== absolute) return;
+      if (token !== this.blameToken || this.state.blame.path !== absolute) return;
       this.patch("blame", {
         loading: false,
         error: null,
@@ -59794,7 +60045,7 @@ ${outcome.output ?? ""}`.trim();
       });
       if (result?.truncated === true) this.toast("info", this.t("blame.truncated"));
     } catch (error) {
-      if (token2 !== this.blameToken) return;
+      if (token !== this.blameToken) return;
       const message = error instanceof Error ? error.message : String(error);
       this.patch("blame", { loading: false, error: message });
       this.toast("error", this.t("blame.failed"), message);
@@ -60542,19 +60793,6 @@ function IconGlobe(props = {}) {
     path("M1.8 8h12.4M8 1.8c2.4 2 2.4 10.4 0 12.4M8 1.8c-2.4 2-2.4 10.4 0 12.4", { key: "g" })
   ], props);
 }
-function IconChrome(props = {}) {
-  return import_react3.default.createElement("svg", {
-    xmlns: "http://www.w3.org/2000/svg",
-    viewBox: "0 0 24 24",
-    width: 16,
-    height: 16,
-    "aria-hidden": true,
-    ...props
-  }, import_react3.default.createElement("path", {
-    fill: "currentColor",
-    d: "M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0zM1.931 5.47A11.943 11.943 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.166a5.446 5.446 0 0 1 1.45 7.09l.002.001h-.002l-5.344 9.257c.206.01.413.016.621.016 6.627 0 12-5.373 12-12 0-1.54-.29-3.011-.818-4.364zM12 16.364a4.364 4.364 0 1 1 0-8.728 4.364 4.364 0 0 1 0 8.728z"
-  }));
-}
 function StripeIcon(props = {}) {
   const size = props.size ?? 20;
   const common = { width: size, height: size };
@@ -60907,6 +61145,20 @@ function ancestorsOf(rel) {
   for (let index = 1; index < parts.length; index += 1) output.push(parts.slice(0, index).join("/"));
   return output;
 }
+var IgnoredPaths = class extends Set {
+  /**
+   * Whether the path is ignored — directly or through an ignored directory.
+   * @param {unknown} path the repository-relative path
+   * @returns {boolean}
+   */
+  has(path2) {
+    if (typeof path2 !== "string" || path2 === "") return false;
+    const key = path2.replace(/\/+$/, "");
+    if (super.has(key)) return true;
+    for (const ancestor of ancestorsOf(key)) if (super.has(ancestor)) return true;
+    return false;
+  }
+};
 function setDirStatus(dirs, conflictDirs, dir, kind) {
   const previous = dirs.get(dir);
   if (previous === void 0 || (RANK[previous] ?? 0) < (RANK[kind] ?? 0)) dirs.set(dir, kind);
@@ -60916,14 +61168,18 @@ function aggregateStatus(entries) {
   const list = Array.isArray(entries) ? entries : [];
   const dirs = /* @__PURE__ */ new Map();
   const files = /* @__PURE__ */ new Map();
-  const ignored = /* @__PURE__ */ new Set();
+  const ignored = new IgnoredPaths();
   const conflictDirs = /* @__PURE__ */ new Set();
   for (const entry of list) {
     if (entry === null || typeof entry !== "object" || typeof entry.path !== "string") continue;
     const kind = fileStatusKind(entry);
     if (kind === null) continue;
     if (kind === "ignored") {
-      ignored.add(entry.path);
+      const isDir = entry.ignoredDir === true || entry.path.endsWith("/");
+      const path2 = entry.path.replace(/\/+$/, "");
+      if (path2 === "") continue;
+      ignored.add(path2);
+      if (isDir) for (const ancestor of ancestorsOf(path2)) ignored.add(ancestor);
       continue;
     }
     if (entry.path.endsWith("/")) {
@@ -60948,6 +61204,7 @@ function sameStatusEntries(left, right) {
     if (one === null || other === null || typeof one !== "object" || typeof other !== "object") return false;
     if (one.path !== other.path) return false;
     if (fileStatusKind(one) !== fileStatusKind(other)) return false;
+    if (one.ignoredDir === true !== (other.ignoredDir === true)) return false;
   }
   return true;
 }
@@ -60955,6 +61212,79 @@ function stableAggregateStatus(previous, entries) {
   const list = Array.isArray(entries) ? entries : [];
   if (previous !== void 0 && sameStatusEntries(previous.entries, list)) return previous;
   return aggregateStatus(list);
+}
+
+// src/client/compact-path.js
+function isCompactable(node) {
+  if (node === void 0 || node === null) return false;
+  if (node.kind !== void 0 && node.kind !== "dir") return false;
+  if (!Array.isArray(node.children)) return false;
+  if (node.children.length !== 1) return false;
+  const only = node.children[0];
+  return only !== void 0 && only !== null && only.kind !== "file";
+}
+function segmentsOf(node) {
+  if (node === void 0 || node === null) return [];
+  if (Array.isArray(node.segments) && node.segments.length > 0) return node.segments;
+  return typeof node.name === "string" && node.name !== "" ? [node.name] : [];
+}
+function isMergedNode(node) {
+  return node !== void 0 && node !== null && node.merged === true;
+}
+function compactTree(nodes) {
+  const list = Array.isArray(nodes) ? nodes : [];
+  const output = [];
+  for (const node of list) {
+    if (node === void 0 || node === null) {
+      output.push(node);
+      continue;
+    }
+    if (!isCompactable(node)) {
+      output.push(node);
+      continue;
+    }
+    const segments = [node.name];
+    let current = node;
+    while (isCompactable(current)) {
+      const only = current.children[0];
+      segments.push(only.name);
+      current = only;
+    }
+    if (segments.length < 2) {
+      output.push(node);
+      continue;
+    }
+    output.push({
+      ...current,
+      name: node.name,
+      merged: true,
+      segments,
+      path: current.path,
+      children: current.children
+    });
+  }
+  return output;
+}
+function compactLabel(node, sep = ".") {
+  if (node === void 0 || node === null) return "";
+  const segments = segmentsOf(node);
+  if (segments.length === 0) return typeof node.name === "string" ? node.name : "";
+  if (segments.length === 1) return segments[0];
+  const separator = typeof sep === "string" && sep !== "" ? sep : ".";
+  const ambiguous = segments.some((segment) => segment.includes(separator));
+  return segments.join(ambiguous ? "/" : separator);
+}
+function compactLabelFitted(node, maxChars, sep = ".") {
+  const full = compactLabel(node, sep);
+  const limit = typeof maxChars === "number" && maxChars > 0 ? maxChars : full.length;
+  if (full.length <= limit) return full;
+  const segments = segmentsOf(node);
+  if (segments.length <= 1) return full;
+  const head = segments[0];
+  const tail = segments[segments.length - 1];
+  const short = `${head}\u2026${tail}`;
+  if (short.length <= limit) return short;
+  return tail;
 }
 
 // src/client/ProjectPanel.jsx
@@ -61021,6 +61351,48 @@ function flatten2(state, filter, showIgnored, ignored, mode = "tree") {
   const isExpanded = (path2) => state.expanded.has(path2);
   const gitRoot = gitRootOf(state);
   const visible = (entry) => showIgnored || !ignored.has(relativePathWithin(gitRoot, entry.path));
+  const nodeOf = (entry) => {
+    if (!entry.isDir) return { name: entry.name, path: entry.path, kind: "file", entry };
+    const dir = dirs.get(entry.path);
+    const loaded = dir !== void 0 && dir.entries !== void 0;
+    let children;
+    if (loaded) {
+      let only = null;
+      let count2 = 0;
+      for (const child of dir.entries) {
+        if (!visible(child)) continue;
+        count2 += 1;
+        if (count2 > 1) break;
+        only = child;
+      }
+      children = count2 === 1 && only.isDir === true ? [nodeOf(only)] : [];
+    }
+    return { name: entry.name, path: entry.path, kind: "dir", entry, children };
+  };
+  const pushLevel = (entries, depth2) => {
+    for (const node of compactTree(entries.filter(visible).map(nodeOf))) {
+      if (node.kind === "file") {
+        if (normalized !== "" && !node.name.toLowerCase().includes(normalized) && !node.entry.rel.toLowerCase().includes(normalized)) continue;
+        rows.push({ kind: "file", key: node.path, entry: node.entry, depth: depth2 });
+        continue;
+      }
+      const merged = node.merged === true;
+      const entry = merged ? { ...node.entry, merged: true, segments: node.segments } : node.entry;
+      rows.push({
+        kind: "dir",
+        key: node.path,
+        entry,
+        depth: depth2,
+        open: isExpanded(node.path),
+        merged,
+        // The label of a merged row is the dot-joined chain; the title stays
+        // the full relative path of the chain's leaf.
+        label: merged ? compactLabel(node, ".") : void 0,
+        segments: merged ? node.segments : void 0
+      });
+      if (isExpanded(node.path)) walk(node.path, depth2 + 1);
+    }
+  };
   const walk = (path2, depth2) => {
     const dir = dirs.get(path2);
     if (dir === void 0 || dir.entries === void 0) {
@@ -61031,17 +61403,7 @@ function flatten2(state, filter, showIgnored, ignored, mode = "tree") {
       rows.push({ kind: "error", key: `error:${path2}`, depth: depth2, message: dir.error, path: path2 });
       return;
     }
-    for (const entry of dir.entries) {
-      if (!visible(entry)) continue;
-      if (entry.isDir) {
-        const open = isExpanded(entry.path);
-        rows.push({ kind: "dir", key: entry.path, entry, depth: depth2, open });
-        if (open) walk(entry.path, depth2 + 1);
-      } else {
-        if (normalized !== "" && !entry.name.toLowerCase().includes(normalized) && !entry.rel.toLowerCase().includes(normalized)) continue;
-        rows.push({ kind: "file", key: entry.path, entry, depth: depth2 });
-      }
-    }
+    pushLevel(dir.entries, depth2);
     if (dir.truncated === true) rows.push({ kind: "note", key: `trunc:${path2}`, depth: depth2, message: "\u2026" });
     if (dir.loading === true && dir.entries !== void 0) {
       rows.push({ kind: "note", key: `busy:${path2}`, depth: depth2, message: "\u2026" });
@@ -61056,18 +61418,96 @@ function flatten2(state, filter, showIgnored, ignored, mode = "tree") {
     }
     return rows;
   }
-  for (const entry of dirs.get(root)?.entries ?? []) {
-    if (!visible(entry)) continue;
-    if (entry.isDir) {
-      const open = isExpanded(entry.path);
-      rows.push({ kind: "dir", key: entry.path, entry, depth: 0, open });
-      if (open) walk(entry.path, 1);
-    } else {
-      if (normalized !== "" && !entry.name.toLowerCase().includes(normalized) && !entry.rel.toLowerCase().includes(normalized)) continue;
-      rows.push({ kind: "file", key: entry.path, entry, depth: 0 });
-    }
-  }
+  pushLevel(rootDir.entries, 0);
   return rows;
+}
+function visibleAncestorOf(path2, paths, root) {
+  if (typeof path2 !== "string" || path2 === "") return null;
+  const known = paths instanceof Set ? paths : new Set(Array.isArray(paths) ? paths : []);
+  let current = parentOf(path2);
+  while (current !== "" && current !== root && current !== parentOf(current)) {
+    if (known.has(current)) return current;
+    current = parentOf(current);
+  }
+  return null;
+}
+function currentFolderPathOf(rows, scrollTop, paths, root) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const offset = Number.isFinite(scrollTop) ? scrollTop : 0;
+  const index = Math.min(rows.length - 1, Math.max(0, Math.floor(offset / ROW_HEIGHT)));
+  const row = rows[index];
+  if (row?.entry === void 0) return null;
+  return visibleAncestorOf(row.entry.path, paths, root);
+}
+function resolveEntryPath(value) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (raw === "") return { ok: false, detail: "the path is empty" };
+  const slashed = raw.replace(/\\/g, "/");
+  if (slashed.startsWith("/") || /^[a-zA-Z]:/.test(slashed)) {
+    return { ok: false, detail: "the path is absolute" };
+  }
+  const parts = slashed.split("/");
+  for (const part of parts) {
+    if (part === "") return { ok: false, detail: "the path has an empty segment" };
+    if (part === "." || part === "..") return { ok: false, detail: "the path leaves the project root" };
+  }
+  return { ok: true, path: parts.join("/"), name: parts[parts.length - 1] };
+}
+function newEntryDialogState(parent, isDir, root) {
+  const rel = relativePathWithin(root, parent);
+  const base2 = rel === null ? "" : rel;
+  return {
+    kind: "new",
+    parent,
+    isDir,
+    name: "",
+    template: "plain",
+    base: base2,
+    path: base2,
+    pathEdited: false
+  };
+}
+function withDialogName(dialog, name2) {
+  if (dialog === null || dialog === void 0) return dialog;
+  const path2 = name2 === "" ? dialog.base : dialog.pathEdited === true ? replaceLastSegment(dialog.path, name2) : joinRelative(dialog.base, name2);
+  return { ...dialog, name: name2, path: path2 };
+}
+function withDialogPath(dialog, path2) {
+  if (dialog === null || dialog === void 0) return dialog;
+  return {
+    ...dialog,
+    path: path2,
+    pathEdited: true,
+    name: baseName(String(path2).replace(/\\/g, "/"))
+  };
+}
+function withDialogPathUnlocked(dialog) {
+  if (dialog === null || dialog === void 0) return dialog;
+  if (dialog.pathEdited === true) return dialog;
+  return { ...dialog, pathEdited: true };
+}
+function canRenameEntry(entry) {
+  if (entry === void 0 || entry === null) return false;
+  return entry.merged !== true;
+}
+function resolveNewEntry(dialog, root) {
+  if (dialog?.pathEdited === true) {
+    const resolved = resolveEntryPath(dialog.path);
+    if (!resolved.ok) return { ok: false, reason: "invalid-path", detail: dialog.path };
+    return { ok: true, name: resolved.name, relPath: resolved.path };
+  }
+  const name2 = typeof dialog?.name === "string" ? dialog.name.trim() : "";
+  if (name2 === "") return { ok: false, reason: "empty-name" };
+  return { ok: true, parent: dialog.parent, name: name2 };
+}
+function joinRelative(base2, name2) {
+  if (base2 === "" || base2 === void 0 || base2 === null) return name2;
+  return `${base2}/${name2}`;
+}
+function replaceLastSegment(path2, name2) {
+  if (typeof path2 !== "string" || path2 === "") return name2;
+  const index = path2.lastIndexOf("/");
+  return index < 0 ? name2 : `${path2.slice(0, index)}/${name2}`;
 }
 function flattenInputs(state, showIgnored, ignored, mode) {
   return [state.dirs, state.expanded, state.root, state.filter, state.gitRepoRoot, showIgnored, ignored, mode];
@@ -61150,6 +61590,7 @@ var NEW_TEMPLATES = [
 ];
 var TreeRow = import_react5.default.memo(function TreeRow2({
   entry,
+  label: label3,
   depth: depth2,
   top: top2,
   open,
@@ -61216,7 +61657,7 @@ var TreeRow = import_react5.default.memo(function TreeRow2({
       onDoubleClick: (event) => event.stopPropagation()
     }, open ? import_react5.default.createElement(ChevronDown, null) : import_react5.default.createElement(ChevronRight, null)) : import_react5.default.createElement("span", { className: "iwb-tree-twisty" }),
     isDir ? import_react5.default.createElement(FileTypeIcon, { kind: "folder", size: 15 }) : import_react5.default.createElement(FileTypeIcon, { path: entry.name, size: 15 }),
-    isDir ? import_react5.default.createElement("span", { className: "iwb-tree-name iwb-dir" }, entry.name) : editing ? import_react5.default.createElement("input", {
+    isDir ? import_react5.default.createElement("span", { className: "iwb-tree-name iwb-dir" }, label3 ?? entry.name) : editing ? import_react5.default.createElement("input", {
       className: "iwb-rename-input",
       autoFocus: true,
       value: renameValue,
@@ -61229,6 +61670,121 @@ var TreeRow = import_react5.default.memo(function TreeRow2({
     relative !== void 0 ? import_react5.default.createElement("span", { className: "iwb-tree-relative" }, relative) : null
   );
 });
+function NewEntryDialog({
+  dialog,
+  t: t3,
+  onNameChange,
+  onPathChange,
+  onPathFocus,
+  onTemplateChange,
+  onSubmit,
+  onCancel
+}) {
+  return import_react5.default.createElement(
+    "div",
+    {
+      className: "iwb-modal-backdrop",
+      onMouseDown: (event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }
+    },
+    import_react5.default.createElement(
+      "div",
+      { className: "iwb-modal", role: "dialog", "aria-modal": "true" },
+      import_react5.default.createElement("h2", null, dialog.isDir ? t3("project.newDir") : t3("project.newFile")),
+      import_react5.default.createElement(
+        "label",
+        { className: "iwb-field" },
+        import_react5.default.createElement("span", null, t3("project.nameLabel")),
+        import_react5.default.createElement("input", {
+          autoFocus: true,
+          value: dialog.name,
+          onChange: (event) => onNameChange(event.target.value),
+          onKeyDown: (event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onSubmit();
+            }
+          }
+        })
+      ),
+      import_react5.default.createElement(
+        "label",
+        { className: "iwb-field" },
+        import_react5.default.createElement("span", null, t3("project.pathLabel")),
+        import_react5.default.createElement("input", {
+          value: dialog.path,
+          // A disabled input cannot be clicked into, so the path box is
+          // read-only (and greyed by `.iwb-input-readonly`) until the mouse
+          // clicks into it.
+          readOnly: dialog.pathEdited !== true,
+          className: dialog.pathEdited === true ? void 0 : "iwb-input-readonly",
+          title: t3("project.pathHint"),
+          onFocus: onPathFocus,
+          onChange: (event) => onPathChange(event.target.value),
+          onKeyDown: (event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onSubmit();
+            }
+          }
+        }),
+        import_react5.default.createElement("span", { className: "iwb-modal-hint" }, t3("project.pathHint"))
+      ),
+      !dialog.isDir ? import_react5.default.createElement(
+        "label",
+        { className: "iwb-field" },
+        import_react5.default.createElement("span", null, t3("project.templateLabel")),
+        import_react5.default.createElement("select", {
+          value: dialog.template,
+          onChange: (event) => {
+            const template = NEW_TEMPLATES.find((item) => item.id === event.target.value);
+            const ext = template?.ext ?? "";
+            const name2 = dialog.name.includes(".") ? dialog.name : `${dialog.name}${ext}`;
+            onNameChange(name2);
+            onTemplateChange(event.target.value);
+          }
+        }, NEW_TEMPLATES.map((template) => import_react5.default.createElement("option", { key: template.id, value: template.id }, t3(template.labelKey))))
+      ) : null,
+      import_react5.default.createElement(
+        "div",
+        { className: "iwb-modal-actions" },
+        import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: onCancel }, t3("common.cancel")),
+        import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: onSubmit }, t3("project.create"))
+      )
+    )
+  );
+}
+function FrozenFolderBar({ path: path2, label: label3, title, foldTitle, onJump, onToggle }) {
+  return import_react5.default.createElement(
+    "div",
+    {
+      className: "iwb-tree-sticky",
+      // The bar is a layer on top of the tree: it must not push the rows down
+      // when it appears, or the tree would jump on every scroll step.
+      style: { marginBottom: "-22px" }
+    },
+    import_react5.default.createElement("span", {
+      className: "iwb-tree-twisty iwb-tree-twisty-click",
+      title: foldTitle ?? title,
+      // The twisty sits inside the bar, which jumps on click: without
+      // stopPropagation one click would jump *and* fold the folder. A double
+      // click sends two clicks plus a dblclick: only the first click may
+      // fold, and the dblclick must not reach the bar.
+      onClick: (event) => {
+        event.stopPropagation();
+        if (event.detail > 1) return;
+        onToggle(path2);
+      },
+      onDoubleClick: (event) => event.stopPropagation()
+    }, import_react5.default.createElement(ChevronDown, null)),
+    import_react5.default.createElement("span", {
+      className: "iwb-tree-sticky-item",
+      title,
+      onClick: () => onJump(path2)
+    }, label3)
+  );
+}
 function projectSlice(state) {
   return {
     dirs: state.dirs,
@@ -61252,12 +61808,12 @@ function projectSlice(state) {
     gitRepoRoot: state.gitRepoRoot
   };
 }
-function ProjectPanel({ store, state: _state }) {
+function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const slice = useStoreSlice(store, projectSlice, shallowEqual);
   const t3 = store.t;
   const [filterOpen, setFilterOpen] = (0, import_react5.useState)(false);
   const [menu, setMenu] = (0, import_react5.useState)(null);
-  const [scrollTop, setScrollTop] = (0, import_react5.useState)(0);
+  const [scrollTop, setScrollTop] = (0, import_react5.useState)(initialScrollTop);
   const [viewport, setViewport] = (0, import_react5.useState)(600);
   const [locateTick, setLocateTick] = (0, import_react5.useState)(0);
   const [renaming, setRenaming] = (0, import_react5.useState)(null);
@@ -61324,6 +61880,31 @@ function ProjectPanel({ store, state: _state }) {
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 6);
   const end = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + 6);
   const visible = rows.slice(start, end);
+  const rowPathSet = (0, import_react5.useMemo)(() => new Set(rowPaths), [rowPaths]);
+  const dirRows = (0, import_react5.useMemo)(() => {
+    const map = /* @__PURE__ */ new Map();
+    for (const row of rows) {
+      if (row.kind === "dir" && row.entry !== void 0) map.set(row.entry.path, row);
+    }
+    return map;
+  }, [rows]);
+  const stickyPath = filterMode === "files" ? null : currentFolderPathOf(rows, scrollTop, rowPathSet, slice.root);
+  const stickyRow = stickyPath === null ? void 0 : dirRows.get(stickyPath);
+  const onStickyJump = (0, import_react5.useCallback)((path2) => {
+    if (typeof path2 !== "string" || path2 === "") return;
+    store.setSelectedPath(path2);
+    setLocateTick((tick) => tick + 1);
+  }, [store]);
+  const onStickyToggle = (0, import_react5.useCallback)((path2) => {
+    if (typeof path2 !== "string" || path2 === "") return;
+    store.toggleDir(path2);
+  }, [store]);
+  const stickyLabel = stickyRow === void 0 ? "" : stickyRow.merged === true && Array.isArray(stickyRow.segments) && stickyRow.segments.length > 1 ? stickyRow.segments.map((segment, index) => import_react5.default.createElement(
+    import_react5.default.Fragment,
+    { key: `${segment}-${index}` },
+    index > 0 ? import_react5.default.createElement("span", { className: "iwb-tree-sticky-sep" }, ".") : null,
+    import_react5.default.createElement("span", null, segment)
+  )) : stickyRow.label ?? stickyRow.entry?.name ?? "";
   const selection = (0, import_react5.useMemo)(
     () => slice.selectedPaths instanceof Set ? slice.selectedPaths : new Set(slice.selectedPath === "" ? [] : [slice.selectedPath]),
     [slice.selectedPaths, slice.selectedPath]
@@ -61345,17 +61926,24 @@ function ProjectPanel({ store, state: _state }) {
   };
   const beginRename = (entry) => {
     if (entry === void 0) return;
+    if (!canRenameEntry(entry)) {
+      store.toast("error", t3("project.compactRenameDenied"), entry.rel ?? "");
+      return;
+    }
     setRenaming({ path: entry.path, value: entry.name });
   };
   const beginNew = (parentPath2, isDir) => {
-    setDialog({
-      kind: "new",
-      parent: parentPath2,
-      isDir,
-      name: "",
-      template: isDir ? "plain" : "plain"
-    });
+    setDialog(newEntryDialogState(parentPath2, isDir, slice.root));
   };
+  const onDialogNameChange = (0, import_react5.useCallback)((value) => {
+    setDialog((current) => withDialogName(current, value));
+  }, []);
+  const onDialogPathChange = (0, import_react5.useCallback)((value) => {
+    setDialog((current) => withDialogPath(current, value));
+  }, []);
+  const onDialogPathFocus = (0, import_react5.useCallback)(() => {
+    setDialog((current) => withDialogPathUnlocked(current));
+  }, []);
   const beginMove = (entries) => {
     setDialog({ kind: "move", paths: entries.map((entry) => entry.path), target: "" });
   };
@@ -61403,7 +61991,15 @@ function ProjectPanel({ store, state: _state }) {
         void store.duplicateEntries(currentPaths);
       } },
       { key: "delete", text: t3("project.delete"), shortcut: shortcut("delete"), danger: true, disabled: currentPaths.length === 0, action: () => store.requestDelete(currentPaths) },
-      { key: "rename", text: t3("project.rename"), shortcut: shortcut("rename"), disabled: currentEntries.length !== 1, action: () => beginRename(currentEntry) },
+      {
+        key: "rename",
+        text: t3("project.rename"),
+        shortcut: shortcut("rename"),
+        // A merged folder cannot be renamed - the menu says why.
+        disabled: currentEntries.length !== 1 || !canRenameEntry(currentEntry),
+        title: currentEntry?.merged === true ? t3("project.compactRenameDenied") : void 0,
+        action: () => beginRename(currentEntry)
+      },
       null,
       {
         key: "copy-path",
@@ -61566,8 +62162,8 @@ function ProjectPanel({ store, state: _state }) {
         store.toggleDir(row.entry.path);
         return;
       }
-      const parent = parentOf(slice.selectedPath);
-      if (parent !== slice.root && rowPaths.includes(parent)) store.setSelection([parent], parent);
+      const parent = visibleAncestorOf(slice.selectedPath, rowPathSet, slice.root);
+      if (parent !== null) store.setSelection([parent], parent);
       return;
     }
     if (key === "Escape") {
@@ -61647,11 +62243,18 @@ function ProjectPanel({ store, state: _state }) {
   const submitDialog = () => {
     if (dialog === null) return;
     if (dialog.kind === "new") {
-      const name2 = dialog.name.trim();
-      if (name2 === "") return;
-      const content2 = dialog.isDir ? "" : templateContent(dialog.template, name2);
+      const target = resolveNewEntry(dialog, slice.root);
+      if (!target.ok) {
+        if (target.reason === "invalid-path") store.toast("error", t3("project.pathInvalid"), target.detail ?? "");
+        return;
+      }
+      const content2 = dialog.isDir ? "" : templateContent(dialog.template, target.name);
       setDialog(null);
-      void store.createEntry(dialog.parent, { name: name2, isDir: dialog.isDir, content: content2 });
+      if (target.relPath !== void 0) {
+        void store.createEntry(slice.root, { relPath: target.relPath, isDir: dialog.isDir, content: content2 });
+        return;
+      }
+      void store.createEntry(target.parent, { name: target.name, isDir: dialog.isDir, content: content2 });
       return;
     }
     if (dialog.kind === "move") {
@@ -61704,6 +62307,8 @@ function ProjectPanel({ store, state: _state }) {
       return import_react5.default.createElement(TreeRow, {
         key: row.key,
         entry,
+        // A merged row shows the dot-joined chain instead of one segment.
+        label: row.merged === true ? row.label : void 0,
         depth: row.depth,
         top: top2,
         open: row.kind === "dir" ? row.open : void 0,
@@ -61739,6 +62344,14 @@ function ProjectPanel({ store, state: _state }) {
     store.setSelectedPath(activeTab.path);
     setLocateTick((tick) => tick + 1);
   }, [store, activeTab]);
+  const stickyBar = stickyRow === void 0 ? null : import_react5.default.createElement(FrozenFolderBar, {
+    path: stickyPath,
+    label: stickyLabel,
+    title: stickyRow.entry?.rel ?? "",
+    foldTitle: t3("project.currentFolder"),
+    onJump: onStickyJump,
+    onToggle: onStickyToggle
+  });
   return import_react5.default.createElement(
     import_react5.default.Fragment,
     null,
@@ -61837,55 +62450,18 @@ function ProjectPanel({ store, state: _state }) {
       onContextMenu: (event) => {
         if (event.target === event.currentTarget) openMenu(event, void 0);
       }
-    }, rootRow),
+    }, stickyBar, rootRow),
     menu !== null ? import_react5.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
-    dialog !== null && dialog.kind === "new" ? import_react5.default.createElement(
-      "div",
-      { className: "iwb-modal-backdrop", onMouseDown: (event) => {
-        if (event.target === event.currentTarget) setDialog(null);
-      } },
-      import_react5.default.createElement(
-        "div",
-        { className: "iwb-modal", role: "dialog", "aria-modal": "true" },
-        import_react5.default.createElement("h2", null, dialog.isDir ? t3("project.newDir") : t3("project.newFile")),
-        import_react5.default.createElement(
-          "label",
-          { className: "iwb-field" },
-          import_react5.default.createElement("span", null, t3("project.nameLabel")),
-          import_react5.default.createElement("input", {
-            autoFocus: true,
-            value: dialog.name,
-            onChange: (event) => setDialog({ ...dialog, name: event.target.value }),
-            onKeyDown: (event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                submitDialog();
-              }
-            }
-          })
-        ),
-        !dialog.isDir ? import_react5.default.createElement(
-          "label",
-          { className: "iwb-field" },
-          import_react5.default.createElement("span", null, t3("project.templateLabel")),
-          import_react5.default.createElement("select", {
-            value: dialog.template,
-            onChange: (event) => {
-              const template = NEW_TEMPLATES.find((item) => item.id === event.target.value);
-              const ext = template?.ext ?? "";
-              const name2 = dialog.name.includes(".") ? dialog.name : `${dialog.name}${ext}`;
-              setDialog({ ...dialog, template: event.target.value, name: name2 });
-            }
-          }, NEW_TEMPLATES.map((template) => import_react5.default.createElement("option", { key: template.id, value: template.id }, t3(template.labelKey))))
-        ) : null,
-        import_react5.default.createElement(
-          "div",
-          { className: "iwb-modal-actions" },
-          import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn", onClick: () => setDialog(null) }, t3("common.cancel")),
-          import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: submitDialog }, t3("project.create"))
-        )
-      )
-    ) : null,
+    dialog !== null && dialog.kind === "new" ? import_react5.default.createElement(NewEntryDialog, {
+      dialog,
+      t: t3,
+      onNameChange: onDialogNameChange,
+      onPathChange: onDialogPathChange,
+      onPathFocus: onDialogPathFocus,
+      onTemplateChange: (template) => setDialog((current) => current === null ? current : { ...current, template }),
+      onSubmit: submitDialog,
+      onCancel: () => setDialog(null)
+    }) : null,
     dialog !== null && dialog.kind === "move" ? import_react5.default.createElement(
       "div",
       { className: "iwb-modal-backdrop", onMouseDown: (event) => {
@@ -62542,6 +63118,8 @@ var GRAPH_MAX = 8;
 var TREE_DIR_INDENT = 5;
 var TREE_FILE_INDENT = 20;
 var TREE_INDENT_STEP = 12;
+var TREE_CHAR_WIDTH = 7;
+var TREE_ROW_CHROME = 30;
 function label(t3, key, fallback2) {
   const value = t3(key);
   return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
@@ -62685,6 +63263,57 @@ function diffFiles(diff) {
   }
   return output;
 }
+async function copyToClipboard(store, t3, text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    store.toast("success", t3("common.copied"), text);
+  } catch {
+    store.toast("error", t3("common.error"), text);
+  }
+}
+function shortShaOf(commit) {
+  const short = typeof commit?.shortHash === "string" && commit.shortHash !== "" ? commit.shortHash : typeof commit?.hash === "string" ? commit.hash : "";
+  return short.slice(0, 7);
+}
+function commitMenuItems(commit, tools) {
+  const { t: t3, openDetail, copy, store } = tools;
+  return [
+    { key: "open", text: t3("git.openDetails"), action: () => openDetail(commit.hash) },
+    {
+      // The full and the short SHA are two different texts, so they get a
+      // submenu: the short one is the seven characters an IDE user types
+      // into `git show` (R8).
+      key: "copy-sha",
+      text: t3("git.copySha"),
+      submenu: [
+        { key: "copy-sha-full", text: t3("git.copyFullSha"), action: () => {
+          void copy(commit.hash);
+        } },
+        { key: "copy-sha-short", text: t3("git.copyShortSha"), action: () => {
+          void copy(shortShaOf(commit));
+        } }
+      ]
+    },
+    { key: "compare-head", text: t3("git.compareWithHead"), action: () => store.openCompare(commit.hash, "HEAD") },
+    null,
+    {
+      key: "checkout",
+      text: t3("git.checkout"),
+      action: () => store.requestCheckout(commit.hash)
+    },
+    {
+      key: "revert",
+      text: t3("git.revert"),
+      action: () => {
+        store.askConfirm(t3("git.revert"), `${t3("git.revertConfirm")}
+
+${commit.shortHash} ${commit.subject}`, t3("git.revert"), () => {
+          void store.revert(commit.hash);
+        });
+      }
+    }
+  ];
+}
 function buildChangedFileTree(files) {
   const root = { name: "", path: "", depth: 0, dirs: /* @__PURE__ */ new Map(), files: [] };
   for (const group of groupByDirectory(files)) {
@@ -62704,16 +63333,104 @@ function buildChangedFileTree(files) {
   }
   return root;
 }
+function fileNameOf(file) {
+  return file.path.split("/").pop() ?? file.path;
+}
+function compactShape(node) {
+  const children = [];
+  for (const dir of node.dirs.values()) children.push(compactShape(dir));
+  for (const file of node.files) children.push({ name: fileNameOf(file), path: file.path, kind: "file", file });
+  const shape = { name: node.name, path: node.path, kind: "dir", depth: node.depth, children };
+  if (isMergedNode(node)) {
+    shape.merged = true;
+    shape.segments = node.segments;
+    shape.chain = node.chain;
+  }
+  return shape;
+}
+function chainOf(node) {
+  if (node === void 0 || node === null) return [];
+  const chain = [{ name: node.name, path: node.path, depth: node.depth }];
+  let current = node;
+  while (isCompactable(current)) {
+    current = current.children[0];
+    chain.push({ name: current.name, path: current.path, depth: current.depth });
+  }
+  return chain;
+}
+function compactLevel(children) {
+  const pending = children.filter((child) => !isMergedNode(child));
+  const compacted = compactTree(pending);
+  let cursor = 0;
+  return children.map((child) => {
+    const depth2 = child?.depth ?? 0;
+    if (isMergedNode(child)) {
+      return { ...child, depth: depth2, children: compactLevel(child.children).map((entry) => ({ ...entry, depth: depth2 + 1 })) };
+    }
+    const node = compacted[cursor];
+    cursor += 1;
+    if (node.kind === "file") return { ...node, depth: depth2 };
+    const entries = compactLevel(node.children).map((entry) => ({ ...entry, depth: depth2 + 1 }));
+    const result = { ...node, depth: depth2, children: entries };
+    if (isMergedNode(node)) result.chain = chainOf(child);
+    return result;
+  });
+}
+function treeShape(node) {
+  const dirs = /* @__PURE__ */ new Map();
+  const files = [];
+  for (const child of node.children) {
+    if (child.kind === "file") {
+      files.push(child.file);
+      continue;
+    }
+    dirs.set(child.name, treeShape(child));
+  }
+  const result = { name: node.name, path: node.path, depth: node.depth, dirs, files };
+  if (node.merged === true) {
+    result.merged = true;
+    result.segments = node.segments;
+    result.chain = node.chain;
+  }
+  return result;
+}
+function compactChangedFileTree(root) {
+  if (root === void 0 || root === null) return root;
+  const shape = compactShape(root);
+  return treeShape({ ...shape, children: compactLevel(shape.children) });
+}
 function defaultCollapsedDirs(root) {
   const collapsed = /* @__PURE__ */ new Set();
   const walk = (node) => {
     for (const dir of node.dirs.values()) {
-      if (dir.depth >= 2) collapsed.add(dir.path);
+      if (!isMergedNode(dir) && dir.depth >= 2) collapsed.add(dir.path);
       walk(dir);
     }
   };
-  walk(root);
+  walk(compactChangedFileTree(root));
   return collapsed;
+}
+function originalTree(dir) {
+  const chain = Array.isArray(dir.chain) ? dir.chain : [];
+  if (chain.length === 0) return null;
+  const leaf = chain[chain.length - 1];
+  let node = { name: leaf.name, path: leaf.path, depth: leaf.depth, dirs: dir.dirs, files: dir.files };
+  for (let index = chain.length - 2; index >= 0; index -= 1) {
+    const current = chain[index];
+    node = { name: current.name, path: current.path, depth: current.depth, dirs: /* @__PURE__ */ new Map([[current.name, node]]), files: [] };
+  }
+  return { name: "", path: "", depth: chain[0].depth - 1, dirs: /* @__PURE__ */ new Map([[node.name, node]]), files: [] };
+}
+function labelLimit(options) {
+  const width = options?.width;
+  if (typeof width !== "number" || !Number.isFinite(width) || width <= 0) return void 0;
+  const indent2 = TREE_DIR_INDENT + (options.depth ?? 0) * TREE_INDENT_STEP;
+  return Math.max(6, Math.floor((width - indent2 - TREE_ROW_CHROME) / TREE_CHAR_WIDTH));
+}
+function dirLabel(dir, merged, options) {
+  if (!merged) return dir.name;
+  const limit = labelLimit(options);
+  return limit === void 0 ? compactLabel(dir, "/") : compactLabelFitted(dir, limit, "/");
 }
 function sortedChildren(node) {
   const children = [];
@@ -62733,10 +63450,21 @@ function firstLeafOf(node) {
   return "";
 }
 function fileTreeRows(node, options) {
+  return renderTreeRows(compactChangedFileTree(node), options);
+}
+function renderTreeRows(node, options) {
   const rows = [];
   for (const [index, child] of sortedChildren(node).entries()) {
     if (child.kind === "dir") {
       const dir = child.node;
+      const merged = isMergedNode(dir);
+      if (merged && options.expandedOriginal?.has(dir.path) === true) {
+        const original = originalTree(dir);
+        if (original !== null) {
+          rows.push(...renderTreeRows(original, options));
+          continue;
+        }
+      }
       const expanded = !options.collapsed.has(dir.path);
       rows.push(import_react7.default.createElement(
         "button",
@@ -62747,12 +63475,18 @@ function fileTreeRows(node, options) {
           title: dir.path,
           "aria-expanded": expanded,
           style: { paddingLeft: `${TREE_DIR_INDENT + options.depth * TREE_INDENT_STEP}px` },
-          onClick: () => options.onToggleDir(dir.path)
+          // The two clicks of a double click must not toggle the row: the
+          // double click of a merged chain opens the original folders.
+          onClick: (event) => {
+            if (event?.detail > 1) return;
+            options.onToggleDir(dir.path);
+          },
+          onDoubleClick: merged ? () => options.onExpandOriginal?.(dir.path) : void 0
         },
         import_react7.default.createElement("span", { className: "iwb-git-tree-caret" }, expanded ? "\u25BE" : "\u25B8"),
-        import_react7.default.createElement("span", { className: "iwb-git-tree-dir-name" }, dir.name)
+        import_react7.default.createElement("span", { className: "iwb-git-tree-dir-name" }, dirLabel(dir, merged, options))
       ));
-      if (expanded) rows.push(...fileTreeRows(dir, { ...options, depth: options.depth + 1 }));
+      if (expanded) rows.push(...renderTreeRows(dir, { ...options, depth: options.depth + 1 }));
       continue;
     }
     const file = child.file;
@@ -62775,9 +63509,10 @@ function fileTreeRows(node, options) {
   }
   return rows;
 }
-function ChangedFileTree({ store, hash: hash3, files }) {
-  const tree = (0, import_react7.useMemo)(() => buildChangedFileTree(files), [files]);
+function ChangedFileTree({ store, hash: hash3, files, width }) {
+  const tree = (0, import_react7.useMemo)(() => compactChangedFileTree(buildChangedFileTree(files)), [files]);
   const [toggles, setToggles] = (0, import_react7.useState)(() => /* @__PURE__ */ new Map());
+  const [expandedOriginal, setExpandedOriginal] = (0, import_react7.useState)(() => /* @__PURE__ */ new Set());
   const [selectedPath, setSelectedPath] = (0, import_react7.useState)("");
   const collapsed = (0, import_react7.useMemo)(() => {
     const dirs = defaultCollapsedDirs(tree);
@@ -62789,6 +63524,7 @@ function ChangedFileTree({ store, hash: hash3, files }) {
   }, [tree, toggles]);
   (0, import_react7.useEffect)(() => {
     setSelectedPath("");
+    setExpandedOriginal(/* @__PURE__ */ new Set());
   }, [hash3]);
   const toggleDir = (0, import_react7.useCallback)((path2) => {
     setToggles((previous) => {
@@ -62797,6 +63533,13 @@ function ChangedFileTree({ store, hash: hash3, files }) {
       return next;
     });
   }, [collapsed]);
+  const expandOriginal = (0, import_react7.useCallback)((path2) => {
+    setExpandedOriginal((previous) => {
+      const next = new Set(previous);
+      next.add(path2);
+      return next;
+    });
+  }, []);
   const openFile = (0, import_react7.useCallback)((path2) => {
     void store.openCommitFile(hash3, path2);
   }, [store, hash3]);
@@ -62808,7 +63551,10 @@ function ChangedFileTree({ store, hash: hash3, files }) {
       collapsed,
       selectedPath: selected,
       depth: 0,
+      width,
+      expandedOriginal,
       onToggleDir: toggleDir,
+      onExpandOriginal: expandOriginal,
       onSelectFile: setSelectedPath,
       onOpenFile: openFile
     })
@@ -62969,14 +63715,7 @@ function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
   (0, import_react7.useEffect)(() => {
     closeRef.current?.focus();
   }, [detail?.hash]);
-  const copy = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      store.toast("success", t3("common.copied"), text);
-    } catch {
-      store.toast("error", t3("common.error"), text);
-    }
-  };
+  const copy = (0, import_react7.useCallback)((text) => copyToClipboard(store, t3, text), [store, t3]);
   return import_react7.default.createElement(
     import_react7.default.Fragment,
     null,
@@ -63044,7 +63783,7 @@ function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
           import_react7.default.createElement("span", { className: "iwb-additions" }, ` +${additions}`),
           import_react7.default.createElement("span", { className: "iwb-deletions" }, ` -${deletions}`)
         ),
-        files.length === 0 ? import_react7.default.createElement("div", { className: "iwb-git-detail-dim" }, t3("git.noFiles")) : import_react7.default.createElement(ChangedFileTree, { store, hash: detail.hash, files })
+        files.length === 0 ? import_react7.default.createElement("div", { className: "iwb-git-detail-dim" }, t3("git.noFiles")) : import_react7.default.createElement(ChangedFileTree, { store, hash: detail.hash, files, width })
       )
     )
   );
@@ -63110,14 +63849,7 @@ function GitPanel({ store, state }) {
     setScrollTop(element.scrollTop);
     if (element.scrollHeight - element.scrollTop - element.clientHeight < 240) store.loadMoreCommits();
   };
-  const copy = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      store.toast("success", t3("common.copied"), text);
-    } catch {
-      store.toast("error", t3("common.error"), text);
-    }
-  };
+  const copy = (0, import_react7.useCallback)((text) => copyToClipboard(store, t3, text), [store, t3]);
   const openDetail = (hash3) => {
     void store.openCommitDetail(hash3);
   };
@@ -63173,31 +63905,7 @@ function GitPanel({ store, state }) {
   };
   const menuItems = (0, import_react7.useMemo)(() => {
     if (menu === null) return [];
-    const commit = menu.commit;
-    return [
-      { key: "open", text: t3("git.openDetails"), action: () => openDetail(commit.hash) },
-      { key: "copy", text: t3("git.copySha"), action: () => {
-        void copy(commit.hash);
-      } },
-      { key: "compare-head", text: t3("git.compareWithHead"), action: () => store.openCompare(commit.hash, "HEAD") },
-      null,
-      {
-        key: "checkout",
-        text: t3("git.checkout"),
-        action: () => store.requestCheckout(commit.hash)
-      },
-      {
-        key: "revert",
-        text: t3("git.revert"),
-        action: () => {
-          store.askConfirm(t3("git.revert"), `${t3("git.revertConfirm")}
-
-${commit.shortHash} ${commit.subject}`, t3("git.revert"), () => {
-            void store.revert(commit.hash);
-          });
-        }
-      }
-    ];
+    return commitMenuItems(menu.commit, { t: t3, openDetail, copy, store });
   }, [menu, t3]);
   (0, import_react7.useEffect)(() => {
     if (branchMenu === null && repoMenu === null) return void 0;
@@ -72621,11 +73329,299 @@ var o = class {
 function terminalSlice(state) {
   return { terminal: state.terminal };
 }
-function token(root, name2, fallback2) {
-  const element = root?.current ?? document.querySelector(".iwb-root");
-  if (element === null) return fallback2;
-  const value = getComputedStyle(element).getPropertyValue(name2).trim();
-  return value === "" ? fallback2 : value;
+var THEME_DARK = "dark";
+var THEME_LIGHT = "light";
+var TERMINAL_PALETTE_DARK = Object.freeze({
+  background: "#15171c",
+  foreground: "#d8dce3",
+  cursor: "#4c9aff",
+  cursorAccent: "#15171c",
+  selectionBackground: "#4c9aff55",
+  black: "#7d8593",
+  red: "#e2686f",
+  green: "#4fb477",
+  yellow: "#d7a24a",
+  blue: "#4c9aff",
+  magenta: "#c678dd",
+  cyan: "#56b6c2",
+  white: "#d8dce3",
+  brightBlack: "#8a93a1",
+  brightRed: "#ff7b86",
+  brightGreen: "#6fd08c",
+  brightYellow: "#e8bd6a",
+  brightBlue: "#6cb0ff",
+  brightMagenta: "#d79ae8",
+  brightCyan: "#7fd4df",
+  brightWhite: "#ffffff"
+});
+var TERMINAL_PALETTE_LIGHT = Object.freeze({
+  background: "#ffffff",
+  foreground: "#1f1f1f",
+  cursor: "#1558b0",
+  cursorAccent: "#ffffff",
+  selectionBackground: "#1558b033",
+  black: "#33383f",
+  red: "#b3261e",
+  green: "#2e7d32",
+  yellow: "#8a6100",
+  blue: "#1558b0",
+  magenta: "#7b3fa4",
+  cyan: "#0f6f78",
+  white: "#4f5661",
+  brightBlack: "#6a7280",
+  brightRed: "#c0271c",
+  brightGreen: "#157f3d",
+  brightYellow: "#7a5800",
+  brightBlue: "#0d5bc0",
+  brightMagenta: "#9c27b0",
+  brightCyan: "#00796b",
+  brightWhite: "#11141a"
+});
+var TERMINAL_PALETTES = Object.freeze({
+  [THEME_DARK]: TERMINAL_PALETTE_DARK,
+  [THEME_LIGHT]: TERMINAL_PALETTE_LIGHT
+});
+function relativeLuminance(css2) {
+  const value = String(css2 ?? "").trim();
+  if (value === "") return null;
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value);
+  let channels = null;
+  if (hex !== null) {
+    const digits = hex[1];
+    const full = digits.length === 3 ? digits.split("").map((digit) => digit + digit).join("") : digits;
+    channels = [0, 2, 4].map((index) => parseInt(full.slice(index, index + 2), 16) / 255);
+  } else {
+    const match = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i.exec(value);
+    if (match === null) return null;
+    channels = [match[1], match[2], match[3]].map((part) => Number(part) / 255);
+  }
+  if (channels === null || channels.some((channel) => !Number.isFinite(channel))) return null;
+  const linear = channels.map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+function resolveHostTheme(env = {}) {
+  const token = String(env.token ?? "").trim().toLowerCase();
+  if (token === THEME_LIGHT || token === THEME_DARK) return token;
+  const scheme = String(env.colorScheme ?? "").trim().toLowerCase();
+  const keywords4 = scheme.split(/[\s,]+/).filter((word) => word === THEME_LIGHT || word === THEME_DARK);
+  if (keywords4.length > 0) return keywords4[keywords4.length - 1];
+  const luminance = relativeLuminance(env.background);
+  if (luminance !== null) return luminance >= 0.18 ? THEME_LIGHT : THEME_DARK;
+  return THEME_DARK;
+}
+function readThemeEnvironment(doc2 = typeof document !== "undefined" ? document : null) {
+  const env = { token: "", colorScheme: "", background: "" };
+  if (doc2 === null || doc2 === void 0) return env;
+  const view = doc2.defaultView ?? (typeof window !== "undefined" ? window : null);
+  const computed = (element) => {
+    if (element === null || element === void 0 || view === null) return null;
+    try {
+      return view.getComputedStyle(element);
+    } catch {
+      return null;
+    }
+  };
+  const root = doc2.documentElement ?? null;
+  const rootStyle = computed(root);
+  if (rootStyle !== null) {
+    try {
+      env.colorScheme = String(rootStyle.colorScheme ?? "");
+    } catch {
+      env.colorScheme = "";
+    }
+    try {
+      env.background = String(rootStyle.getPropertyValue?.("--iwb-bg") ?? "");
+    } catch {
+      env.background = "";
+    }
+  }
+  try {
+    const workbench = doc2.querySelector?.(".iwb-root") ?? null;
+    const style = computed(workbench);
+    if (style !== null) {
+      const token = String(style.getPropertyValue?.("--iwb-theme") ?? "").trim();
+      if (token !== "") env.token = token;
+      if (env.background === "") env.background = String(style.getPropertyValue?.("--iwb-bg") ?? "");
+    }
+  } catch {
+  }
+  return env;
+}
+function readHostTheme(doc2 = typeof document !== "undefined" ? document : null) {
+  return resolveHostTheme(readThemeEnvironment(doc2));
+}
+function themeOfSnapshot(snapshot) {
+  if (snapshot === null || snapshot === void 0) return null;
+  const scheme = snapshot?.active?.colorScheme ?? snapshot?.colorScheme ?? snapshot?.mode ?? "";
+  const value = String(scheme).trim().toLowerCase();
+  if (value === THEME_LIGHT || value === THEME_DARK) return value;
+  return null;
+}
+function readHostThemeService(ctx) {
+  try {
+    const theme2 = ctx?.theme;
+    if (theme2 === void 0 || theme2 === null || typeof theme2.getTheme !== "function") return null;
+    return themeOfSnapshot(theme2.getTheme());
+  } catch {
+    return null;
+  }
+}
+function subscribeHostThemeService(ctx, onChange) {
+  try {
+    if (typeof ctx?.on !== "function" || typeof onChange !== "function") return null;
+    const off = ctx.on("theme/change", (snapshot) => {
+      const theme2 = themeOfSnapshot(snapshot);
+      if (theme2 === null) return;
+      try {
+        onChange(theme2);
+      } catch {
+      }
+    });
+    return typeof off === "function" ? off : null;
+  } catch {
+    return null;
+  }
+}
+function watchHostTheme(onChange, deps = {}) {
+  const doc2 = deps.document ?? (typeof document !== "undefined" ? document : null);
+  const Observer = deps.MutationObserver ?? (typeof MutationObserver !== "undefined" ? MutationObserver : null);
+  const setTimer = deps.setTimeout ?? ((fn2, ms2) => setTimeout(fn2, ms2));
+  const clearTimer = deps.clearTimeout ?? ((handle) => clearTimeout(handle));
+  const debounceMs = deps.debounceMs ?? 150;
+  if (doc2 === null || doc2 === void 0 || typeof onChange !== "function") return () => {
+  };
+  let timer = null;
+  let current = readHostTheme(doc2);
+  const emit = () => {
+    timer = null;
+    const theme2 = readHostTheme(doc2);
+    if (theme2 === current) return;
+    current = theme2;
+    try {
+      onChange(theme2);
+    } catch {
+    }
+  };
+  const schedule = () => {
+    if (timer !== null) clearTimer(timer);
+    timer = setTimer(emit, debounceMs);
+  };
+  let observer = null;
+  if (Observer !== null) {
+    try {
+      observer = new Observer(schedule);
+      const root = doc2.documentElement ?? null;
+      if (root !== null) {
+        observer.observe(root, {
+          attributes: true,
+          attributeFilter: ["style", "class", "data-theme", "data-color-scheme"]
+        });
+      }
+      const head = doc2.head ?? null;
+      if (head !== null) {
+        observer.observe(head, { childList: true, subtree: true, characterData: true });
+      }
+    } catch {
+    }
+  }
+  return () => {
+    if (timer !== null) {
+      clearTimer(timer);
+      timer = null;
+    }
+    try {
+      observer?.disconnect();
+    } catch {
+    }
+    observer = null;
+  };
+}
+function applyTerminalTheme(terminal, theme2, element = null) {
+  const palette = TERMINAL_PALETTES[theme2] ?? TERMINAL_PALETTES[THEME_DARK];
+  const current = terminal?.options?.theme;
+  if (current === void 0 || current === null || current.background !== palette.background || current.foreground !== palette.foreground) {
+    try {
+      terminal.options.theme = { ...palette };
+    } catch {
+    }
+  }
+  const target = element ?? terminal?.element ?? null;
+  if (target !== null && target !== void 0 && typeof target.style?.setProperty === "function") {
+    target.style.setProperty("--iwb-term-bg", palette.background);
+    target.style.setProperty("--iwb-term-fg", palette.foreground);
+  }
+  return palette;
+}
+function createImeGuard(terminal, send, deps = {}) {
+  const setTimer = deps.setTimeout ?? ((fn2, ms2) => setTimeout(fn2, ms2));
+  const clearTimer = deps.clearTimeout ?? ((handle) => clearTimeout(handle));
+  const textarea = terminal?.textarea;
+  if (textarea === void 0 || textarea === null || typeof textarea.addEventListener !== "function") {
+    return { dispose() {
+    } };
+  }
+  const state = {
+    composing: false,
+    text: "",
+    shift: false,
+    spoke: false,
+    repaired: false,
+    timer: null,
+    disposed: false
+  };
+  const onCompositionStart = () => {
+    state.composing = true;
+    state.text = "";
+    state.shift = false;
+    state.spoke = false;
+    state.repaired = false;
+  };
+  const onCompositionUpdate = (event) => {
+    const data2 = event?.data;
+    if (typeof data2 === "string" && data2 !== "") state.text = data2;
+  };
+  const onKeyDown = (event) => {
+    if (!state.composing) return;
+    if (event?.key === "Shift" || event?.keyCode === 16) state.shift = true;
+  };
+  const onCompositionEnd = (event) => {
+    state.composing = false;
+    if (!state.shift) return;
+    if (state.timer !== null) clearTimer(state.timer);
+    state.timer = setTimer(() => {
+      state.timer = null;
+      if (state.disposed || state.spoke || state.repaired) return;
+      const committed = typeof event?.data === "string" ? event.data : "";
+      const text = state.text !== "" ? state.text : committed;
+      if (text === "") return;
+      state.repaired = true;
+      try {
+        send(text);
+      } catch {
+      }
+    }, 0);
+  };
+  textarea.addEventListener("compositionstart", onCompositionStart);
+  textarea.addEventListener("compositionupdate", onCompositionUpdate);
+  textarea.addEventListener("compositionend", onCompositionEnd);
+  textarea.addEventListener("keydown", onKeyDown);
+  const dataDisposable = typeof terminal?.onData === "function" ? terminal.onData(() => {
+    state.spoke = true;
+  }) : null;
+  return {
+    dispose() {
+      state.disposed = true;
+      if (state.timer !== null) {
+        clearTimer(state.timer);
+        state.timer = null;
+      }
+      textarea.removeEventListener("compositionstart", onCompositionStart);
+      textarea.removeEventListener("compositionupdate", onCompositionUpdate);
+      textarea.removeEventListener("compositionend", onCompositionEnd);
+      textarea.removeEventListener("keydown", onKeyDown);
+      dataDisposable?.dispose();
+    }
+  };
 }
 var MIN_FIT_WIDTH = 120;
 function TerminalView({ store, session, active, visible }) {
@@ -72636,47 +73632,33 @@ function TerminalView({ store, session, active, visible }) {
   const socketRef = (0, import_react8.useRef)(null);
   const scheduleRef = (0, import_react8.useRef)(null);
   const [error, setError] = (0, import_react8.useState)(null);
-  const rootRef = (0, import_react8.useRef)(null);
   (0, import_react8.useEffect)(() => {
     if (hostRef.current === null) return void 0;
-    rootRef.current = document.querySelector(".iwb-root");
+    const theme2 = readHostThemeService(store.ctx) ?? readHostTheme();
     const terminal = new Dl({
       cursorBlink: true,
       fontSize: store.state.settings?.terminal?.fontSize ?? 13,
       fontFamily: '"JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, monospace',
       allowProposedApi: true,
-      theme: {
-        background: token(rootRef, "--iwb-bg", "#15171c"),
-        foreground: token(rootRef, "--iwb-fg", "#d8dce3"),
-        cursor: token(rootRef, "--iwb-accent", "#4c9aff"),
-        selectionBackground: "rgba(76,154,255,.32)",
-        black: "#1c1f26",
-        red: "#e2686f",
-        green: "#4fb477",
-        yellow: "#d7a24a",
-        blue: "#4c9aff",
-        magenta: "#c678dd",
-        cyan: "#56b6c2",
-        white: "#d8dce3",
-        brightBlack: "#8a93a1",
-        brightRed: "#ff7b86",
-        brightGreen: "#6fd08c",
-        brightYellow: "#e8bd6a",
-        brightBlue: "#6cb0ff",
-        brightMagenta: "#d79ae8",
-        brightCyan: "#7fd4df",
-        brightWhite: "#ffffff"
-      }
+      theme: { ...TERMINAL_PALETTES[theme2] }
     });
     const fit = new o();
     terminal.loadAddon(fit);
     terminal.open(hostRef.current);
     termRef.current = terminal;
     fitRef.current = fit;
+    applyTerminalTheme(terminal, theme2, terminal.element);
     const send = (frame) => {
       const socket = socketRef.current;
       if (socket !== null && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame));
     };
+    const stopThemeWatch = watchHostTheme((next) => {
+      applyTerminalTheme(terminal, next, terminal.element);
+    });
+    const offThemeService = subscribeHostThemeService(store.ctx, (next) => {
+      applyTerminalTheme(terminal, next, terminal.element);
+    });
+    const imeGuard = createImeGuard(terminal, (text) => send({ type: "input", data: text }));
     let fitTimer = null;
     let disposed = false;
     let sentCols = 0;
@@ -72822,6 +73804,9 @@ function TerminalView({ store, session, active, visible }) {
       resizeObserver.disconnect();
       dataDisposable.dispose();
       selectionDisposable.dispose();
+      stopThemeWatch();
+      offThemeService?.();
+      imeGuard.dispose();
       const socket = socketRef.current;
       socketRef.current = null;
       if (socket !== null) socket.close();
@@ -73282,13 +74267,24 @@ function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOn
     { key: "Mod-Alt-f", run: () => {
       onFindInFilesRef.current?.();
       return true;
-    } }
+    } },
+    // Fold everything / unfold everything (R3). `foldAll` and `unfoldAll` of
+    // `@codemirror/language` fold the top-level ranges and unfold them again
+    // - the same granularity as the "Collapse All" of IntelliJ.
+    //
+    // The macOS spelling is the same gesture with the command key: the
+    // documented IntelliJ combo (`Ctrl+Shift+-`) is the one of Windows and
+    // Linux, and `Cmd+Shift+-` is the one of a Mac. CodeMirror picks the
+    // `mac` name on a Mac and the `key` everywhere else.
+    { key: "Ctrl-Shift--", mac: "Cmd-Shift--", run: (view) => foldAll(view) },
+    { key: "Ctrl-Shift-=", mac: "Cmd-Shift-=", run: (view) => unfoldAll(view) }
   ];
 }
 function editorKeymapRest() {
   return [
     ...defaultKeymap,
     ...historyKeymap,
+    ...foldKeymap,
     indentWithTab
   ];
 }
@@ -73430,6 +74426,21 @@ function CodeEditor({
     if (host === null) return void 0;
     const extensions = [
       lineNumbers(),
+      // The folding of the buffer (R3). Both extensions are installed ONCE,
+      // here at mount time: `codeFolding()` adds the `foldState` field, and a
+      // second copy of it would throw the state of the editor away - the
+      // same warning as the one in `editor-seam.js`.
+      //
+      // The fold gutter sits next to the line numbers (the annotate column of
+      // the blame is further to the left, it uses `Prec.high`), so the two
+      // coexist: the arrows of the fold are where the eye already looks for
+      // them.
+      //
+      // The markers appear once the grammar of the document arrives: the
+      // folding needs the syntax tree of the language, and that tree is
+      // fetched on demand (see the effect at the end of this hook).
+      codeFolding(),
+      foldGutter(),
       highlightActiveLineGutter(),
       highlightSpecialChars(),
       history(),
@@ -74641,26 +75652,97 @@ function parseUnifiedDiff(text) {
   }
   flushFile();
   for (const file of files) {
-    for (const item of file.hunks) {
-      let oldNo = item.oldStart;
-      let newNo = item.newStart;
-      for (const entry of item.lines) {
-        if (entry.type === " ") {
-          entry.oldNo = oldNo;
-          entry.newNo = newNo;
-          oldNo += 1;
-          newNo += 1;
-        } else if (entry.type === "-") {
-          entry.oldNo = oldNo;
-          oldNo += 1;
-        } else if (entry.type === "+") {
-          entry.newNo = newNo;
-          newNo += 1;
-        }
+    numberHunkLines(file.hunks);
+  }
+  return { files, raw };
+}
+function numberHunkLines(hunks) {
+  for (const item of hunks) {
+    let oldNo = item.oldStart;
+    let newNo = item.newStart;
+    for (const entry of item.lines) {
+      if (entry.type === " ") {
+        entry.oldNo = oldNo;
+        entry.newNo = newNo;
+        oldNo += 1;
+        newNo += 1;
+      } else if (entry.type === "-") {
+        entry.oldNo = oldNo;
+        oldNo += 1;
+      } else if (entry.type === "+") {
+        entry.newNo = newNo;
+        newNo += 1;
       }
     }
   }
-  return { files, raw };
+}
+function normalizeHunkLine(line) {
+  if (typeof line === "string") {
+    const marker = line.charAt(0);
+    if (marker === "+" || marker === "-") return { type: marker, text: line.slice(1) };
+    if (marker === " ") return { type: " ", text: line.slice(1) };
+    return { type: " ", text: line };
+  }
+  if (line === null || typeof line !== "object") return null;
+  const text = typeof line.text === "string" ? line.text : typeof line.content === "string" ? line.content : "";
+  const raw = line.type ?? line.marker ?? line.sign ?? line.op ?? line.kind;
+  let type = " ";
+  if (typeof raw === "string") {
+    const marker = raw.charAt(0);
+    const word = raw.toLowerCase();
+    if (marker === "+" || marker === "-") type = marker;
+    else if (["add", "added", "addition", "insert", "inserted", "new"].includes(word)) type = "+";
+    else if (["del", "deleted", "deletion", "remove", "removed", "old"].includes(word)) type = "-";
+  }
+  return { type, text };
+}
+function hunksToDiffFile(payload) {
+  const kind = typeof payload?.kind === "string" ? payload.kind : "text";
+  const path2 = typeof payload?.path === "string" ? payload.path : "";
+  const display = typeof payload?.display === "string" ? payload.display : "";
+  const source = Array.isArray(payload?.hunks) ? payload.hunks : [];
+  const hunks = [];
+  let additions = 0;
+  let deletions = 0;
+  let index = 0;
+  for (const raw of source) {
+    const lines = [];
+    for (const line of Array.isArray(raw?.lines) ? raw.lines : []) {
+      const entry = normalizeHunkLine(line);
+      if (entry === null) continue;
+      entry.index = index;
+      index += 1;
+      lines.push(entry);
+      if (entry.type === "+") additions += 1;
+      if (entry.type === "-") deletions += 1;
+    }
+    const oldStart = Number.isFinite(raw?.oldStart) ? raw.oldStart : 0;
+    const newStart = Number.isFinite(raw?.newStart) ? raw.newStart : 0;
+    const oldCount = Number.isFinite(raw?.oldLines) ? raw.oldLines : lines.filter((line) => line.type !== "+").length;
+    const newCount = Number.isFinite(raw?.newLines) ? raw.newLines : lines.filter((line) => line.type !== "-").length;
+    hunks.push({
+      header: `@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`,
+      oldStart,
+      oldCount,
+      newStart,
+      newCount,
+      heading: "",
+      lines
+    });
+  }
+  numberHunkLines(hunks);
+  return {
+    header: [],
+    oldPath: path2,
+    newPath: path2,
+    isNew: false,
+    isDeleted: false,
+    isBinary: kind === "binary",
+    hunks,
+    additions,
+    deletions,
+    display
+  };
 }
 function firstFile(parsed) {
   return parsed.files.length > 0 ? parsed.files[0] : null;
@@ -74749,10 +75831,10 @@ function wordSegments(leftText, rightText) {
   }
   const left = [];
   const right = [];
-  const push = (list, token2, changed) => {
+  const push = (list, token, changed) => {
     const last2 = list[list.length - 1];
-    if (last2 !== void 0 && last2.changed === changed) last2.text += token2;
-    else list.push({ text: token2, changed });
+    if (last2 !== void 0 && last2.changed === changed) last2.text += token;
+    else list.push({ text: token, changed });
   };
   let i3 = 0;
   let j3 = 0;
@@ -75108,6 +76190,15 @@ function diffSource(tab3) {
     if (payload.kind === "text") return { text: syntheticAddDiff(tab3.rel, payload.content), staged: false, stageable, path: tab3.rel };
     return { text: "", staged: false, stageable, path: tab3.rel, binary: true };
   }
+  if (Array.isArray(payload.hunks)) {
+    return {
+      file: hunksToDiffFile(payload),
+      text: "",
+      staged: false,
+      stageable: false,
+      path: payload.path ?? payload.display ?? tab3.rel
+    };
+  }
   return { text: payload.diff ?? "", staged: tab3.staged === true, stageable, path: tab3.rel };
 }
 function diffSlice(state) {
@@ -75117,7 +76208,7 @@ function DiffView({ store, tab: tab3 }) {
   const t3 = store.t;
   const slice = useStoreSlice(store, diffSlice, shallowEqual);
   const source = (0, import_react14.useMemo)(() => diffSource(tab3), [tab3]);
-  const parsed = (0, import_react14.useMemo)(() => parseUnifiedDiff(source.text), [source.text]);
+  const parsed = (0, import_react14.useMemo)(() => source.file === void 0 ? parseUnifiedDiff(source.text) : { files: [source.file], raw: "" }, [source]);
   const mode = tab3.kind === "commit" ? "unified" : slice.commitMode ?? "side";
   const [selection, setSelection] = (0, import_react14.useState)(() => /* @__PURE__ */ new Set());
   const [scrollTop, setScrollTop] = (0, import_react14.useState)(0);
@@ -76187,6 +77278,39 @@ function EditorToolbar2({ store, tab: tab3 }) {
 function isHtmlPath(path2) {
   return typeof path2 === "string" && /\.(?:html?|xhtml)$/i.test(path2);
 }
+var IDE_TAB_KIND = "ide-workbench";
+function sidebarAddressOf(store, path2) {
+  const ctx = store.ctx;
+  if (ctx === void 0 || ctx === null) return void 0;
+  let sessionId;
+  try {
+    sessionId = ctx.sidebarRight?.mounted?.getSnapshot?.();
+  } catch {
+    return void 0;
+  }
+  if (typeof sessionId !== "string" || sessionId === "") return void 0;
+  const cwd = sessionCwdOf(ctx, sessionId) || store.state.workspaceRoot;
+  return fileAddressFor(sessionId, cwd, path2);
+}
+function openInDefaultBrowserAction(store, tab3) {
+  return () => {
+    if (store.isPathDirty(tab3.path) === true || tab3.dirty === true) {
+      store.toast("error", store.t("browser.unsavedChanges"));
+      return;
+    }
+    void store.openInDefaultBrowser(tab3.path);
+  };
+}
+function openInSidebarPreviewAction(store, tab3) {
+  return () => {
+    const address = sidebarAddressOf(store, tab3.path);
+    if (address !== void 0) {
+      const kind = defaultSidebarKind(store.ctx, address, IDE_TAB_KIND);
+      if (kind !== void 0 && openInDefaultSidebar(store.ctx, address, { kind, ownKind: IDE_TAB_KIND })) return;
+    }
+    void store.openInSidebar(tab3.path);
+  };
+}
 function HtmlPreviewActions({ store, tab: tab3 }) {
   const t3 = store.t;
   if (tab3.kind !== "file" || !isHtmlPath(tab3.path)) return null;
@@ -76198,19 +77322,18 @@ function HtmlPreviewActions({ store, tab: tab3 }) {
       className: "iwb-html-action",
       title: t3("editor.htmlPreviewSidebar"),
       "aria-label": t3("editor.htmlPreviewSidebar"),
-      onClick: () => {
-        void store.openInSidebar(tab3.path);
-      }
+      onClick: openInSidebarPreviewAction(store, tab3)
     }, import_react15.default.createElement(IconGlobe, { width: 15, height: 15 })),
     import_react15.default.createElement("button", {
+      // The glyph is a generic "open outside" mark, not a browser's logo:
+      // the button opens the browser the *user* registered, which is not
+      // necessarily the one the old mark named.
       type: "button",
-      className: "iwb-html-action iwb-chrome",
+      className: "iwb-html-action iwb-external",
       title: t3("editor.htmlPreviewBrowser"),
       "aria-label": t3("editor.htmlPreviewBrowser"),
-      onClick: () => {
-        void store.openInDefaultBrowser(tab3.path);
-      }
-    }, import_react15.default.createElement(IconChrome, { width: 15, height: 15 }))
+      onClick: openInDefaultBrowserAction(store, tab3)
+    }, import_react15.default.createElement(IconExternal, { width: 15, height: 15 }))
   );
 }
 function buildConflictDialog(store, tab3) {
@@ -77611,7 +78734,9 @@ function StatusBar({ store, state, contract = null, renderSlot = null }) {
   const summary = store.summary();
   const active = state.tabs.find((tab3) => tab3.id === state.activeId);
   const text = active?.payload?.kind === "text" ? active.payload : void 0;
-  const lines = text !== void 0 && typeof text.content === "string" ? text.content.split("\n").length : void 0;
+  const stats = active?.stats;
+  const lines = stats?.lines;
+  const words = stats?.words;
   const encoding = text === void 0 ? void 0 : text.encoding === "utf-8-bom" ? "UTF-8 BOM" : text.encoding === "utf-16le" ? "UTF-16 LE" : text.encoding === "utf-16be" ? "UTF-16 BE" : "UTF-8";
   const eol2 = text === void 0 ? void 0 : text.eol === "\r\n" ? "CRLF" : "LF";
   const cursor = state.cursor !== null && state.cursor !== void 0 && active?.editing === true ? state.cursor : null;
@@ -77633,6 +78758,14 @@ function StatusBar({ store, state, contract = null, renderSlot = null }) {
     renderSlot !== null && contract !== null ? renderSlot(SLOT_KEYS.statusItem, { contract }) : null,
     cursor !== null ? import_react19.default.createElement("span", { className: "iwb-status-item" }, `${t3("editor.line")} ${cursor.line}:${cursor.col}`) : null,
     lines !== void 0 ? import_react19.default.createElement("span", { className: "iwb-status-item" }, `${lines} ${t3("editor.lines")}`) : null,
+    // The word count belongs to the Markdown and the plain text files only
+    // (A1); the store leaves it out for every other file type.
+    words !== void 0 ? import_react19.default.createElement("span", {
+      className: "iwb-status-item",
+      // The number has to be explainable: the tooltip says how a mixed
+      // document is counted.
+      title: label2(t3, "status.wordsHint", "CJK characters count one by one; Latin text counts one word per space")
+    }, `${words} ${t3("status.words")}`) : null,
     encoding !== void 0 ? import_react19.default.createElement("span", { className: "iwb-status-item" }, `${encoding} ${eol2}`) : null,
     import_react19.default.createElement(
       "span",
@@ -78274,8 +79407,11 @@ var CSS2 = `
   width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
 }
 .iwb-html-action:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .14); }
-.iwb-html-action.iwb-chrome { color: #4285f4; }
-.iwb-html-action.iwb-chrome:hover { color: #4285f4; filter: brightness(1.12); }
+/* The "open outside" action opens the browser the USER registered, which is
+   not necessarily one brand - so the mark is a generic one and the colour
+   comes from the theme instead of a brand's hex. */
+.iwb-html-action.iwb-external { color: var(--iwb-accent); }
+.iwb-html-action.iwb-external:hover { color: var(--iwb-accent); filter: brightness(1.12); }
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;
@@ -78573,6 +79709,27 @@ var CSS2 = `
 .iwb-vlist { position: relative; }
 .iwb-vlist-row { position: absolute; left: 0; right: 0; height: 22px; }
 
+/* \u2500\u2500 the frozen "current folder" bar (R4) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The tree rows are absolutely positioned (the tree is virtualised), so CSS
+   position:sticky cannot hold a row in place: the bar is a layer of its
+   own inside the scrolling body and carries the folder the viewport sits in.
+   It is a navigation bar, not a tree row - it never joins the selection, and
+   it is hidden entirely in the flat quick-file list (there is no hierarchy
+   there to point at). */
+.iwb-tree-sticky {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; align-items: center; gap: 4px;
+  height: 22px; padding: 0 8px 0 12px;
+  background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border);
+  font-size: 12px; color: var(--iwb-muted); white-space: nowrap; overflow: hidden;
+}
+.iwb-tree-sticky-item {
+  color: var(--iwb-fg); font-weight: 500; padding: 0 4px; border-radius: 4px;
+  overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.iwb-tree-sticky-item:hover { color: var(--iwb-accent); background: rgba(127, 127, 127, .14); }
+.iwb-tree-sticky-sep { opacity: .55; }
+
 .iwb-filter {
   display: flex; align-items: center; gap: 6px; margin: 6px 8px; height: 26px; padding: 0 8px;
   border: 1px solid var(--iwb-border); border-radius: 6px; background: var(--iwb-panel-2); color: var(--iwb-muted);
@@ -78790,6 +79947,13 @@ var CSS2 = `
   padding: 0 7px; font-size: 11.5px; outline: none; color: var(--iwb-fg);
 }
 .iwb-input { width: 150px; }
+/* A field that is greyed until the user clicks into it. It must stay
+   focusable, so it is readOnly and never disabled - a disabled input
+   cannot take the focus, and the click would do nothing at all. The class
+   stands on its own: the path box must not carry .iwb-input, whose fixed
+   width would shrink it. */
+.iwb-input-readonly { opacity: .6; cursor: text; }
+.iwb-input-readonly:focus { opacity: 1; }
 .iwb-select:focus, .iwb-input:focus { border-color: var(--iwb-accent); }
 .iwb-git-table { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .iwb-git-head, .iwb-git-row {
@@ -78860,6 +80024,30 @@ var CSS2 = `
    that black instead of the terminal background. The terminal's own background
    is --iwb-bg, so the viewport must let it through. */
 .iwb-term-host .xterm-viewport { background-color: transparent; }
+/* \u2500\u2500 the turn change preview (R2) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The review of one conversation turn: the changed files on the left, the
+   diff of the selected file on the right. */
+.iwb-review { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.iwb-review-files {
+  flex: 0 0 240px; overflow: auto; border-right: 1px solid var(--iwb-border);
+  background: var(--iwb-panel);
+}
+.iwb-review-file { display: flex; align-items: center; gap: 6px; }
+
+/* \u2500\u2500 the IME composition preview of the terminal (R9) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   xterm draws the composing text of the input method into a DOM element and
+   ships it with a hard-coded black background and white text - a black box on
+   a light terminal. The terminal paints on a canvas, so the colours cannot
+   come from a token of this stylesheet: the panel pushes them into the custom
+   properties below (--iwb-term-bg / --iwb-term-fg). Only the colours change
+   here - xterm positions the box with inline styles and the candidate window
+   of the input method is placed from its bounding box, so its geometry
+   (display, position, padding) must not be touched. */
+.iwb-term-host .xterm .composition-view {
+  background: var(--iwb-term-bg, var(--iwb-panel-2));
+  color: var(--iwb-term-fg, var(--iwb-fg));
+  border-radius: 3px;
+}
 .iwb-term-error { padding: 16px; color: var(--iwb-error); font-size: 12px; white-space: pre-wrap; user-select: text; }
 
 /*
@@ -79310,6 +80498,20 @@ var CSS2 = `
    way the numbers do instead of looking like a hole. */
 .iwb-blame-gutter .cm-activeLineGutter { background: transparent; color: var(--iwb-fg); }
 
+/* \u2500\u2500 code folding (R3) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   CodeMirror draws the fold markers and the placeholder of a collapsed range;
+   the workbench only gives them the theme's colours, so they follow the host
+   theme like every other part of the editor. The class names are CodeMirror's
+   own - foldGutter() installs the gutter as .cm-foldGutter. */
+.cm-foldGutter { color: var(--iwb-muted); }
+.cm-foldGutter .cm-gutterElement { padding: 0 2px; cursor: pointer; }
+.cm-foldGutter .cm-gutterElement:hover { color: var(--iwb-fg); }
+.cm-foldPlaceholder {
+  color: var(--iwb-muted);
+  background: color-mix(in srgb, var(--iwb-accent) 14%, transparent);
+  border: none; border-radius: 3px; padding: 0 4px; margin: 0 2px; font-size: .92em;
+}
+
 @container ide-workbench (max-width: 760px) {
   .iwb-topbar { gap: 4px; padding: 0 6px; }
   .iwb-project-select { flex: 1; padding: 0 3px; }
@@ -79358,6 +80560,154 @@ var CSS2 = `
 }
 `;
 
+// src/client/changes-review.js
+var CHANGES_REVIEW_PREFIX = "dsh-resource://changes-review/";
+function parseChangesReviewAddress(address) {
+  if (typeof address !== "string" || !address.startsWith(CHANGES_REVIEW_PREFIX)) return void 0;
+  try {
+    const end = address.search(/[?#]/);
+    const body = address.slice(CHANGES_REVIEW_PREFIX.length, end === -1 ? void 0 : end);
+    const [scope, id2, seq, turn, ...rest] = body.split("/");
+    if (scope !== "session") return void 0;
+    if (id2 === void 0 || id2 === "" || seq === void 0 || seq === "" || turn === void 0 || turn === "") {
+      return void 0;
+    }
+    if (rest.length > 0) return void 0;
+    return {
+      sessionId: decodeURIComponent(id2),
+      seq: decodeURIComponent(seq),
+      turn: decodeURIComponent(turn)
+    };
+  } catch {
+    return void 0;
+  }
+}
+function isChangesReviewAddress(address) {
+  return typeof address === "string" && address.startsWith(CHANGES_REVIEW_PREFIX);
+}
+function numberOf(value, fallback2 = 0) {
+  return Number.isFinite(value) ? value : fallback2;
+}
+function baseNameOf(path2) {
+  const parts = String(path2 ?? "").replace(/\\/g, "/").split("/").filter((part) => part !== "");
+  return parts.length === 0 ? "" : parts[parts.length - 1];
+}
+function readReviewSummary(payload) {
+  if (payload === null || typeof payload !== "object") return void 0;
+  if (!Array.isArray(payload.files)) return void 0;
+  const files = payload.files.map((entry, index) => {
+    const source = entry !== null && typeof entry === "object" ? entry : {};
+    const path2 = typeof source.path === "string" ? source.path : "";
+    const display = typeof source.display === "string" && source.display !== "" ? source.display : baseNameOf(path2);
+    return {
+      index,
+      path: path2,
+      display,
+      added: numberOf(source.added),
+      deleted: numberOf(source.deleted),
+      binary: source.binary === true,
+      oversized: source.oversized === true
+    };
+  });
+  return {
+    turn: payload.turn,
+    files,
+    total: numberOf(payload.total, files.length),
+    added: numberOf(payload.added, files.reduce((sum, file) => sum + file.added, 0)),
+    deleted: numberOf(payload.deleted, files.reduce((sum, file) => sum + file.deleted, 0))
+  };
+}
+function readReviewDiff(payload) {
+  if (payload === null || typeof payload !== "object") return void 0;
+  if (typeof payload.kind !== "string" || payload.kind === "") return void 0;
+  return {
+    kind: payload.kind,
+    path: typeof payload.path === "string" ? payload.path : "",
+    display: typeof payload.display === "string" ? payload.display : "",
+    before: typeof payload.before === "string" ? payload.before : "",
+    after: typeof payload.after === "string" ? payload.after : "",
+    coarse: payload.coarse === true,
+    hunks: Array.isArray(payload.hunks) ? payload.hunks : []
+  };
+}
+function reviewIndexOf(count2, index) {
+  const total = Number.isFinite(count2) ? Math.max(0, Math.trunc(count2)) : 0;
+  if (total === 0) return 0;
+  const wanted = Number(index);
+  if (!Number.isFinite(wanted)) return 0;
+  const position = Math.trunc(wanted);
+  if (position < 0) return 0;
+  return position < total ? position : total - 1;
+}
+function isOutsideWorkspace(path2, workspaceRoot) {
+  if (typeof path2 !== "string" || path2 === "") return false;
+  if (typeof workspaceRoot !== "string" || workspaceRoot === "") return false;
+  const slashed = path2.replace(/\\/g, "/");
+  const absolute = /^[A-Za-z]:\//.test(slashed) || slashed.startsWith("//") || slashed.startsWith("/");
+  if (!absolute) return false;
+  return !isPathWithin(workspaceRoot, path2);
+}
+function reviewQuery(parsed, extra = {}) {
+  const query = new URLSearchParams();
+  query.set("sessionId", String(parsed?.sessionId ?? ""));
+  query.set("seq", String(parsed?.seq ?? ""));
+  query.set("turn", String(parsed?.turn ?? ""));
+  for (const [key, value] of Object.entries(extra ?? {})) {
+    if (value === void 0 || value === null || value === "") continue;
+    query.set(key, String(value));
+  }
+  return query.toString();
+}
+function unwrapDocument(value) {
+  if (value === null || typeof value !== "object") return void 0;
+  if (value.ok === true && value.value !== void 0) return value.value;
+  return value;
+}
+async function fetchReviewDocument(kind, parsed, options = {}) {
+  const read = typeof options.read === "function" ? options.read : () => void 0;
+  const fetchImpl = options.fetch ?? (typeof globalThis.fetch === "function" ? globalThis.fetch : void 0);
+  const query = reviewQuery(parsed, options.params);
+  let expired = false;
+  if (fetchImpl !== void 0) {
+    try {
+      const url = `${httpUrl(`api/changes.${kind}`).href}?${query}`;
+      const response = await fetchImpl(url, { method: "GET", headers: { accept: "application/json" } });
+      if (response?.ok === true) {
+        const document2 = read(unwrapDocument(await response.json()));
+        if (document2 !== void 0) return { ok: true, document: document2 };
+      } else if (response?.status === 404 || response?.status === 410) {
+        expired = true;
+      }
+    } catch {
+    }
+  }
+  try {
+    const payload = { sessionId: parsed?.sessionId, seq: parsed?.seq, turn: parsed?.turn, ...options.params ?? {} };
+    const document2 = read(unwrapDocument(await call(`changes.${kind}`, payload)));
+    if (document2 !== void 0) return { ok: true, document: document2 };
+  } catch (error) {
+    if (error?.code === "not-found") expired = true;
+  }
+  return { ok: false, reason: expired ? "expired" : "unreachable" };
+}
+function reviewMessageKey(state) {
+  const expired = state?.reason === "expired";
+  if (state?.phase === "loading") return "common.loading";
+  if (state?.phase === "failed") return expired ? "changesReview.expired" : "changesReview.loadFailed";
+  if (state?.diffPhase === "loading") return "common.loading";
+  if (state?.diffPhase === "idle") return "common.loading";
+  if (state?.diffPhase === "failed") return expired ? "changesReview.expired" : "changesReview.loadFailed";
+  if (state?.diff?.kind === "binary") return "changesReview.binary";
+  if (state?.diff?.kind === "oversized") return "changesReview.oversized";
+  return "";
+}
+function fetchReviewSummary(parsed, options = {}) {
+  return fetchReviewDocument("summary", parsed, { ...options, read: readReviewSummary });
+}
+function fetchReviewDiff(parsed, options = {}) {
+  return fetchReviewDocument("diff", parsed, { ...options, read: readReviewDiff });
+}
+
 // src/client/index.jsx
 var inject = ["slots", "locale", "sidebarRight", "sidebarRightTabs", "sessions"];
 var PANEL_ID = "ide-workbench";
@@ -79396,14 +80746,10 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
   const address = typeof tab3.contentId === "string" ? tab3.contentId : "";
   const line = tab3.navigation?.params?.line;
   const [view, setView] = import_react20.default.useState({ phase: "opening", absolute: "" });
-  const replaceWithIde = import_react20.default.useCallback(() => {
-    try {
-      ctx.sidebarRight.openTab(PANEL_ID, { replaceTab: tab3.id });
-      return true;
-    } catch {
-      return false;
-    }
-  }, [ctx, tab3.id]);
+  const replaceWithIde = import_react20.default.useCallback(() => replaceCarrierTab(ctx, tab3.id, {
+    kind: PANEL_ID,
+    contentId: address
+  }), [ctx, tab3.id, address]);
   const openDefault = import_react20.default.useCallback(() => openInDefaultSidebar(ctx, address, {
     ownKind: PANEL_ID,
     line,
@@ -79425,7 +80771,9 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
       result = { status: "failed" };
     }
     if (result.status === "opened") {
-      if (!replaceWithIde()) setView({ phase: "failed", absolute: result.absolute ?? "" });
+      const fate = replaceWithIde();
+      if (!fate.ok) setView({ phase: "failed", absolute: result.absolute ?? "" });
+      else setView((current) => current.phase === "opening" ? { ...current, phase: "done" } : current);
       return;
     }
     if (result.status === "outside-workspace") {
@@ -79462,6 +80810,12 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
       { className: "iwb-empty" },
       import_react20.default.createElement("div", { className: "iwb-empty-title" }, store.t("common.loading"))
     );
+  } else if (view.phase === "done") {
+    content2 = import_react20.default.createElement(
+      "div",
+      { className: "iwb-empty" },
+      import_react20.default.createElement("div", { className: "iwb-empty-title" }, path2)
+    );
   } else if (view.phase === "prompt") {
     content2 = card("links.switchProjectTitle", "links.switchProjectBody", [
       button("yes", "links.switchProjectYes", "iwb-primary", () => {
@@ -79488,6 +80842,198 @@ function FileLinkBridge({ store, tab: tab3, ctx, suppressSelf }) {
   }
   return import_react20.default.createElement("div", { className: "iwb-link-shell" }, content2);
 }
+function ChangesReviewBridge({ store, tab: tab3, ctx, suppressSelf }) {
+  const t3 = store.t;
+  const address = typeof tab3?.contentId === "string" ? tab3.contentId : "";
+  const parsed = parseChangesReviewAddress(address);
+  const requestedIndex = tab3?.navigation?.params?.index;
+  const [view, setView] = import_react20.default.useState({
+    phase: "loading",
+    summary: null,
+    index: 0,
+    diff: null,
+    diffPhase: "idle",
+    reason: ""
+  });
+  const degrade = import_react20.default.useCallback((reason) => {
+    const key = reason === "expired" ? "changesReview.expired" : "changesReview.loadFailed";
+    const opened = openInDefaultSidebar(ctx, address, {
+      ownKind: PANEL_ID,
+      replaceTab: tab3?.id,
+      suppressSelf
+    });
+    try {
+      store.toast("error", t3(key), address);
+    } catch {
+    }
+    if (!opened) setView((current) => ({ ...current, phase: "failed", reason }));
+  }, [address, ctx, store, suppressSelf, t3, tab3?.id]);
+  import_react20.default.useEffect(() => {
+    if (parsed === void 0) {
+      degrade("unreachable");
+      return void 0;
+    }
+    let cancelled = false;
+    setView((current) => ({ ...current, phase: "loading", reason: "" }));
+    void fetchReviewSummary(parsed).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        degrade(result.reason ?? "unreachable");
+        return;
+      }
+      const index = reviewIndexOf(result.document.files.length, requestedIndex);
+      setView((current) => ({
+        ...current,
+        phase: "ready",
+        summary: result.document,
+        index,
+        diff: null,
+        diffPhase: "idle"
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [address, parsed?.sessionId, parsed?.seq, parsed?.turn, requestedIndex, degrade]);
+  import_react20.default.useEffect(() => {
+    if (view.phase !== "ready" || view.summary === null) return void 0;
+    const file2 = view.summary.files[view.index];
+    if (file2 === void 0) return void 0;
+    let cancelled = false;
+    setView((current) => current.diffPhase === "loading" ? current : { ...current, diffPhase: "loading", diff: null });
+    void fetchReviewDiff(parsed, { params: { index: view.index, path: file2.path } }).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        setView((current) => ({ ...current, diffPhase: "failed", reason: result.reason ?? "unreachable" }));
+        return;
+      }
+      setView((current) => ({ ...current, diff: result.document, diffPhase: "ready" }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [address, view.phase, view.index, view.summary]);
+  const workspaceRoot = store.state?.workspaceRoot ?? "";
+  const files = view.summary?.files ?? [];
+  const file = files[view.index];
+  const empty2 = (title) => import_react20.default.createElement(
+    "div",
+    { className: "iwb-empty" },
+    import_react20.default.createElement("div", { className: "iwb-empty-title" }, t3(title))
+  );
+  if (view.phase === "loading") {
+    return import_react20.default.createElement("div", { className: "iwb-link-shell" }, empty2("common.loading"));
+  }
+  if (view.phase === "failed") {
+    const key = view.reason === "expired" ? "changesReview.expired" : "changesReview.loadFailed";
+    const card = import_react20.default.createElement(
+      "div",
+      { className: "iwb-empty iwb-link-prompt" },
+      import_react20.default.createElement("div", { className: "iwb-empty-title" }, t3(key)),
+      import_react20.default.createElement("div", { className: "iwb-link-path" }, address),
+      import_react20.default.createElement(
+        "div",
+        { className: "iwb-link-actions" },
+        import_react20.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-primary",
+          onClick: () => {
+            openInDefaultSidebar(ctx, address, { ownKind: PANEL_ID, replaceTab: tab3?.id, suppressSelf });
+          }
+        }, t3("links.openInDefaultSidebar")),
+        import_react20.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn",
+          onClick: () => {
+            try {
+              ctx.sidebarRight.close(tab3?.id);
+            } catch {
+            }
+          }
+        }, t3("common.close"))
+      )
+    );
+    return import_react20.default.createElement("div", { className: "iwb-link-shell" }, card);
+  }
+  if (files.length === 0) {
+    return import_react20.default.createElement("div", { className: "iwb-link-shell" }, empty2("changesReview.empty"));
+  }
+  const list = import_react20.default.createElement(
+    "div",
+    { className: "iwb-review-files" },
+    import_react20.default.createElement("div", { className: "iwb-changelist-head" }, t3("changesReview.files")),
+    files.map((entry) => {
+      const outside = isOutsideWorkspace(entry.path, workspaceRoot);
+      return import_react20.default.createElement(
+        "div",
+        {
+          key: entry.index,
+          className: `iwb-file-row iwb-review-file ${entry.index === view.index ? "iwb-active" : ""}`,
+          title: entry.path,
+          onClick: () => setView((current) => ({
+            ...current,
+            index: entry.index,
+            diff: null,
+            diffPhase: "idle"
+          }))
+        },
+        import_react20.default.createElement("span", { className: "iwb-file-name" }, entry.display),
+        outside ? import_react20.default.createElement("span", { className: "iwb-file-dir" }, t3("changesReview.outsideWorkspace")) : null,
+        import_react20.default.createElement(
+          "span",
+          { className: "iwb-file-stat" },
+          import_react20.default.createElement("span", { className: "iwb-additions" }, `+${entry.added}`),
+          import_react20.default.createElement("span", { className: "iwb-deletions" }, `-${entry.deleted}`)
+        )
+      );
+    })
+  );
+  let diffArea;
+  const messageKey = reviewMessageKey(view);
+  if (messageKey !== "") {
+    diffArea = empty2(messageKey);
+  } else if (view.diff !== null && file !== void 0) {
+    const path2 = view.diff.path !== "" ? view.diff.path : file.path;
+    diffArea = import_react20.default.createElement(DiffView, {
+      store,
+      tab: {
+        id: `review:${parsed?.sessionId ?? ""}:${parsed?.seq ?? ""}:${parsed?.turn ?? ""}:${view.index}`,
+        kind: "review",
+        path: path2,
+        rel: path2,
+        name: file.display,
+        readOnly: true,
+        scrollTop: 0,
+        payload: {
+          hunks: view.diff.hunks,
+          path: path2,
+          display: view.diff.display !== "" ? view.diff.display : file.display,
+          kind: view.diff.kind
+        }
+      }
+    });
+  } else {
+    diffArea = empty2("changesReview.empty");
+  }
+  return import_react20.default.createElement(
+    "div",
+    { className: "iwb-root iwb-review" },
+    import_react20.default.createElement(
+      "div",
+      { className: "iwb-diff-toolbar" },
+      import_react20.default.createElement("span", { style: { color: "var(--iwb-fg)", fontWeight: 600 } }, t3("changesReview.title")),
+      import_react20.default.createElement("span", { className: "iwb-spacer" }),
+      import_react20.default.createElement("span", { className: "iwb-additions" }, `+${view.summary.added}`),
+      import_react20.default.createElement("span", { className: "iwb-deletions" }, `-${view.summary.deleted}`)
+    ),
+    import_react20.default.createElement(
+      "div",
+      { className: "iwb-body" },
+      list,
+      import_react20.default.createElement("div", { className: "iwb-center" }, diffArea)
+    )
+  );
+}
 function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, suppressSelf, renderSlot }) {
   const { tab: tab3, sidebar } = useTabInfo();
   const store = getStore(sessionId);
@@ -79495,16 +81041,20 @@ function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, s
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === "function";
   const isMounted = !hasMounted || mountedId === void 0 || mountedId === sessionId;
   const fileLink = isFileAddress(tab3.contentId);
+  const review = !fileLink && isChangesReviewAddress(tab3.contentId);
   (0, import_react20.useEffect)(() => {
     if (isMounted) void store.init();
   }, [store, isMounted]);
   (0, import_react20.useEffect)(() => {
-    if (fileLink) return void 0;
+    if (fileLink || review) return void 0;
     reportVisible(sessionId, isMounted && tab3.visible === true);
     return () => reportVisible(sessionId, false);
-  }, [sessionId, isMounted, tab3.visible, fileLink, reportVisible]);
+  }, [sessionId, isMounted, tab3.visible, fileLink, review, reportVisible]);
   if (fileLink) {
     return import_react20.default.createElement(FileLinkBridge, { store, tab: tab3, ctx, suppressSelf });
+  }
+  if (review) {
+    return import_react20.default.createElement(ChangesReviewBridge, { store, tab: tab3, ctx, suppressSelf });
   }
   if (!isMounted) return null;
   return import_react20.default.createElement(Workbench, { store, visible: tab3.visible, fullscreen: sidebar.fullscreen, renderSlot });
@@ -79541,11 +81091,11 @@ function apply(ctx) {
   }, "dsh-ide-workbench: dictionaries");
   const settingsStore = new WorkbenchStore(ctx, t3);
   void settingsStore.init();
-  let suppressFileLinkClaim = false;
+  let suppressOwnClaim = false;
   const suppressSelf = () => {
-    suppressFileLinkClaim = true;
+    suppressOwnClaim = true;
     return () => {
-      suppressFileLinkClaim = false;
+      suppressOwnClaim = false;
     };
   };
   let sessionSnapshot = null;
@@ -79693,19 +81243,54 @@ function apply(ctx) {
   if (modules != null && typeof modules.import === "function") {
     setPrimitivesLoader(() => modules.import("@deepseek-ai/dsh-client-ui-primitives"));
   }
+  const candidateBases = (workspace, linkCwd) => {
+    const settings = settingsStore.state.settings;
+    const roots = settings?.projectRoots;
+    const project = typeof roots?.[workspace] === "string" && roots[workspace] !== "" ? roots[workspace] : typeof roots?.[settings?.lastRoot] === "string" ? roots[settings.lastRoot] : "";
+    return [project, linkCwd, workspace];
+  };
+  const knownSessionIds = () => {
+    const table = readSessionSnapshot();
+    const byId = table?.byId;
+    if (byId === void 0 || byId === null) return null;
+    const ids = Object.keys(byId);
+    return ids.length === 0 ? null : new Set(ids);
+  };
+  const canOpenChangesReview = (address) => {
+    const parsed = parseChangesReviewAddress(address);
+    if (parsed === void 0) return false;
+    const mounted = ctx.sidebarRight?.mounted?.getSnapshot();
+    if (typeof mounted === "string" && mounted !== "" && mounted !== parsed.sessionId) return false;
+    const known = knownSessionIds();
+    if (known !== null && !known.has(parsed.sessionId)) return false;
+    return true;
+  };
   ctx.effect(() => ctx.sidebarRightTabs.register({
     id: "dsh-ide-workbench",
     kind: PANEL_ID,
-    title: (address) => isFileAddress(address) ? basenameOfFileAddress(address) ?? t3("panelLabel") : t3("panelLabel"),
+    title: (address) => {
+      if (isFileAddress(address)) return basenameOfFileAddress(address) ?? t3("panelLabel");
+      if (isChangesReviewAddress(address)) return t3("changesReview.title");
+      return t3("panelLabel");
+    },
     keepMounted: true,
     // A chat file link is a `dsh-resource://file/...` address. These longer
     // patterns outrank the better-sidebar editor (`dsh-resource://file/**`) by
     // matched-pattern length, independent of registration order.
-    patterns: ["dsh-resource://file/session/**", "dsh-resource://file/absolute/**"],
+    //
+    // The review of a turn is a `dsh-resource://changes-review/...` address.
+    // The `extension` priority outranks the host's own review tab (band 3
+    // against band 2), so the workbench shows the turn itself.
+    patterns: [
+      "dsh-resource://file/session/**",
+      "dsh-resource://file/absolute/**",
+      "dsh-resource://changes-review/**"
+    ],
     priority: "extension",
     canOpen: (address) => {
-      if (suppressFileLinkClaim) return false;
+      if (suppressOwnClaim) return false;
       if (settingsStore.state.settings?.links?.chatFiles === "sidebar") return false;
+      if (isChangesReviewAddress(address)) return canOpenChangesReview(address);
       if (!isIdeViewableAddress(address)) return false;
       const parsed = parseFileAddress(address);
       if (parsed === void 0) return false;
@@ -79715,9 +81300,7 @@ function apply(ctx) {
       if (current !== "" && linkCwd !== "" && !sameScopePath(current, linkCwd)) return false;
       const workspace = current || linkCwd;
       if (workspace === "") return true;
-      const absolute = resolveFileAddress(parsed, linkCwd || current);
-      if (absolute === void 0) return false;
-      return isPathWithin(workspace, absolute);
+      return linkResolvesInsideWorkspace(parsed, workspace, linkCwd || current, candidateBases(workspace, linkCwd));
     },
     guide: [{ id: PANEL_ID, title: () => t3("panelLabel"), icon: PanelIcon, order: 35 }]
   }), "dsh-ide-workbench: sidebar tab type");

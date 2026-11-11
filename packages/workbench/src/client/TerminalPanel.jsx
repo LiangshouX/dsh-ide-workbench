@@ -1,6 +1,12 @@
 /**
  * Terminal tool window: real PTY sessions over a package WebSocket, rendered
  * with xterm.js. One socket == one session; closing the tab terminates it.
+ *
+ * The terminal follows the theme of the host (Issue #3 / R9). xterm paints on
+ * its own canvas, so a CSS variable never reaches the screen: the palette is
+ * built in JS and pushed into the live instance when the host switches
+ * between its light and its dark theme. The switch only repaints the canvas -
+ * the instance, the socket, the session and the scrollback stay untouched.
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
@@ -24,12 +30,451 @@ export function terminalSlice(state) {
   return { terminal: state.terminal }
 }
 
-/** Read one theme token from the workbench root (with a neutral fallback). */
-function token(root, name, fallback) {
-  const element = root?.current ?? document.querySelector('.iwb-root')
-  if (element === null) return fallback
-  const value = getComputedStyle(element).getPropertyValue(name).trim()
-  return value === '' ? fallback : value
+/* ── the theme of the terminal (Issue #3 / R9) ─────────────────────────────────
+   The host declares its theme declaratively: it writes `color-scheme: light |
+   dark` on the root element for every theme it ships, and the plugin CSS
+   follows it through `light-dark()`. The terminal cannot use that: xterm
+   draws on its own canvas, so only a concrete colour reaches the screen -
+   the computed value of `light-dark()` or of a `color-mix()` is not
+   something xterm can parse. So the palette is built here, in JS, as two
+   explicit sets, and pushed into the live instance when the theme changes. */
+
+/** The two themes the host ships. */
+export const THEME_DARK = 'dark'
+export const THEME_LIGHT = 'light'
+
+/**
+ * The terminal palette of the dark host theme (JetBrains Darcula).
+ *
+ * The hues are the ones the workbench uses everywhere else - the git and
+ * the status colours are the same red, green, yellow and blue - so the
+ * terminal sits in the panel instead of punching a hole into it.
+ *
+ * Every one of the sixteen ANSI colours clears 4.5:1 against the background
+ * of its own palette (the regression test computes the ratios). Two slots
+ * had to move away from the canonical values for that: ANSI black on a dark
+ * surface has no contrast at all (#000000 on #15171c is 1.1:1), and ANSI
+ * white on a light surface is white on white. They are a readable slate and
+ * a readable grey instead - the same trade every terminal theme makes.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+export const TERMINAL_PALETTE_DARK = Object.freeze({
+  background: '#15171c',
+  foreground: '#d8dce3',
+  cursor: '#4c9aff',
+  cursorAccent: '#15171c',
+  selectionBackground: '#4c9aff55',
+  black: '#7d8593',
+  red: '#e2686f',
+  green: '#4fb477',
+  yellow: '#d7a24a',
+  blue: '#4c9aff',
+  magenta: '#c678dd',
+  cyan: '#56b6c2',
+  white: '#d8dce3',
+  brightBlack: '#8a93a1',
+  brightRed: '#ff7b86',
+  brightGreen: '#6fd08c',
+  brightYellow: '#e8bd6a',
+  brightBlue: '#6cb0ff',
+  brightMagenta: '#d79ae8',
+  brightCyan: '#7fd4df',
+  brightWhite: '#ffffff',
+})
+
+/**
+ * The terminal palette of the light host theme (JetBrains Light).
+ *
+ * The same hues as the dark palette, darkened for a light surface. A light
+ * theme inverts the meaning of the slots: the "bright" variants are the
+ * more saturated ones and the neutral slots have to be dark enough to be
+ * read - the same layout the light terminal themes of the editors use.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+export const TERMINAL_PALETTE_LIGHT = Object.freeze({
+  background: '#ffffff',
+  foreground: '#1f1f1f',
+  cursor: '#1558b0',
+  cursorAccent: '#ffffff',
+  selectionBackground: '#1558b033',
+  black: '#33383f',
+  red: '#b3261e',
+  green: '#2e7d32',
+  yellow: '#8a6100',
+  blue: '#1558b0',
+  magenta: '#7b3fa4',
+  cyan: '#0f6f78',
+  white: '#4f5661',
+  brightBlack: '#6a7280',
+  brightRed: '#c0271c',
+  brightGreen: '#157f3d',
+  brightYellow: '#7a5800',
+  brightBlue: '#0d5bc0',
+  brightMagenta: '#9c27b0',
+  brightCyan: '#00796b',
+  brightWhite: '#11141a',
+})
+
+/** The palettes of the terminal, by the theme of the host. */
+export const TERMINAL_PALETTES = Object.freeze({
+  [THEME_DARK]: TERMINAL_PALETTE_DARK,
+  [THEME_LIGHT]: TERMINAL_PALETTE_LIGHT,
+})
+
+/**
+ * The relative luminance of a CSS colour, or null when it cannot be read.
+ *
+ * @param {string} css a hex or an rgb() colour
+ * @returns {number|null} the WCAG relative luminance
+ */
+export function relativeLuminance(css) {
+  const value = String(css ?? '').trim()
+  if (value === '') return null
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value)
+  let channels = null
+  if (hex !== null) {
+    const digits = hex[1]
+    const full = digits.length === 3 ? digits.split('').map(digit => digit + digit).join('') : digits
+    channels = [0, 2, 4].map(index => parseInt(full.slice(index, index + 2), 16) / 255)
+  } else {
+    const match = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i.exec(value)
+    if (match === null) return null
+    channels = [match[1], match[2], match[3]].map(part => Number(part) / 255)
+  }
+  if (channels === null || channels.some(channel => !Number.isFinite(channel))) return null
+  const linear = channels.map(channel => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+}
+
+/**
+ * Decide which theme of the host is active.
+ *
+ * The order is deliberate: an explicit token wins, then the `color-scheme`
+ * the host declares on the root element (the used value of a list is its
+ * last supported keyword), and only then the luminance of the surface. The
+ * system theme is never consulted - the host theme is not the system theme,
+ * and the repository forbids a query on the system theme.
+ *
+ * @param {object} [env] what is known about the theme
+ * @param {string} [env.token] an explicit theme name ('light' or 'dark')
+ * @param {string} [env.colorScheme] the declared `color-scheme`
+ * @param {string} [env.background] the resolved background colour
+ * @returns {string} 'dark' or 'light'
+ */
+export function resolveHostTheme(env = {}) {
+  const token = String(env.token ?? '').trim().toLowerCase()
+  if (token === THEME_LIGHT || token === THEME_DARK) return token
+  const scheme = String(env.colorScheme ?? '').trim().toLowerCase()
+  const keywords = scheme.split(/[\s,]+/).filter(word => word === THEME_LIGHT || word === THEME_DARK)
+  if (keywords.length > 0) return keywords[keywords.length - 1]
+  const luminance = relativeLuminance(env.background)
+  // 0.18 is where black and white text swap places: below it the surface
+  // is a dark one, above it a light one.
+  if (luminance !== null) return luminance >= 0.18 ? THEME_LIGHT : THEME_DARK
+  return THEME_DARK
+}
+
+/**
+ * Read what the document says about the theme of the host.
+ *
+ * Every read is optional and guarded: a host without a palette, a document
+ * without a root element or a browser without a computed style must not
+ * throw - the terminal falls back to its default palette instead.
+ *
+ * @param {Document} [doc] the document to read
+ * @returns {{token: string, colorScheme: string, background: string}} what is known
+ */
+export function readThemeEnvironment(doc = typeof document !== 'undefined' ? document : null) {
+  const env = { token: '', colorScheme: '', background: '' }
+  if (doc === null || doc === undefined) return env
+  const view = doc.defaultView ?? (typeof window !== 'undefined' ? window : null)
+  const computed = (element) => {
+    if (element === null || element === undefined || view === null) return null
+    try { return view.getComputedStyle(element) } catch { return null }
+  }
+  const root = doc.documentElement ?? null
+  const rootStyle = computed(root)
+  if (rootStyle !== null) {
+    try { env.colorScheme = String(rootStyle.colorScheme ?? '') } catch { env.colorScheme = '' }
+    try { env.background = String(rootStyle.getPropertyValue?.('--iwb-bg') ?? '') } catch { env.background = '' }
+  }
+  // An explicit token wins over everything else: a host (or a workbench
+  // stylesheet) that publishes `--iwb-theme: light | dark` says so.
+  try {
+    const workbench = doc.querySelector?.('.iwb-root') ?? null
+    const style = computed(workbench)
+    if (style !== null) {
+      const token = String(style.getPropertyValue?.('--iwb-theme') ?? '').trim()
+      if (token !== '') env.token = token
+      if (env.background === '') env.background = String(style.getPropertyValue?.('--iwb-bg') ?? '')
+    }
+  } catch { /* the workbench is not mounted: the other sources decide */ }
+  return env
+}
+
+/**
+ * The theme of the host, read from the document.
+ *
+ * @param {Document} [doc] the document to read
+ * @returns {string} 'dark' or 'light'
+ */
+export function readHostTheme(doc = typeof document !== 'undefined' ? document : null) {
+  return resolveHostTheme(readThemeEnvironment(doc))
+}
+
+/**
+ * The theme of a snapshot of the host.
+ *
+ * The host resolves its own themes before it publishes them, so the
+ * snapshot carries the colour scheme that is in use - never the id of a
+ * theme and never the preference of the system.
+ *
+ * @param {any} snapshot the snapshot of the theme service
+ * @returns {string|null} 'dark', 'light' or null
+ */
+function themeOfSnapshot(snapshot) {
+  if (snapshot === null || snapshot === undefined) return null
+  const scheme = snapshot?.active?.colorScheme ?? snapshot?.colorScheme ?? snapshot?.mode ?? ''
+  const value = String(scheme).trim().toLowerCase()
+  if (value === THEME_LIGHT || value === THEME_DARK) return value
+  return null
+}
+
+/**
+ * The theme of the host, read from the theme service of the host.
+ *
+ * The service is optional: an older host has none, and a plugin that never
+ * asked for it may not see it at all. Every step of it is guarded, and null
+ * means "the service cannot answer" - the caller falls back to the
+ * document.
+ *
+ * @param {any} ctx the client context of the plugin
+ * @returns {string|null} 'dark', 'light' or null
+ */
+export function readHostThemeService(ctx) {
+  try {
+    const theme = ctx?.theme
+    if (theme === undefined || theme === null || typeof theme.getTheme !== 'function') return null
+    return themeOfSnapshot(theme.getTheme())
+  } catch { return null }
+}
+
+/**
+ * Subscribe to the theme of the host.
+ *
+ * The host publishes every change of its theme as the event `theme/change`.
+ * A host that has no such event, or a context that cannot be asked, gives
+ * null back - the caller watches the document then.
+ *
+ * @param {any} ctx the client context of the plugin
+ * @param {(theme: string) => void} onChange called with the new theme
+ * @returns {(() => void)|null} the disposer of the subscription, or null
+ */
+export function subscribeHostThemeService(ctx, onChange) {
+  try {
+    if (typeof ctx?.on !== 'function' || typeof onChange !== 'function') return null
+    const off = ctx.on('theme/change', (snapshot) => {
+      const theme = themeOfSnapshot(snapshot)
+      if (theme === null) return
+      try { onChange(theme) } catch { /* a broken listener must not stop the subscription */ }
+    })
+    return typeof off === 'function' ? off : null
+  } catch { return null }
+}
+
+/**
+ * Watch the theme of the host and report every change.
+ *
+ * The document is the safety net of the theme: the host writes the colour
+ * scheme of its theme on the root element, so the theme is observed there -
+ * the attributes of the root element and the head of the document (a theme
+ * switch may swap the stylesheet). A debounce of 150 ms collapses the burst
+ * of mutations of a theme switch into one re-read, and every step of it is
+ * guarded: a browser without a MutationObserver, a document without a root
+ * element or a broken listener must not take the terminal down.
+ *
+ * @param {(theme: string) => void} onChange called with the new theme
+ * @param {object} [deps] the environment to watch
+ * @param {Document} [deps.document] the document to watch
+ * @param {number} [deps.debounceMs] the debounce of the watcher
+ * @returns {() => void} the disposer of the watcher
+ */
+export function watchHostTheme(onChange, deps = {}) {
+  const doc = deps.document ?? (typeof document !== 'undefined' ? document : null)
+  const Observer = deps.MutationObserver ?? (typeof MutationObserver !== 'undefined' ? MutationObserver : null)
+  const setTimer = deps.setTimeout ?? ((fn, ms) => setTimeout(fn, ms))
+  const clearTimer = deps.clearTimeout ?? (handle => clearTimeout(handle))
+  const debounceMs = deps.debounceMs ?? 150
+  if (doc === null || doc === undefined || typeof onChange !== 'function') return () => {}
+  let timer = null
+  // The theme the terminal is in right now: only a real change is reported.
+  let current = readHostTheme(doc)
+  const emit = () => {
+    timer = null
+    const theme = readHostTheme(doc)
+    if (theme === current) return
+    current = theme
+    try { onChange(theme) } catch { /* a broken listener must not stop the watch */ }
+  }
+  const schedule = () => {
+    if (timer !== null) clearTimer(timer)
+    timer = setTimer(emit, debounceMs)
+  }
+  let observer = null
+  if (Observer !== null) {
+    try {
+      observer = new Observer(schedule)
+      const root = doc.documentElement ?? null
+      if (root !== null) {
+        observer.observe(root, {
+          attributes: true,
+          attributeFilter: ['style', 'class', 'data-theme', 'data-color-scheme'],
+        })
+      }
+      const head = doc.head ?? null
+      if (head !== null) {
+        observer.observe(head, { childList: true, subtree: true, characterData: true })
+      }
+    } catch { /* no observer: the terminal keeps the palette it has */ }
+  }
+  return () => {
+    if (timer !== null) { clearTimer(timer); timer = null }
+    try { observer?.disconnect() } catch { /* already gone */ }
+    observer = null
+  }
+}
+
+/**
+ * Push a palette into a live terminal.
+ *
+ * xterm compares the theme by reference, so the palette has to be a new
+ * object - that is what makes the renderer repaint the canvas. Nothing else
+ * is touched: the buffer, the scrollback, the socket and the session stay
+ * exactly as they were, and a running command is not interrupted.
+ *
+ * @param {any} terminal the xterm instance
+ * @param {string} theme 'dark' or 'light'
+ * @param {any} [element] the element that carries the custom properties
+ * @returns {object} the palette that was pushed
+ */
+export function applyTerminalTheme(terminal, theme, element = null) {
+  const palette = TERMINAL_PALETTES[theme] ?? TERMINAL_PALETTES[THEME_DARK]
+  const current = terminal?.options?.theme
+  if (current === undefined || current === null || current.background !== palette.background || current.foreground !== palette.foreground) {
+    try { terminal.options.theme = { ...palette } } catch { /* the terminal is gone */ }
+  }
+  const target = element ?? terminal?.element ?? null
+  if (target !== null && target !== undefined && typeof target.style?.setProperty === 'function') {
+    // The IME composition preview is a DOM element and not canvas, so it
+    // takes its colours from custom properties that the palette pushes
+    // down - xterm ships it with a hard-coded black background.
+    target.style.setProperty('--iwb-term-bg', palette.background)
+    target.style.setProperty('--iwb-term-fg', palette.foreground)
+  }
+  return palette
+}
+
+/**
+ * The guard of the input method (Issue #3 / R10).
+ *
+ * The characters are lost inside xterm, not in this plugin: when a
+ * composition ends, xterm reads the committed text back from its hidden
+ * textarea in a `setTimeout(0)` (`CompositionHelper._finalizeComposition`),
+ * because the `data` of the composition event is not reliable on Chromium.
+ * When the input method switches its language while a composition runs, the
+ * textarea is cleared in between - the read yields an empty string and the
+ * characters are dropped silently. Windows Terminal does not lose them,
+ * because it synthesises the input natively and never reads back.
+ *
+ * The guard watches the composition and speaks only when the terminal
+ * stayed silent: it sends the text the input method reported itself, over
+ * the same path the terminal uses for its own input. It acts on the one
+ * signature of the bug - a Shift pressed *during* a composition - so the
+ * normal way of committing a candidate (space or enter) is never touched,
+ * and the text can never be sent twice: the guard only speaks when xterm
+ * sent nothing for that composition.
+ *
+ * @param {any} terminal the xterm instance
+ * @param {(text: string) => void} send sends the text to the shell
+ * @param {object} [deps] the timers to use
+ * @returns {{dispose: () => void}} the disposer of the guard
+ */
+export function createImeGuard(terminal, send, deps = {}) {
+  const setTimer = deps.setTimeout ?? ((fn, ms) => setTimeout(fn, ms))
+  const clearTimer = deps.clearTimeout ?? (handle => clearTimeout(handle))
+  const textarea = terminal?.textarea
+  if (textarea === undefined || textarea === null || typeof textarea.addEventListener !== 'function') {
+    return { dispose() {} }
+  }
+  const state = {
+    composing: false,
+    text: '',
+    shift: false,
+    spoke: false,
+    repaired: false,
+    timer: null,
+    disposed: false,
+  }
+  const onCompositionStart = () => {
+    state.composing = true
+    state.text = ''
+    state.shift = false
+    state.spoke = false
+    state.repaired = false
+  }
+  const onCompositionUpdate = (event) => {
+    const data = event?.data
+    // An empty update does not erase what was captured: some input methods
+    // report an empty string before they end the composition.
+    if (typeof data === 'string' && data !== '') state.text = data
+  }
+  const onKeyDown = (event) => {
+    if (!state.composing) return
+    if (event?.key === 'Shift' || event?.keyCode === 16) state.shift = true
+  }
+  const onCompositionEnd = (event) => {
+    state.composing = false
+    if (!state.shift) return
+    // xterm queues the send of the committed text in a `setTimeout(0)` that
+    // it started before this handler ran (its listener is the older one), so
+    // the check below is queued after it and sees whether the terminal spoke.
+    if (state.timer !== null) clearTimer(state.timer)
+    state.timer = setTimer(() => {
+      state.timer = null
+      if (state.disposed || state.spoke || state.repaired) return
+      // The text the input method reported while it composed is what the
+      // user typed - the raw string, the way the native terminal of Windows
+      // puts it on the screen. Only when the input method reported nothing
+      // at all does the text of the composition event stand in for it.
+      const committed = typeof event?.data === 'string' ? event.data : ''
+      const text = state.text !== '' ? state.text : committed
+      if (text === '') return
+      state.repaired = true
+      try { send(text) } catch { /* the session is gone */ }
+    }, 0)
+  }
+  textarea.addEventListener('compositionstart', onCompositionStart)
+  textarea.addEventListener('compositionupdate', onCompositionUpdate)
+  textarea.addEventListener('compositionend', onCompositionEnd)
+  textarea.addEventListener('keydown', onKeyDown)
+  // The terminal speaks through `onData`; the guard listens to the same
+  // stream to know that the characters are already on their way.
+  const dataDisposable = typeof terminal?.onData === 'function'
+    ? terminal.onData(() => { state.spoke = true })
+    : null
+  return {
+    dispose() {
+      state.disposed = true
+      if (state.timer !== null) { clearTimer(state.timer); state.timer = null }
+      textarea.removeEventListener('compositionstart', onCompositionStart)
+      textarea.removeEventListener('compositionupdate', onCompositionUpdate)
+      textarea.removeEventListener('compositionend', onCompositionEnd)
+      textarea.removeEventListener('keydown', onKeyDown)
+      dataDisposable?.dispose()
+    },
+  }
 }
 
 /**
@@ -47,37 +492,53 @@ function TerminalView({ store, session, active, visible }) {
   const socketRef = useRef(null)
   const scheduleRef = useRef(null)
   const [error, setError] = useState(null)
-  const rootRef = useRef(null)
 
   useEffect(() => {
     if (hostRef.current === null) return undefined
-    rootRef.current = document.querySelector('.iwb-root')
+    // The theme of the host is read once here and watched afterwards: the
+    // palette is concrete (xterm paints on its own canvas), so it has to be
+    // pushed into the instance whenever the host switches its theme. The
+    // theme service of the host is the first source; a host that has none
+    // (or a plugin that cannot see it) is read from the document.
+    const theme = readHostThemeService(store.ctx) ?? readHostTheme()
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: store.state.settings?.terminal?.fontSize ?? 13,
       fontFamily: '"JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, monospace',
       allowProposedApi: true,
-      theme: {
-        background: token(rootRef, '--iwb-bg', '#15171c'),
-        foreground: token(rootRef, '--iwb-fg', '#d8dce3'),
-        cursor: token(rootRef, '--iwb-accent', '#4c9aff'),
-        selectionBackground: 'rgba(76,154,255,.32)',
-        black: '#1c1f26', red: '#e2686f', green: '#4fb477', yellow: '#d7a24a',
-        blue: '#4c9aff', magenta: '#c678dd', cyan: '#56b6c2', white: '#d8dce3',
-        brightBlack: '#8a93a1', brightRed: '#ff7b86', brightGreen: '#6fd08c', brightYellow: '#e8bd6a',
-        brightBlue: '#6cb0ff', brightMagenta: '#d79ae8', brightCyan: '#7fd4df', brightWhite: '#ffffff',
-      },
+      theme: { ...TERMINAL_PALETTES[theme] },
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
     terminal.open(hostRef.current)
     termRef.current = terminal
     fitRef.current = fit
+    // The palette also goes into the DOM: the IME composition preview is a
+    // DOM element and not canvas, so it needs the colours of the surface.
+    applyTerminalTheme(terminal, theme, terminal.element)
 
     const send = (frame) => {
       const socket = socketRef.current
       if (socket !== null && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame))
     }
+
+    // The theme of the host is observed in two places: the theme service of
+    // the host, when the plugin can see it, and the document, where the host
+    // writes the colour scheme of its theme. A switch only repaints the
+    // canvas of the running terminal: the instance, the socket, the session,
+    // the scrollback and a running command stay as they are.
+    const stopThemeWatch = watchHostTheme(next => {
+      applyTerminalTheme(terminal, next, terminal.element)
+    })
+    // The theme service of the host, when there is one. Both sources are
+    // used: the service is exact, the document is the safety net, and
+    // pushing the same palette twice changes nothing.
+    const offThemeService = subscribeHostThemeService(store.ctx, next => {
+      applyTerminalTheme(terminal, next, terminal.element)
+    })
+    // The characters of a composition that the input method dropped when it
+    // switched its language (Issue #3 / R10).
+    const imeGuard = createImeGuard(terminal, text => send({ type: 'input', data: text }))
 
     // xterm and the PTY must agree on cols/rows. A fit that runs while the
     // pane is hidden or mid-transition would resize the shell to a few
@@ -225,6 +686,9 @@ function TerminalView({ store, session, active, visible }) {
       resizeObserver.disconnect()
       dataDisposable.dispose()
       selectionDisposable.dispose()
+      stopThemeWatch()
+      offThemeService?.()
+      imeGuard.dispose()
       const socket = socketRef.current
       socketRef.current = null
       if (socket !== null) socket.close()

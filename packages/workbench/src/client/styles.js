@@ -303,8 +303,11 @@ export const CSS = `
   width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
 }
 .iwb-html-action:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .14); }
-.iwb-html-action.iwb-chrome { color: #4285f4; }
-.iwb-html-action.iwb-chrome:hover { color: #4285f4; filter: brightness(1.12); }
+/* The "open outside" action opens the browser the USER registered, which is
+   not necessarily one brand - so the mark is a generic one and the colour
+   comes from the theme instead of a brand's hex. */
+.iwb-html-action.iwb-external { color: var(--iwb-accent); }
+.iwb-html-action.iwb-external:hover { color: var(--iwb-accent); filter: brightness(1.12); }
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;
@@ -602,6 +605,27 @@ export const CSS = `
 .iwb-vlist { position: relative; }
 .iwb-vlist-row { position: absolute; left: 0; right: 0; height: 22px; }
 
+/* ── the frozen "current folder" bar (R4) ───────────────────────────────────
+   The tree rows are absolutely positioned (the tree is virtualised), so CSS
+   position:sticky cannot hold a row in place: the bar is a layer of its
+   own inside the scrolling body and carries the folder the viewport sits in.
+   It is a navigation bar, not a tree row - it never joins the selection, and
+   it is hidden entirely in the flat quick-file list (there is no hierarchy
+   there to point at). */
+.iwb-tree-sticky {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; align-items: center; gap: 4px;
+  height: 22px; padding: 0 8px 0 12px;
+  background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border);
+  font-size: 12px; color: var(--iwb-muted); white-space: nowrap; overflow: hidden;
+}
+.iwb-tree-sticky-item {
+  color: var(--iwb-fg); font-weight: 500; padding: 0 4px; border-radius: 4px;
+  overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.iwb-tree-sticky-item:hover { color: var(--iwb-accent); background: rgba(127, 127, 127, .14); }
+.iwb-tree-sticky-sep { opacity: .55; }
+
 .iwb-filter {
   display: flex; align-items: center; gap: 6px; margin: 6px 8px; height: 26px; padding: 0 8px;
   border: 1px solid var(--iwb-border); border-radius: 6px; background: var(--iwb-panel-2); color: var(--iwb-muted);
@@ -819,6 +843,13 @@ export const CSS = `
   padding: 0 7px; font-size: 11.5px; outline: none; color: var(--iwb-fg);
 }
 .iwb-input { width: 150px; }
+/* A field that is greyed until the user clicks into it. It must stay
+   focusable, so it is readOnly and never disabled - a disabled input
+   cannot take the focus, and the click would do nothing at all. The class
+   stands on its own: the path box must not carry .iwb-input, whose fixed
+   width would shrink it. */
+.iwb-input-readonly { opacity: .6; cursor: text; }
+.iwb-input-readonly:focus { opacity: 1; }
 .iwb-select:focus, .iwb-input:focus { border-color: var(--iwb-accent); }
 .iwb-git-table { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .iwb-git-head, .iwb-git-row {
@@ -889,6 +920,30 @@ export const CSS = `
    that black instead of the terminal background. The terminal's own background
    is --iwb-bg, so the viewport must let it through. */
 .iwb-term-host .xterm-viewport { background-color: transparent; }
+/* ── the turn change preview (R2) ──────────────────────────────────────────
+   The review of one conversation turn: the changed files on the left, the
+   diff of the selected file on the right. */
+.iwb-review { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.iwb-review-files {
+  flex: 0 0 240px; overflow: auto; border-right: 1px solid var(--iwb-border);
+  background: var(--iwb-panel);
+}
+.iwb-review-file { display: flex; align-items: center; gap: 6px; }
+
+/* ── the IME composition preview of the terminal (R9) ──────────────────────
+   xterm draws the composing text of the input method into a DOM element and
+   ships it with a hard-coded black background and white text - a black box on
+   a light terminal. The terminal paints on a canvas, so the colours cannot
+   come from a token of this stylesheet: the panel pushes them into the custom
+   properties below (--iwb-term-bg / --iwb-term-fg). Only the colours change
+   here - xterm positions the box with inline styles and the candidate window
+   of the input method is placed from its bounding box, so its geometry
+   (display, position, padding) must not be touched. */
+.iwb-term-host .xterm .composition-view {
+  background: var(--iwb-term-bg, var(--iwb-panel-2));
+  color: var(--iwb-term-fg, var(--iwb-fg));
+  border-radius: 3px;
+}
 .iwb-term-error { padding: 16px; color: var(--iwb-error); font-size: 12px; white-space: pre-wrap; user-select: text; }
 
 /*
@@ -1338,6 +1393,20 @@ export const CSS = `
 /* The active line is part of the annotate column too, so it answers the same
    way the numbers do instead of looking like a hole. */
 .iwb-blame-gutter .cm-activeLineGutter { background: transparent; color: var(--iwb-fg); }
+
+/* ── code folding (R3) ──────────────────────────────────────────────────────
+   CodeMirror draws the fold markers and the placeholder of a collapsed range;
+   the workbench only gives them the theme's colours, so they follow the host
+   theme like every other part of the editor. The class names are CodeMirror's
+   own - foldGutter() installs the gutter as .cm-foldGutter. */
+.cm-foldGutter { color: var(--iwb-muted); }
+.cm-foldGutter .cm-gutterElement { padding: 0 2px; cursor: pointer; }
+.cm-foldGutter .cm-gutterElement:hover { color: var(--iwb-fg); }
+.cm-foldPlaceholder {
+  color: var(--iwb-muted);
+  background: color-mix(in srgb, var(--iwb-accent) 14%, transparent);
+  border: none; border-radius: 3px; padding: 0 4px; margin: 0 2px; font-size: .92em;
+}
 
 @container ide-workbench (max-width: 760px) {
   .iwb-topbar { gap: 4px; padding: 0 6px; }

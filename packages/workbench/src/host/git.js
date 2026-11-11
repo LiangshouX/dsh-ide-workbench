@@ -163,7 +163,8 @@ export const MAX_STATUS_ENTRIES = 20_000
  * @param {{ limit?: number }} [options] the entry limit
  * @returns {{ branch: string|undefined, detached: boolean, oid: string|undefined,
  *   upstream: string|undefined, ahead: number|undefined, behind: number|undefined,
- *   entries: Array<{ path: string, xy: string, untracked: boolean, conflict: boolean }>,
+ *   entries: Array<{ path: string, xy: string, untracked: boolean, conflict: boolean,
+ *     ignored?: boolean, ignoredDir?: boolean }>,
  *   truncated: boolean }}
  */
 export function parseStatusV2(buffer, options = {}) {
@@ -264,7 +265,17 @@ export function parseStatusV2(buffer, options = {}) {
     }
     if (record.startsWith('! ')) {
       // `--ignored=matching` lists ignored paths here, not as untracked.
-      if (!push({ path: record.slice(2), xy: '!!', untracked: false, conflict: false, ignored: true })) return result
+      // Porcelain writes an ignored DIRECTORY with a trailing slash
+      // (`target/`), while an ignored file has none. The client keys the
+      // ignored set by the plain path, so the slash is dropped here — both
+      // sides must speak the same key (R6). The directory is marked, because
+      // the client has to know that the whole subtree below it is ignored:
+      // git does not descend into an ignored directory, so no entry of the
+      // subtree ever reaches the client.
+      const raw = record.slice(2)
+      const isDir = raw.endsWith('/')
+      const path = isDir ? raw.replace(/\/+$/, '') : raw
+      if (!push({ path, xy: '!!', untracked: false, conflict: false, ignored: true, ignoredDir: isDir })) return result
     }
   }
   return result
@@ -298,8 +309,13 @@ export function parseNumstat(output) {
  *
  * The snapshot costs one `git status` subprocess. The two `git diff --numstat`
  * calls that add the per-file line counts are only made when the Commit
- * window asks for them, and `--ignored=matching` (which walks the whole
- * worktree) is only passed when the user enabled the ignored-file listing.
+ * window asks for them.
+ *
+ * The ignored entries are ALWAYS asked for (`--ignored=matching`): the
+ * setting only decides whether the client *shows* them, and a client that
+ * never receives them cannot grey an ignored folder at all (R6). The
+ * `ignored` option is therefore accepted but no longer gates the git flag.
+ *
  * The entry list is bounded: a repository with a huge untracked tree would
  * otherwise make every poll tick build a list of hundreds of thousands of
  * entries (PRD-v5 supplement §11 risk #1).
@@ -330,7 +346,12 @@ export async function status(env, options = {}) {
   // ('normal') reports a whole untracked directory as one `? dir/` record, and
   // the file tree can then only colour the directory, never the files in it.
   const args = ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all']
-  if (options.ignored === true) args.push('--ignored=matching')
+  // The ignored entries are always asked for. The setting only decides
+  // whether the client SHOWS them, and without the entries the tree cannot
+  // tell an ignored folder from a normal one (R6). `--ignored=matching`
+  // reports the ignored DIRECTORIES as one entry each, so the list does not
+  // grow with the size of the ignored tree.
+  args.push('--ignored=matching')
   const statusResult = await run(repo, args)
   const parsed = parseStatusV2(statusResult.stdout, { limit })
   let unstagedNumstat = new Map()
@@ -354,6 +375,11 @@ export async function status(env, options = {}) {
       untracked: entry.untracked === true && entry.ignored !== true,
       conflict: entry.conflict,
       ignored: entry.ignored === true,
+      // Only an ignored directory carries the flag: the client has to know
+      // that the whole subtree below it is ignored (R6). The field stays
+      // away from the other entries, so the payload does not grow with the
+      // size of the status.
+      ...(entry.ignoredDir === true ? { ignoredDir: true } : {}),
       staged: entry.conflict || (!entry.untracked && !entry.ignored && x !== '.' && x !== '?'),
       unstaged: entry.conflict || (!entry.untracked && !entry.ignored && y !== '.' && y !== '?'),
       stagedLines: stagedNumstat.get(entry.path),

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PRD-v4 review fixes — R2 (git status basis), R3 (`.gitignore` entries),
  * L5 (double click on the tree twisty).
  *
@@ -107,7 +107,16 @@ function splitRepoState() {
     gitRepoRoot: APP,
     dirs: new Map([
       [W, { loading: false, entries: [entry('app', APP, 'app', true), entry('other', OTHER, 'other', true)] }],
-      [APP, { loading: false, entries: [entry('src', SRC, 'app/src', true)] }],
+      [APP, {
+        loading: false,
+        // `app` holds a file next to `src`, so it is a plain folder and not a
+        // package chain: the tree renders it as a row of its own. (A folder
+        // that holds nothing but one sub-folder is merged with it - R5.)
+        entries: [
+          entry('src', SRC, 'app/src', true),
+          entry('build.gradle', `${APP}\\build.gradle`, 'app/build.gradle', false),
+        ],
+      }],
       [SRC, { loading: false, entries: [entry('a.ts', `${SRC}\\a.ts`, 'app/src/a.ts', false)] }],
       [OTHER, { loading: false, entries: [entry('b.ts', `${OTHER}\\b.ts`, 'other/b.ts', false)] }],
     ]),

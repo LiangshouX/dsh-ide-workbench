@@ -10,12 +10,17 @@ import { setPrimitivesLoader } from './host-primitives.js'
 import { matchesShortcut, isTerminalTarget, selectedText } from './util.js'
 import { useWorkbench } from './hooks.js'
 import {
-  basenameOfFileAddress, isFileAddress, isIdeViewableAddress, parseFileAddress, resolveFileAddress,
+  basenameOfFileAddress, isFileAddress, isIdeViewableAddress, linkResolvesInsideWorkspace, parseFileAddress,
 } from './file-address.js'
 import {
   isPathWithin, sameScopePath, sessionCwdOf, shouldContinueIde, workspaceScopeKey,
 } from './workspace-scope.js'
-import { openInDefaultSidebar } from './file-link.js'
+import { openInDefaultSidebar, replaceCarrierTab } from './file-link.js'
+import {
+  fetchReviewDiff, fetchReviewSummary, isChangesReviewAddress, isOutsideWorkspace,
+  parseChangesReviewAddress, reviewIndexOf, reviewMessageKey,
+} from './changes-review.js'
+import { DiffView } from './DiffView.jsx'
 import { registerChatInput } from './chat-bridge.js'
 // The CodeMirror runtime of the process is published when this module is
 // evaluated (PRD-v6 §3.5): the codeintel may be loaded before the core, and
@@ -77,20 +82,21 @@ function useMountedSession(ctx) {
  * the user declines to widen the IDE project to the workspace root — the
  * carrier tab hands the address back to DSH's own sidebar and replaces itself
  * with that viewer instead of surfacing an error.
+ *
+ * The fate of the carrier is decided, never left open: the host replaces it
+ * with the IDE page tab when that tab does not exist yet, and the plugin
+ * closes it when it does (see `replaceCarrierTab`). A carrier that stayed
+ * alive would sit on "Loading…" for ever and swallow the next click of the
+ * same link, because the host deduplicates the tabs by content id.
  */
 function FileLinkBridge({ store, tab, ctx, suppressSelf }) {
   const address = typeof tab.contentId === 'string' ? tab.contentId : ''
   const line = tab.navigation?.params?.line
   const [view, setView] = React.useState({ phase: 'opening', absolute: '' })
 
-  const replaceWithIde = React.useCallback(() => {
-    try {
-      ctx.sidebarRight.openTab(PANEL_ID, { replaceTab: tab.id })
-      return true
-    } catch {
-      return false
-    }
-  }, [ctx, tab.id])
+  const replaceWithIde = React.useCallback(() => replaceCarrierTab(ctx, tab.id, {
+    kind: PANEL_ID, contentId: address,
+  }), [ctx, tab.id, address])
 
   const openDefault = React.useCallback(() => openInDefaultSidebar(ctx, address, {
     ownKind: PANEL_ID, line, replaceTab: tab.id, suppressSelf,
@@ -109,7 +115,12 @@ function FileLinkBridge({ store, tab, ctx, suppressSelf }) {
       result = { status: 'failed' }
     }
     if (result.status === 'opened') {
-      if (!replaceWithIde()) setView({ phase: 'failed', absolute: result.absolute ?? '' })
+      // The carrier is on its way out: replaced by the host, or closed by the
+      // plugin. Either way it does not stay in the layout, and the view never
+      // stays in the opening phase.
+      const fate = replaceWithIde()
+      if (!fate.ok) setView({ phase: 'failed', absolute: result.absolute ?? '' })
+      else setView(current => (current.phase === 'opening' ? { ...current, phase: 'done' } : current))
       return
     }
     if (result.status === 'outside-workspace') {
@@ -146,6 +157,12 @@ function FileLinkBridge({ store, tab, ctx, suppressSelf }) {
     content = React.createElement('div', { className: 'iwb-empty' },
       React.createElement('div', { className: 'iwb-empty-title' }, store.t('common.loading')),
     )
+  } else if (view.phase === 'done') {
+    // The carrier is on its way out (the host replaced it, or the plugin
+    // closed it). The surface stays readable until the tab is gone.
+    content = React.createElement('div', { className: 'iwb-empty' },
+      React.createElement('div', { className: 'iwb-empty-title' }, path),
+    )
   } else if (view.phase === 'prompt') {
     content = card('links.switchProjectTitle', 'links.switchProjectBody', [
       button('yes', 'links.switchProjectYes', 'iwb-primary', () => { void begin(true) }),
@@ -169,6 +186,200 @@ function FileLinkBridge({ store, tab, ctx, suppressSelf }) {
   return React.createElement('div', { className: 'iwb-link-shell' }, content)
 }
 
+/**
+ * The review of the changes of one chat turn.
+ *
+ * The tab the host opened for a turn review IS the review: it shows the
+ * changed files of the turn and the diff of the selected one, and it stays
+ * until the user closes it. The diff is drawn by the diff viewer of the
+ * workbench - the hunks of the turn are adapted to its row model - so the
+ * turn review and the git diff read ONE model.
+ *
+ * When the turn cannot be read at all, the link is handed back to DSH's own
+ * sidebar - the tab that knows the turn - and the reason is told to the user.
+ * A review that cannot be shown is never blank.
+ */
+function ChangesReviewBridge({ store, tab, ctx, suppressSelf }) {
+  const t = store.t
+  const address = typeof tab?.contentId === 'string' ? tab.contentId : ''
+  const parsed = parseChangesReviewAddress(address)
+  const requestedIndex = tab?.navigation?.params?.index
+  const [view, setView] = React.useState({
+    phase: 'loading',
+    summary: null,
+    index: 0,
+    diff: null,
+    diffPhase: 'idle',
+    reason: '',
+  })
+
+  /**
+   * Hand the link back to DSH's own sidebar and say why.
+   *
+   * The host's review tab knows the turn as well, and it shows its own
+   * message when the data is gone. When even that fails, the plugin's tab
+   * shows the reason itself.
+   */
+  const degrade = React.useCallback((reason) => {
+    const key = reason === 'expired' ? 'changesReview.expired' : 'changesReview.loadFailed'
+    const opened = openInDefaultSidebar(ctx, address, {
+      ownKind: PANEL_ID, replaceTab: tab?.id, suppressSelf,
+    })
+    try { store.toast('error', t(key), address) } catch { /* the store may be gone */ }
+    if (!opened) setView(current => ({ ...current, phase: 'failed', reason }))
+  }, [address, ctx, store, suppressSelf, t, tab?.id])
+
+  // The list of the changed files of the turn.
+  React.useEffect(() => {
+    if (parsed === undefined) {
+      // A broken address is never claimed, but the safety net still hands the
+      // link back to the sidebar of the host.
+      degrade('unreachable')
+      return undefined
+    }
+    let cancelled = false
+    setView(current => ({ ...current, phase: 'loading', reason: '' }))
+    void fetchReviewSummary(parsed).then(result => {
+      if (cancelled) return
+      if (!result.ok) { degrade(result.reason ?? 'unreachable'); return }
+      // The link names the file it points at: the review opens on THAT file.
+      const index = reviewIndexOf(result.document.files.length, requestedIndex)
+      setView(current => ({
+        ...current,
+        phase: 'ready',
+        summary: result.document,
+        index,
+        diff: null,
+        diffPhase: 'idle',
+      }))
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, parsed?.sessionId, parsed?.seq, parsed?.turn, requestedIndex, degrade])
+
+  // The diff of the selected file.
+  React.useEffect(() => {
+    if (view.phase !== 'ready' || view.summary === null) return undefined
+    const file = view.summary.files[view.index]
+    if (file === undefined) return undefined
+    let cancelled = false
+    setView(current => (current.diffPhase === 'loading' ? current : { ...current, diffPhase: 'loading', diff: null }))
+    void fetchReviewDiff(parsed, { params: { index: view.index, path: file.path } }).then(result => {
+      if (cancelled) return
+      if (!result.ok) {
+        setView(current => ({ ...current, diffPhase: 'failed', reason: result.reason ?? 'unreachable' }))
+        return
+      }
+      setView(current => ({ ...current, diff: result.document, diffPhase: 'ready' }))
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, view.phase, view.index, view.summary])
+
+  const workspaceRoot = store.state?.workspaceRoot ?? ''
+  const files = view.summary?.files ?? []
+  const file = files[view.index]
+
+  const empty = (title) => React.createElement('div', { className: 'iwb-empty' },
+    React.createElement('div', { className: 'iwb-empty-title' }, t(title)),
+  )
+
+  if (view.phase === 'loading') {
+    return React.createElement('div', { className: 'iwb-link-shell' }, empty('common.loading'))
+  }
+
+  if (view.phase === 'failed') {
+    const key = view.reason === 'expired' ? 'changesReview.expired' : 'changesReview.loadFailed'
+    const card = React.createElement('div', { className: 'iwb-empty iwb-link-prompt' },
+      React.createElement('div', { className: 'iwb-empty-title' }, t(key)),
+      React.createElement('div', { className: 'iwb-link-path' }, address),
+      React.createElement('div', { className: 'iwb-link-actions' },
+        React.createElement('button', {
+          type: 'button', className: 'iwb-textbtn iwb-primary',
+          onClick: () => {
+            openInDefaultSidebar(ctx, address, { ownKind: PANEL_ID, replaceTab: tab?.id, suppressSelf })
+          },
+        }, t('links.openInDefaultSidebar')),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-textbtn',
+          onClick: () => { try { ctx.sidebarRight.close(tab?.id) } catch { /* the layout owns the tab */ } },
+        }, t('common.close')),
+      ),
+    )
+    return React.createElement('div', { className: 'iwb-link-shell' }, card)
+  }
+
+  if (files.length === 0) {
+    return React.createElement('div', { className: 'iwb-link-shell' }, empty('changesReview.empty'))
+  }
+
+  const list = React.createElement('div', { className: 'iwb-review-files' },
+    React.createElement('div', { className: 'iwb-changelist-head' }, t('changesReview.files')),
+    files.map(entry => {
+      const outside = isOutsideWorkspace(entry.path, workspaceRoot)
+      return React.createElement('div', {
+        key: entry.index,
+        className: `iwb-file-row iwb-review-file ${entry.index === view.index ? 'iwb-active' : ''}`,
+        title: entry.path,
+        onClick: () => setView(current => ({
+          ...current, index: entry.index, diff: null, diffPhase: 'idle',
+        })),
+      },
+        React.createElement('span', { className: 'iwb-file-name' }, entry.display),
+        outside
+          ? React.createElement('span', { className: 'iwb-file-dir' }, t('changesReview.outsideWorkspace'))
+          : null,
+        React.createElement('span', { className: 'iwb-file-stat' },
+          React.createElement('span', { className: 'iwb-additions' }, `+${entry.added}`),
+          React.createElement('span', { className: 'iwb-deletions' }, `-${entry.deleted}`)),
+      )
+    }),
+  )
+
+  let diffArea
+  const messageKey = reviewMessageKey(view)
+  if (messageKey !== '') {
+    diffArea = empty(messageKey)
+  } else if (view.diff !== null && file !== undefined) {
+    // The hunks of the turn are drawn by the diff viewer of the workbench: the
+    // adapter of diff.js turns them into the row model of the viewer.
+    const path = view.diff.path !== '' ? view.diff.path : file.path
+    diffArea = React.createElement(DiffView, {
+      store,
+      tab: {
+        id: `review:${parsed?.sessionId ?? ''}:${parsed?.seq ?? ''}:${parsed?.turn ?? ''}:${view.index}`,
+        kind: 'review',
+        path,
+        rel: path,
+        name: file.display,
+        readOnly: true,
+        scrollTop: 0,
+        payload: {
+          hunks: view.diff.hunks,
+          path,
+          display: view.diff.display !== '' ? view.diff.display : file.display,
+          kind: view.diff.kind,
+        },
+      },
+    })
+  } else {
+    diffArea = empty('changesReview.empty')
+  }
+
+  return React.createElement('div', { className: 'iwb-root iwb-review' },
+    React.createElement('div', { className: 'iwb-diff-toolbar' },
+      React.createElement('span', { style: { color: 'var(--iwb-fg)', fontWeight: 600 } }, t('changesReview.title')),
+      React.createElement('span', { className: 'iwb-spacer' }),
+      React.createElement('span', { className: 'iwb-additions' }, `+${view.summary.added}`),
+      React.createElement('span', { className: 'iwb-deletions' }, `-${view.summary.deleted}`),
+    ),
+    React.createElement('div', { className: 'iwb-body' },
+      list,
+      React.createElement('div', { className: 'iwb-center' }, diffArea),
+    ),
+  )
+}
+
 function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, suppressSelf, renderSlot }) {
   const { tab, sidebar } = useTabInfo()
   const store = getStore(sessionId)
@@ -179,19 +390,25 @@ function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, s
   // host has no `mounted` feed, fall back to drawing every body as before.
   const isMounted = !hasMounted || mountedId === undefined || mountedId === sessionId
   const fileLink = isFileAddress(tab.contentId)
+  // The review of a turn is a tab of its own: it shows the changed files of
+  // the turn and the diff of the selected one, not the workbench.
+  const review = !fileLink && isChangesReviewAddress(tab.contentId)
 
   useEffect(() => {
     if (isMounted) void store.init()
   }, [store, isMounted])
 
   useEffect(() => {
-    if (fileLink) return undefined
+    if (fileLink || review) return undefined
     reportVisible(sessionId, isMounted && tab.visible === true)
     return () => reportVisible(sessionId, false)
-  }, [sessionId, isMounted, tab.visible, fileLink, reportVisible])
+  }, [sessionId, isMounted, tab.visible, fileLink, review, reportVisible])
 
   if (fileLink) {
     return React.createElement(FileLinkBridge, { store, tab, ctx, suppressSelf })
+  }
+  if (review) {
+    return React.createElement(ChangesReviewBridge, { store, tab, ctx, suppressSelf })
   }
   if (!isMounted) return null
   // `renderSlot` is the face of the four child slots of the contract: the
@@ -241,10 +458,12 @@ export function apply(ctx) {
   // `openInDefaultSidebar` uses this when the host does not publish the tab
   // registry's `candidates()`: the IDE declines one address for the duration
   // of the synchronous default open, so the registry ranks the default type.
-  let suppressFileLinkClaim = false
+  // It covers every address family the IDE claims - a file link and the
+  // review of a turn.
+  let suppressOwnClaim = false
   const suppressSelf = () => {
-    suppressFileLinkClaim = true
-    return () => { suppressFileLinkClaim = false }
+    suppressOwnClaim = true
+    return () => { suppressOwnClaim = false }
   }
 
   /**
@@ -437,20 +656,92 @@ export function apply(ctx) {
     setPrimitivesLoader(() => modules.import('@deepseek-ai/dsh-client-ui-primitives'))
   }
 
+  /**
+   * The bases of the relative candidates of one chat link (PRD-v4 §7.4): the
+   * IDE project root, the Session cwd and the workspace root.
+   *
+   * The claim of a link has to use the SAME bases as the resolution of it
+   * (R1-d): a link that the store would open through its candidates has to be
+   * claimed, or the candidate fallback is dead code.
+   *
+   * @param {string} workspace the DSH workspace root
+   * @param {string} linkCwd the cwd of the Session the link belongs to
+   * @returns {string[]}
+   */
+  const candidateBases = (workspace, linkCwd) => {
+    const settings = settingsStore.state.settings
+    const roots = settings?.projectRoots
+    const project = typeof roots?.[workspace] === 'string' && roots[workspace] !== ''
+      ? roots[workspace]
+      : typeof roots?.[settings?.lastRoot] === 'string' ? roots[settings.lastRoot] : ''
+    return [project, linkCwd, workspace]
+  }
+
+  /**
+   * The ids of the sessions the host knows, or null when it publishes none.
+   *
+   * The table is the cached one: `canOpen` runs on every resource open, and
+   * the host table must not be read on every one of them.
+   * @returns {Set<string> | null}
+   */
+  const knownSessionIds = () => {
+    const table = readSessionSnapshot()
+    const byId = table?.byId
+    if (byId === undefined || byId === null) return null
+    const ids = Object.keys(byId)
+    return ids.length === 0 ? null : new Set(ids)
+  }
+
+  /**
+   * Whether the IDE may show the review of one turn.
+   *
+   * The data of a turn lives with its Session: a link of a Session that is
+   * gone - or of a Session the user has left - has no data to show here, and
+   * DSH's own review tab says so. A turn of the Session on screen is claimed;
+   * the turn itself is checked when its data is read, and a turn that cannot
+   * be read degrades to DSH's own sidebar.
+   *
+   * @param {string} address the `dsh-resource://changes-review/…` address
+   * @returns {boolean}
+   */
+  const canOpenChangesReview = (address) => {
+    const parsed = parseChangesReviewAddress(address)
+    if (parsed === undefined) return false
+    const mounted = ctx.sidebarRight?.mounted?.getSnapshot()
+    if (typeof mounted === 'string' && mounted !== '' && mounted !== parsed.sessionId) return false
+    const known = knownSessionIds()
+    if (known !== null && !known.has(parsed.sessionId)) return false
+    return true
+  }
+
   ctx.effect(() => ctx.sidebarRightTabs.register({
     id: 'dsh-ide-workbench', kind: PANEL_ID,
-    title: address => (isFileAddress(address)
-      ? (basenameOfFileAddress(address) ?? t('panelLabel'))
-      : t('panelLabel')),
+    title: address => {
+      if (isFileAddress(address)) return basenameOfFileAddress(address) ?? t('panelLabel')
+      // The review of a turn is one tab of its own.
+      if (isChangesReviewAddress(address)) return t('changesReview.title')
+      return t('panelLabel')
+    },
     keepMounted: true,
     // A chat file link is a `dsh-resource://file/...` address. These longer
     // patterns outrank the better-sidebar editor (`dsh-resource://file/**`) by
     // matched-pattern length, independent of registration order.
-    patterns: ['dsh-resource://file/session/**', 'dsh-resource://file/absolute/**'],
+    //
+    // The review of a turn is a `dsh-resource://changes-review/...` address.
+    // The `extension` priority outranks the host's own review tab (band 3
+    // against band 2), so the workbench shows the turn itself.
+    patterns: [
+      'dsh-resource://file/session/**',
+      'dsh-resource://file/absolute/**',
+      'dsh-resource://changes-review/**',
+    ],
     priority: 'extension',
     canOpen: address => {
-      if (suppressFileLinkClaim) return false
+      if (suppressOwnClaim) return false
       if (settingsStore.state.settings?.links?.chatFiles === 'sidebar') return false
+      // The address families are decided apart: a file link follows the
+      // workspace rules, a turn review follows the rules of its Session.
+      if (isChangesReviewAddress(address)) return canOpenChangesReview(address)
       if (!isIdeViewableAddress(address)) return false
       const parsed = parseFileAddress(address)
       if (parsed === undefined) return false
@@ -463,9 +754,10 @@ export function apply(ctx) {
       // DSH's own sidebar, which owns previews and path rules for it.
       const workspace = current || linkCwd
       if (workspace === '') return true
-      const absolute = resolveFileAddress(parsed, linkCwd || current)
-      if (absolute === undefined) return false
-      return isPathWithin(workspace, absolute)
+      // The claim and the resolution of a link must agree (R1-d): a link that
+      // the store would open through its relative candidates - the ambiguous
+      // shape with one leading slash - is claimed as well.
+      return linkResolvesInsideWorkspace(parsed, workspace, linkCwd || current, candidateBases(workspace, linkCwd))
     },
     guide: [{ id: PANEL_ID, title: () => t('panelLabel'), icon: PanelIcon, order: 35 }],
   }), 'dsh-ide-workbench: sidebar tab type')

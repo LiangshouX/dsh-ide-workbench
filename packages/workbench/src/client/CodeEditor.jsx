@@ -22,6 +22,13 @@
  * Two shortcuts of the language-server library are deliberately *not*
  * installed: `renameKeymap` (F2) and `formatKeymap` (Shift-Alt-f) would
  * collide with the workbench shortcuts (PRD §0.2 #6).
+ *
+ * The folding of the buffer (R3) belongs to the core as well: it is a general
+ * editing ability like the automatic closing of the brackets, and not code
+ * intelligence - the workbench alone must be able to fold a JSON file. The
+ * folding APIs (`codeFolding`, `foldGutter`, `foldAll`, `unfoldAll`) are part
+ * of `@codemirror/language` and therefore already in the bundle: installing
+ * them costs nothing.
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { EditorState, Compartment } from '@codemirror/state'
@@ -31,7 +38,10 @@ import {
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { SearchQuery, setSearchQuery, search } from '@codemirror/search'
-import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle } from '@codemirror/language'
+import {
+  bracketMatching, codeFolding, foldGutter, foldKeymap, foldAll, unfoldAll,
+  indentOnInput, syntaxHighlighting, HighlightStyle,
+} from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { findMatches, replaceAllMatches } from './find.js'
 import { extensionCompartment, keymapCompartment } from './editor-seam.js'
@@ -219,6 +229,21 @@ function selectionOf(view, match) {
  * would sink into the buffer and hit the keymap below - which is exactly
  * how it used to slip through. It is therefore not bound here.
  *
+ * The folding of the whole document is bound here as well, IntelliJ style:
+ * `Ctrl+Shift+-` folds every top-level range, `Ctrl+Shift+=` unfolds them
+ * again. The keys live in the keymap of the buffer (and not in a global
+ * handler), so they fire exactly when the editor has the focus. On a Mac the
+ * same gesture is bound to the command key (`Cmd+Shift+-` / `Cmd+Shift+=`).
+ *
+ * The keys are written the way CodeMirror reads them - `Ctrl-Shift-=`, NOT
+ * `Ctrl+Shift++`:
+ *
+ *   - CodeMirror splits a binding on `-`, so a `+` in the key would be read
+ *     as another (empty) part of the name;
+ *   - the shortcut normalisation of the workbench (`normalizeShortcut` in
+ *     `util.js`) splits on `+` and drops the empty parts, so a shortcut
+ *     string with a `+` in it never matches an event.
+ *
  * Exported so the bindings can be checked without a browser.
  * @param {{onSaveRef: object, onFindRef: object, onFindInFilesRef: object, readOnly: boolean}} refs
  * @returns {Array<{key: string, run: Function}>} the keymap entries
@@ -228,6 +253,16 @@ export function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly 
     { key: 'Mod-s', run: () => { if (readOnly !== true) onSaveRef.current(); return true } },
     { key: 'Mod-f', run: () => { onFindRef.current?.(); return true } },
     { key: 'Mod-Alt-f', run: () => { onFindInFilesRef.current?.(); return true } },
+    // Fold everything / unfold everything (R3). `foldAll` and `unfoldAll` of
+    // `@codemirror/language` fold the top-level ranges and unfold them again
+    // - the same granularity as the "Collapse All" of IntelliJ.
+    //
+    // The macOS spelling is the same gesture with the command key: the
+    // documented IntelliJ combo (`Ctrl+Shift+-`) is the one of Windows and
+    // Linux, and `Cmd+Shift+-` is the one of a Mac. CodeMirror picks the
+    // `mac` name on a Mac and the `key` everywhere else.
+    { key: 'Ctrl-Shift--', mac: 'Cmd-Shift--', run: view => foldAll(view) },
+    { key: 'Ctrl-Shift-=', mac: 'Cmd-Shift-=', run: view => unfoldAll(view) },
   ]
 }
 
@@ -237,12 +272,17 @@ export function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly 
  * The core binds the default keymap of CodeMirror and its history; the
  * bindings of the plugins arrive through the seam and live in the keymap
  * compartment, so they can come and go without rebuilding the document.
+ *
+ * `foldKeymap` adds the folding of the range at the cursor (`Ctrl+Shift+[`
+ * and `Ctrl+Shift+]`); the folding of the whole document is bound in
+ * `editorKeymap` above.
  * @returns {Array<any>} the keymap entries
  */
 export function editorKeymapRest() {
   return [
     ...defaultKeymap,
     ...historyKeymap,
+    ...foldKeymap,
     indentWithTab,
   ]
 }
@@ -446,6 +486,21 @@ export function CodeEditor({
     if (host === null) return undefined
     const extensions = [
       lineNumbers(),
+      // The folding of the buffer (R3). Both extensions are installed ONCE,
+      // here at mount time: `codeFolding()` adds the `foldState` field, and a
+      // second copy of it would throw the state of the editor away - the
+      // same warning as the one in `editor-seam.js`.
+      //
+      // The fold gutter sits next to the line numbers (the annotate column of
+      // the blame is further to the left, it uses `Prec.high`), so the two
+      // coexist: the arrows of the fold are where the eye already looks for
+      // them.
+      //
+      // The markers appear once the grammar of the document arrives: the
+      // folding needs the syntax tree of the language, and that tree is
+      // fetched on demand (see the effect at the end of this hook).
+      codeFolding(),
+      foldGutter(),
       highlightActiveLineGutter(),
       highlightSpecialChars(),
       history(),
