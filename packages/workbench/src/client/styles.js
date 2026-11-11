@@ -562,7 +562,12 @@ export const CSS = `
 .iwb-status-dot.iwb-busy { background: var(--iwb-warn); }
 /* A narrow pane only has room for the dot: the label folds away. */
 
-.iwb-tree { padding: 4px 0 12px; font-size: 12.5px; }
+.iwb-tree {
+  /* The padding on top of the scroll container. The frozen bar has to cover
+     it, so the value lives in a variable that both rules use. */
+  --iwb-tree-pad-top: 4px;
+  padding: var(--iwb-tree-pad-top) 0 12px; font-size: 12.5px;
+}
 .iwb-tree-row {
   display: flex; align-items: center; gap: 5px; height: 22px; padding-right: 8px; white-space: nowrap;
   cursor: pointer; position: relative;
@@ -611,16 +616,17 @@ export const CSS = `
    it is hidden entirely in the flat quick-file list (there is no hierarchy
    there to point at). */
 .iwb-tree-sticky {
-  position: sticky; top: 0; z-index: 3;
-  display: flex; align-items: center; gap: 4px;
+  position: sticky;
   /* The scroll container of the tree has a padding on top, and a sticky
      element stops at the edge of that padding - so the bar would float a few
-     pixels below the header. The bar covers the padding instead: the negative
-     margin lifts it to the edge of the header, the extra height carries the
-     padding it now covers, and the negative margin below cancels the whole
-     bar so the rows are not pushed down. */
-  margin: -4px 0 -26px;
-  height: 26px; padding: 4px 8px 0 12px;
+     pixels below the panel header, with a gap between them. The offset lifts
+     the bar over that padding, so it sits flush against the header. */
+  top: calc(-1 * var(--iwb-tree-pad-top, 4px));
+  z-index: 3;
+  display: flex; align-items: center; gap: 4px;
+  /* The bar is a layer on top of the tree: it must not push the rows down
+     when it appears, or the tree would jump on every scroll step. */
+  height: 22px; padding: 0 8px 0 12px; margin: 0 0 -22px;
   background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border);
   font-size: 12px; color: var(--iwb-muted); white-space: nowrap; overflow: hidden;
 }

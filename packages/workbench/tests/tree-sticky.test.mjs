@@ -385,23 +385,24 @@ test('the frozen bar carries the whole chain from the root', async () => {
 test('the frozen bar covers the padding of the scroll container', async () => {
   // A sticky element stops at the edge of the padding of its scroll
   // container, so the bar used to float a few pixels below the panel header.
-  // It covers that padding instead: the negative margin lifts it to the
-  // header, and the negative margin below cancels its own height so the rows
-  // do not move.
+  // The padding lives in a variable, and the offset of the bar is the
+  // negative of that very variable: the bar sits flush against the header.
   const styles = await readFile(join(root, 'src/client/styles.js'), 'utf8')
   const tree = /\.iwb-tree \{([^}]*)\}/.exec(styles)
   assert.ok(tree !== null, 'the tree rule is in the stylesheet')
-  const padding = /padding:\s*(\d+)px 0 \d+px/.exec(tree[1])
-  assert.ok(padding !== null, 'the tree has a padding on top')
+  const pad = /--iwb-tree-pad-top:\s*(\d+)px/.exec(tree[1])
+  assert.ok(pad !== null, 'the tree publishes its padding on top')
+  assert.match(tree[1], /padding:\s*var\(--iwb-tree-pad-top\)/,
+    'the tree uses that very variable for its padding')
   const bar = /\.iwb-tree-sticky \{([^}]*)\}/.exec(styles)
   assert.ok(bar !== null, 'the frozen bar is in the stylesheet')
-  const margin = /margin:\s*-(\d+)px 0 -(\d+)px/.exec(bar[1])
-  assert.ok(margin !== null, 'the bar lifts itself over the padding')
+  assert.match(bar[1], /top:\s*calc\(-1 \* var\(--iwb-tree-pad-top/,
+    'the bar lifts itself over exactly that padding')
+  // The bar must not push the rows down when it appears.
+  const margin = /margin:\s*0 0 -(\d+)px/.exec(bar[1])
   const height = /height:\s*(\d+)px/.exec(bar[1])
-  assert.ok(height !== null, 'the bar has a height')
-  assert.equal(Number(margin[1]), Number(padding[1]),
-    'the bar covers exactly the padding of the scroll container')
-  assert.equal(Number(margin[2]), Number(height[1]),
+  assert.ok(margin !== null && height !== null, 'the bar has a height and a margin')
+  assert.equal(Number(margin[1]), Number(height[1]),
     'the bar cancels its own height, so the rows do not move')
 })
 
