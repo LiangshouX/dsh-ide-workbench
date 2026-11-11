@@ -28,6 +28,15 @@ const IMAGE_TYPES = {
 const MAX_TEXT_BYTES = 2 << 20
 /** Image inline cap (bytes). */
 const MAX_IMAGE_BYTES = 8 << 20
+/**
+ * PDF inline cap (bytes).
+ *
+ * The bytes travel to the browser as base64 (33% larger), and the viewer
+ * holds one decoded copy per open tab, so the cap is lower than the one of an
+ * image: a bigger document is handed to the OS/sidebar preview instead of
+ * being pushed through the wire.
+ */
+export const MAX_PDF_BYTES = 32 << 20
 /** Per-directory listing cap. */
 const MAX_ENTRIES = 5000
 
@@ -280,6 +289,23 @@ export async function readFileForPreview(root, path) {
   if (info.isDirectory()) throw new ApiError('bad-request', 'path is a directory')
   const ext = extname(absolute).toLowerCase()
   const relativePath = toRelative(root, absolute)
+  if (ext === '.pdf') {
+    // PDFs are binary by definition (the heuristic below would report one),
+    // but the browser viewer can render them: the bytes travel base64-encoded
+    // and the client feeds them to PDF.js.
+    if (info.size > MAX_PDF_BYTES) {
+      return { kind: 'too-large', size: info.size, mtimeMs: info.mtimeMs, path: relativePath }
+    }
+    const bytes = await readFile(absolute)
+    return {
+      kind: 'pdf',
+      mime: 'application/pdf',
+      data: bytes.toString('base64'),
+      size: info.size,
+      mtimeMs: info.mtimeMs,
+      path: relativePath,
+    }
+  }
   const mime = IMAGE_TYPES[ext]
   if (mime !== undefined) {
     if (info.size > MAX_IMAGE_BYTES) {

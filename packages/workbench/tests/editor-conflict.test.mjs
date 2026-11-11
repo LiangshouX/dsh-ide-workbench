@@ -123,6 +123,32 @@ export function renderEditor(fixture) {
   return renderToStaticMarkup(React.createElement(EditorArea, { store: fixture.store, state: fixture.state }))
 }
 
+export function createPdfFixture() {
+  const store = baseStore()
+  const tab = {
+    id: 'file:C:/work/demo/docs/report.pdf',
+    kind: 'file',
+    path: 'C:/work/demo/docs/report.pdf',
+    rel: 'docs/report.pdf',
+    name: 'report.pdf',
+    preview: true,
+    pinned: false,
+    loading: false,
+    error: null,
+    payload: { kind: 'pdf', mime: 'application/pdf', data: '', size: 2048, mtimeMs: 1, path: 'docs/report.pdf' },
+    scrollTop: 0,
+    editing: false,
+    dirty: false,
+  }
+  store.state.tabs = [tab]
+  store.state.activeId = tab.id
+  return { store, state: store.state, tab }
+}
+
+export function renderPdfEditor() {
+  return renderEditor(createPdfFixture())
+}
+
 export function renderWorkbench(fixture) {
   return renderToStaticMarkup(React.createElement(Workbench, { store: fixture.store }))
 }
@@ -153,6 +179,7 @@ async function loadModule() {
         '@xterm/xterm/css/xterm.css': moduleRequire.resolve('@xterm/xterm/css/xterm.css'),
         '@xterm/xterm': join(root, 'tests/stubs/xterm.js'),
         '@xterm/addon-fit': join(root, 'tests/stubs/addon-fit.js'),
+        'virtual:pdf-worker': join(root, 'tests/stubs/pdf-worker.js'),
       },
       loader: { '.css': 'text' },
       jsx: 'transform',
@@ -200,6 +227,14 @@ test('an external change renders a centered modal, not the toolbar chip', async 
   const modal = html.indexOf('iwb-editor-scoped-backdrop')
   assert.ok(editorStart >= 0 && modal > editorStart)
   assert.ok(modal < elementEnd(html, 'iwb-editor'))
+})
+
+test('a PDF tab renders the preview shell, not the binary notice', async () => {
+  const mod = await loadModule()
+  const html = mod.renderPdfEditor()
+  assert.match(html, /iwb-pdf/)
+  assert.match(html, /pdf\.loading/)
+  assert.doesNotMatch(html, /common\.binary/)
 })
 
 test('the conflict modal offers both actions', async () => {

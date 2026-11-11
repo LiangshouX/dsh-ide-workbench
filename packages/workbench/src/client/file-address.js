@@ -263,17 +263,17 @@ export function relativeLinkCandidates(path, bases) {
   return relativeLinkCandidateEntries(path, bases).map(entry => entry.absolute)
 }
 
-/** Office/PDF/archive/binary formats the IDE should leave to the sidebar. */
+/** Office/archive/binary formats the IDE should leave to the sidebar. */
 const NON_IDE_EXTENSIONS = new Set([
-  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
   '.odt', '.ods', '.odp', '.rtf', '.epub',
   '.zip', '.tar', '.gz', '.tgz', '.7z', '.rar', '.bz2', '.xz',
   '.exe', '.dll', '.so', '.dylib', '.bin', '.iso', '.jar', '.class', '.wasm',
 ])
 
 /**
- * Whether the IDE can render this file address. Text, Markdown and images are
- * claimed; Office documents, PDFs, archives and obvious binaries keep the
+ * Whether the IDE can render this file address. Text, Markdown, images and
+ * PDFs are claimed; Office documents, archives and obvious binaries keep the
  * product's own preview.
  */
 export function isIdeViewableAddress(address) {

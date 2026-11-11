@@ -88,6 +88,10 @@ export function IconChevron(props = {}) {
   return svg([path(down ? 'M4 6l4 4 4-4' : 'M6 4l4 4-4 4', props)], { style: { transform: down ? 'none' : 'none' } })
 }
 
+export function IconFit(props = {}) {
+  return svg([path('M2 8h12M2 8l3-3M2 8l3 3M14 8l-3-3M14 8l-3 3', props)])
+}
+
 export function IconSearch(props = {}) {
   return svg([
     React.createElement('circle', { key: 'a', cx: 7, cy: 7, r: 4.2, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),

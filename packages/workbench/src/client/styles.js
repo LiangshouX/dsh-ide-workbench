@@ -412,6 +412,65 @@ export const CSS = `
 .iwb-markdown .iwb-markdown-fallback p { margin: .7em 0; }
 .iwb-markdown .iwb-markdown-fallback pre { background: var(--iwb-panel); border: 1px solid var(--iwb-border); border-radius: 7px; padding: 10px 12px; overflow: auto; }
 .iwb-markdown .iwb-markdown-fallback code { font-family: var(--iwb-mono); font-size: 11.5px; }
+
+/* ── PDF preview ─────────────────────────────────────────────────────────
+   The document is a stack of white pages on the pane background; the bar
+   above it carries the page navigation and the zoom. A narrow document pane
+   drops the labels (the buttons keep their tooltips), so the controls never
+   wrap inside the 30px bar. */
+.iwb-pdf { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--iwb-bg); container-type: inline-size; }
+.iwb-pdf-status { align-items: center; justify-content: center; gap: 12px; padding: 32px; color: var(--iwb-muted); text-align: center; }
+.iwb-pdf-status-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.iwb-pdf-hint { font-size: 11px; opacity: .8; }
+.iwb-pdf-spinner {
+  width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--iwb-border-strong);
+  border-top-color: var(--iwb-accent); animation: iwb-pdf-spin .8s linear infinite;
+}
+@keyframes iwb-pdf-spin { to { transform: rotate(360deg); } }
+.iwb-pdf-bar {
+  height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 4px; padding: 0 8px;
+  border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel); color: var(--iwb-muted);
+  font-size: 11.5px; white-space: nowrap; overflow: hidden;
+}
+.iwb-pdf-bar .iwb-iconbtn { width: 22px; height: 22px; flex: 0 0 auto; }
+.iwb-pdf-bar .iwb-textbtn { flex: 0 0 auto; height: 22px; }
+.iwb-pdf-nav { display: flex; align-items: center; gap: 1px; flex: 0 0 auto; }
+.iwb-pdf-pagebox { display: flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+.iwb-pdf-pageinput {
+  width: 38px; height: 20px; padding: 0 3px; text-align: center; font: inherit;
+  color: var(--iwb-fg); background: var(--iwb-bg); border: 1px solid var(--iwb-border);
+  border-radius: 4px; font-variant-numeric: tabular-nums;
+}
+.iwb-pdf-pageinput:focus { outline: none; border-color: var(--iwb-accent); }
+.iwb-pdf-pagecount { color: var(--iwb-muted); }
+.iwb-pdf-zoom {
+  height: 22px; min-width: 44px; padding: 0 4px; border-radius: 5px; color: var(--iwb-fg);
+  font-variant-numeric: tabular-nums; font-size: 11px;
+}
+.iwb-pdf-zoom:hover { background: rgba(127, 127, 127, .14); }
+.iwb-pdf-zoom.iwb-on { color: var(--iwb-accent); }
+.iwb-pdf-sep { width: 1px; height: 15px; background: var(--iwb-border); margin: 0 3px; flex: 0 0 auto; }
+.iwb-pdf-grow { flex: 1 1 auto; min-width: 0; }
+.iwb-pdf-size { color: var(--iwb-muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.iwb-pdf-fit-icon { display: none; }
+.iwb-pdf-fit-label { white-space: nowrap; }
+@container (max-width: 440px) {
+  .iwb-pdf-size { display: none; }
+  .iwb-pdf-fit-label { display: none; }
+  .iwb-pdf-fit-icon { display: inline; }
+}
+.iwb-pdf-scroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; position: relative; background: var(--iwb-panel); }
+.iwb-pdf-scroll:focus { outline: none; }
+.iwb-pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px; min-height: 100%; box-sizing: border-box; }
+.iwb-pdf-page {
+  position: relative; flex: 0 0 auto; overflow: hidden; background: #fff; border-radius: 2px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, .30);
+}
+.iwb-pdf-canvas { display: block; width: 100%; height: 100%; }
+.iwb-pdf-placeholder {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #9aa3af; font-size: 11px; font-variant-numeric: tabular-nums;
+}
 .iwb-outline {
   position: absolute; top: 10px; right: 14px; width: 274px; max-height: min(62%, 520px); z-index: 12;
   display: flex; flex-direction: column; border-radius: 8px; border: 1px solid var(--iwb-border-strong);
