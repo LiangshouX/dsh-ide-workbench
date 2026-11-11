@@ -734,6 +734,18 @@ const TreeRow = React.memo(function TreeRow({
 /**
  * The "new file / new directory" dialog (R5).
  *
+ * The dialog is a hierarchy, not a stack of fields:
+ *
+ *   - the PATH comes FIRST, in a frame of its own: it is the CONTEXT of the
+ *     entry - the folder the entry lands in - so it is read before anything
+ *     else. The frame sets it apart from the fields below;
+ *   - the NAME follows as the primary input, and it keeps the focus;
+ *   - the TEMPLATE (files only) comes after it;
+ *   - the actions stay at the bottom.
+ *
+ * The hint is secondary text: it sits under the path box inside the frame,
+ * smaller and quieter than a label, and it never competes with the fields.
+ *
  * Next to the name there is a box with the FULL path of the entry to create,
  * relative to the project root. The box is read-only (and greyed) until the
  * mouse clicks into it - a disabled input cannot be focused by a click, so
@@ -753,9 +765,35 @@ export function NewEntryDialog({
     className: 'iwb-modal-backdrop',
     onMouseDown: event => { if (event.target === event.currentTarget) onCancel() },
   },
-    React.createElement('div', { className: 'iwb-modal', role: 'dialog', 'aria-modal': 'true' },
-      React.createElement('h2', null, dialog.isDir ? t('project.newDir') : t('project.newFile')),
-      React.createElement('label', { className: 'iwb-field' },
+    React.createElement('div', { className: 'iwb-modal iwb-new-entry-modal', role: 'dialog', 'aria-modal': 'true' },
+      React.createElement('h2', { className: 'iwb-new-entry-title' },
+        dialog.isDir ? t('project.newDir') : t('project.newFile')),
+      // The frame of the target folder: it comes before the fields, because
+      // it says WHERE the entry lands.
+      React.createElement('div', { className: 'iwb-new-entry-path' },
+        React.createElement('label', { className: 'iwb-new-entry-path-box' },
+          React.createElement('span', { className: 'iwb-new-entry-path-label' }, t('project.pathLabel')),
+          React.createElement('input', {
+            value: dialog.path,
+            // A disabled input cannot be clicked into, so the path box is
+            // read-only (and greyed by `.iwb-input-readonly`) until the mouse
+            // clicks into it.
+            readOnly: dialog.pathEdited !== true,
+            className: dialog.pathEdited === true
+              ? 'iwb-new-entry-path-input'
+              : 'iwb-new-entry-path-input iwb-input-readonly',
+            title: t('project.pathHint'),
+            onFocus: onPathFocus,
+            onChange: event => onPathChange(event.target.value),
+            onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); onSubmit() } },
+          }),
+        ),
+        // The hint is quiet secondary text: it explains the box above it and
+        // never competes with the fields.
+        React.createElement('span', { className: 'iwb-new-entry-hint' }, t('project.pathHint')),
+      ),
+      // The name is the primary input of the dialog.
+      React.createElement('label', { className: 'iwb-field iwb-new-entry-name' },
         React.createElement('span', null, t('project.nameLabel')),
         React.createElement('input', {
           autoFocus: true, value: dialog.name,
@@ -763,24 +801,8 @@ export function NewEntryDialog({
           onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); onSubmit() } },
         }),
       ),
-      React.createElement('label', { className: 'iwb-field' },
-        React.createElement('span', null, t('project.pathLabel')),
-        React.createElement('input', {
-          value: dialog.path,
-          // A disabled input cannot be clicked into, so the path box is
-          // read-only (and greyed by `.iwb-input-readonly`) until the mouse
-          // clicks into it.
-          readOnly: dialog.pathEdited !== true,
-          className: dialog.pathEdited === true ? undefined : 'iwb-input-readonly',
-          title: t('project.pathHint'),
-          onFocus: onPathFocus,
-          onChange: event => onPathChange(event.target.value),
-          onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); onSubmit() } },
-        }),
-        React.createElement('span', { className: 'iwb-modal-hint' }, t('project.pathHint')),
-      ),
       !dialog.isDir
-        ? React.createElement('label', { className: 'iwb-field' },
+        ? React.createElement('label', { className: 'iwb-field iwb-new-entry-template' },
             React.createElement('span', null, t('project.templateLabel')),
             React.createElement('select', {
               value: dialog.template,

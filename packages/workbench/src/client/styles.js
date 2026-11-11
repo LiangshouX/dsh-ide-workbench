@@ -1115,6 +1115,47 @@ export const CSS = `
 .iwb-modal-actions .iwb-textbtn.iwb-danger-solid {
   background: var(--iwb-error); border-color: transparent; color: #fff;
 }
+/* ── the "new file / new directory" dialog ─────────────────────────────────
+   The path is the CONTEXT of the entry - the folder it lands in - so it is
+   read FIRST: it sits at the top of the dialog, in a frame of its own that
+   sets it apart from the fields below. The name is the primary input, the
+   template is the last field, the actions stay at the bottom. The rules
+   live under their own class, so the settings modal and the confirmation
+   keep the look they have. Every colour comes from a token, so the dialog
+   follows the host theme like the rest of the workbench. */
+.iwb-new-entry-modal { width: min(480px, calc(100% - 40px)); }
+.iwb-new-entry-title { margin: 0 0 12px; font-size: 15px; }
+/* The frame of the target folder. */
+.iwb-new-entry-path {
+  display: flex; flex-direction: column; gap: 7px;
+  margin: 0 0 14px; padding: 10px 12px 11px;
+  border: 1px solid var(--iwb-border); border-radius: 8px; background: var(--iwb-panel);
+}
+.iwb-new-entry-path-box { display: flex; flex-direction: column; gap: 5px; }
+/* The caption of the frame: it names the block, not the field below it. */
+.iwb-new-entry-path-label {
+  font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--iwb-muted);
+}
+/* A path is a path: the mono face tells it apart from the name below. */
+.iwb-new-entry-path-input {
+  width: 100%; height: 30px; padding: 0 9px; border-radius: 6px;
+  border: 1px solid var(--iwb-border-strong); background: var(--iwb-panel-2);
+  color: var(--iwb-fg); font-family: var(--iwb-mono); font-size: 12px; outline: none;
+}
+.iwb-new-entry-path-input:focus { border-color: var(--iwb-accent); }
+/* The hint is secondary text: one step below the labels in size and in
+   weight - it explains the box above it and never competes with a field. */
+.iwb-new-entry-hint {
+  font-size: 11px; font-weight: 400; line-height: 1.45;
+  color: color-mix(in srgb, var(--iwb-muted) 70%, var(--iwb-panel));
+}
+.iwb-new-entry-modal .iwb-field { margin: 0 0 12px; }
+.iwb-new-entry-modal .iwb-field input, .iwb-new-entry-modal .iwb-field select { height: 30px; font-size: 12.5px; }
+/* The name is the primary input of the dialog: it gets the stronger border
+   and the room it deserves. */
+.iwb-new-entry-modal .iwb-new-entry-name input {
+  height: 34px; font-size: 13.5px; border-color: var(--iwb-border-strong);
+}
 .iwb-toast {
   position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: 8px;
   border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay); box-shadow: 0 10px 30px rgba(0,0,0,.4);

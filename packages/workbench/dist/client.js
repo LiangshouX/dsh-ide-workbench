@@ -61768,11 +61768,47 @@ function NewEntryDialog({
     },
     import_react5.default.createElement(
       "div",
-      { className: "iwb-modal", role: "dialog", "aria-modal": "true" },
-      import_react5.default.createElement("h2", null, dialog.isDir ? t3("project.newDir") : t3("project.newFile")),
+      { className: "iwb-modal iwb-new-entry-modal", role: "dialog", "aria-modal": "true" },
+      import_react5.default.createElement(
+        "h2",
+        { className: "iwb-new-entry-title" },
+        dialog.isDir ? t3("project.newDir") : t3("project.newFile")
+      ),
+      // The frame of the target folder: it comes before the fields, because
+      // it says WHERE the entry lands.
+      import_react5.default.createElement(
+        "div",
+        { className: "iwb-new-entry-path" },
+        import_react5.default.createElement(
+          "label",
+          { className: "iwb-new-entry-path-box" },
+          import_react5.default.createElement("span", { className: "iwb-new-entry-path-label" }, t3("project.pathLabel")),
+          import_react5.default.createElement("input", {
+            value: dialog.path,
+            // A disabled input cannot be clicked into, so the path box is
+            // read-only (and greyed by `.iwb-input-readonly`) until the mouse
+            // clicks into it.
+            readOnly: dialog.pathEdited !== true,
+            className: dialog.pathEdited === true ? "iwb-new-entry-path-input" : "iwb-new-entry-path-input iwb-input-readonly",
+            title: t3("project.pathHint"),
+            onFocus: onPathFocus,
+            onChange: (event) => onPathChange(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                onSubmit();
+              }
+            }
+          })
+        ),
+        // The hint is quiet secondary text: it explains the box above it and
+        // never competes with the fields.
+        import_react5.default.createElement("span", { className: "iwb-new-entry-hint" }, t3("project.pathHint"))
+      ),
+      // The name is the primary input of the dialog.
       import_react5.default.createElement(
         "label",
-        { className: "iwb-field" },
+        { className: "iwb-field iwb-new-entry-name" },
         import_react5.default.createElement("span", null, t3("project.nameLabel")),
         import_react5.default.createElement("input", {
           autoFocus: true,
@@ -61786,32 +61822,9 @@ function NewEntryDialog({
           }
         })
       ),
-      import_react5.default.createElement(
-        "label",
-        { className: "iwb-field" },
-        import_react5.default.createElement("span", null, t3("project.pathLabel")),
-        import_react5.default.createElement("input", {
-          value: dialog.path,
-          // A disabled input cannot be clicked into, so the path box is
-          // read-only (and greyed by `.iwb-input-readonly`) until the mouse
-          // clicks into it.
-          readOnly: dialog.pathEdited !== true,
-          className: dialog.pathEdited === true ? void 0 : "iwb-input-readonly",
-          title: t3("project.pathHint"),
-          onFocus: onPathFocus,
-          onChange: (event) => onPathChange(event.target.value),
-          onKeyDown: (event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              onSubmit();
-            }
-          }
-        }),
-        import_react5.default.createElement("span", { className: "iwb-modal-hint" }, t3("project.pathHint"))
-      ),
       !dialog.isDir ? import_react5.default.createElement(
         "label",
-        { className: "iwb-field" },
+        { className: "iwb-field iwb-new-entry-template" },
         import_react5.default.createElement("span", null, t3("project.templateLabel")),
         import_react5.default.createElement("select", {
           value: dialog.template,
@@ -80318,6 +80331,47 @@ var CSS2 = `
 }
 .iwb-modal-actions .iwb-textbtn.iwb-danger-solid {
   background: var(--iwb-error); border-color: transparent; color: #fff;
+}
+/* \u2500\u2500 the "new file / new directory" dialog \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The path is the CONTEXT of the entry - the folder it lands in - so it is
+   read FIRST: it sits at the top of the dialog, in a frame of its own that
+   sets it apart from the fields below. The name is the primary input, the
+   template is the last field, the actions stay at the bottom. The rules
+   live under their own class, so the settings modal and the confirmation
+   keep the look they have. Every colour comes from a token, so the dialog
+   follows the host theme like the rest of the workbench. */
+.iwb-new-entry-modal { width: min(480px, calc(100% - 40px)); }
+.iwb-new-entry-title { margin: 0 0 12px; font-size: 15px; }
+/* The frame of the target folder. */
+.iwb-new-entry-path {
+  display: flex; flex-direction: column; gap: 7px;
+  margin: 0 0 14px; padding: 10px 12px 11px;
+  border: 1px solid var(--iwb-border); border-radius: 8px; background: var(--iwb-panel);
+}
+.iwb-new-entry-path-box { display: flex; flex-direction: column; gap: 5px; }
+/* The caption of the frame: it names the block, not the field below it. */
+.iwb-new-entry-path-label {
+  font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--iwb-muted);
+}
+/* A path is a path: the mono face tells it apart from the name below. */
+.iwb-new-entry-path-input {
+  width: 100%; height: 30px; padding: 0 9px; border-radius: 6px;
+  border: 1px solid var(--iwb-border-strong); background: var(--iwb-panel-2);
+  color: var(--iwb-fg); font-family: var(--iwb-mono); font-size: 12px; outline: none;
+}
+.iwb-new-entry-path-input:focus { border-color: var(--iwb-accent); }
+/* The hint is secondary text: one step below the labels in size and in
+   weight - it explains the box above it and never competes with a field. */
+.iwb-new-entry-hint {
+  font-size: 11px; font-weight: 400; line-height: 1.45;
+  color: color-mix(in srgb, var(--iwb-muted) 70%, var(--iwb-panel));
+}
+.iwb-new-entry-modal .iwb-field { margin: 0 0 12px; }
+.iwb-new-entry-modal .iwb-field input, .iwb-new-entry-modal .iwb-field select { height: 30px; font-size: 12.5px; }
+/* The name is the primary input of the dialog: it gets the stronger border
+   and the room it deserves. */
+.iwb-new-entry-modal .iwb-new-entry-name input {
+  height: 34px; font-size: 13.5px; border-color: var(--iwb-border-strong);
 }
 .iwb-toast {
   position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: 8px;
