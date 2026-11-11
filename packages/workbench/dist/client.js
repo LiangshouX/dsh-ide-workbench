@@ -74928,18 +74928,8 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
     const surface = surfaceRef.current;
     if (surface === null) return void 0;
     let drag = null;
-    const onDown = (event) => {
-      if (event.button !== 0) return;
-      event.preventDefault();
-      drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
-      setDragging(true);
-      try {
-        surface.setPointerCapture(event.pointerId);
-      } catch {
-      }
-    };
     const onMove = (event) => {
-      if (drag === null || drag.pointerId !== event.pointerId) return;
+      if (drag === null) return;
       const dx = event.clientX - drag.x;
       const dy = event.clientY - drag.y;
       setView((previous) => ({
@@ -74947,12 +74937,29 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
         pan: clampFor({ x: previous.pan.x + dx, y: previous.pan.y + dy }, previous.zoom)
       }));
     };
-    const onUp = (event) => {
-      if (drag === null || drag.pointerId !== event.pointerId) return;
+    const onUp = () => {
+      if (drag === null) return;
       drag = null;
       setDragging(false);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    const onDown = (event) => {
+      if (drag !== null) return;
+      if (typeof event.button === "number" && event.button !== 0) return;
+      if (typeof event.preventDefault === "function") event.preventDefault();
+      drag = { x: event.clientX, y: event.clientY };
+      setDragging(true);
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
       try {
-        surface.releasePointerCapture(event.pointerId);
+        if (typeof surface.setPointerCapture === "function" && typeof event.pointerId === "number") {
+          surface.setPointerCapture(event.pointerId);
+        }
       } catch {
       }
     };
@@ -74962,16 +74969,13 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
       setView({ zoom: 1, pan: { x: 0, y: 0 } });
     };
     surface.addEventListener("pointerdown", onDown);
-    surface.addEventListener("pointermove", onMove);
-    surface.addEventListener("pointerup", onUp);
-    surface.addEventListener("pointercancel", onUp);
+    surface.addEventListener("mousedown", onDown);
     surface.addEventListener("dblclick", onDouble);
     return () => {
       surface.removeEventListener("pointerdown", onDown);
-      surface.removeEventListener("pointermove", onMove);
-      surface.removeEventListener("pointerup", onUp);
-      surface.removeEventListener("pointercancel", onUp);
+      surface.removeEventListener("mousedown", onDown);
       surface.removeEventListener("dblclick", onDouble);
+      onUp();
     };
   }, [clampFor]);
   return import_react10.default.createElement(
@@ -74983,6 +74987,8 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
         className: "iwb-image-surface",
         ref: surfaceRef,
         "data-dragging": dragging ? "true" : "false",
+        // The state of the gesture, so a reader can see where the picture sits.
+        title: `${zoomPercent(zoom)} \xB7 ${Math.round(pan.x)}, ${Math.round(pan.y)}`,
         "aria-label": alt !== "" ? alt : t3("common.image")
       },
       import_react10.default.createElement("img", {

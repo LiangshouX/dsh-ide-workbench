@@ -132,28 +132,25 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
   }, [clampFor])
 
   // ── the drag ───────────────────────────────────────────────────────────
-  // The left button drags the picture; the pointer is captured, so the drag
-  // continues when the pointer leaves the surface.
+  // The left button drags the picture.
   //
   // The listeners are NATIVE and not React's synthetic ones: the wheel above
   // is native too, and a pointer that is swallowed somewhere on its way up
   // (a listener of the host that stops the propagation) would leave the
-  // picture unp draggable.
+  // picture undraggable.
+  //
+  // BOTH the pointer and the mouse events are watched: the pointer events
+  // come first and mark the drag as started, so the mouse events are only a
+  // fallback for a host that swallows them. The move and the release are
+  // watched on the WINDOW, so the drag continues when the pointer leaves the
+  // picture.
   useEffect(() => {
     const surface = surfaceRef.current
     if (surface === null) return undefined
     let drag = null
 
-    const onDown = (event) => {
-      if (event.button !== 0) return
-      // The picture is dragged by the surface, never by the browser.
-      event.preventDefault()
-      drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
-      setDragging(true)
-      try { surface.setPointerCapture(event.pointerId) } catch { /* the pointer is gone */ }
-    }
     const onMove = (event) => {
-      if (drag === null || drag.pointerId !== event.pointerId) return
+      if (drag === null) return
       const dx = event.clientX - drag.x
       const dy = event.clientY - drag.y
       setView(previous => ({
@@ -161,11 +158,31 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
         pan: clampFor({ x: previous.pan.x + dx, y: previous.pan.y + dy }, previous.zoom),
       }))
     }
-    const onUp = (event) => {
-      if (drag === null || drag.pointerId !== event.pointerId) return
+    const onUp = () => {
+      if (drag === null) return
       drag = null
       setDragging(false)
-      try { surface.releasePointerCapture(event.pointerId) } catch { /* the capture is gone */ }
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    const onDown = (event) => {
+      if (drag !== null) return
+      if (typeof event.button === 'number' && event.button !== 0) return
+      // The picture is dragged by the surface, never by the browser.
+      if (typeof event.preventDefault === 'function') event.preventDefault()
+      drag = { x: event.clientX, y: event.clientY }
+      setDragging(true)
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+      try {
+        if (typeof surface.setPointerCapture === 'function' && typeof event.pointerId === 'number') {
+          surface.setPointerCapture(event.pointerId)
+        }
+      } catch { /* the pointer is already gone */ }
     }
     // The reset: 100 % and centred again.
     const onDouble = () => {
@@ -175,16 +192,13 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
     }
 
     surface.addEventListener('pointerdown', onDown)
-    surface.addEventListener('pointermove', onMove)
-    surface.addEventListener('pointerup', onUp)
-    surface.addEventListener('pointercancel', onUp)
+    surface.addEventListener('mousedown', onDown)
     surface.addEventListener('dblclick', onDouble)
     return () => {
       surface.removeEventListener('pointerdown', onDown)
-      surface.removeEventListener('pointermove', onMove)
-      surface.removeEventListener('pointerup', onUp)
-      surface.removeEventListener('pointercancel', onUp)
+      surface.removeEventListener('mousedown', onDown)
       surface.removeEventListener('dblclick', onDouble)
+      onUp()
     }
   }, [clampFor])
 
@@ -193,6 +207,8 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
       className: 'iwb-image-surface',
       ref: surfaceRef,
       'data-dragging': dragging ? 'true' : 'false',
+      // The state of the gesture, so a reader can see where the picture sits.
+      title: `${zoomPercent(zoom)} · ${Math.round(pan.x)}, ${Math.round(pan.y)}`,
       'aria-label': alt !== '' ? alt : t('common.image'),
     },
       React.createElement('img', {
