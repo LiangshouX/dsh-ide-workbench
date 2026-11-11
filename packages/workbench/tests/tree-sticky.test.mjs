@@ -398,12 +398,14 @@ test('the frozen bar covers the padding of the scroll container', async () => {
   assert.ok(bar !== null, 'the frozen bar is in the stylesheet')
   assert.match(bar[1], /top:\s*calc\(-1 \* var\(--iwb-tree-pad-top/,
     'the bar lifts itself over exactly that padding')
-  // The bar must not push the rows down when it appears.
-  const margin = /margin:\s*0 0 -(\d+)px/.exec(bar[1])
-  const height = /height:\s*(\d+)px/.exec(bar[1])
-  assert.ok(margin !== null && height !== null, 'the bar has a height and a margin')
-  assert.equal(Number(margin[1]), Number(height[1]),
-    'the bar cancels its own height, so the rows do not move')
+  // The bar must not push the rows down when it appears, and it must stay
+  // tall enough to cover the row under it.
+  const margin = /margin:\s*0 0 calc\(-22px - var\(--iwb-tree-pad-top/.exec(bar[1])
+  const height = /height:\s*calc\(22px \+ var\(--iwb-tree-pad-top/.exec(bar[1])
+  assert.ok(margin !== null && height !== null,
+    'the bar is one row plus the padding of the scroll container, and it cancels that height')
+  const padding = /padding:\s*var\(--iwb-tree-pad-top/.exec(bar[1])
+  assert.ok(padding !== null, 'the bar keeps its text on the line of the rows')
 })
 
 test('a short panel elides the middle of the chain, then the root', async () => {  const mod = await loadModule()

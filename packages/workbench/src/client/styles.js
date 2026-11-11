@@ -625,8 +625,13 @@ export const CSS = `
   z-index: 3;
   display: flex; align-items: center; gap: 4px;
   /* The bar is a layer on top of the tree: it must not push the rows down
-     when it appears, or the tree would jump on every scroll step. */
-  height: 22px; padding: 0 8px 0 12px; margin: 0 0 -22px;
+     when it appears, or the tree would jump on every scroll step. It is one
+     row taller than a row, because it now also covers the padding of the
+     scroll container - its own padding keeps the text on the line of the
+     rows. */
+  height: calc(22px + var(--iwb-tree-pad-top, 4px));
+  padding: var(--iwb-tree-pad-top, 4px) 8px 0 12px;
+  margin: 0 0 calc(-22px - var(--iwb-tree-pad-top, 4px));
   background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border);
   font-size: 12px; color: var(--iwb-muted); white-space: nowrap; overflow: hidden;
 }
