@@ -27,7 +27,6 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
   const imgRef = useRef(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
-  const [loads, setLoads] = useState(0)
   const [view, setView] = useState({ zoom: 1, pan: { x: 0, y: 0 } })
   const [dragging, setDragging] = useState(false)
   const zoom = view.zoom
@@ -54,15 +53,26 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
 
   // The picture changes its layout box when the surface is resized and when
   // it has loaded; the box is read after the layout, never during a render.
-  // The counter of the loads is a dependency of its own: a picture that is
-  // replaced (a new file in the same tab) is measured again.
-  useLayoutEffect(() => {
+  //
+  // The observer watches the PICTURE itself: a picture that is already in the
+  // cache never fires a load event again, and a picture that is not loaded
+  // yet has no size at all. The observer reports the size in both cases - and
+  // a pan that is clamped against an unknown size would pin the picture in
+  // place for good.
+  useEffect(() => {
     const img = imgRef.current
-    if (img === null) return
-    const width = img.offsetWidth
-    const height = img.offsetHeight
-    setImageSize(previous => (previous.width === width && previous.height === height ? previous : { width, height }))
-  }, [viewport.width, viewport.height, loads])
+    if (img === null) return undefined
+    const measure = () => {
+      const width = img.offsetWidth
+      const height = img.offsetHeight
+      setImageSize(previous => (previous.width === width && previous.height === height ? previous : { width, height }))
+    }
+    measure()
+    if (typeof ResizeObserver !== 'function') return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(img)
+    return () => observer.disconnect()
+  }, [])
 
   /**
    * The pan that is allowed for a zoom: the picture may never leave the view.
@@ -72,10 +82,14 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
    */
   const clampFor = useCallback((value, factor) => {
     // Without a measurement of the picture there is nothing to measure the
-    // overflow against; the centre of the picture may then move at most half
-    // of the view, so it always keeps some of the picture on screen.
+    // overflow against; the centre of the picture may then move half of the
+    // view, so it always keeps some of the picture on screen.
     if (imageSize.width === 0 || imageSize.height === 0) {
-      return clampPan(value, { width: viewport.width, height: viewport.height }, { width: viewport.width, height: viewport.height })
+      return clampPan(
+        value,
+        { width: viewport.width * 2, height: viewport.height * 2 },
+        { width: viewport.width, height: viewport.height },
+      )
     }
     return clampPan(
       value,
@@ -188,7 +202,6 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
         alt,
         // The picture is dragged by the surface, never by the browser.
         draggable: false,
-        onLoad: () => setLoads(count => count + 1),
         style: {
           // A transform, not a layout: the zoom never relayouts the picture.
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,

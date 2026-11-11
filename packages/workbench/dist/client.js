@@ -74856,7 +74856,6 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
   const imgRef = (0, import_react10.useRef)(null);
   const [viewport, setViewport] = (0, import_react10.useState)({ width: 0, height: 0 });
   const [imageSize, setImageSize] = (0, import_react10.useState)({ width: 0, height: 0 });
-  const [loads, setLoads] = (0, import_react10.useState)(0);
   const [view, setView] = (0, import_react10.useState)({ zoom: 1, pan: { x: 0, y: 0 } });
   const [dragging, setDragging] = (0, import_react10.useState)(false);
   const zoom = view.zoom;
@@ -74873,16 +74872,27 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
     observer.observe(surface);
     return () => observer.disconnect();
   }, []);
-  (0, import_react10.useLayoutEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     const img = imgRef.current;
-    if (img === null) return;
-    const width = img.offsetWidth;
-    const height = img.offsetHeight;
-    setImageSize((previous) => previous.width === width && previous.height === height ? previous : { width, height });
-  }, [viewport.width, viewport.height, loads]);
+    if (img === null) return void 0;
+    const measure = () => {
+      const width = img.offsetWidth;
+      const height = img.offsetHeight;
+      setImageSize((previous) => previous.width === width && previous.height === height ? previous : { width, height });
+    };
+    measure();
+    if (typeof ResizeObserver !== "function") return void 0;
+    const observer = new ResizeObserver(measure);
+    observer.observe(img);
+    return () => observer.disconnect();
+  }, []);
   const clampFor = (0, import_react10.useCallback)((value, factor) => {
     if (imageSize.width === 0 || imageSize.height === 0) {
-      return clampPan(value, { width: viewport.width, height: viewport.height }, { width: viewport.width, height: viewport.height });
+      return clampPan(
+        value,
+        { width: viewport.width * 2, height: viewport.height * 2 },
+        { width: viewport.width, height: viewport.height }
+      );
     }
     return clampPan(
       value,
@@ -74982,7 +74992,6 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
         alt,
         // The picture is dragged by the surface, never by the browser.
         draggable: false,
-        onLoad: () => setLoads((count2) => count2 + 1),
         style: {
           // A transform, not a layout: the zoom never relayouts the picture.
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
