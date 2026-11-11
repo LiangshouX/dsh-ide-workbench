@@ -303,11 +303,8 @@ export const CSS = `
   width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
 }
 .iwb-html-action:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .14); }
-/* The "open outside" action opens the browser the USER registered, which is
-   not necessarily one brand - so the mark is a generic one and the colour
-   comes from the theme instead of a brand's hex. */
-.iwb-html-action.iwb-external { color: var(--iwb-accent); }
-.iwb-html-action.iwb-external:hover { color: var(--iwb-accent); filter: brightness(1.12); }
+.iwb-html-action.iwb-chrome { color: #4285f4; }
+.iwb-html-action.iwb-chrome:hover { color: #4285f4; filter: brightness(1.12); }
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;

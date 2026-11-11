@@ -60793,6 +60793,19 @@ function IconGlobe(props = {}) {
     path("M1.8 8h12.4M8 1.8c2.4 2 2.4 10.4 0 12.4M8 1.8c-2.4 2-2.4 10.4 0 12.4", { key: "g" })
   ], props);
 }
+function IconChrome(props = {}) {
+  return import_react3.default.createElement("svg", {
+    xmlns: "http://www.w3.org/2000/svg",
+    viewBox: "0 0 24 24",
+    width: 16,
+    height: 16,
+    "aria-hidden": true,
+    ...props
+  }, import_react3.default.createElement("path", {
+    fill: "currentColor",
+    d: "M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0zM1.931 5.47A11.943 11.943 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.166a5.446 5.446 0 0 1 1.45 7.09l.002.001h-.002l-5.344 9.257c.206.01.413.016.621.016 6.627 0 12-5.373 12-12 0-1.54-.29-3.011-.818-4.364zM12 16.364a4.364 4.364 0 1 1 0-8.728 4.364 4.364 0 0 1 0 8.728z"
+  }));
+}
 function StripeIcon(props = {}) {
   const size = props.size ?? 20;
   const common = { width: size, height: size };
@@ -77412,15 +77425,15 @@ function HtmlPreviewActions({ store, tab: tab3 }) {
       onClick: openInSidebarPreviewAction(store, tab3)
     }, import_react15.default.createElement(IconGlobe, { width: 15, height: 15 })),
     import_react15.default.createElement("button", {
-      // The glyph is a generic "open outside" mark, not a browser's logo:
-      // the button opens the browser the *user* registered, which is not
-      // necessarily the one the old mark named.
+      // The glyph is the familiar mark of the action, not a promise about the
+      // program: the button opens the browser the *user* registered, which is
+      // not necessarily the one the mark names.
       type: "button",
-      className: "iwb-html-action iwb-external",
+      className: "iwb-html-action iwb-chrome",
       title: t3("editor.htmlPreviewBrowser"),
       "aria-label": t3("editor.htmlPreviewBrowser"),
       onClick: openInDefaultBrowserAction(store, tab3)
-    }, import_react15.default.createElement(IconExternal, { width: 15, height: 15 }))
+    }, import_react15.default.createElement(IconChrome, { width: 15, height: 15 }))
   );
 }
 function buildConflictDialog(store, tab3) {
@@ -79494,11 +79507,8 @@ var CSS2 = `
   width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
 }
 .iwb-html-action:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .14); }
-/* The "open outside" action opens the browser the USER registered, which is
-   not necessarily one brand - so the mark is a generic one and the colour
-   comes from the theme instead of a brand's hex. */
-.iwb-html-action.iwb-external { color: var(--iwb-accent); }
-.iwb-html-action.iwb-external:hover { color: var(--iwb-accent); filter: brightness(1.12); }
+.iwb-html-action.iwb-chrome { color: #4285f4; }
+.iwb-html-action.iwb-chrome:hover { color: #4285f4; filter: brightness(1.12); }
 .iwb-editor-toolbar {
   height: 30px; flex: 0 0 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-bg); color: var(--iwb-muted); font-size: 11.5px;

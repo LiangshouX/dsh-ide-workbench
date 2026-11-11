@@ -297,7 +297,7 @@ test('HTML editor offers sidebar preview and default-browser actions', async () 
   assert.match(html, /iwb-html-actions/)
   assert.match(html, /editor\.htmlPreviewSidebar/)
   assert.match(html, /editor\.htmlPreviewBrowser/)
-  assert.match(html, /iwb-external/)
+  assert.match(html, /iwb-chrome/)
 })
 
 test('client opens a native sidebar tab without registering a central page', async () => {

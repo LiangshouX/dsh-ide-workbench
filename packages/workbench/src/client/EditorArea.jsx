@@ -16,7 +16,7 @@ import { DiffView } from './DiffView.jsx'
 import { FindBar } from './FindBar.jsx'
 import { ConfirmModal, ContextMenu, Kbd } from './ui.jsx'
 import {
-  FileTypeIcon, IconClose, IconCode, IconEdit, IconEye, IconExternal, IconGlobe, IconLock,
+  FileTypeIcon, IconChrome, IconClose, IconCode, IconEdit, IconEye, IconGlobe, IconLock,
   IconMore, IconOutline, IconPin, IconRestore, IconSave, StripeIcon,
 } from './icons.jsx'
 import { baseName, findSeed, selectedText, shortEncoding } from './util.js'
@@ -715,13 +715,13 @@ function HtmlPreviewActions({ store, tab }) {
       onClick: openInSidebarPreviewAction(store, tab),
     }, React.createElement(IconGlobe, { width: 15, height: 15 })),
     React.createElement('button', {
-      // The glyph is a generic "open outside" mark, not a browser's logo:
-      // the button opens the browser the *user* registered, which is not
-      // necessarily the one the old mark named.
-      type: 'button', className: 'iwb-html-action iwb-external', title: t('editor.htmlPreviewBrowser'),
+      // The glyph is the familiar mark of the action, not a promise about the
+      // program: the button opens the browser the *user* registered, which is
+      // not necessarily the one the mark names.
+      type: 'button', className: 'iwb-html-action iwb-chrome', title: t('editor.htmlPreviewBrowser'),
       'aria-label': t('editor.htmlPreviewBrowser'),
       onClick: openInDefaultBrowserAction(store, tab),
-    }, React.createElement(IconExternal, { width: 15, height: 15 })),
+    }, React.createElement(IconChrome, { width: 15, height: 15 })),
   )
 }
 
