@@ -51678,7 +51678,7 @@ var en = {
   "project.deletePermanently": "Delete permanently",
   "project.filterFiles": "Files",
   "project.filterTree": "Tree",
-  "project.filterTreeHint": "Only filters folders that are already expanded.",
+  "project.filterTreeHint": "Shows only the folders that lead to a matching file, and expands the tree down to it.",
   "project.filterIndexing": "Loading project files\u2026",
   "project.filterError": "Could not load the project file index.",
   "project.tplPlain": "Empty file",
@@ -52181,7 +52181,7 @@ var zh = {
   "project.deletePermanently": "\u6C38\u4E45\u5220\u9664",
   "project.filterFiles": "\u6587\u4EF6",
   "project.filterTree": "\u6811",
-  "project.filterTreeHint": "\u4EC5\u8FC7\u6EE4\u5DF2\u5C55\u5F00\u7684\u76EE\u5F55\u3002",
+  "project.filterTreeHint": "\u4EC5\u663E\u793A\u901A\u5411\u5339\u914D\u6587\u4EF6\u7684\u76EE\u5F55\uFF0C\u5E76\u81EA\u52A8\u5C55\u5F00\u5230\u8BE5\u6587\u4EF6\u3002",
   "project.filterIndexing": "\u6B63\u5728\u52A0\u8F7D\u9879\u76EE\u6587\u4EF6\u2026",
   "project.filterError": "\u65E0\u6CD5\u52A0\u8F7D\u9879\u76EE\u6587\u4EF6\u7D22\u5F15\u3002",
   "project.tplPlain": "\u7A7A\u6587\u4EF6",
@@ -57218,7 +57218,7 @@ function initialState() {
     clipboard: null,
     filter: "",
     /** 'files' = whole-project quick locate; 'tree' = expanded-tree filter. */
-    filterMode: "files",
+    filterMode: "tree",
     /** Whole-project file index (workspace-relative, forward slashes). */
     fileIndex: [],
     fileIndexRoot: "",
@@ -57338,6 +57338,7 @@ var WorkbenchStore = class {
     this.gitDetailToken = 0;
     this.blameToken = 0;
     this.searchToken = 0;
+    this.searchAbort = null;
     this.settingsFile = "";
     this.initPromise = null;
     this.unsubscribers = [];
@@ -58441,7 +58442,33 @@ var WorkbenchStore = class {
   }
   setFilter(filter) {
     this.set({ filter });
-    if (filter !== "" && this.state.filterMode === "files") void this.loadFileIndex();
+    if (filter !== "") void this.loadFileIndex();
+  }
+  /**
+   * Expand the folders that lead to a match, in ONE commit.
+   *
+   * The tree search has to show the whole chain of a target file, from the
+   * project root down to the folder of the file. The `expanded` set is
+   * committed once - so the panel re-renders one time and not once per level -
+   * and the folders themselves are then loaded in parallel.
+   * @param {string[]} dirs the absolute paths of the folders
+   * @returns {Promise<void>}
+   */
+  async expandPaths(dirs) {
+    const list = (Array.isArray(dirs) ? dirs : []).filter((path2) => typeof path2 === "string" && path2 !== "");
+    if (list.length === 0) return;
+    const expanded = new Set(this.state.expanded);
+    const pending = [];
+    for (const path2 of list) {
+      if (path2 === this.state.root) continue;
+      if (expanded.has(path2)) continue;
+      expanded.add(path2);
+      pending.push(path2);
+    }
+    if (pending.length === 0) return;
+    this.set({ expanded });
+    this.persist();
+    await Promise.all(pending.map((path2) => this.loadDir(path2)));
   }
   setFilterMode(mode) {
     const value = mode === "tree" ? "tree" : "files";
@@ -58540,12 +58567,15 @@ var WorkbenchStore = class {
     this.set({ searchPopup: { ...popup, open: true, index: 0, generation: (popup.generation ?? 0) + 1 } });
     this.patch("search", {
       textMatch: false,
-      query: "",
+      // The seed of the popup: the query the run has to start with (the
+      // selection of the editor, when there is one). The popup reads it back
+      // and starts the run itself - running it here as well would scan the
+      // workspace twice for every Ctrl+Shift+R.
+      query: typeof query === "string" ? query : "",
       caseSensitive: false,
       wholeWord: false,
       regexp: false
     });
-    if (typeof query === "string" && query !== "") void this.runSearch(query);
   }
   /** Close the Find in Files popup. */
   closeSearchPopup() {
@@ -58575,6 +58605,12 @@ var WorkbenchStore = class {
       regexp: options.regexp ?? this.state.search.regexp
     };
     const token = ++this.searchToken;
+    if (this.searchAbort !== null) {
+      this.searchAbort.abort();
+      this.searchAbort = null;
+    }
+    const controller = new AbortController();
+    this.searchAbort = controller;
     this.patch("search", {
       query: value,
       ...flags,
@@ -58583,9 +58619,12 @@ var WorkbenchStore = class {
       results: value === "" ? [] : this.state.search.results,
       token
     });
-    if (value === "") return;
+    if (value === "") {
+      this.searchAbort = null;
+      return;
+    }
     try {
-      const result = await call2("fs.search", { root: this.state.root, query: value, ...flags });
+      const result = await call2("fs.search", { root: this.state.root, query: value, ...flags }, controller.signal);
       if (token !== this.searchToken) return;
       this.patch("search", {
         loading: false,
@@ -58596,6 +58635,7 @@ var WorkbenchStore = class {
       });
     } catch (error) {
       if (token !== this.searchToken) return;
+      if (controller.signal.aborted) return;
       this.patch("search", {
         loading: false,
         results: [],
@@ -58603,6 +58643,8 @@ var WorkbenchStore = class {
         truncated: false,
         error: error instanceof Error ? error.message : String(error)
       });
+    } finally {
+      if (this.searchAbort === controller) this.searchAbort = null;
     }
   }
   // ── selection (JetBrains: select first, act second) ──────────────────
@@ -61327,8 +61369,141 @@ function compactLabelFitted(node, maxChars, sep = ".") {
   return tail;
 }
 
+// src/client/tree-search.js
+function nameOf(rel) {
+  if (typeof rel !== "string" || rel === "") return "";
+  const slash4 = Math.max(rel.lastIndexOf("/"), rel.lastIndexOf("\\"));
+  const name2 = slash4 < 0 ? rel : rel.slice(slash4 + 1);
+  return name2.toLowerCase();
+}
+function buildNameIndex(paths) {
+  const list = Array.isArray(paths) ? paths : [];
+  const count2 = list.length;
+  const lower = new Array(count2);
+  const order = new Array(count2);
+  for (let index = 0; index < count2; index += 1) {
+    const rel = list[index];
+    lower[index] = nameOf(rel);
+    order[index] = index;
+  }
+  order.sort((left, right) => {
+    const a3 = lower[left];
+    const b3 = lower[right];
+    if (a3 < b3) return -1;
+    if (a3 > b3) return 1;
+    return 0;
+  });
+  const names = new Array(count2);
+  const sorted = new Array(count2);
+  for (let index = 0; index < count2; index += 1) {
+    const source = order[index];
+    names[index] = lower[source];
+    sorted[index] = list[source];
+  }
+  return { names, paths: sorted, count: count2 };
+}
+function findByPrefix(index, query, limit) {
+  if (index === void 0 || index === null) return [];
+  const names = Array.isArray(index.names) ? index.names : [];
+  const paths = Array.isArray(index.paths) ? index.paths : [];
+  const needle = typeof query === "string" ? query.trim().toLowerCase() : "";
+  if (needle === "") return [];
+  const cap = typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : Number.POSITIVE_INFINITY;
+  let low = 0;
+  let high = names.length;
+  while (low < high) {
+    const middle = low + high >>> 1;
+    if (names[middle] < needle) low = middle + 1;
+    else high = middle;
+  }
+  const out = [];
+  for (let cursor = low; cursor < names.length && out.length < cap; cursor += 1) {
+    if (!names[cursor].startsWith(needle)) break;
+    out.push(paths[cursor]);
+  }
+  return out;
+}
+function buildPathIndex(paths) {
+  const list = Array.isArray(paths) ? paths : [];
+  const lowered = new Array(list.length);
+  for (let cursor = 0; cursor < list.length; cursor += 1) {
+    const rel = list[cursor];
+    lowered[cursor] = typeof rel === "string" ? rel.toLowerCase() : "";
+  }
+  return { paths: list, lowered, count: list.length };
+}
+function findByText(index, query, limit) {
+  if (index === void 0 || index === null) return [];
+  const lowered = Array.isArray(index.lowered) ? index.lowered : [];
+  const paths = Array.isArray(index.paths) ? index.paths : [];
+  const needle = typeof query === "string" ? query.trim().toLowerCase() : "";
+  if (needle === "") return [];
+  const cap = typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : Number.POSITIVE_INFINITY;
+  const out = [];
+  for (let cursor = 0; cursor < lowered.length && out.length < cap; cursor += 1) {
+    if (lowered[cursor].indexOf(needle) < 0) continue;
+    out.push(paths[cursor]);
+  }
+  return out;
+}
+function expandPathsOf(paths, root) {
+  const list = Array.isArray(paths) ? paths : [];
+  const base2 = typeof root === "string" ? root.replace(/[\\/]$/, "") : "";
+  const separator = base2.includes("\\") ? "\\" : "/";
+  const dirs = [];
+  const seen = /* @__PURE__ */ new Set();
+  const files = [];
+  for (const rel of list) {
+    if (typeof rel !== "string" || rel === "") continue;
+    const segments = rel.split("/");
+    const name2 = segments.pop();
+    if (name2 === void 0 || name2 === "") continue;
+    let current = "";
+    for (const segment of segments) {
+      current = current === "" ? segment : `${current}/${segment}`;
+      const absolute = base2 === "" ? current : `${base2}${separator}${current.split("/").join(separator)}`;
+      if (!seen.has(absolute)) {
+        seen.add(absolute);
+        dirs.push(absolute);
+      }
+    }
+    files.push(base2 === "" ? rel : `${base2}${separator}${rel.split("/").join(separator)}`);
+  }
+  return { dirs, files };
+}
+function pathOfKey(key) {
+  if (typeof key !== "string") return void 0;
+  const colon2 = key.indexOf(":");
+  return colon2 < 0 ? void 0 : key.slice(colon2 + 1);
+}
+function visibleTreeRows(rows, keepDirs, keepFiles) {
+  const list = Array.isArray(rows) ? rows : [];
+  const dirs = keepDirs instanceof Set ? keepDirs : new Set(Array.isArray(keepDirs) ? keepDirs : []);
+  const files = keepFiles instanceof Set ? keepFiles : new Set(Array.isArray(keepFiles) ? keepFiles : []);
+  const out = [];
+  for (const row of list) {
+    if (row === void 0 || row === null) continue;
+    if (row.kind === "dir") {
+      const path3 = row.entry?.path;
+      if (typeof path3 === "string" && dirs.has(path3)) out.push(row);
+      continue;
+    }
+    if (row.kind === "file") {
+      const path3 = row.entry?.path;
+      if (typeof path3 === "string" && files.has(path3)) out.push(row);
+      continue;
+    }
+    const path2 = typeof row.path === "string" ? row.path : pathOfKey(row.key);
+    if (typeof path2 === "string" && dirs.has(path2)) out.push(row);
+  }
+  return out;
+}
+
 // src/client/ProjectPanel.jsx
 var ROW_HEIGHT = 22;
+var FILTER_DEBOUNCE_MS = 120;
+var QUICK_FILE_LIMIT = 300;
+var TREE_MATCH_LIMIT = 300;
 var STICKY_CHAR_WIDTH = 7;
 var STICKY_CHROME = 40;
 var SHORTCUT_FALLBACK = {
@@ -61384,15 +61559,14 @@ function gitMenuItems(tree, currentRels, currentRel, isDir, tools) {
     { key: "git-history", text: t3("git.showHistory"), disabled: currentRels.length !== 1, action: () => store.showHistory(currentRel) }
   ];
 }
-function flatten2(state, filter, showIgnored, ignored, mode = "tree") {
+function flatten2(state, showIgnored, ignored) {
   const rows = [];
   const dirs = state.dirs;
-  const normalized = mode === "tree" ? filter.trim().toLowerCase() : "";
   const root = state.root;
   if (root === "") return rows;
-  const isExpanded = (path2) => state.expanded.has(path2);
   const gitRoot = gitRootOf(state);
   const visible = (entry) => showIgnored || !ignored.has(relativePathWithin(gitRoot, entry.path));
+  const isExpanded = (path2) => state.expanded.has(path2);
   const nodeOf = (entry) => {
     if (!entry.isDir) return { name: entry.name, path: entry.path, kind: "file", entry };
     const dir = dirs.get(entry.path);
@@ -61414,7 +61588,6 @@ function flatten2(state, filter, showIgnored, ignored, mode = "tree") {
   const pushLevel = (entries, depth2) => {
     for (const node of compactTree(entries.filter(visible).map(nodeOf))) {
       if (node.kind === "file") {
-        if (normalized !== "" && !node.name.toLowerCase().includes(normalized) && !node.entry.rel.toLowerCase().includes(normalized)) continue;
         rows.push({ kind: "file", key: node.path, entry: node.entry, depth: depth2 });
         continue;
       }
@@ -61587,8 +61760,8 @@ function replaceLastSegment(path2, name2) {
   const index = path2.lastIndexOf("/");
   return index < 0 ? name2 : `${path2.slice(0, index)}/${name2}`;
 }
-function flattenInputs(state, showIgnored, ignored, mode) {
-  return [state.dirs, state.expanded, state.root, state.filter, state.gitRepoRoot, showIgnored, ignored, mode];
+function flattenInputs(state, showIgnored, ignored) {
+  return [state.dirs, state.expanded, state.root, state.gitRepoRoot, showIgnored, ignored];
 }
 function revealRow(element, index) {
   if (element.clientHeight === 0) return;
@@ -61909,6 +62082,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const slice = useStoreSlice(store, projectSlice, shallowEqual);
   const t3 = store.t;
   const [filterOpen, setFilterOpen] = (0, import_react5.useState)(false);
+  const [query, setQuery] = (0, import_react5.useState)(slice.filter);
   const [menu, setMenu] = (0, import_react5.useState)(null);
   const [scrollTop, setScrollTop] = (0, import_react5.useState)(initialScrollTop);
   const [viewport, setViewport] = (0, import_react5.useState)(600);
@@ -61920,38 +62094,95 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const scrollRef = (0, import_react5.useRef)(null);
   const treeRef = (0, import_react5.useRef)(null);
   const dragRef = (0, import_react5.useRef)(null);
+  const filterTimer = (0, import_react5.useRef)(null);
+  const storedFilter = (0, import_react5.useRef)(slice.filter);
   const shortcuts = slice.settings?.shortcuts ?? {};
   const shortcutFor = (key) => shortcuts[key] ?? SHORTCUT_FALLBACK[key] ?? "";
   const showIgnored = slice.settings?.project?.showIgnored === true;
   const singleClickOpen = slice.settings?.project?.singleClickOpen === true;
   const status = useStableStatus(slice.status.entries);
   const filterMode = slice.filterMode === "tree" ? "tree" : "files";
+  const nameIndex = (0, import_react5.useMemo)(() => buildNameIndex(slice.fileIndex), [slice.fileIndex]);
+  const pathIndex = (0, import_react5.useMemo)(() => buildPathIndex(slice.fileIndex), [slice.fileIndex]);
+  const indexReady = slice.fileIndex.length > 0;
   const quickRows = (0, import_react5.useMemo)(() => {
-    const query = slice.filter.trim().toLowerCase();
-    if (filterMode !== "files" || query === "") return [];
-    return slice.fileIndex.filter((rel) => rel.toLowerCase().includes(query)).slice(0, 300).map((rel) => ({
-      kind: "file",
-      key: `quick:${rel}`,
-      quick: true,
-      entry: {
-        name: rel.slice(rel.lastIndexOf("/") + 1),
-        path: absoluteOf(slice.root, rel),
-        rel,
-        isDir: false
-      }
-    }));
-  }, [filterMode, slice.filter, slice.fileIndex, slice.root]);
+    if (filterMode !== "files") return [];
+    const needle = slice.filter.trim();
+    if (needle === "") return [];
+    const matches = findByText(pathIndex, needle, QUICK_FILE_LIMIT);
+    const rows2 = [];
+    for (const rel of matches) {
+      rows2.push({
+        kind: "file",
+        key: `quick:${rel}`,
+        quick: true,
+        entry: {
+          name: rel.slice(rel.lastIndexOf("/") + 1),
+          path: absoluteOf(slice.root, rel),
+          rel,
+          isDir: false
+        }
+      });
+    }
+    return rows2;
+  }, [filterMode, slice.filter, pathIndex, slice.root]);
   const treeRows = (0, import_react5.useMemo)(
-    () => flatten2(slice, slice.filter, showIgnored, status.ignored, filterMode),
-    flattenInputs(slice, showIgnored, status.ignored, filterMode)
+    () => flatten2(slice, showIgnored, status.ignored),
+    flattenInputs(slice, showIgnored, status.ignored)
   );
+  const treeMatches = (0, import_react5.useMemo)(() => {
+    if (filterMode !== "tree" || !indexReady) return null;
+    const needle = slice.filter.trim();
+    if (needle === "") return null;
+    return findByPrefix(nameIndex, needle, TREE_MATCH_LIMIT);
+  }, [filterMode, indexReady, slice.filter, nameIndex]);
+  const treeSearch = (0, import_react5.useMemo)(() => {
+    if (treeMatches === null) return null;
+    const { dirs, files } = expandPathsOf(treeMatches, slice.root);
+    return { dirs, dirSet: new Set(dirs), fileSet: new Set(files) };
+  }, [treeMatches, slice.root]);
+  const treeView = (0, import_react5.useMemo)(() => {
+    if (treeSearch === null) return treeRows;
+    return visibleTreeRows(treeRows, treeSearch.dirSet, treeSearch.fileSet);
+  }, [treeRows, treeSearch]);
   const quickList = filterMode === "files" && slice.filter.trim() !== "";
-  const rows = quickList ? quickRows : treeRows;
+  const rows = quickList ? quickRows : treeView;
   const rowPaths = (0, import_react5.useMemo)(() => rows.filter((row) => row.entry !== void 0).map((row) => row.entry.path), [rows]);
   const excluded = slice.settings?.project?.excluded ?? [];
   const rowPathsRef = (0, import_react5.useRef)(rowPaths);
   const selectionRef = (0, import_react5.useRef)(/* @__PURE__ */ new Set());
   const currentPathsRef = (0, import_react5.useRef)([]);
+  (0, import_react5.useEffect)(() => {
+    storedFilter.current = slice.filter;
+    setQuery((current) => current === slice.filter ? current : slice.filter);
+  }, [slice.filter]);
+  (0, import_react5.useEffect)(() => {
+    if (filterTimer.current !== null) clearTimeout(filterTimer.current);
+    filterTimer.current = setTimeout(() => {
+      filterTimer.current = null;
+      if (query === storedFilter.current) return;
+      storedFilter.current = query;
+      store.setFilter(query);
+    }, FILTER_DEBOUNCE_MS);
+    return () => {
+      if (filterTimer.current !== null) clearTimeout(filterTimer.current);
+    };
+  }, [query, store]);
+  const clearFilter = (0, import_react5.useCallback)(() => {
+    if (filterTimer.current !== null) {
+      clearTimeout(filterTimer.current);
+      filterTimer.current = null;
+    }
+    storedFilter.current = "";
+    setQuery("");
+    store.setFilter("");
+  }, [store]);
+  (0, import_react5.useEffect)(() => {
+    if (treeSearch === null) return;
+    if (treeSearch.dirs.length === 0) return;
+    if (typeof store.expandPaths !== "function") return;
+    void store.expandPaths(treeSearch.dirs);
+  }, [treeSearch, store]);
   (0, import_react5.useEffect)(() => {
     if (scrollRef.current === null) return void 0;
     const element = scrollRef.current;
@@ -62378,12 +62609,14 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       void store.moveEntries(dialog.paths, target, false);
     }
   };
+  const searchActive = slice.filter.trim() !== "";
+  const noMatches = filterMode === "files" && searchActive && rows.length === 0 && slice.fileIndexLoading !== true || filterMode === "tree" && treeMatches !== null && treeMatches.length === 0;
   const rootRow = slice.root === "" ? import_react5.default.createElement(
     "div",
     { className: "iwb-empty" },
     import_react5.default.createElement("div", { className: "iwb-empty-title" }, t3("project.empty")),
     import_react5.default.createElement("button", { type: "button", className: "iwb-textbtn iwb-primary", onClick: () => store.openRootPicker() }, t3("project.openWorkspace"))
-  ) : filterMode === "files" && slice.filter.trim() !== "" && rows.length === 0 && slice.fileIndexLoading !== true ? import_react5.default.createElement(
+  ) : noMatches ? import_react5.default.createElement(
     "div",
     { className: "iwb-empty" },
     import_react5.default.createElement("div", { className: "iwb-empty-title" }, t3("project.noMatches"))
@@ -62489,7 +62722,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
         title: t3("project.filter"),
         onClick: () => {
           setFilterOpen(!filterOpen);
-          if (filterOpen) store.setFilter("");
+          if (filterOpen) clearFilter();
         }
       }, import_react5.default.createElement(IconSearch, { width: 14, height: 14 })),
       import_react5.default.createElement("button", {
@@ -62515,42 +62748,48 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
         }
       }, import_react5.default.createElement(IconRefresh, { width: 14, height: 14 }))
     ),
-    filterOpen || slice.filter !== "" ? import_react5.default.createElement(
+    filterOpen || slice.filter !== "" || query !== "" ? import_react5.default.createElement(
       "div",
       { className: "iwb-filter" },
+      // The TREE tab comes first: it is the default mode, and the tree is
+      // what the panel shows.
       import_react5.default.createElement(
         "div",
         { className: "iwb-filter-mode", role: "group" },
         import_react5.default.createElement("button", {
           type: "button",
-          className: filterMode === "files" ? "iwb-on" : "",
-          title: t3("project.filterFiles"),
-          onClick: () => store.setFilterMode("files")
-        }, t3("project.filterFiles")),
-        import_react5.default.createElement("button", {
-          type: "button",
           className: filterMode === "tree" ? "iwb-on" : "",
           title: t3("project.filterTree"),
           onClick: () => store.setFilterMode("tree")
-        }, t3("project.filterTree"))
+        }, t3("project.filterTree")),
+        import_react5.default.createElement("button", {
+          type: "button",
+          className: filterMode === "files" ? "iwb-on" : "",
+          title: t3("project.filterFiles"),
+          onClick: () => store.setFilterMode("files")
+        }, t3("project.filterFiles"))
       ),
       import_react5.default.createElement(IconSearch, { width: 13, height: 13 }),
       import_react5.default.createElement("input", {
         autoFocus: true,
         placeholder: filterMode === "tree" ? t3("project.filter") : t3("project.filterFiles"),
-        value: slice.filter,
-        onChange: (event) => store.setFilter(event.target.value),
+        // The box owns its value: the caret stays responsive while the
+        // search waits for the debounce.
+        value: query,
+        onChange: (event) => setQuery(event.target.value),
         onKeyDown: (event) => {
           if (event.key === "Escape") {
-            store.setFilter("");
+            clearFilter();
             setFilterOpen(false);
           }
         }
       })
     ) : null,
-    filterMode === "tree" && slice.filter.trim() !== "" ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t3("project.filterTreeHint")) : null,
-    filterMode === "files" && slice.filter.trim() !== "" && slice.fileIndexLoading === true ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t3("project.filterIndexing")) : null,
-    filterMode === "files" && slice.filter.trim() !== "" && slice.fileIndexError !== null ? import_react5.default.createElement("div", { className: "iwb-filter-hint iwb-error-text" }, t3("project.filterError")) : null,
+    // The hint of the tree search: it says what the search does, not what it
+    // did. While the index of the project is loading, the index speaks.
+    filterMode === "tree" && searchActive && slice.fileIndexLoading !== true && slice.fileIndexError === null ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t3("project.filterTreeHint")) : null,
+    searchActive && slice.fileIndexLoading === true ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t3("project.filterIndexing")) : null,
+    searchActive && slice.fileIndexError !== null ? import_react5.default.createElement("div", { className: "iwb-filter-hint iwb-error-text" }, t3("project.filterError")) : null,
     import_react5.default.createElement("div", {
       className: "iwb-panel-body iwb-tree",
       ref: scrollRef,
@@ -74123,6 +74362,94 @@ function replaceAllMatches(text, query, options = {}, replacement = "") {
   return { text: output, count: matches.length };
 }
 
+// src/client/editor-fidelity.js
+init_dist();
+function userEventOf(tr2) {
+  for (const annotation of tr2.annotations) {
+    if (annotation.type === Transaction.userEvent) {
+      return typeof annotation.value === "string" ? annotation.value : "";
+    }
+  }
+  return "";
+}
+function isCompletionEvent(event) {
+  return event === "input.complete" || event.startsWith("input.complete.");
+}
+function wordAtCursor(tr2) {
+  const head = tr2.startState.selection.main.head;
+  const word = tr2.startState.wordAt(head);
+  if (word === null || word === void 0) return null;
+  return { from: word.from, to: word.to };
+}
+function isReplacement(change) {
+  return change.from < change.to && change.insert.length > 0;
+}
+function rangeCovers(range, change) {
+  return range.from <= change.from && change.to <= range.to;
+}
+function selectionAllows(tr2, change) {
+  for (const range of tr2.startState.selection.ranges) {
+    if (rangeCovers(range, change)) return true;
+  }
+  return false;
+}
+function wordAllows(word, change) {
+  if (word === null) return false;
+  return change.from >= word.from && change.to <= word.to;
+}
+function changesOf(tr2) {
+  const changes = [];
+  tr2.changes.iterChanges((from, to, fromB, toB, text) => {
+    changes.push({ from, to, fromB, toB, insert: text.toString() });
+  });
+  return changes;
+}
+function allowedChanges(changes, allowed) {
+  return changes.filter((change) => allowed(change));
+}
+function selectionAfter(tr2, changes) {
+  const head = tr2.startState.selection.main.head;
+  for (const change of changes) {
+    if (change.from <= head && head <= change.to) {
+      return { anchor: change.fromB + change.insert.length };
+    }
+  }
+  return void 0;
+}
+function fidelityCheck(tr2) {
+  if (tr2 === null || tr2 === void 0) return tr2;
+  if (!tr2.docChanged) return tr2;
+  const changes = changesOf(tr2);
+  const event = userEventOf(tr2);
+  if (isCompletionEvent(event)) {
+    const word = wordAtCursor(tr2);
+    const allowed2 = allowedChanges(changes, (change) => !isReplacement(change) || wordAllows(word, change));
+    if (allowed2.length === changes.length) return tr2;
+    if (allowed2.length === 0) return null;
+    return {
+      changes: allowed2,
+      selection: selectionAfter(tr2, allowed2),
+      annotations: tr2.annotations,
+      effects: tr2.effects,
+      scrollIntoView: tr2.scrollIntoView
+    };
+  }
+  if (event !== "") return tr2;
+  const allowed = allowedChanges(changes, (change) => !isReplacement(change) || selectionAllows(tr2, change));
+  if (allowed.length === changes.length) return tr2;
+  if (allowed.length === 0) return null;
+  return {
+    changes: allowed,
+    selection: selectionAfter(tr2, allowed),
+    annotations: tr2.annotations,
+    effects: tr2.effects,
+    scrollIntoView: tr2.scrollIntoView
+  };
+}
+function fidelityGuard() {
+  return EditorState.transactionFilter.of((tr2) => fidelityCheck(tr2));
+}
+
 // src/client/blame-gutter.js
 init_dist();
 init_dist2();
@@ -74221,6 +74548,8 @@ function blameGutter(openCommit) {
 // src/client/CodeEditor.jsx
 var languageCompartment = new Compartment();
 var blameCompartment = new Compartment();
+var NOOP_REF = { current: () => {
+} };
 var LANGUAGE_PACKAGES = {
   javascript: () => Promise.resolve().then(() => (init_dist10(), dist_exports8)).then((module2) => module2.javascript()),
   "javascript-jsx": () => Promise.resolve().then(() => (init_dist10(), dist_exports8)).then((module2) => module2.javascript({ jsx: true })),
@@ -74419,6 +74748,91 @@ function gutterLineOf(view, element, point) {
   if (typeof position === "number" && position >= 0) return view.state.doc.lineAt(position).number;
   return 1;
 }
+function editorExtensions(options = {}) {
+  const {
+    seam = null,
+    readOnly: readOnly2 = false,
+    fontSize = 13,
+    blameActive = false,
+    buildBlameGutter = () => [],
+    onSaveRef = NOOP_REF,
+    onFindRef = NOOP_REF,
+    onFindInFilesRef = NOOP_REF,
+    onChangeRef = NOOP_REF,
+    onCursorRef = NOOP_REF
+  } = options;
+  return [
+    lineNumbers(),
+    // The folding of the buffer (R3). Both extensions are installed ONCE,
+    // here at mount time: `codeFolding()` adds the `foldState` field, and a
+    // second copy of it would throw the state of the editor away - the
+    // same warning as the one in `editor-seam.js`.
+    //
+    // The fold gutter sits next to the line numbers (the annotate column of
+    // the blame is further to the left, it uses `Prec.high`), so the two
+    // coexist: the arrows of the fold are where the eye already looks for
+    // them.
+    //
+    // The markers appear once the grammar of the document arrives: the
+    // folding needs the syntax tree of the language, and that tree is
+    // fetched on demand (see the effect at the end of the mount hook).
+    codeFolding(),
+    foldGutter(),
+    highlightActiveLineGutter(),
+    highlightSpecialChars(),
+    history(),
+    drawSelection(),
+    dropCursor(),
+    EditorState.allowMultipleSelections.of(true),
+    EditorState.readOnly.of(readOnly2 === true),
+    EditorView.editable.of(readOnly2 !== true),
+    indentOnInput(),
+    // The promise of the workbench: in edit mode the content of the file is
+    // 100 % faithful - no extension may rewrite the text of the user.
+    fidelityGuard(),
+    bracketMatching(),
+    rectangularSelection(),
+    crosshairCursor(),
+    highlightActiveLine(),
+    syntaxHighlighting(HIGHLIGHT),
+    THEME,
+    EditorView.theme({ ".cm-scroller": { fontSize: `${fontSize}px` } }),
+    // The extension supplies match highlighting; its default panel is never
+    // opened. FindBar drives the query through the controller below.
+    search({ top: false }),
+    // The extensions of the plugins (and the automatic closing of the
+    // brackets of the core) live in their own compartment: they come and go
+    // while the editor is open, and a reconfiguration must not rebuild the
+    // document.
+    extensionCompartment.of(seam?.extensionSlots ?? []),
+    // The key bindings of the plugins. They come BEFORE the default keymap,
+    // otherwise `Enter` and `Tab` would be swallowed by it and a registered
+    // shortcut could never fire. `keymap.of` is what turns the flat binding
+    // list of the seam into an extension (see the reconfigure effect above).
+    keymapCompartment.of(keymap.of(seam?.keymap ?? [])),
+    keymap.of([
+      ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOnly2 }),
+      ...editorKeymapRest()
+    ]),
+    // The grammar of the document (PERF-03). It is fetched on demand, so
+    // the compartment starts empty and the editor renders without
+    // highlighting until the package arrives.
+    languageCompartment.of([]),
+    // The annotate column: the field carries the annotation, the
+    // compartment the gutter itself (it is switched on and off while the
+    // document stays open, see `blame-gutter.js`).
+    blameField,
+    blameCompartment.of(blameActive ? buildBlameGutter() : []),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
+      if (update.selectionSet || update.docChanged) {
+        const head = update.state.selection.main.head;
+        const line = update.state.doc.lineAt(head);
+        onCursorRef.current?.({ line: line.number, col: head - line.from + 1 });
+      }
+    })
+  ];
+}
 function CodeEditor({
   value,
   path: path2,
@@ -74536,74 +74950,18 @@ function CodeEditor({
   (0, import_react9.useEffect)(() => {
     const host = hostRef.current;
     if (host === null) return void 0;
-    const extensions = [
-      lineNumbers(),
-      // The folding of the buffer (R3). Both extensions are installed ONCE,
-      // here at mount time: `codeFolding()` adds the `foldState` field, and a
-      // second copy of it would throw the state of the editor away - the
-      // same warning as the one in `editor-seam.js`.
-      //
-      // The fold gutter sits next to the line numbers (the annotate column of
-      // the blame is further to the left, it uses `Prec.high`), so the two
-      // coexist: the arrows of the fold are where the eye already looks for
-      // them.
-      //
-      // The markers appear once the grammar of the document arrives: the
-      // folding needs the syntax tree of the language, and that tree is
-      // fetched on demand (see the effect at the end of this hook).
-      codeFolding(),
-      foldGutter(),
-      highlightActiveLineGutter(),
-      highlightSpecialChars(),
-      history(),
-      drawSelection(),
-      dropCursor(),
-      EditorState.allowMultipleSelections.of(true),
-      EditorState.readOnly.of(readOnly2 === true),
-      EditorView.editable.of(readOnly2 !== true),
-      indentOnInput(),
-      bracketMatching(),
-      rectangularSelection(),
-      crosshairCursor(),
-      highlightActiveLine(),
-      syntaxHighlighting(HIGHLIGHT),
-      THEME,
-      EditorView.theme({ ".cm-scroller": { fontSize: `${fontSize}px` } }),
-      // The extension supplies match highlighting; its default panel is never
-      // opened. FindBar drives the query through the controller below.
-      search({ top: false }),
-      // The extensions of the plugins (and the automatic closing of the
-      // brackets of the core) live in their own compartment: they come and go
-      // while the editor is open, and a reconfiguration must not rebuild the
-      // document.
-      extensionCompartment.of(seam?.extensionSlots ?? []),
-      // The key bindings of the plugins. They come BEFORE the default keymap,
-      // otherwise `Enter` and `Tab` would be swallowed by it and a registered
-      // shortcut could never fire. `keymap.of` is what turns the flat binding
-      // list of the seam into an extension (see the reconfigure effect above).
-      keymapCompartment.of(keymap.of(seam?.keymap ?? [])),
-      keymap.of([
-        ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOnly2 }),
-        ...editorKeymapRest()
-      ]),
-      // The grammar of the document (PERF-03). It is fetched on demand, so
-      // the compartment starts empty and the editor renders without
-      // highlighting until the package arrives.
-      languageCompartment.of([]),
-      // The annotate column: the field carries the annotation, the
-      // compartment the gutter itself (it is switched on and off while the
-      // document stays open, see `blame-gutter.js`).
-      blameField,
-      blameCompartment.of(blameActive ? buildBlameGutter() : []),
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
-        if (update.selectionSet || update.docChanged) {
-          const head = update.state.selection.main.head;
-          const line = update.state.doc.lineAt(head);
-          onCursorRef.current?.({ line: line.number, col: head - line.from + 1 });
-        }
-      })
-    ];
+    const extensions = editorExtensions({
+      seam,
+      readOnly: readOnly2,
+      fontSize,
+      blameActive,
+      buildBlameGutter,
+      onSaveRef,
+      onFindRef,
+      onFindInFilesRef,
+      onChangeRef,
+      onCursorRef
+    });
     const view = new EditorView({
       state: EditorState.create({ doc: value ?? "", extensions }),
       parent: host
@@ -74680,13 +75038,21 @@ function CodeEditor({
         if (readOnly2 === true) return { total: matches.length, active, replaced: false };
         if (active < 0 || matches[active] === void 0) return { total: matches.length, active, replaced: false };
         const match = matches[active];
-        view.dispatch({ changes: { from: match.from, to: match.to, insert: String(replacement ?? "") } });
+        view.dispatch({
+          changes: { from: match.from, to: match.to, insert: String(replacement ?? "") },
+          userEvent: "input.replace"
+        });
         return { total: matches.length, active, replaced: true };
       },
       replaceAll: (replacement, query, options) => {
         if (readOnly2 === true) return { count: 0 };
         const result = replaceAllMatches(view.state.doc.toString(), query, options, replacement);
-        if (result.count > 0) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: result.text } });
+        if (result.count > 0) {
+          view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: result.text },
+            userEvent: "input.replace"
+          });
+        }
         return result;
       },
       clear: () => {
@@ -78552,6 +78918,7 @@ function SearchPopup({ store }) {
   const [wholeWord, setWholeWord] = (0, import_react19.useState)(false);
   const [regexp, setRegexp] = (0, import_react19.useState)(false);
   const [seeded, setSeeded] = (0, import_react19.useState)(false);
+  const lastRun = (0, import_react19.useRef)("");
   const files = (0, import_react19.useMemo)(() => (search2?.results ?? []).filter((file) => (file?.matches ?? []).length > 0), [search2?.results]);
   const totals = (0, import_react19.useMemo)(() => {
     let matches = 0;
@@ -78572,6 +78939,7 @@ function SearchPopup({ store }) {
     setWholeWord(live.wholeWord === true);
     setRegexp(live.regexp === true);
     setSeeded(true);
+    lastRun.current = "";
   }, [generation, open]);
   (0, import_react19.useEffect)(() => {
     if (open !== true) return void 0;
@@ -78579,6 +78947,9 @@ function SearchPopup({ store }) {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       timer.current = null;
+      const key = `${query}\0${caseSensitive} ${wholeWord} ${regexp}`;
+      if (lastRun.current === key) return;
+      lastRun.current = key;
       void store.runSearch(query, { caseSensitive, wholeWord, regexp });
     }, query === "" ? 0 : 220);
     return () => {
