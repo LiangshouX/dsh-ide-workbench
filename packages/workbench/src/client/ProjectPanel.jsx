@@ -17,11 +17,29 @@ import { FileTypeIcon, IconChat, IconExternal, IconGlobe, IconRefresh, IconSearc
 import { openInIdeMenu } from './ide-menu.js'
 import { statusClass, stableAggregateStatus } from './git-colors.js'
 import { compactLabel, compactTree } from './compact-path.js'
+import { buildNameIndex, buildPathIndex, expandPathsOf, findByPrefix, findByText, visibleTreeRows } from './tree-search.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 import { relativePathWithin } from './workspace-scope.js'
 import { baseName, matchesShortcut } from './util.js'
 
 const ROW_HEIGHT = 22
+
+/**
+ * The debounce of the filter box.
+ *
+ * The box of the Project panel filters a tree of thousands of rows: the
+ * keystrokes are collected for a moment before the search runs. 120 ms is the
+ * convention of the workbench (FindBar 90 ms, DomFindBar 80 ms, GitPanel
+ * 350 ms): long enough to swallow a burst of letters, short enough that the
+ * tree answers while the reader is still typing.
+ */
+const FILTER_DEBOUNCE_MS = 120
+
+/** The most files the flat file list shows. */
+const QUICK_FILE_LIMIT = 300
+
+/** The most matches the tree search follows. */
+const TREE_MATCH_LIMIT = 300
 
 /** The width of one character of the tree label, for the width estimate. */
 const STICKY_CHAR_WIDTH = 7
@@ -146,21 +164,32 @@ export function gitMenuItems(tree, currentRels, currentRel, isDir, tools) {
   ]
 }
 
-/** Flatten the expanded tree into render rows. */
-export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
+/**
+ * Flatten the expanded tree into render rows.
+ *
+ * The model does NOT know the filter: a keystroke must not rebuild the whole
+ * tree, and the rows of a folder that the search hides are still the rows of
+ * that folder. The filter is a visibility layer ON TOP of this model (see
+ * `visibleTreeRows` of `tree-search.js`).
+ *
+ * @param {object} state the tree slice of the store
+ * @param {boolean} showIgnored whether the ignored entries are shown
+ * @param {Set<string>} ignored the repository-relative paths of the ignored entries
+ * @returns {Array<object>} the rows of the tree
+ */
+export function flatten(state, showIgnored, ignored) {
   const rows = []
   const dirs = state.dirs
-  const normalized = mode === 'tree' ? filter.trim().toLowerCase() : ''
   const root = state.root
   if (root === '') return rows
 
-  // A tree filter only searches what is already loaded; never pretend an
-  // unloaded folder is "loading" just because a filter is active.
-  const isExpanded = path => state.expanded.has(path)
   // The ignored set is keyed by the repository-relative path, not by the
   // project-relative one (see `statusKeyOf`).
   const gitRoot = gitRootOf(state)
   const visible = entry => showIgnored || !ignored.has(relativePathWithin(gitRoot, entry.path))
+  // A folder is open when the store says so: the search expands the chain of
+  // a match through the store, and the model follows it.
+  const isExpanded = path => state.expanded.has(path)
 
   /**
    * The compact view of one entry (R5).
@@ -198,7 +227,6 @@ export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
   const pushLevel = (entries, depth) => {
     for (const node of compactTree(entries.filter(visible).map(nodeOf))) {
       if (node.kind === 'file') {
-        if (normalized !== '' && !node.name.toLowerCase().includes(normalized) && !node.entry.rel.toLowerCase().includes(normalized)) continue
         rows.push({ kind: 'file', key: node.path, entry: node.entry, depth })
         continue
       }
@@ -549,9 +577,18 @@ function replaceLastSegment(path, name) {
  * know the tree changed. Depending on the whole `state` object instead would
  * recompute the tree on every store notification. `gitRepoRoot` is part of it
  * because the ignored entries are keyed relative to that repository.
+ *
+ * The filter is NOT one of them: the tree model does not know the filter, so
+ * a keystroke never rebuilds it. The filter is a visibility layer on top of
+ * the model (`visibleTreeRows` of `tree-search.js`).
+ *
+ * @param {object} state the tree slice of the store
+ * @param {boolean} showIgnored whether the ignored entries are shown
+ * @param {Set<string>} ignored the repository-relative paths of the ignored entries
+ * @returns {Array<any>} the dependency list of the tree memo
  */
-export function flattenInputs(state, showIgnored, ignored, mode) {
-  return [state.dirs, state.expanded, state.root, state.filter, state.gitRepoRoot, showIgnored, ignored, mode]
+export function flattenInputs(state, showIgnored, ignored) {
+  return [state.dirs, state.expanded, state.root, state.gitRepoRoot, showIgnored, ignored]
 }
 
 /**
@@ -917,6 +954,9 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const slice = useStoreSlice(store, projectSlice, shallowEqual)
   const t = store.t
   const [filterOpen, setFilterOpen] = useState(false)
+  // The filter box keeps its own value: the caret has to stay responsive
+  // while the store is still waiting for the debounce.
+  const [query, setQuery] = useState(slice.filter)
   const [menu, setMenu] = useState(null)
   const [scrollTop, setScrollTop] = useState(initialScrollTop)
   const [viewport, setViewport] = useState(600)
@@ -931,19 +971,40 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const scrollRef = useRef(null)
   const treeRef = useRef(null)
   const dragRef = useRef(null)
+  // The debounce of the filter box, and the filter the store carries.
+  const filterTimer = useRef(null)
+  const storedFilter = useRef(slice.filter)
   const shortcuts = slice.settings?.shortcuts ?? {}
   const shortcutFor = key => shortcuts[key] ?? SHORTCUT_FALLBACK[key] ?? ''
   const showIgnored = slice.settings?.project?.showIgnored === true
   const singleClickOpen = slice.settings?.project?.singleClickOpen === true
   const status = useStableStatus(slice.status.entries)
   const filterMode = slice.filterMode === 'tree' ? 'tree' : 'files'
+  // The two views of the file index, built ONCE per index identity - never
+  // per keystroke:
+  //
+  //   - the NAME index: the file names, sorted, for the tree search (a
+  //     binary search plus the walk over the block of the names that share
+  //     the prefix);
+  //   - the PATH index: the lowercased paths, for the file list, which
+  //     matches the WHOLE path - a query that is a folder name lists the
+  //     files under that folder.
+  const nameIndex = useMemo(() => buildNameIndex(slice.fileIndex), [slice.fileIndex])
+  const pathIndex = useMemo(() => buildPathIndex(slice.fileIndex), [slice.fileIndex])
+  // The index of the whole project is what the search looks in. While it is
+  // still loading the tree stays as it is: a search that hides everything
+  // because the index is not there yet would look like "nothing found".
+  const indexReady = slice.fileIndex.length > 0
   const quickRows = useMemo(() => {
-    const query = slice.filter.trim().toLowerCase()
-    if (filterMode !== 'files' || query === '') return []
-    return slice.fileIndex
-      .filter(rel => rel.toLowerCase().includes(query))
-      .slice(0, 300)
-      .map(rel => ({
+    if (filterMode !== 'files') return []
+    const needle = slice.filter.trim()
+    if (needle === '') return []
+    // The lookup stops at the limit: the matches that are never shown are
+    // never built either.
+    const matches = findByText(pathIndex, needle, QUICK_FILE_LIMIT)
+    const rows = []
+    for (const rel of matches) {
+      rows.push({
         kind: 'file',
         key: `quick:${rel}`,
         quick: true,
@@ -953,22 +1014,48 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
           rel,
           isDir: false,
         },
-      }))
-  }, [filterMode, slice.filter, slice.fileIndex, slice.root])
+      })
+    }
+    return rows
+  }, [filterMode, slice.filter, pathIndex, slice.root])
   // PERF-03: depend on the inputs `flatten` really reads, not on the whole
   // state object — the store replaces the snapshot on every notification, so
   // a `state`-keyed memo never hits and rebuilds the tree every time. The
   // slice carries the three fields `flatten` reads (`dirs`, `expanded`,
   // `root`), and the store replaces them immutably.
+  //
+  // The filter is NOT one of the inputs: the model of the tree does not know
+  // the filter, so a keystroke never rebuilds it.
   const treeRows = useMemo(
-    () => flatten(slice, slice.filter, showIgnored, status.ignored, filterMode),
-    flattenInputs(slice, showIgnored, status.ignored, filterMode),
+    () => flatten(slice, showIgnored, status.ignored),
+    flattenInputs(slice, showIgnored, status.ignored),
   )
+  // The tree search: the files whose NAME starts with what the reader typed.
+  const treeMatches = useMemo(() => {
+    if (filterMode !== 'tree' || !indexReady) return null
+    const needle = slice.filter.trim()
+    if (needle === '') return null
+    return findByPrefix(nameIndex, needle, TREE_MATCH_LIMIT)
+  }, [filterMode, indexReady, slice.filter, nameIndex])
+  // The chain of folders that leads to a match, and the matches themselves.
+  const treeSearch = useMemo(() => {
+    if (treeMatches === null) return null
+    const { dirs, files } = expandPathsOf(treeMatches, slice.root)
+    return { dirs, dirSet: new Set(dirs), fileSet: new Set(files) }
+  }, [treeMatches, slice.root])
+  // The visibility layer: the rows the search keeps. The row objects are the
+  // very same ones - the model is not rebuilt, only the list of the rows that
+  // are painted is shorter. The rows that the search hides are not in the DOM
+  // at all: they leave no gap, and the DOM does not churn.
+  const treeView = useMemo(() => {
+    if (treeSearch === null) return treeRows
+    return visibleTreeRows(treeRows, treeSearch.dirSet, treeSearch.fileSet)
+  }, [treeRows, treeSearch])
   // The flat quick-file list is only in use when the mode asks for it AND a
   // filter is typed - the panel shows the TREE otherwise, even in the 'files'
   // mode (that mode only changes what the filter searches in).
   const quickList = filterMode === 'files' && slice.filter.trim() !== ''
-  const rows = quickList ? quickRows : treeRows
+  const rows = quickList ? quickRows : treeView
   const rowPaths = useMemo(() => rows.filter(row => row.entry !== undefined).map(row => row.entry.path), [rows])
   const excluded = slice.settings?.project?.excluded ?? []
   // The callbacks handed to the memoized rows must keep their identity: a
@@ -977,6 +1064,58 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const rowPathsRef = useRef(rowPaths)
   const selectionRef = useRef(new Set())
   const currentPathsRef = useRef([])
+
+  // The filter of the store owns the search, the box owns the caret.
+  //
+  // A filter that comes from the outside - the button that closes the box,
+  // Escape - is copied into the box; a filter that the box itself produced
+  // changes nothing (the value is already the one of the box).
+  useEffect(() => {
+    storedFilter.current = slice.filter
+    setQuery(current => (current === slice.filter ? current : slice.filter))
+  }, [slice.filter])
+
+  // The keystrokes are debounced: the tree of a big project is not rebuilt
+  // for every letter, and the box stays responsive while it waits.
+  useEffect(() => {
+    if (filterTimer.current !== null) clearTimeout(filterTimer.current)
+    filterTimer.current = setTimeout(() => {
+      filterTimer.current = null
+      if (query === storedFilter.current) return
+      storedFilter.current = query
+      store.setFilter(query)
+    }, FILTER_DEBOUNCE_MS)
+    return () => {
+      if (filterTimer.current !== null) clearTimeout(filterTimer.current)
+    }
+  }, [query, store])
+
+  /**
+   * The filter is cleared: the box, the keystroke that waits for the
+   * debounce, and the store.
+   *
+   * The pending keystroke has to die with the filter: otherwise it would
+   * wake up after the box is gone and put the text back into the store.
+   */
+  const clearFilter = useCallback(() => {
+    if (filterTimer.current !== null) {
+      clearTimeout(filterTimer.current)
+      filterTimer.current = null
+    }
+    storedFilter.current = ''
+    setQuery('')
+    store.setFilter('')
+  }, [store])
+
+  // The search expands the chain that leads to the match: the store commits
+  // the whole chain in ONE write and loads the folders in parallel. A folder
+  // that is already open costs nothing, so the call is cheap.
+  useEffect(() => {
+    if (treeSearch === null) return
+    if (treeSearch.dirs.length === 0) return
+    if (typeof store.expandPaths !== 'function') return
+    void store.expandPaths(treeSearch.dirs)
+  }, [treeSearch, store])
 
   useEffect(() => {
     if (scrollRef.current === null) return undefined
@@ -1417,12 +1556,20 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     }
   }
 
+  // The search found nothing at all: the tree says so instead of showing an
+  // empty panel. While the index of the project is still loading the tree
+  // stays as it is - a search that hides everything because the index is not
+  // there yet would look like "nothing found" too.
+  const searchActive = slice.filter.trim() !== ''
+  const noMatches = (filterMode === 'files' && searchActive && rows.length === 0 && slice.fileIndexLoading !== true)
+    || (filterMode === 'tree' && treeMatches !== null && treeMatches.length === 0)
+
   const rootRow = slice.root === ''
     ? React.createElement('div', { className: 'iwb-empty' },
         React.createElement('div', { className: 'iwb-empty-title' }, t('project.empty')),
         React.createElement('button', { type: 'button', className: 'iwb-textbtn iwb-primary', onClick: () => store.openRootPicker() }, t('project.openWorkspace')),
       )
-    : (filterMode === 'files' && slice.filter.trim() !== '' && rows.length === 0 && slice.fileIndexLoading !== true
+    : (noMatches
         ? React.createElement('div', { className: 'iwb-empty' },
             React.createElement('div', { className: 'iwb-empty-title' }, t('project.noMatches')),
           )
@@ -1544,7 +1691,7 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       React.createElement('span', { className: 'iwb-spacer' }),
       React.createElement('button', {
         type: 'button', className: `iwb-iconbtn ${filterOpen ? 'iwb-on' : ''}`, title: t('project.filter'),
-        onClick: () => { setFilterOpen(!filterOpen); if (filterOpen) store.setFilter('') },
+        onClick: () => { setFilterOpen(!filterOpen); if (filterOpen) clearFilter() },
       }, React.createElement(IconSearch, { width: 14, height: 14 })),
       React.createElement('button', {
         type: 'button', className: 'iwb-iconbtn',
@@ -1561,37 +1708,43 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
         onClick: () => { void store.sync() },
       }, React.createElement(IconRefresh, { width: 14, height: 14 })),
     ),
-    filterOpen || slice.filter !== ''
+    filterOpen || slice.filter !== '' || query !== ''
       ? React.createElement('div', { className: 'iwb-filter' },
+          // The TREE tab comes first: it is the default mode, and the tree is
+          // what the panel shows.
           React.createElement('div', { className: 'iwb-filter-mode', role: 'group' },
-            React.createElement('button', {
-              type: 'button', className: filterMode === 'files' ? 'iwb-on' : '',
-              title: t('project.filterFiles'),
-              onClick: () => store.setFilterMode('files'),
-            }, t('project.filterFiles')),
             React.createElement('button', {
               type: 'button', className: filterMode === 'tree' ? 'iwb-on' : '',
               title: t('project.filterTree'),
               onClick: () => store.setFilterMode('tree'),
             }, t('project.filterTree')),
+            React.createElement('button', {
+              type: 'button', className: filterMode === 'files' ? 'iwb-on' : '',
+              title: t('project.filterFiles'),
+              onClick: () => store.setFilterMode('files'),
+            }, t('project.filterFiles')),
           ),
           React.createElement(IconSearch, { width: 13, height: 13 }),
           React.createElement('input', {
             autoFocus: true,
             placeholder: filterMode === 'tree' ? t('project.filter') : t('project.filterFiles'),
-            value: slice.filter,
-            onChange: event => store.setFilter(event.target.value),
-            onKeyDown: event => { if (event.key === 'Escape') { store.setFilter(''); setFilterOpen(false) } },
+            // The box owns its value: the caret stays responsive while the
+            // search waits for the debounce.
+            value: query,
+            onChange: event => setQuery(event.target.value),
+            onKeyDown: event => { if (event.key === 'Escape') { clearFilter(); setFilterOpen(false) } },
           }),
         )
       : null,
-    filterMode === 'tree' && slice.filter.trim() !== ''
+    // The hint of the tree search: it says what the search does, not what it
+    // did. While the index of the project is loading, the index speaks.
+    filterMode === 'tree' && searchActive && slice.fileIndexLoading !== true && slice.fileIndexError === null
       ? React.createElement('div', { className: 'iwb-filter-hint' }, t('project.filterTreeHint'))
       : null,
-    filterMode === 'files' && slice.filter.trim() !== '' && slice.fileIndexLoading === true
+    searchActive && slice.fileIndexLoading === true
       ? React.createElement('div', { className: 'iwb-filter-hint' }, t('project.filterIndexing'))
       : null,
-    filterMode === 'files' && slice.filter.trim() !== '' && slice.fileIndexError !== null
+    searchActive && slice.fileIndexError !== null
       ? React.createElement('div', { className: 'iwb-filter-hint iwb-error-text' }, t('project.filterError'))
       : null,
     React.createElement('div', {

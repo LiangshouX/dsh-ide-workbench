@@ -260,7 +260,7 @@ test('the frozen bar follows the scroll and names the folder of the viewport', a
   const mod = await loadModule()
   ProjectPanel = mod.ProjectPanel
   const state = baseState()
-  const rows = mod.flatten(state, state.filter, false, new Set(), 'tree')
+  const rows = mod.flatten(state, false, new Set())
   const paths = new Set(rows.map(row => row.entry.path))
 
   // The first row is the folder `src`: its parent is the project root, which

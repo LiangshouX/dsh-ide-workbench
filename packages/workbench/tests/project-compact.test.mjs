@@ -225,7 +225,7 @@ test('a package chain collapses into one row with a dot-joined label', async () 
   const mod = await loadModule()
   ProjectPanel = mod.ProjectPanel
   const state = chainState()
-  const rows = mod.flatten(state, state.filter, false, new Set(), 'tree')
+  const rows = mod.flatten(state, false, new Set())
 
   assert.equal(rows.length, 2, 'the whole chain is one row plus its file')
   const merged = rows[0]
@@ -261,7 +261,7 @@ test('the chain forks where a file or a second folder appears', async () => {
       entry('service', `${CONTROLLER}\\service`, 'src/main/java/com/liangshou/adapter/controller/service', true),
     ],
   })
-  const rows = mod.flatten(state, state.filter, false, new Set(), 'tree')
+  const rows = mod.flatten(state, false, new Set())
   const merged = rows[0]
   assert.equal(merged.merged, true)
   assert.equal(merged.label, 'src.main.java.com.liangshou.adapter.controller')
@@ -275,7 +275,7 @@ test('only loaded chains are merged - an unloaded level ends the chain', async (
   // `main` was never opened: it has no listing, so the chain stops there.
   state.dirs.delete(MAIN)
   state.expanded.delete(MAIN)
-  const rows = mod.flatten(state, state.filter, false, new Set(), 'tree')
+  const rows = mod.flatten(state, false, new Set())
   const merged = rows[0]
   assert.equal(merged.merged, true)
   assert.deepEqual(merged.segments, ['src', 'main'])
@@ -304,7 +304,7 @@ test('a merged row keeps the git status colour and the excluded background', asy
 test('a merged folder cannot be renamed', async () => {
   const mod = await loadModule()
   const state = chainState()
-  const rows = mod.flatten(state, state.filter, false, new Set(), 'tree')
+  const rows = mod.flatten(state, false, new Set())
   assert.equal(mod.canRenameEntry(rows[0].entry), false, 'a merged folder has no name of its own')
   assert.equal(mod.canRenameEntry({ name: 'a', path: 'a' }), true)
 })

@@ -345,7 +345,7 @@ function initialState() {
     clipboard: null,
     filter: '',
     /** 'files' = whole-project quick locate; 'tree' = expanded-tree filter. */
-    filterMode: 'files',
+    filterMode: 'tree',
     /** Whole-project file index (workspace-relative, forward slashes). */
     fileIndex: [],
     fileIndexRoot: '',
@@ -1750,7 +1750,39 @@ export class WorkbenchStore {
 
   setFilter(filter) {
     this.set({ filter })
-    if (filter !== '' && this.state.filterMode === 'files') void this.loadFileIndex()
+    // BOTH modes need the whole-project index: the tree search looks the
+    // target file up in it (and expands the chain that leads to it), the file
+    // list filters it. The index is cached per project root, so the second
+    // call of a session costs nothing.
+    if (filter !== '') void this.loadFileIndex()
+  }
+
+  /**
+   * Expand the folders that lead to a match, in ONE commit.
+   *
+   * The tree search has to show the whole chain of a target file, from the
+   * project root down to the folder of the file. The `expanded` set is
+   * committed once - so the panel re-renders one time and not once per level -
+   * and the folders themselves are then loaded in parallel.
+   * @param {string[]} dirs the absolute paths of the folders
+   * @returns {Promise<void>}
+   */
+  async expandPaths(dirs) {
+    const list = (Array.isArray(dirs) ? dirs : []).filter(path => typeof path === 'string' && path !== '')
+    if (list.length === 0) return
+    const expanded = new Set(this.state.expanded)
+    const pending = []
+    for (const path of list) {
+      if (path === this.state.root) continue
+      if (expanded.has(path)) continue
+      expanded.add(path)
+      pending.push(path)
+    }
+    // Everything is already open: the chain of a match that was found before.
+    if (pending.length === 0) return
+    this.set({ expanded })
+    this.persist()
+    await Promise.all(pending.map(path => this.loadDir(path)))
   }
 
   setFilterMode(mode) {
