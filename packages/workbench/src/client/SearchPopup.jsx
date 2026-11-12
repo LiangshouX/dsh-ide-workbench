@@ -95,6 +95,15 @@ export function SearchPopup({ store }) {
    * for (PRD-v5 review R14).
    */
   const [seeded, setSeeded] = useState(false)
+  /**
+   * The last search the popup started.
+   *
+   * The seed effect and the debounce effect can see the same query - the seed
+   * lands in the state, and the debounce fires for it. The key makes sure
+   * that one query is scanned once; the generation empties it when the popup
+   * opens again (the workspace may have changed in between).
+   */
+  const lastRun = useRef('')
 
   /** The files that matched, in the order the host returned them. */
   const files = useMemo(() => (search?.results ?? []).filter(file => (file?.matches ?? []).length > 0), [search?.results])
@@ -126,6 +135,9 @@ export function SearchPopup({ store }) {
     setWholeWord(live.wholeWord === true)
     setRegexp(live.regexp === true)
     setSeeded(true)
+    // A new run of the popup may search the same query again: the workspace
+    // can have changed since the last one.
+    lastRun.current = ''
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generation, open])
 
@@ -137,6 +149,11 @@ export function SearchPopup({ store }) {
     if (timer.current !== null) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       timer.current = null
+      // One query is scanned once: the seed and the debounce must not start
+      // the same scan twice.
+      const key = `${query}\u0000${caseSensitive} ${wholeWord} ${regexp}`
+      if (lastRun.current === key) return
+      lastRun.current = key
       void store.runSearch(query, { caseSensitive, wholeWord, regexp })
     }, query === '' ? 0 : 220)
     return () => {

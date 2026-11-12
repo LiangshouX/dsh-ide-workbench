@@ -117,3 +117,50 @@ test('history query is literal: a bracket does not blank the log', async (t) => 
   const none = await log(env, { branch: 'main', query: 'no-such-query' })
   assert.equal(none.length, 0)
 })
+
+test('the walk says that it stopped at the cap of the hits', async (t) => {
+  const root = await temp(t)
+  for (let index = 0; index < 10; index += 1) {
+    await writeFile(join(root, `f${index}.txt`), 'needle\n')
+  }
+  const env = { root, workspaceRoot: root, prefix: '', isRepo: false }
+  const result = await searchFiles(env, { query: 'needle', maxResults: 4 })
+  // The cap hides the hits that do not fit - and the answer says so.
+  assert.equal(result.files.reduce((sum, file) => sum + file.matches.length, 0), 4)
+  assert.equal(result.truncated, true)
+})
+
+test('the walk says that it stopped at the cap of the files', async (t) => {
+  const root = await temp(t)
+  for (let index = 0; index < 6; index += 1) {
+    await writeFile(join(root, `f${index}.txt`), `content ${index}\n`)
+  }
+  const env = { root, workspaceRoot: root, prefix: '', isRepo: false }
+  // The cap belongs to the file index of the walk, so the walk answers.
+  const result = await searchFiles(env, { query: 'content', scanner: false, maxFiles: 3 })
+  assert.equal(result.files.length, 3)
+  assert.equal(result.truncated, true)
+})
+
+test('the answer of the walk is in the order of the index', async (t) => {
+  const root = await temp(t)
+  await mkdir(join(root, 'src'))
+  await writeFile(join(root, 'src', 'b.ts'), 'needle\n')
+  await writeFile(join(root, 'a.ts'), 'needle\n')
+  await writeFile(join(root, 'src', 'a.ts'), 'needle\n')
+  const env = { root, workspaceRoot: root, prefix: '', isRepo: false }
+  const result = await searchFiles(env, { query: 'needle' })
+  assert.deepEqual(result.files.map(file => file.path), ['a.ts', 'src/a.ts', 'src/b.ts'])
+})
+
+test('an aborted search stops reading the workspace', async (t) => {
+  const root = await temp(t)
+  for (let index = 0; index < 5; index += 1) {
+    await writeFile(join(root, `f${index}.txt`), 'needle\n')
+  }
+  const env = { root, workspaceRoot: root, prefix: '', isRepo: false }
+  const controller = new AbortController()
+  controller.abort()
+  const result = await searchFiles(env, { query: 'needle', signal: controller.signal })
+  assert.equal(result.files.length, 0)
+})

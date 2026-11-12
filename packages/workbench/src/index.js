@@ -337,7 +337,7 @@ export function apply(ctx) {
       }
     },
 
-    'fs.search': async (payload) => {
+    'fs.search': async (payload, request) => {
       const env = await repoEnv(payload)
       const query = requireString(payload, 'query')
       return searchFiles(env, {
@@ -348,6 +348,9 @@ export function apply(ctx) {
         include: stringArray(payload, 'include'),
         exclude: stringArray(payload, 'exclude'),
         maxResults: optionalInteger(payload, 'maxResults', 2000),
+        // The client aborts a scan that is outdated: the host stops reading
+        // the workspace instead of scanning it for an answer nobody reads.
+        signal: request?.signal,
       })
     },
 
@@ -755,6 +758,15 @@ export function apply(ctx) {
         writeError(res, new ApiError('not-found', 'unknown API method', 404))
         return
       }
+      // The signal of the request: a client that goes away (an aborted
+      // search) must not leave the host reading the workspace.
+      const controller = new AbortController()
+      const onClose = () => {
+        if (res.writableEnded !== true) controller.abort()
+      }
+      // A response that cannot report its close (a test double) is no reason
+      // to fail the request.
+      if (typeof res.on === 'function') res.on('close', onClose)
       try {
         // The settings document holds the project the client is working in:
         // a consumer of the host service has to see it.
@@ -765,10 +777,20 @@ export function apply(ctx) {
         // The context of the request travels with the payload: a method that
         // forwards to the host itself (the review of a chat turn) needs the
         // origin of the server and the credentials of the caller.
-        const result = await handler(payload, { origin: originOf(req), headers: req?.headers })
+        const result = await handler(payload, {
+          origin: originOf(req),
+          headers: req?.headers,
+          signal: controller.signal,
+        })
+        // The client may be gone: an answer to nobody is not written.
+        if (res.writableEnded === true || res.destroyed === true) return
         writeOk(res, result)
       } catch (error) {
+        // An aborted request has no client left to answer.
+        if (controller.signal.aborted === true) return
         writeError(res, error)
+      } finally {
+        if (typeof res.off === 'function') res.off('close', onClose)
       }
     },
   }), 'dsh-ide-workbench: JSON API')

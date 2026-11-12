@@ -468,6 +468,14 @@ export class WorkbenchStore {
     /** Request generation of the blame panel, so a stale answer cannot win. */
     this.blameToken = 0
     this.searchToken = 0
+    /**
+     * The abort controller of the running global search.
+     *
+     * A new search aborts the previous one: the answer of an outdated scan is
+     * dropped anyway, and a scan that keeps reading the whole workspace while
+     * the user is still typing is what makes the search feel stuck.
+     */
+    this.searchAbort = null
     this.settingsFile = ''
     this.initPromise = null
     this.unsubscribers = []
@@ -1891,12 +1899,15 @@ export class WorkbenchStore {
     this.set({ searchPopup: { ...popup, open: true, index: 0, generation: (popup.generation ?? 0) + 1 } })
     this.patch('search', {
       textMatch: false,
-      query: '',
+      // The seed of the popup: the query the run has to start with (the
+      // selection of the editor, when there is one). The popup reads it back
+      // and starts the run itself - running it here as well would scan the
+      // workspace twice for every Ctrl+Shift+R.
+      query: typeof query === 'string' ? query : '',
       caseSensitive: false,
       wholeWord: false,
       regexp: false,
     })
-    if (typeof query === 'string' && query !== '') void this.runSearch(query)
   }
 
   /** Close the Find in Files popup. */
@@ -1931,14 +1942,26 @@ export class WorkbenchStore {
       regexp: options.regexp ?? this.state.search.regexp,
     }
     const token = ++this.searchToken
+    // The previous scan is aborted: its answer is dropped anyway, and a scan
+    // that keeps reading the whole workspace while the user is still typing is
+    // what makes the search feel stuck.
+    if (this.searchAbort !== null) {
+      this.searchAbort.abort()
+      this.searchAbort = null
+    }
+    const controller = new AbortController()
+    this.searchAbort = controller
     this.patch('search', {
       query: value, ...flags, loading: value !== '', error: null,
       results: value === '' ? [] : this.state.search.results,
       token,
     })
-    if (value === '') return
+    if (value === '') {
+      this.searchAbort = null
+      return
+    }
     try {
-      const result = await call('fs.search', { root: this.state.root, query: value, ...flags })
+      const result = await call('fs.search', { root: this.state.root, query: value, ...flags }, controller.signal)
       if (token !== this.searchToken) return
       this.patch('search', {
         loading: false,
@@ -1949,10 +1972,14 @@ export class WorkbenchStore {
       })
     } catch (error) {
       if (token !== this.searchToken) return
+      // An aborted scan is not a failure: the scan that replaced it answers.
+      if (controller.signal.aborted) return
       this.patch('search', {
         loading: false, results: [], tookMs: 0, truncated: false,
         error: error instanceof Error ? error.message : String(error),
       })
+    } finally {
+      if (this.searchAbort === controller) this.searchAbort = null
     }
   }
 
