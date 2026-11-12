@@ -12,3 +12,5 @@ dist/client.dev.js
 .spike/
 .idea/
 *.log
+# The scratch folder of the requirement texts (the user's own files).
+docs/tmp/

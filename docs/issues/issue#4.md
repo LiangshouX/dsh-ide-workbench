@@ -84,7 +84,7 @@
   1. `@codemirror/lsp-client@6.3.0` 的 `serverCompletionSource` 用**服务器**给的区间（`completionResultRange`）按字符偏移映射到当前行；服务器用的是它自己那份文档副本，区间因此会盖住用户刚敲进去的字符；
   2. `@codemirror/autocomplete@6.20.4` 在**键入 commit character 时自动接受补全**（`applyCompletion`），没有任何用户动作 —— 语言服务器报的 commit character 恰好就是用户点名的 `#`、`*`、`+`、`/`、`.`；
   3. `applyCompletion` 写入的文本自带缩进 —— 这就是"增改缩进"。
-- 本仓库 HEAD 上**按文件的 LSP 插件没有装**（`packages/codeintel/src/client/lsp-session.js` 导出了 `lspPluginExtension(path)`，但没人调用），所以这份构建里症状看不见（语义编辑能力整体是关的）；用户实际运行的**扁平布局构建（0.5.0）装了它**，所以症状成立。修复必须两边都成立。
+- 本仓库 HEAD 上**按文件的 LSP 插件没有装**（`packages/codeintel/src/client/lsp-session.js` 导出了 `lspPluginExtension(path)`，但没人调用），所以这份构建里症状看不见（语义编辑能力整体是关的）；用户当时实际运行的**扁平布局构建（0.5.0，已于 2026-11-13 退役）装了它**，所以症状成立。修复必须两边都成立。
 
 **已定**
 
