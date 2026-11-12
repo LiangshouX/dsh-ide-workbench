@@ -15,6 +15,7 @@
  * screen.
  */
 import React from 'react'
+import { languageLabel } from './language-label.js'
 
 /**
  * The dialog of the index decision.
@@ -40,7 +41,8 @@ export function IndexDecision({ store, state }) {
         React.createElement('div', null, t('index.decision.body')),
         decision.language === ''
           ? null
-          : React.createElement('div', null, decision.language),
+          // The host speaks language ids, the user reads names.
+          : React.createElement('div', null, languageLabel(decision.language)),
         decision.isRepo === false
           ? React.createElement('div', { className: 'iwb-index-decision-warning' }, t('index.decision.rootWarning'))
           : null),

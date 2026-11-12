@@ -11113,6 +11113,27 @@ function CodeIntelSettings({ contract, t: t2, store: provided }) {
 
 // src/client/decision.jsx
 var import_react5 = __toESM(require("react"), 1);
+
+// src/client/language-label.js
+var NAMES = {
+  typescript: "TypeScript",
+  typescriptreact: "TypeScript React",
+  javascript: "JavaScript",
+  javascriptreact: "JavaScript React",
+  python: "Python",
+  yaml: "YAML",
+  java: "Java",
+  go: "Go",
+  rust: "Rust",
+  c: "C",
+  cpp: "C++"
+};
+function languageLabel(languageId) {
+  const id = typeof languageId === "string" ? languageId : "";
+  return NAMES[id] ?? id;
+}
+
+// src/client/decision.jsx
 function IndexDecision({ store, state }) {
   const t2 = store.t;
   const decision = state?.indexDecision ?? null;
@@ -11135,7 +11156,7 @@ function IndexDecision({ store, state }) {
         "div",
         { className: "iwb-modal-body" },
         import_react5.default.createElement("div", null, t2("index.decision.body")),
-        decision.language === "" ? null : import_react5.default.createElement("div", null, decision.language),
+        decision.language === "" ? null : import_react5.default.createElement("div", null, languageLabel(decision.language)),
         decision.isRepo === false ? import_react5.default.createElement("div", { className: "iwb-index-decision-warning" }, t2("index.decision.rootWarning")) : null
       ),
       import_react5.default.createElement(
