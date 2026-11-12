@@ -6965,6 +6965,45 @@ function ctrlHoverExtensions() {
   ];
 }
 
+// src/client/lsp-completion.js
+init_cm_state();
+init_cm_autocomplete();
+function clampCompletionRange(range, context2) {
+  const pos = context2?.pos ?? 0;
+  const word = context2?.state?.wordAt?.(pos) ?? null;
+  if (word === null || word === void 0) return { from: pos, to: pos };
+  if (range.to <= word.from || range.from >= word.to) return { from: pos, to: pos };
+  const from = Math.min(Math.max(range.from, word.from), word.to);
+  const to = Math.max(Math.min(range.to, word.to), from);
+  return { from, to };
+}
+function withoutCommitCharacters(option) {
+  if (option === null || option === void 0 || typeof option !== "object") return option;
+  if (option.commitCharacters === void 0) return option;
+  const { commitCharacters, ...rest } = option;
+  return rest;
+}
+function faithfulResult(result, context2) {
+  if (result === null || result === void 0) return result;
+  const range = clampCompletionRange({ from: result.from, to: result.to }, context2);
+  const options2 = Array.isArray(result.options) ? result.options.map((option) => withoutCommitCharacters(option)) : result.options;
+  return { ...result, from: range.from, to: range.to, commitCharacters: void 0, options: options2 };
+}
+function faithfulCompletionSource(source) {
+  return (context2) => {
+    const result = typeof source === "function" ? source(context2) : null;
+    if (result === null || result === void 0) return result;
+    if (typeof result.then !== "function") return faithfulResult(result, context2);
+    return result.then((resolved) => faithfulResult(resolved, context2));
+  };
+}
+function faithfulServerCompletionExtensions(source) {
+  return [
+    autocompletion(),
+    EditorState.languageData.of(() => [{ autocomplete: faithfulCompletionSource(source) }])
+  ];
+}
+
 // src/client/api.js
 var API_PREFIX = "dsh-codeintel/api/";
 var PLACEHOLDER = "http://dsh.internal/";
@@ -8909,7 +8948,17 @@ function lspExtensions() {
   return [
     // The semantic completion runs next to the local one; it must not
     // override it (PRD §4.2).
-    library2.serverCompletion(),
+    //
+    // It is the FAITHFUL one (`lsp-completion.js`): the completion of a
+    // language server must not be able to rewrite the text of the user. The
+    // library would apply it BY ITSELF when a "commit character" is typed -
+    // and the commit characters of a server are the symbols a user types
+    // while writing prose (`#`, `*`, `+`, `/`, `.`): typing `###` at the
+    // start of a line swallowed the characters and converted the line. The
+    // faithful source publishes NO commit characters (the completion is
+    // accepted with Enter or Tab) and clamps its range to the word at the
+    // cursor.
+    ...faithfulServerCompletionExtensions(library2.serverCompletionSource),
     library2.hoverTooltips({ hoverTime: 300 }),
     library2.signatureHelp({ keymap: false }),
     // The Ctrl+hover hint and the Ctrl+click belong to the same feature:

@@ -223,12 +223,14 @@ test('the editor installs the folding extensions once, at mount time', async () 
   const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
   // `codeFolding()` adds the `foldState` field: a second copy of it would
   // throw the state of the editor away, so it is installed exactly once, in
-  // the extension array of the mount effect.
+  // the extension list of the mount effect.
   assert.equal((code.match(/codeFolding\(\)/g) ?? []).length, 1, 'the folding field is installed once')
   assert.match(code, /foldGutter\(\)/, 'the fold gutter is installed')
   // The gutter sits next to the line numbers; the annotate column of the
   // blame is further to the left (it uses `Prec.high`).
-  assert.match(code, /const extensions = \[\s*lineNumbers\(\),[\s\S]{0,900}?codeFolding\(\),\s*foldGutter\(\),/)
+  const list = code.slice(code.indexOf('export function editorExtensions'))
+  assert.match(list, /return \[\s*lineNumbers\(\)/, 'the list starts with the line numbers')
+  assert.match(list, /codeFolding\(\),\s*foldGutter\(\),/)
 })
 
 test('the fold state field is installed, so a line can be folded at all', async () => {

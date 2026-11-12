@@ -42,6 +42,7 @@
  */
 import { loadLspLibrary, lspLibrary } from './lsp-lib.js'
 import { ctrlHoverExtensions } from './ctrl-hover.js'
+import { faithfulServerCompletionExtensions } from './lsp-completion.js'
 import { call, wsUrl } from './api.js'
 import { sanitizeHTML } from './lsp-sanitize.js'
 import { createLspTransport } from './lsp-transport.js'
@@ -2323,7 +2324,17 @@ export function lspExtensions() {
   return [
     // The semantic completion runs next to the local one; it must not
     // override it (PRD §4.2).
-    library.serverCompletion(),
+    //
+    // It is the FAITHFUL one (`lsp-completion.js`): the completion of a
+    // language server must not be able to rewrite the text of the user. The
+    // library would apply it BY ITSELF when a "commit character" is typed -
+    // and the commit characters of a server are the symbols a user types
+    // while writing prose (`#`, `*`, `+`, `/`, `.`): typing `###` at the
+    // start of a line swallowed the characters and converted the line. The
+    // faithful source publishes NO commit characters (the completion is
+    // accepted with Enter or Tab) and clamps its range to the word at the
+    // cursor.
+    ...faithfulServerCompletionExtensions(library.serverCompletionSource),
     library.hoverTooltips({ hoverTime: 300 }),
     library.signatureHelp({ keymap: false }),
     // The Ctrl+hover hint and the Ctrl+click belong to the same feature:
