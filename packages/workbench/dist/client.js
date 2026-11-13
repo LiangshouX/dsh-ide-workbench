@@ -15061,23 +15061,31 @@ function buildTree(data2) {
       cursor.next();
       let localChildren = [], localPositions = [];
       let localInRepeat = id2 >= minRepeatType ? id2 : -1;
-      let lastGroup = 0, lastEnd = end;
+      let lastGroup = 0, lastEnd = end, groupLookAhead = lookAheadAtStart;
       while (cursor.pos > endPos) {
         if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
           if (cursor.end <= lastEnd - maxBufferLength) {
-            makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+            makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, groupLookAhead, contextAtStart);
             lastGroup = localChildren.length;
             lastEnd = cursor.end;
+            groupLookAhead = lookAhead;
           }
           cursor.next();
         } else if (depth2 > 2500) {
           takeFlatNode(start, endPos, localChildren, localPositions);
         } else {
+          if (localInRepeat >= 0 && cursor.size == -1 && reused[cursor.id].type == nodeSet2.types[localInRepeat]) {
+            if (lastGroup < localChildren.length)
+              makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, groupLookAhead, contextAtStart);
+            lastGroup = localChildren.length + 1;
+            lastEnd = cursor.start;
+            groupLookAhead = lookAhead;
+          }
           takeNode(start, endPos, localChildren, localPositions, localInRepeat, depth2 + 1);
         }
       }
       if (localInRepeat >= 0 && lastGroup > 0 && lastGroup < localChildren.length)
-        makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+        makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, groupLookAhead, contextAtStart);
       localChildren.reverse();
       localPositions.reverse();
       if (localInRepeat > -1 && lastGroup > 0) {
@@ -15127,7 +15135,7 @@ function buildTree(data2) {
         if (!lastI && last2.type == type && last2.length == length2)
           return last2;
         if (lookAheadProp = last2.prop(NodeProp.lookAhead))
-          lookAhead2 = positions2[lastI] + last2.length + lookAheadProp;
+          lookAhead2 = positions2[lastI] + last2.length + lookAheadProp - length2;
       }
       return makeTree(type, children2, positions2, length2, lookAhead2, contextHash2);
     };
@@ -15324,6 +15332,10 @@ function materialize(cursor) {
     let tree = cursor.tree.children[index], pos = cursor.tree.positions[index];
     cursor.yield(new TreeNode(tree, pos + cursor.from, index, cursor._tree));
   }
+}
+function fragEnd(frag) {
+  let stopped = frag.tree.prop(stoppedInner);
+  return stopped == null ? frag.to : Math.min(frag.to, stopped - frag.offset);
 }
 function punchRanges(outer, ranges) {
   let copy = null, current = ranges;
@@ -16886,7 +16898,7 @@ var init_dist3 = __esm({
       moveTo(pos) {
         let { cursor } = this, p2 = pos - this.offset;
         while (!this.done && cursor.from < p2) {
-          if (cursor.to >= p2 && cursor.enter(p2, 1, IterMode.IncludeAnonymous | IterMode.IgnoreOverlays | IterMode.ExcludeBuffers)) ;
+          if (cursor.to >= p2 && cursor.enter(p2, 1, IterMode.IncludeAnonymous | IterMode.IgnoreMounts | IterMode.IgnoreOverlays | IterMode.ExcludeBuffers)) ;
           else if (cursor.to <= p2) {
             if (!cursor.next(false))
               this.done = true;
@@ -16912,13 +16924,12 @@ var init_dist3 = __esm({
     };
     FragmentCursor = class {
       constructor(fragments) {
-        var _a2;
         this.fragments = fragments;
         this.curTo = 0;
         this.fragI = 0;
         if (fragments.length) {
           let first = this.curFrag = fragments[0];
-          this.curTo = (_a2 = first.tree.prop(stoppedInner)) !== null && _a2 !== void 0 ? _a2 : first.to;
+          this.curTo = fragEnd(first);
           this.inner = new StructureCursor(first.tree, -first.offset);
         } else {
           this.curFrag = this.inner = null;
@@ -16930,13 +16941,12 @@ var init_dist3 = __esm({
         return this.curFrag && this.curFrag.from <= node.from && this.curTo >= node.to && this.inner.hasNode(node);
       }
       nextFrag() {
-        var _a2;
         this.fragI++;
         if (this.fragI == this.fragments.length) {
           this.curFrag = this.inner = null;
         } else {
           let frag = this.curFrag = this.fragments[this.fragI];
-          this.curTo = (_a2 = frag.tree.prop(stoppedInner)) !== null && _a2 !== void 0 ? _a2 : frag.to;
+          this.curTo = fragEnd(frag);
           this.inner = new StructureCursor(frag.tree, -frag.offset);
         }
       }
@@ -23076,6 +23086,8 @@ var init_dist8 = __esm({
             this.nextFragment();
             return null;
           }
+          if (pos < this.safeFrom)
+            return null;
           let top2 = this.trees[last2], index = this.index[last2];
           if (index == top2.children.length) {
             this.trees.pop();
@@ -23100,8 +23112,6 @@ var init_dist8 = __esm({
                 }
                 if (start == pos)
                   return next;
-              } else if (start == pos) {
-                return null;
               }
             }
             this.index[last2]++;
@@ -26480,12 +26490,12 @@ var init_dist13 = __esm({
         return tree && tree.prop(NodeProp.contextHash) == hash3;
       }
       takeNodes(cx) {
-        let cur2 = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
+        let cur2 = this.cursor, off = this.fragment.offset, fragEnd2 = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
         let start = cx.absoluteLineStart, end = start, blockI = cx.block.children.length;
         let maxAnonSize = cx.lineStart - cx.block.from >> 2;
         let prevEnd = end, prevI = blockI;
         scan: for (; ; ) {
-          if (cur2.to - off > Math.min(fragEnd, cx.to) || cur2.type.isAnonymous && cur2.tree && (cur2.to - cur2.from > maxAnonSize || !canStopAfterLastChild(cur2.tree))) {
+          if (cur2.to - off > Math.min(fragEnd2, cx.to) || cur2.type.isAnonymous && cur2.tree && (cur2.to - cur2.from > maxAnonSize || !canStopAfterLastChild(cur2.tree))) {
             if (cur2.type.isAnonymous && cur2.firstChild())
               continue;
             break;
@@ -74656,9 +74666,25 @@ var HIGHLIGHT = HighlightStyle.define([
   { tag: tags.link, color: "var(--iwb-syn-heading)", textDecoration: "underline" },
   { tag: tags.invalid, color: "var(--iwb-syn-invalid)" }
 ]);
-var THEME = EditorView.theme({
+var EDITOR_THEME_RULES = {
   "&": { height: "100%", backgroundColor: "var(--iwb-bg)", color: "var(--iwb-fg)" },
-  ".cm-scroller": { fontFamily: "var(--iwb-mono)", fontSize: "13px", lineHeight: "1.6", overflow: "auto" },
+  // The ligatures of the font are switched OFF on purpose.
+  //
+  // A programming font draws runs like `//`, `/*`, `**` as ONE glyph - and a
+  // skin plugin (dsh-claude-style) loads JetBrains Mono as a web font, so the
+  // editor inherits those ligatures even on a machine that never had the
+  // font installed. The user then counts fewer characters than he typed and
+  // the line moves: the file is right, the picture lies.
+  //
+  // The editor is the place where the text of the user has to be faithful -
+  // one character, one character on the screen.
+  ".cm-scroller": {
+    fontFamily: "var(--iwb-mono)",
+    fontSize: "13px",
+    lineHeight: "1.6",
+    overflow: "auto",
+    fontVariantLigatures: "none"
+  },
   ".cm-content": { caretColor: "var(--iwb-accent)", padding: "10px 0" },
   ".cm-line": { padding: "0 14px 0 6px" },
   ".cm-gutters": {
@@ -74691,7 +74717,8 @@ var THEME = EditorView.theme({
   // The tooltips (completion, hover, signature) are themed in styles.js: one
   // stylesheet owns them, so the library's own light/dark rules cannot win a
   // precedence fight against a second set of rules here.
-}, { dark: true });
+};
+var THEME = EditorView.theme(EDITOR_THEME_RULES, { dark: true });
 function selectionOf(view, match) {
   return { anchor: match.from, head: match.to };
 }
@@ -74721,8 +74748,18 @@ function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOn
     { key: "Ctrl-Shift-=", mac: "Cmd-Shift-=", run: (view) => unfoldAll(view) }
   ];
 }
+function plainTextEnter() {
+  return {
+    key: "Enter",
+    run: (view) => {
+      if (view.state.facet(language) !== null) return false;
+      return insertNewline(view);
+    }
+  };
+}
 function editorKeymapRest() {
   return [
+    plainTextEnter(),
     ...defaultKeymap,
     ...historyKeymap,
     ...foldKeymap,
