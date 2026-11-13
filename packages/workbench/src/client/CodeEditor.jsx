@@ -42,11 +42,11 @@ import {
   EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter,
   drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightSpecialChars,
 } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, indentWithTab, insertNewline } from '@codemirror/commands'
 import { SearchQuery, setSearchQuery, search } from '@codemirror/search'
 import {
   bracketMatching, codeFolding, foldGutter, foldKeymap, foldAll, unfoldAll,
-  indentOnInput, syntaxHighlighting, HighlightStyle,
+  indentOnInput, syntaxHighlighting, HighlightStyle, language,
 } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { findMatches, replaceAllMatches } from './find.js'
@@ -194,9 +194,34 @@ const HIGHLIGHT = HighlightStyle.define([
   { tag: tags.invalid, color: 'var(--iwb-syn-invalid)' },
 ])
 
-const THEME = EditorView.theme({
+/**
+ * The rules of the theme of the editor.
+ *
+ * They are exported so a test can read the contract: the promise of the
+ * workbench is that the buffer shows EXACTLY what the user typed, and a font
+ * that merges characters into one glyph breaks that promise.
+ *
+ * @type {Record<string, Record<string, string>>}
+ */
+export const EDITOR_THEME_RULES = {
   '&': { height: '100%', backgroundColor: 'var(--iwb-bg)', color: 'var(--iwb-fg)' },
-  '.cm-scroller': { fontFamily: 'var(--iwb-mono)', fontSize: '13px', lineHeight: '1.6', overflow: 'auto' },
+  // The ligatures of the font are switched OFF on purpose.
+  //
+  // A programming font draws runs like `//`, `/*`, `**` as ONE glyph - and a
+  // skin plugin (dsh-claude-style) loads JetBrains Mono as a web font, so the
+  // editor inherits those ligatures even on a machine that never had the
+  // font installed. The user then counts fewer characters than he typed and
+  // the line moves: the file is right, the picture lies.
+  //
+  // The editor is the place where the text of the user has to be faithful -
+  // one character, one character on the screen.
+  '.cm-scroller': {
+    fontFamily: 'var(--iwb-mono)',
+    fontSize: '13px',
+    lineHeight: '1.6',
+    overflow: 'auto',
+    fontVariantLigatures: 'none',
+  },
   '.cm-content': { caretColor: 'var(--iwb-accent)', padding: '10px 0' },
   '.cm-line': { padding: '0 14px 0 6px' },
   '.cm-gutters': {
@@ -229,7 +254,9 @@ const THEME = EditorView.theme({
   // The tooltips (completion, hover, signature) are themed in styles.js: one
   // stylesheet owns them, so the library's own light/dark rules cannot win a
   // precedence fight against a second set of rules here.
-}, { dark: true })
+}
+
+const THEME = EditorView.theme(EDITOR_THEME_RULES, { dark: true })
 
 function selectionOf(view, match) {
   return { anchor: match.from, head: match.to }
@@ -283,6 +310,32 @@ export function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly 
 }
 
 /**
+ * Enter in a file WITHOUT a grammar must not move the indentation.
+ *
+ * The default of CodeMirror (`insertNewlineAndIndent`) copies the leading
+ * whitespace of the current line onto the new one - and the whitespace the
+ * user types afterwards lands on TOP of it, so the indentation grows with
+ * every line: a list the user aligns by hand ("` ** 1`", "` ** 2`") comes out
+ * as a staircase. That is exactly what the promise of the workbench forbids
+ * ("no extension may change the indentation of what the user typed").
+ *
+ * A file WITH a grammar keeps the rules of its grammar (the languages ship
+ * their own `indentOnInput`), so this binding steps aside for them: the
+ * facet of the language is empty exactly when the file has no grammar.
+ *
+ * @returns {any} the CodeMirror key binding
+ */
+export function plainTextEnter() {
+  return {
+    key: 'Enter',
+    run: view => {
+      if (view.state.facet(language) !== null) return false
+      return insertNewline(view)
+    },
+  }
+}
+
+/**
  * The rest of the keymap of the editor buffer.
  *
  * The core binds the default keymap of CodeMirror and its history; the
@@ -292,10 +345,16 @@ export function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly 
  * `foldKeymap` adds the folding of the range at the cursor (`Ctrl+Shift+[`
  * and `Ctrl+Shift+]`); the folding of the whole document is bound in
  * `editorKeymap` above.
+ *
+ * The Enter of a file without a grammar comes FIRST: the default keymap of
+ * CodeMirror binds Enter to `insertNewlineAndIndent`, and the binding of the
+ * core has to win over it.
+ *
  * @returns {Array<any>} the keymap entries
  */
 export function editorKeymapRest() {
   return [
+    plainTextEnter(),
     ...defaultKeymap,
     ...historyKeymap,
     ...foldKeymap,
