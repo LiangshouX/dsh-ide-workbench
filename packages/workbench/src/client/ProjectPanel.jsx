@@ -16,11 +16,35 @@ import { ChevronDown, ChevronRight, ContextMenu } from './ui.jsx'
 import { FileTypeIcon, IconChat, IconExternal, IconGlobe, IconRefresh, IconSearch } from './icons.jsx'
 import { openInIdeMenu } from './ide-menu.js'
 import { statusClass, stableAggregateStatus } from './git-colors.js'
+import { compactLabel, compactTree } from './compact-path.js'
+import { buildNameIndex, buildPathIndex, expandPathsOf, findByPrefix, findByText, visibleTreeRows } from './tree-search.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 import { relativePathWithin } from './workspace-scope.js'
 import { baseName, matchesShortcut } from './util.js'
 
 const ROW_HEIGHT = 22
+
+/**
+ * The debounce of the filter box.
+ *
+ * The box of the Project panel filters a tree of thousands of rows: the
+ * keystrokes are collected for a moment before the search runs. 120 ms is the
+ * convention of the workbench (FindBar 90 ms, DomFindBar 80 ms, GitPanel
+ * 350 ms): long enough to swallow a burst of letters, short enough that the
+ * tree answers while the reader is still typing.
+ */
+const FILTER_DEBOUNCE_MS = 120
+
+/** The most files the flat file list shows. */
+const QUICK_FILE_LIMIT = 300
+
+/** The most matches the tree search follows. */
+const TREE_MATCH_LIMIT = 300
+
+/** The width of one character of the tree label, for the width estimate. */
+const STICKY_CHAR_WIDTH = 7
+/** What the frozen bar needs besides its labels: the twisty and the padding. */
+const STICKY_CHROME = 40
 
 /** Shortcut defaults used when the running host still returns a pre-v2 document. */
 const SHORTCUT_FALLBACK = {
@@ -140,21 +164,92 @@ export function gitMenuItems(tree, currentRels, currentRel, isDir, tools) {
   ]
 }
 
-/** Flatten the expanded tree into render rows. */
-export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
+/**
+ * Flatten the expanded tree into render rows.
+ *
+ * The model does NOT know the filter: a keystroke must not rebuild the whole
+ * tree, and the rows of a folder that the search hides are still the rows of
+ * that folder. The filter is a visibility layer ON TOP of this model (see
+ * `visibleTreeRows` of `tree-search.js`).
+ *
+ * @param {object} state the tree slice of the store
+ * @param {boolean} showIgnored whether the ignored entries are shown
+ * @param {Set<string>} ignored the repository-relative paths of the ignored entries
+ * @returns {Array<object>} the rows of the tree
+ */
+export function flatten(state, showIgnored, ignored) {
   const rows = []
   const dirs = state.dirs
-  const normalized = mode === 'tree' ? filter.trim().toLowerCase() : ''
   const root = state.root
   if (root === '') return rows
 
-  // A tree filter only searches what is already loaded; never pretend an
-  // unloaded folder is "loading" just because a filter is active.
-  const isExpanded = path => state.expanded.has(path)
   // The ignored set is keyed by the repository-relative path, not by the
   // project-relative one (see `statusKeyOf`).
   const gitRoot = gitRootOf(state)
   const visible = entry => showIgnored || !ignored.has(relativePathWithin(gitRoot, entry.path))
+  // A folder is open when the store says so: the search expands the chain of
+  // a match through the store, and the model follows it.
+  const isExpanded = path => state.expanded.has(path)
+
+  /**
+   * The compact view of one entry (R5).
+   *
+   * A folder that holds nothing but one sub-folder is the start of a package
+   * chain (`com/liangshou/adapter/controller`) and shows up as a single row.
+   * The children of a folder are only known when the folder has been loaded,
+   * so an unloaded folder ends a chain - deciding a merge never costs a
+   * directory read (zero extra IO).
+   */
+  const nodeOf = entry => {
+    if (!entry.isDir) return { name: entry.name, path: entry.path, kind: 'file', entry }
+    const dir = dirs.get(entry.path)
+    const loaded = dir !== undefined && dir.entries !== undefined
+    let children
+    if (loaded) {
+      // Only a folder that holds exactly one sub-folder can start a chain.
+      // The count stops at the second visible child, so a folder with many
+      // entries costs two lookups - the tree stays as cheap as it was before
+      // the merging.
+      let only = null
+      let count = 0
+      for (const child of dir.entries) {
+        if (!visible(child)) continue
+        count += 1
+        if (count > 1) break
+        only = child
+      }
+      children = count === 1 && only.isDir === true ? [nodeOf(only)] : []
+    }
+    return { name: entry.name, path: entry.path, kind: 'dir', entry, children }
+  }
+
+  /** The rows of one level, with its package chains merged. */
+  const pushLevel = (entries, depth) => {
+    for (const node of compactTree(entries.filter(visible).map(nodeOf))) {
+      if (node.kind === 'file') {
+        rows.push({ kind: 'file', key: node.path, entry: node.entry, depth })
+        continue
+      }
+      // A merged row stands for the whole chain: its path is the LEAF of the
+      // chain, so the git status, the excluded background, the selection and
+      // the context menu keep working without a second set of rules.
+      const merged = node.merged === true
+      const entry = merged ? { ...node.entry, merged: true, segments: node.segments } : node.entry
+      rows.push({
+        kind: 'dir',
+        key: node.path,
+        entry,
+        depth,
+        open: isExpanded(node.path),
+        merged,
+        // The label of a merged row is the dot-joined chain; the title stays
+        // the full relative path of the chain's leaf.
+        label: merged ? compactLabel(node, '.') : undefined,
+        segments: merged ? node.segments : undefined,
+      })
+      if (isExpanded(node.path)) walk(node.path, depth + 1)
+    }
+  }
 
   const walk = (path, depth) => {
     const dir = dirs.get(path)
@@ -166,17 +261,7 @@ export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
       rows.push({ kind: 'error', key: `error:${path}`, depth, message: dir.error, path })
       return
     }
-    for (const entry of dir.entries) {
-      if (!visible(entry)) continue
-      if (entry.isDir) {
-        const open = isExpanded(entry.path)
-        rows.push({ kind: 'dir', key: entry.path, entry, depth, open })
-        if (open) walk(entry.path, depth + 1)
-      } else {
-        if (normalized !== '' && !entry.name.toLowerCase().includes(normalized) && !entry.rel.toLowerCase().includes(normalized)) continue
-        rows.push({ kind: 'file', key: entry.path, entry, depth })
-      }
-    }
+    pushLevel(dir.entries, depth)
     if (dir.truncated === true) rows.push({ kind: 'note', key: `trunc:${path}`, depth, message: '…' })
     if (dir.loading === true && dir.entries !== undefined) {
       rows.push({ kind: 'note', key: `busy:${path}`, depth, message: '…' })
@@ -196,18 +281,291 @@ export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
     return rows
   }
 
-  for (const entry of (dirs.get(root)?.entries ?? [])) {
-    if (!visible(entry)) continue
-    if (entry.isDir) {
-      const open = isExpanded(entry.path)
-      rows.push({ kind: 'dir', key: entry.path, entry, depth: 0, open })
-      if (open) walk(entry.path, 1)
-    } else {
-      if (normalized !== '' && !entry.name.toLowerCase().includes(normalized) && !entry.rel.toLowerCase().includes(normalized)) continue
-      rows.push({ kind: 'file', key: entry.path, entry, depth: 0 })
-    }
-  }
+  pushLevel(rootDir.entries, 0)
   return rows
+}
+
+/**
+ * The nearest ancestor of `path` that is still a visible row.
+ *
+ * A merged row hides the folders of its chain, so the exact parent of a file
+ * is not always a row any more - the walk has to skip the hidden ones. The
+ * root is not a row either: it ends the walk.
+ *
+ * @param {string} path the absolute path of a row
+ * @param {Set<string>} paths the paths of every visible row
+ * @param {string} root the project root
+ * @returns {string | null} the path of the nearest visible ancestor
+ */
+export function visibleAncestorOf(path, paths, root) {
+  if (typeof path !== 'string' || path === '') return null
+  const known = paths instanceof Set ? paths : new Set(Array.isArray(paths) ? paths : [])
+  let current = parentOf(path)
+  while (current !== '' && current !== root && current !== parentOf(current)) {
+    if (known.has(current)) return current
+    current = parentOf(current)
+  }
+  return null
+}
+
+/**
+ * The chain of folders the viewport sits in - the content of the frozen bar
+ * (R4).
+ *
+ * The tree rows are absolutely positioned (the tree is virtualised), so CSS
+ * `position: sticky` cannot hold one of them in place: the frozen bar is a
+ * layer of its own and its content has to be rebuilt from the row model,
+ * because the ancestor rows are not mounted while they are scrolled out.
+ *
+ * The bar carries the WHOLE chain from the project root down to the folder
+ * the viewport starts in, not only the last name: a reader has to see WHERE
+ * the tree is, not just the name of the folder. The chain follows the rows
+ * that are really there, so a merged row contributes its whole chain
+ * (`src.main.java.com`) as one step.
+ *
+ * @param {Array<object>} rows the rendered rows
+ * @param {number} scrollTop the scroll offset of the tree
+ * @param {Set<string>} paths the paths of every visible row
+ * @param {string} root the project root
+ * @returns {Array<{ path: string, label: string, title: string }>} the chain,
+ *   from the topmost visible folder down to the current one
+ */
+export function currentFolderChainOf(rows, scrollTop, paths, root) {
+  if (!Array.isArray(rows) || rows.length === 0) return []
+  const offset = Number.isFinite(scrollTop) ? scrollTop : 0
+  const index = Math.min(rows.length - 1, Math.max(0, Math.floor(offset / ROW_HEIGHT)))
+  const row = rows[index]
+  if (row?.entry === undefined) return []
+  const byPath = new Map()
+  for (const item of rows) {
+    if (item.kind === 'dir' && item.entry !== undefined) byPath.set(item.entry.path, item)
+  }
+  const chain = []
+  let current = row.entry.path
+  const seen = new Set()
+  while (current !== '' && current !== root) {
+    if (seen.has(current)) break
+    seen.add(current)
+    const parent = visibleAncestorOf(current, paths, root)
+    if (parent === null) break
+    const item = byPath.get(parent)
+    if (item === undefined) break
+    chain.unshift({
+      path: parent,
+      // A merged row stands for a chain of folders: it names all of them.
+      label: item.merged === true && Array.isArray(item.segments) && item.segments.length > 1
+        ? item.segments.join('.')
+        : (item.entry?.name ?? ''),
+      title: item.entry?.rel ?? '',
+    })
+    current = parent
+  }
+  return chain
+}
+
+/**
+ * The folder the viewport sits in - the last step of the chain of the frozen
+ * bar (R4).
+ *
+ * @param {Array<object>} rows the rendered rows
+ * @param {number} scrollTop the scroll offset of the tree
+ * @param {Set<string>} paths the paths of every visible row
+ * @param {string} root the project root
+ * @returns {string | null} the path of the current folder
+ */
+export function currentFolderPathOf(rows, scrollTop, paths, root) {
+  const chain = currentFolderChainOf(rows, scrollTop, paths, root)
+  if (chain.length === 0) return null
+  return chain[chain.length - 1].path
+}
+
+/**
+ * Fit the chain of the frozen bar into the width that is available (R4).
+ *
+ * The bar carries the whole path, so it can be longer than the panel. Three
+ * steps, in this order:
+ * 1. the whole chain;
+ * 2. the middle is elided: the first step and the last one stay;
+ * 3. the project root is elided as well: only the last step stays, behind an
+ *    ellipsis.
+ *
+ * The last step is the folder the viewport is in - it is never dropped: it is
+ * the one the reader needs.
+ *
+ * @param {Array<{ label: string }>} chain the steps of the chain
+ * @param {number} [width] the width of the panel, in pixels
+ * @returns {Array<string>} the labels to show
+ */
+export function fitFolderChain(chain, width) {
+  const steps = Array.isArray(chain) ? chain : []
+  if (steps.length === 0) return []
+  const limit = typeof width === 'number' && Number.isFinite(width) && width > 0
+    ? Math.max(8, Math.floor((width - STICKY_CHROME) / STICKY_CHAR_WIDTH))
+    : undefined
+  // Without a width the whole chain is shown: the bar clips it.
+  if (limit === undefined) return steps
+  const length = steps.map(step => step.label).join(' › ').length
+  if (length <= limit) return steps
+  if (steps.length === 1) return steps
+  const first = steps[0]
+  const last = steps[steps.length - 1]
+  const middle = [{ label: first.label, path: first.path, title: first.title }, { label: '…', path: null, title: '' }, last]
+  if (middle.map(step => step.label).join(' › ').length <= limit) return middle
+  return [{ label: '…', path: null, title: '' }, last]
+}
+
+/**
+ * Resolve the "full path" of a new entry against the project root (R5).
+ *
+ * The path is relative to the project root. Everything that could leave the
+ * project - an absolute path, a `..` segment, an empty segment - is refused
+ * here, before a single file is written.
+ *
+ * @param {string} value the path the user typed
+ * @returns {{ ok: true, path: string, name: string } | { ok: false, detail: string }}
+ *   the resolved path, or the reason why it was refused
+ */
+export function resolveEntryPath(value) {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  if (raw === '') return { ok: false, detail: 'the path is empty' }
+  const slashed = raw.replace(/\\/g, '/')
+  if (slashed.startsWith('/') || /^[a-zA-Z]:/.test(slashed)) {
+    return { ok: false, detail: 'the path is absolute' }
+  }
+  const parts = slashed.split('/')
+  for (const part of parts) {
+    if (part === '') return { ok: false, detail: 'the path has an empty segment' }
+    if (part === '.' || part === '..') return { ok: false, detail: 'the path leaves the project root' }
+  }
+  return { ok: true, path: parts.join('/'), name: parts[parts.length - 1] }
+}
+
+/**
+ * The state of the new-entry dialog when it opens (R5).
+ *
+ * The path box starts with the full relative path of the folder the entry
+ * goes into; it is read-only until the user clicks into it.
+ *
+ * @param {string} parent the absolute path of the target folder
+ * @param {boolean} isDir whether a folder is created
+ * @param {string} root the project root
+ * @returns {object} the dialog state
+ */
+export function newEntryDialogState(parent, isDir, root) {
+  const rel = relativePathWithin(root, parent)
+  const base = rel === null ? '' : rel
+  return {
+    kind: 'new',
+    parent,
+    isDir,
+    name: '',
+    template: 'plain',
+    base,
+    path: base,
+    pathEdited: false,
+  }
+}
+
+/**
+ * Apply the name of the entry to the dialog state.
+ *
+ * The path box follows the name: while it has not been edited it points at
+ * the folder the dialog was opened on, afterwards it keeps the folder the
+ * user has chosen.
+ *
+ * @param {object} dialog the dialog state
+ * @param {string} name the new name
+ * @returns {object} the next dialog state
+ */
+export function withDialogName(dialog, name) {
+  if (dialog === null || dialog === undefined) return dialog
+  const path = name === ''
+    ? dialog.base
+    : (dialog.pathEdited === true ? replaceLastSegment(dialog.path, name) : joinRelative(dialog.base, name))
+  return { ...dialog, name, path }
+}
+
+/**
+ * Apply the path of the entry to the dialog state.
+ *
+ * The last segment of the path is the name of the entry.
+ *
+ * @param {object} dialog the dialog state
+ * @param {string} path the new path
+ * @returns {object} the next dialog state
+ */
+export function withDialogPath(dialog, path) {
+  if (dialog === null || dialog === undefined) return dialog
+  return {
+    ...dialog,
+    path,
+    pathEdited: true,
+    name: baseName(String(path).replace(/\\/g, '/')),
+  }
+}
+
+/**
+ * Unlock the path box: it is read-only until the mouse clicks into it.
+ *
+ * @param {object} dialog the dialog state
+ * @returns {object} the next dialog state
+ */
+export function withDialogPathUnlocked(dialog) {
+  if (dialog === null || dialog === undefined) return dialog
+  if (dialog.pathEdited === true) return dialog
+  return { ...dialog, pathEdited: true }
+}
+
+/**
+ * Whether a folder may be renamed (R5).
+ *
+ * A merged folder stands for a whole chain of folders and has no name of its
+ * own: renaming it would mean renaming a chain.
+ *
+ * @param {object | undefined} entry the entry of the row
+ * @returns {boolean}
+ */
+export function canRenameEntry(entry) {
+  if (entry === undefined || entry === null) return false
+  return entry.merged !== true
+}
+
+/**
+ * Resolve where a new entry is created (R5).
+ *
+ * While the path box is untouched the entry goes into the folder the dialog
+ * was opened on - the behaviour of the tree before the path box existed. Once
+ * the box has been edited the path is resolved against the project root, and
+ * a path that leaves the project is refused before anything is written.
+ *
+ * @param {{ parent: string, name: string, path?: string, pathEdited?: boolean }} dialog
+ * @param {string} root the project root
+ * @returns {{ ok: true, parent?: string, name: string, relPath?: string }
+ *   | { ok: false, reason: 'empty-name' | 'invalid-path', detail?: string }}
+ *   the folder of the entry, or the path relative to the project root
+ */
+export function resolveNewEntry(dialog, root) {
+  if (dialog?.pathEdited === true) {
+    const resolved = resolveEntryPath(dialog.path)
+    if (!resolved.ok) return { ok: false, reason: 'invalid-path', detail: dialog.path }
+    return { ok: true, name: resolved.name, relPath: resolved.path }
+  }
+  const name = typeof dialog?.name === 'string' ? dialog.name.trim() : ''
+  if (name === '') return { ok: false, reason: 'empty-name' }
+  return { ok: true, parent: dialog.parent, name }
+}
+
+/** Join a project-relative directory and a name. */
+function joinRelative(base, name) {
+  if (base === '' || base === undefined || base === null) return name
+  return `${base}/${name}`
+}
+
+/** Replace the last segment of a relative path. */
+function replaceLastSegment(path, name) {
+  if (typeof path !== 'string' || path === '') return name
+  const index = path.lastIndexOf('/')
+  return index < 0 ? name : `${path.slice(0, index)}/${name}`
 }
 
 /**
@@ -219,9 +577,18 @@ export function flatten(state, filter, showIgnored, ignored, mode = 'tree') {
  * know the tree changed. Depending on the whole `state` object instead would
  * recompute the tree on every store notification. `gitRepoRoot` is part of it
  * because the ignored entries are keyed relative to that repository.
+ *
+ * The filter is NOT one of them: the tree model does not know the filter, so
+ * a keystroke never rebuilds it. The filter is a visibility layer on top of
+ * the model (`visibleTreeRows` of `tree-search.js`).
+ *
+ * @param {object} state the tree slice of the store
+ * @param {boolean} showIgnored whether the ignored entries are shown
+ * @param {Set<string>} ignored the repository-relative paths of the ignored entries
+ * @returns {Array<any>} the dependency list of the tree memo
  */
-export function flattenInputs(state, showIgnored, ignored, mode) {
-  return [state.dirs, state.expanded, state.root, state.filter, state.gitRepoRoot, showIgnored, ignored, mode]
+export function flattenInputs(state, showIgnored, ignored) {
+  return [state.dirs, state.expanded, state.root, state.gitRepoRoot, showIgnored, ignored]
 }
 
 /**
@@ -313,6 +680,7 @@ export const NEW_TEMPLATES = [
  */
 const TreeRow = React.memo(function TreeRow({
   entry,
+  label,
   depth,
   top,
   open,
@@ -381,7 +749,7 @@ const TreeRow = React.memo(function TreeRow({
       ? React.createElement(FileTypeIcon, { kind: 'folder', size: 15 })
       : React.createElement(FileTypeIcon, { path: entry.name, size: 15 }),
     isDir
-      ? React.createElement('span', { className: 'iwb-tree-name iwb-dir' }, entry.name)
+      ? React.createElement('span', { className: 'iwb-tree-name iwb-dir' }, label ?? entry.name)
       : (editing
           ? React.createElement('input', {
               className: 'iwb-rename-input',
@@ -400,6 +768,151 @@ const TreeRow = React.memo(function TreeRow({
   )
 })
 
+/**
+ * The "new file / new directory" dialog (R5).
+ *
+ * The dialog is a hierarchy, not a stack of fields:
+ *
+ *   - the PATH comes FIRST, in a frame of its own: it is the CONTEXT of the
+ *     entry - the folder the entry lands in - so it is read before anything
+ *     else. The frame sets it apart from the fields below;
+ *   - the NAME follows as the primary input, and it keeps the focus;
+ *   - the TEMPLATE (files only) comes after it;
+ *   - the actions stay at the bottom.
+ *
+ * The hint is secondary text: it sits under the path box inside the frame,
+ * smaller and quieter than a label, and it never competes with the fields.
+ *
+ * Next to the name there is a box with the FULL path of the entry to create,
+ * relative to the project root. The box is read-only (and greyed) until the
+ * mouse clicks into it - a disabled input cannot be focused by a click, so
+ * `readOnly` is the only way to keep it clickable. While the box is
+ * untouched the entry is created in the folder the dialog was opened on;
+ * once it has been edited the path is resolved against the project root.
+ *
+ * @param {{ dialog: object, t: (key: string) => string,
+ *   onNameChange: (value: string) => void, onPathChange: (value: string) => void,
+ *   onPathFocus: () => void, onTemplateChange: (template: string) => void,
+ *   onSubmit: () => void, onCancel: () => void }} props
+ */
+export function NewEntryDialog({
+  dialog, t, onNameChange, onPathChange, onPathFocus, onTemplateChange, onSubmit, onCancel,
+}) {
+  return React.createElement('div', {
+    className: 'iwb-modal-backdrop',
+    onMouseDown: event => { if (event.target === event.currentTarget) onCancel() },
+  },
+    React.createElement('div', { className: 'iwb-modal iwb-new-entry-modal', role: 'dialog', 'aria-modal': 'true' },
+      React.createElement('h2', { className: 'iwb-new-entry-title' },
+        dialog.isDir ? t('project.newDir') : t('project.newFile')),
+      // The frame of the target folder: it comes before the fields, because
+      // it says WHERE the entry lands.
+      React.createElement('div', { className: 'iwb-new-entry-path' },
+        React.createElement('label', { className: 'iwb-new-entry-path-box' },
+          React.createElement('span', { className: 'iwb-new-entry-path-label' }, t('project.pathLabel')),
+          React.createElement('input', {
+            value: dialog.path,
+            // A disabled input cannot be clicked into, so the path box is
+            // read-only (and greyed by `.iwb-input-readonly`) until the mouse
+            // clicks into it.
+            readOnly: dialog.pathEdited !== true,
+            className: dialog.pathEdited === true
+              ? 'iwb-new-entry-path-input'
+              : 'iwb-new-entry-path-input iwb-input-readonly',
+            title: t('project.pathHint'),
+            onFocus: onPathFocus,
+            onChange: event => onPathChange(event.target.value),
+            onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); onSubmit() } },
+          }),
+        ),
+        // The hint is quiet secondary text: it explains the box above it and
+        // never competes with the fields.
+        React.createElement('span', { className: 'iwb-new-entry-hint' }, t('project.pathHint')),
+      ),
+      // The name is the primary input of the dialog.
+      React.createElement('label', { className: 'iwb-field iwb-new-entry-name' },
+        React.createElement('span', null, t('project.nameLabel')),
+        React.createElement('input', {
+          autoFocus: true, value: dialog.name,
+          onChange: event => onNameChange(event.target.value),
+          onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); onSubmit() } },
+        }),
+      ),
+      !dialog.isDir
+        ? React.createElement('label', { className: 'iwb-field iwb-new-entry-template' },
+            React.createElement('span', null, t('project.templateLabel')),
+            React.createElement('select', {
+              value: dialog.template,
+              onChange: event => {
+                const template = NEW_TEMPLATES.find(item => item.id === event.target.value)
+                const ext = template?.ext ?? ''
+                const name = dialog.name.includes('.') ? dialog.name : `${dialog.name}${ext}`
+                onNameChange(name)
+                onTemplateChange(event.target.value)
+              },
+            }, NEW_TEMPLATES.map(template => React.createElement('option', { key: template.id, value: template.id }, t(template.labelKey)))),
+          )
+        : null,
+      React.createElement('div', { className: 'iwb-modal-actions' },
+        React.createElement('button', { type: 'button', className: 'iwb-textbtn', onClick: onCancel }, t('common.cancel')),
+        React.createElement('button', { type: 'button', className: 'iwb-textbtn iwb-primary', onClick: onSubmit }, t('project.create')),
+      ),
+    ),
+  )
+}
+
+/**
+ * The frozen "current folder" bar (R4).
+ *
+ * The tree rows are absolutely positioned (the tree is virtualised), so CSS
+ * `position: sticky` cannot hold one of them in place: the bar is a layer of
+ * its own inside the scrolling body, and its content is rebuilt from the row
+ * model, because the ancestor rows are not mounted while they are scrolled
+ * out of the viewport.
+ *
+ * It is a navigation bar, not a tree row: it never joins the selection. It
+ * carries the WHOLE chain of folders the viewport sits in - from the project
+ * root down to the current one - and every step of it jumps to its folder.
+ * The fold marker folds the folder the viewport is in.
+ *
+ * @param {{ chain: Array<{ path: string | null, label: string, title: string }>,
+ *   foldTitle?: string, onJump: (path: string) => void,
+ *   onToggle: (path: string) => void }} props
+ */
+export function FrozenFolderBar({ chain, foldTitle, onJump, onToggle }) {
+  const current = chain.length > 0 ? chain[chain.length - 1] : undefined
+  return React.createElement('div', {
+    className: 'iwb-tree-sticky',
+    // The geometry of the bar lives in the stylesheet: it has to cover the
+    // padding of the scroll container, or it floats below the header.
+  },
+    React.createElement('span', {
+      className: 'iwb-tree-twisty iwb-tree-twisty-click',
+      title: foldTitle ?? (current?.title ?? ''),
+      // The twisty sits inside the bar, which jumps on click: without
+      // stopPropagation one click would jump *and* fold the folder. A double
+      // click sends two clicks plus a dblclick: only the first click may
+      // fold, and the dblclick must not reach the bar.
+      onClick: event => {
+        event.stopPropagation()
+        if (event.detail > 1) return
+        if (current?.path) onToggle(current.path)
+      },
+      onDoubleClick: event => event.stopPropagation(),
+    }, React.createElement(ChevronDown, null)),
+    ...chain.map((step, index) => React.createElement(React.Fragment, { key: `${step.label}-${index}` },
+      index > 0 ? React.createElement('span', { className: 'iwb-tree-sticky-sep' }, '›') : null,
+      // A step without a path is the ellipsis of a shortened chain.
+      step.path === null
+        ? React.createElement('span', { className: 'iwb-tree-sticky-sep' }, step.label)
+        : React.createElement('span', {
+            className: 'iwb-tree-sticky-item',
+            title: step.title,
+            onClick: () => onJump(step.path),
+          }, step.label),
+    )),
+  )
+}
 /**
  * The fields the Project panel reads.
  *
@@ -435,15 +948,20 @@ export function projectSlice(state) {
   }
 }
 
-export function ProjectPanel({ store, state: _state }) {
+export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   // The panel reads its data from a store slice; the `state` prop is still
   // accepted (Workbench.jsx passes it) but no longer used.
   const slice = useStoreSlice(store, projectSlice, shallowEqual)
   const t = store.t
   const [filterOpen, setFilterOpen] = useState(false)
+  // The filter box keeps its own value: the caret has to stay responsive
+  // while the store is still waiting for the debounce.
+  const [query, setQuery] = useState(slice.filter)
   const [menu, setMenu] = useState(null)
-  const [scrollTop, setScrollTop] = useState(0)
+  const [scrollTop, setScrollTop] = useState(initialScrollTop)
   const [viewport, setViewport] = useState(600)
+  // The width of the tree panel: the frozen bar fits its chain into it.
+  const [panelWidth, setPanelWidth] = useState(0)
   // Locate File asks for the active file even when it is already the selected
   // one, so the reveal needs a trigger of its own.
   const [locateTick, setLocateTick] = useState(0)
@@ -453,19 +971,40 @@ export function ProjectPanel({ store, state: _state }) {
   const scrollRef = useRef(null)
   const treeRef = useRef(null)
   const dragRef = useRef(null)
+  // The debounce of the filter box, and the filter the store carries.
+  const filterTimer = useRef(null)
+  const storedFilter = useRef(slice.filter)
   const shortcuts = slice.settings?.shortcuts ?? {}
   const shortcutFor = key => shortcuts[key] ?? SHORTCUT_FALLBACK[key] ?? ''
   const showIgnored = slice.settings?.project?.showIgnored === true
   const singleClickOpen = slice.settings?.project?.singleClickOpen === true
   const status = useStableStatus(slice.status.entries)
   const filterMode = slice.filterMode === 'tree' ? 'tree' : 'files'
+  // The two views of the file index, built ONCE per index identity - never
+  // per keystroke:
+  //
+  //   - the NAME index: the file names, sorted, for the tree search (a
+  //     binary search plus the walk over the block of the names that share
+  //     the prefix);
+  //   - the PATH index: the lowercased paths, for the file list, which
+  //     matches the WHOLE path - a query that is a folder name lists the
+  //     files under that folder.
+  const nameIndex = useMemo(() => buildNameIndex(slice.fileIndex), [slice.fileIndex])
+  const pathIndex = useMemo(() => buildPathIndex(slice.fileIndex), [slice.fileIndex])
+  // The index of the whole project is what the search looks in. While it is
+  // still loading the tree stays as it is: a search that hides everything
+  // because the index is not there yet would look like "nothing found".
+  const indexReady = slice.fileIndex.length > 0
   const quickRows = useMemo(() => {
-    const query = slice.filter.trim().toLowerCase()
-    if (filterMode !== 'files' || query === '') return []
-    return slice.fileIndex
-      .filter(rel => rel.toLowerCase().includes(query))
-      .slice(0, 300)
-      .map(rel => ({
+    if (filterMode !== 'files') return []
+    const needle = slice.filter.trim()
+    if (needle === '') return []
+    // The lookup stops at the limit: the matches that are never shown are
+    // never built either.
+    const matches = findByText(pathIndex, needle, QUICK_FILE_LIMIT)
+    const rows = []
+    for (const rel of matches) {
+      rows.push({
         kind: 'file',
         key: `quick:${rel}`,
         quick: true,
@@ -475,18 +1014,48 @@ export function ProjectPanel({ store, state: _state }) {
           rel,
           isDir: false,
         },
-      }))
-  }, [filterMode, slice.filter, slice.fileIndex, slice.root])
+      })
+    }
+    return rows
+  }, [filterMode, slice.filter, pathIndex, slice.root])
   // PERF-03: depend on the inputs `flatten` really reads, not on the whole
   // state object — the store replaces the snapshot on every notification, so
   // a `state`-keyed memo never hits and rebuilds the tree every time. The
   // slice carries the three fields `flatten` reads (`dirs`, `expanded`,
   // `root`), and the store replaces them immutably.
+  //
+  // The filter is NOT one of the inputs: the model of the tree does not know
+  // the filter, so a keystroke never rebuilds it.
   const treeRows = useMemo(
-    () => flatten(slice, slice.filter, showIgnored, status.ignored, filterMode),
-    flattenInputs(slice, showIgnored, status.ignored, filterMode),
+    () => flatten(slice, showIgnored, status.ignored),
+    flattenInputs(slice, showIgnored, status.ignored),
   )
-  const rows = filterMode === 'files' && slice.filter.trim() !== '' ? quickRows : treeRows
+  // The tree search: the files whose NAME starts with what the reader typed.
+  const treeMatches = useMemo(() => {
+    if (filterMode !== 'tree' || !indexReady) return null
+    const needle = slice.filter.trim()
+    if (needle === '') return null
+    return findByPrefix(nameIndex, needle, TREE_MATCH_LIMIT)
+  }, [filterMode, indexReady, slice.filter, nameIndex])
+  // The chain of folders that leads to a match, and the matches themselves.
+  const treeSearch = useMemo(() => {
+    if (treeMatches === null) return null
+    const { dirs, files } = expandPathsOf(treeMatches, slice.root)
+    return { dirs, dirSet: new Set(dirs), fileSet: new Set(files) }
+  }, [treeMatches, slice.root])
+  // The visibility layer: the rows the search keeps. The row objects are the
+  // very same ones - the model is not rebuilt, only the list of the rows that
+  // are painted is shorter. The rows that the search hides are not in the DOM
+  // at all: they leave no gap, and the DOM does not churn.
+  const treeView = useMemo(() => {
+    if (treeSearch === null) return treeRows
+    return visibleTreeRows(treeRows, treeSearch.dirSet, treeSearch.fileSet)
+  }, [treeRows, treeSearch])
+  // The flat quick-file list is only in use when the mode asks for it AND a
+  // filter is typed - the panel shows the TREE otherwise, even in the 'files'
+  // mode (that mode only changes what the filter searches in).
+  const quickList = filterMode === 'files' && slice.filter.trim() !== ''
+  const rows = quickList ? quickRows : treeView
   const rowPaths = useMemo(() => rows.filter(row => row.entry !== undefined).map(row => row.entry.path), [rows])
   const excluded = slice.settings?.project?.excluded ?? []
   // The callbacks handed to the memoized rows must keep their identity: a
@@ -496,12 +1065,68 @@ export function ProjectPanel({ store, state: _state }) {
   const selectionRef = useRef(new Set())
   const currentPathsRef = useRef([])
 
+  // The filter of the store owns the search, the box owns the caret.
+  //
+  // A filter that comes from the outside - the button that closes the box,
+  // Escape - is copied into the box; a filter that the box itself produced
+  // changes nothing (the value is already the one of the box).
+  useEffect(() => {
+    storedFilter.current = slice.filter
+    setQuery(current => (current === slice.filter ? current : slice.filter))
+  }, [slice.filter])
+
+  // The keystrokes are debounced: the tree of a big project is not rebuilt
+  // for every letter, and the box stays responsive while it waits.
+  useEffect(() => {
+    if (filterTimer.current !== null) clearTimeout(filterTimer.current)
+    filterTimer.current = setTimeout(() => {
+      filterTimer.current = null
+      if (query === storedFilter.current) return
+      storedFilter.current = query
+      store.setFilter(query)
+    }, FILTER_DEBOUNCE_MS)
+    return () => {
+      if (filterTimer.current !== null) clearTimeout(filterTimer.current)
+    }
+  }, [query, store])
+
+  /**
+   * The filter is cleared: the box, the keystroke that waits for the
+   * debounce, and the store.
+   *
+   * The pending keystroke has to die with the filter: otherwise it would
+   * wake up after the box is gone and put the text back into the store.
+   */
+  const clearFilter = useCallback(() => {
+    if (filterTimer.current !== null) {
+      clearTimeout(filterTimer.current)
+      filterTimer.current = null
+    }
+    storedFilter.current = ''
+    setQuery('')
+    store.setFilter('')
+  }, [store])
+
+  // The search expands the chain that leads to the match: the store commits
+  // the whole chain in ONE write and loads the folders in parallel. A folder
+  // that is already open costs nothing, so the call is cheap.
+  useEffect(() => {
+    if (treeSearch === null) return
+    if (treeSearch.dirs.length === 0) return
+    if (typeof store.expandPaths !== 'function') return
+    void store.expandPaths(treeSearch.dirs)
+  }, [treeSearch, store])
+
   useEffect(() => {
     if (scrollRef.current === null) return undefined
     const element = scrollRef.current
-    const observer = new ResizeObserver(() => setViewport(element.clientHeight))
+    const observer = new ResizeObserver(() => {
+      setViewport(element.clientHeight)
+      setPanelWidth(element.clientWidth)
+    })
     observer.observe(element)
     setViewport(element.clientHeight)
+    setPanelWidth(element.clientWidth)
     return () => observer.disconnect()
   }, [])
 
@@ -540,6 +1165,66 @@ export function ProjectPanel({ store, state: _state }) {
   const end = Math.min(rows.length, Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + 6)
   const visible = rows.slice(start, end)
 
+  // The frozen "current folder" bar (R4).
+  //
+  // It is derived from the rows and the local scroll offset only: no store
+  // field is read, so the git status poll (every two seconds) cannot make it
+  // flicker, and the panel needs no extra slice field.
+  const rowPathSet = useMemo(() => new Set(rowPaths), [rowPaths])
+  const dirRows = useMemo(() => {
+    const map = new Map()
+    for (const row of rows) {
+      if (row.kind === 'dir' && row.entry !== undefined) map.set(row.entry.path, row)
+    }
+    return map
+  }, [rows])
+  // The flat quick-file list has no hierarchy to point at: no frozen bar.
+  //
+  // The bar carries the WHOLE chain from the project root down to the folder
+  // the viewport sits in: a reader has to see WHERE the tree is, not only the
+  // name of the last folder. The chain follows the rows that are really
+  // there, so a merged row contributes its whole chain as one step.
+  const stickyChain = useMemo(() => {
+    if (quickList) return []
+    const steps = currentFolderChainOf(rows, scrollTop, rowPathSet, slice.root)
+    if (steps.length === 0) return []
+    const rootName = baseName(slice.root)
+    if (rootName === '') return steps
+    // The project root is the first step of the chain: it is not a row, but
+    // clicking it brings the tree back to the top.
+    return [{ path: slice.root, label: rootName, title: slice.root, root: true }, ...steps]
+  }, [quickList, rows, scrollTop, rowPathSet, slice.root])
+  // The chain is shortened when the panel is too narrow: the middle goes
+  // first, the project root after it.
+  const stickySteps = useMemo(
+    () => fitFolderChain(stickyChain, panelWidth),
+    [stickyChain, panelWidth],
+  )
+  const stickyPath = stickyChain.length > 0 ? stickyChain[stickyChain.length - 1].path : null
+  const stickyRow = stickyPath === null ? undefined : dirRows.get(stickyPath)
+
+  /** Jump to the folder of the frozen bar. */
+  const onStickyJump = useCallback(path => {
+    if (typeof path !== 'string' || path === '') return
+    // The project root is not a row: clicking it brings the tree back to the
+    // top instead of selecting it.
+    if (path === slice.root) {
+      if (scrollRef.current !== null) scrollRef.current.scrollTop = 0
+      setScrollTop(0)
+      return
+    }
+    // Selecting the folder expands its ancestors; the reveal tick scrolls the
+    // tree to it even when the selection did not change.
+    store.setSelectedPath(path)
+    setLocateTick(tick => tick + 1)
+  }, [store, slice.root])
+
+  /** Fold the folder of the frozen bar. */
+  const onStickyToggle = useCallback(path => {
+    if (typeof path !== 'string' || path === '') return
+    store.toggleDir(path)
+  }, [store])
+
   const selection = useMemo(() => slice.selectedPaths instanceof Set
     ? slice.selectedPaths
     : new Set(slice.selectedPath === '' ? [] : [slice.selectedPath]),
@@ -564,18 +1249,33 @@ export function ProjectPanel({ store, state: _state }) {
 
   const beginRename = (entry) => {
     if (entry === undefined) return
+    // A merged folder stands for a whole chain of folders and has no name of
+    // its own: renaming it would mean renaming a chain.
+    if (!canRenameEntry(entry)) {
+      store.toast('error', t('project.compactRenameDenied'), entry.rel ?? '')
+      return
+    }
     setRenaming({ path: entry.path, value: entry.name })
   }
 
   const beginNew = (parentPath, isDir) => {
-    setDialog({
-      kind: 'new',
-      parent: parentPath,
-      isDir,
-      name: '',
-      template: isDir ? 'plain' : 'plain',
-    })
+    setDialog(newEntryDialogState(parentPath, isDir, slice.root))
   }
+
+  /** The name box changed: the full path follows it. */
+  const onDialogNameChange = useCallback(value => {
+    setDialog(current => withDialogName(current, value))
+  }, [])
+
+  /** The path box changed: the entry moves to that path. */
+  const onDialogPathChange = useCallback(value => {
+    setDialog(current => withDialogPath(current, value))
+  }, [])
+
+  /** The path box was clicked into: it becomes editable. */
+  const onDialogPathFocus = useCallback(() => {
+    setDialog(current => withDialogPathUnlocked(current))
+  }, [])
 
   const beginMove = (entries) => {
     setDialog({ kind: 'move', paths: entries.map(entry => entry.path), target: '' })
@@ -622,7 +1322,13 @@ export function ProjectPanel({ store, state: _state }) {
       null,
       { key: 'duplicate', text: t('project.duplicate'), shortcut: shortcut('duplicate'), disabled: currentPaths.length === 0, action: () => { void store.duplicateEntries(currentPaths) } },
       { key: 'delete', text: t('project.delete'), shortcut: shortcut('delete'), danger: true, disabled: currentPaths.length === 0, action: () => store.requestDelete(currentPaths) },
-      { key: 'rename', text: t('project.rename'), shortcut: shortcut('rename'), disabled: currentEntries.length !== 1, action: () => beginRename(currentEntry) },
+      {
+        key: 'rename', text: t('project.rename'), shortcut: shortcut('rename'),
+        // A merged folder cannot be renamed - the menu says why.
+        disabled: currentEntries.length !== 1 || !canRenameEntry(currentEntry),
+        title: currentEntry?.merged === true ? t('project.compactRenameDenied') : undefined,
+        action: () => beginRename(currentEntry),
+      },
       null,
       {
         key: 'copy-path', text: t('project.copyPath'), shortcut: 'Ctrl+Alt+Shift+C', disabled: entry === undefined,
@@ -745,8 +1451,10 @@ export function ProjectPanel({ store, state: _state }) {
       event.preventDefault()
       const row = rows.find(item => item.entry?.path === slice.selectedPath)
       if (row?.entry?.isDir === true && row.open) { store.toggleDir(row.entry.path); return }
-      const parent = parentOf(slice.selectedPath)
-      if (parent !== slice.root && rowPaths.includes(parent)) store.setSelection([parent], parent)
+      // The nearest VISIBLE ancestor: a merged row hides the folders of its
+      // chain, so the exact parent of a file is not always a row any more.
+      const parent = visibleAncestorOf(slice.selectedPath, rowPathSet, slice.root)
+      if (parent !== null) store.setSelection([parent], parent)
       return
     }
     if (key === 'Escape') { store.clearSelection(); return }
@@ -822,11 +1530,22 @@ export function ProjectPanel({ store, state: _state }) {
   const submitDialog = () => {
     if (dialog === null) return
     if (dialog.kind === 'new') {
-      const name = dialog.name.trim()
-      if (name === '') return
-      const content = dialog.isDir ? '' : templateContent(dialog.template, name)
+      const target = resolveNewEntry(dialog, slice.root)
+      if (!target.ok) {
+        // An illegal path is refused with a message; nothing is written.
+        if (target.reason === 'invalid-path') store.toast('error', t('project.pathInvalid'), target.detail ?? '')
+        return
+      }
+      const content = dialog.isDir ? '' : templateContent(dialog.template, target.name)
       setDialog(null)
-      void store.createEntry(dialog.parent, { name, isDir: dialog.isDir, content })
+      if (target.relPath !== undefined) {
+        // The path is resolved against the project root: the store hands the
+        // whole relative path to the host, which creates the folders of the
+        // chain that do not exist yet.
+        void store.createEntry(slice.root, { relPath: target.relPath, isDir: dialog.isDir, content })
+        return
+      }
+      void store.createEntry(target.parent, { name: target.name, isDir: dialog.isDir, content })
       return
     }
     if (dialog.kind === 'move') {
@@ -837,12 +1556,20 @@ export function ProjectPanel({ store, state: _state }) {
     }
   }
 
+  // The search found nothing at all: the tree says so instead of showing an
+  // empty panel. While the index of the project is still loading the tree
+  // stays as it is - a search that hides everything because the index is not
+  // there yet would look like "nothing found" too.
+  const searchActive = slice.filter.trim() !== ''
+  const noMatches = (filterMode === 'files' && searchActive && rows.length === 0 && slice.fileIndexLoading !== true)
+    || (filterMode === 'tree' && treeMatches !== null && treeMatches.length === 0)
+
   const rootRow = slice.root === ''
     ? React.createElement('div', { className: 'iwb-empty' },
         React.createElement('div', { className: 'iwb-empty-title' }, t('project.empty')),
         React.createElement('button', { type: 'button', className: 'iwb-textbtn iwb-primary', onClick: () => store.openRootPicker() }, t('project.openWorkspace')),
       )
-    : (filterMode === 'files' && slice.filter.trim() !== '' && rows.length === 0 && slice.fileIndexLoading !== true
+    : (noMatches
         ? React.createElement('div', { className: 'iwb-empty' },
             React.createElement('div', { className: 'iwb-empty-title' }, t('project.noMatches')),
           )
@@ -884,6 +1611,8 @@ export function ProjectPanel({ store, state: _state }) {
           return React.createElement(TreeRow, {
             key: row.key,
             entry,
+            // A merged row shows the dot-joined chain instead of one segment.
+            label: row.merged === true ? row.label : undefined,
             depth: row.depth,
             top,
             open: row.kind === 'dir' ? row.open : undefined,
@@ -928,6 +1657,25 @@ export function ProjectPanel({ store, state: _state }) {
     setLocateTick(tick => tick + 1)
   }, [store, activeTab])
 
+  /**
+   * The frozen "current folder" bar (R4).
+   *
+   * The bar is a navigation bar, not a tree row: it never joins the
+   * selection, it carries the WHOLE chain of folders the viewport sits in -
+   * from the project root down to the current one. Every step of the chain
+   * jumps to its folder, the fold marker folds the folder the viewport is
+   * in. When the panel is too narrow the chain is shortened: the middle
+   * first, the project root after it.
+   */
+  const stickyBar = stickySteps.length === 0
+    ? null
+    : React.createElement(FrozenFolderBar, {
+        chain: stickySteps,
+        foldTitle: t('project.currentFolder'),
+        onJump: onStickyJump,
+        onToggle: onStickyToggle,
+      })
+
   return React.createElement(React.Fragment, null,
     React.createElement('div', { className: 'iwb-panel-header' },
       React.createElement('span', { className: 'iwb-panel-title' }, t('project.title')),
@@ -943,7 +1691,7 @@ export function ProjectPanel({ store, state: _state }) {
       React.createElement('span', { className: 'iwb-spacer' }),
       React.createElement('button', {
         type: 'button', className: `iwb-iconbtn ${filterOpen ? 'iwb-on' : ''}`, title: t('project.filter'),
-        onClick: () => { setFilterOpen(!filterOpen); if (filterOpen) store.setFilter('') },
+        onClick: () => { setFilterOpen(!filterOpen); if (filterOpen) clearFilter() },
       }, React.createElement(IconSearch, { width: 14, height: 14 })),
       React.createElement('button', {
         type: 'button', className: 'iwb-iconbtn',
@@ -960,37 +1708,43 @@ export function ProjectPanel({ store, state: _state }) {
         onClick: () => { void store.sync() },
       }, React.createElement(IconRefresh, { width: 14, height: 14 })),
     ),
-    filterOpen || slice.filter !== ''
+    filterOpen || slice.filter !== '' || query !== ''
       ? React.createElement('div', { className: 'iwb-filter' },
+          // The TREE tab comes first: it is the default mode, and the tree is
+          // what the panel shows.
           React.createElement('div', { className: 'iwb-filter-mode', role: 'group' },
-            React.createElement('button', {
-              type: 'button', className: filterMode === 'files' ? 'iwb-on' : '',
-              title: t('project.filterFiles'),
-              onClick: () => store.setFilterMode('files'),
-            }, t('project.filterFiles')),
             React.createElement('button', {
               type: 'button', className: filterMode === 'tree' ? 'iwb-on' : '',
               title: t('project.filterTree'),
               onClick: () => store.setFilterMode('tree'),
             }, t('project.filterTree')),
+            React.createElement('button', {
+              type: 'button', className: filterMode === 'files' ? 'iwb-on' : '',
+              title: t('project.filterFiles'),
+              onClick: () => store.setFilterMode('files'),
+            }, t('project.filterFiles')),
           ),
           React.createElement(IconSearch, { width: 13, height: 13 }),
           React.createElement('input', {
             autoFocus: true,
             placeholder: filterMode === 'tree' ? t('project.filter') : t('project.filterFiles'),
-            value: slice.filter,
-            onChange: event => store.setFilter(event.target.value),
-            onKeyDown: event => { if (event.key === 'Escape') { store.setFilter(''); setFilterOpen(false) } },
+            // The box owns its value: the caret stays responsive while the
+            // search waits for the debounce.
+            value: query,
+            onChange: event => setQuery(event.target.value),
+            onKeyDown: event => { if (event.key === 'Escape') { clearFilter(); setFilterOpen(false) } },
           }),
         )
       : null,
-    filterMode === 'tree' && slice.filter.trim() !== ''
+    // The hint of the tree search: it says what the search does, not what it
+    // did. While the index of the project is loading, the index speaks.
+    filterMode === 'tree' && searchActive && slice.fileIndexLoading !== true && slice.fileIndexError === null
       ? React.createElement('div', { className: 'iwb-filter-hint' }, t('project.filterTreeHint'))
       : null,
-    filterMode === 'files' && slice.filter.trim() !== '' && slice.fileIndexLoading === true
+    searchActive && slice.fileIndexLoading === true
       ? React.createElement('div', { className: 'iwb-filter-hint' }, t('project.filterIndexing'))
       : null,
-    filterMode === 'files' && slice.filter.trim() !== '' && slice.fileIndexError !== null
+    searchActive && slice.fileIndexError !== null
       ? React.createElement('div', { className: 'iwb-filter-hint iwb-error-text' }, t('project.filterError'))
       : null,
     React.createElement('div', {
@@ -1002,40 +1756,19 @@ export function ProjectPanel({ store, state: _state }) {
       onDragOver: event => onDragOver(event, null),
       onDrop: event => onDrop(event, null),
       onContextMenu: event => { if (event.target === event.currentTarget) openMenu(event, undefined) },
-    }, rootRow),
+    }, stickyBar, rootRow),
     menu !== null ? React.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
     dialog !== null && dialog.kind === 'new'
-      ? React.createElement('div', { className: 'iwb-modal-backdrop', onMouseDown: event => { if (event.target === event.currentTarget) setDialog(null) } },
-          React.createElement('div', { className: 'iwb-modal', role: 'dialog', 'aria-modal': 'true' },
-            React.createElement('h2', null, dialog.isDir ? t('project.newDir') : t('project.newFile')),
-            React.createElement('label', { className: 'iwb-field' },
-              React.createElement('span', null, t('project.nameLabel')),
-              React.createElement('input', {
-                autoFocus: true, value: dialog.name,
-                onChange: event => setDialog({ ...dialog, name: event.target.value }),
-                onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); submitDialog() } },
-              }),
-            ),
-            !dialog.isDir
-              ? React.createElement('label', { className: 'iwb-field' },
-                  React.createElement('span', null, t('project.templateLabel')),
-                  React.createElement('select', {
-                    value: dialog.template,
-                    onChange: event => {
-                      const template = NEW_TEMPLATES.find(item => item.id === event.target.value)
-                      const ext = template?.ext ?? ''
-                      const name = dialog.name.includes('.') ? dialog.name : `${dialog.name}${ext}`
-                      setDialog({ ...dialog, template: event.target.value, name })
-                    },
-                  }, NEW_TEMPLATES.map(template => React.createElement('option', { key: template.id, value: template.id }, t(template.labelKey)))),
-                )
-              : null,
-            React.createElement('div', { className: 'iwb-modal-actions' },
-              React.createElement('button', { type: 'button', className: 'iwb-textbtn', onClick: () => setDialog(null) }, t('common.cancel')),
-              React.createElement('button', { type: 'button', className: 'iwb-textbtn iwb-primary', onClick: submitDialog }, t('project.create')),
-            ),
-          ),
-        )
+      ? React.createElement(NewEntryDialog, {
+          dialog,
+          t,
+          onNameChange: onDialogNameChange,
+          onPathChange: onDialogPathChange,
+          onPathFocus: onDialogPathFocus,
+          onTemplateChange: template => setDialog(current => current === null ? current : { ...current, template }),
+          onSubmit: submitDialog,
+          onCancel: () => setDialog(null),
+        })
       : null,
     dialog !== null && dialog.kind === 'move'
       ? React.createElement('div', { className: 'iwb-modal-backdrop', onMouseDown: event => { if (event.target === event.currentTarget) setDialog(null) } },

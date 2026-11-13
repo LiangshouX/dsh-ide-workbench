@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PERF-02 — the Project panel subscribes to a store slice (PRD-v4 §1.2).
  *
  *   - the slice selector returns exactly the fields the panel reads;
@@ -275,6 +275,9 @@ test('the tree still follows expand, collapse, filter and status changes', async
   const filtered = baseState()
   filtered.filter = 'main'
   filtered.filterMode = 'tree'
+  // The search looks into the file index of the whole project: the file is
+  // there, and the tree hides everything that does not lead to it.
+  filtered.fileIndex = ['src/main.ts']
   assert.doesNotMatch(renderPanel(filtered), />a\.ts</)
 
   const ignored = baseState()

@@ -22,6 +22,19 @@
  * Two shortcuts of the language-server library are deliberately *not*
  * installed: `renameKeymap` (F2) and `formatKeymap` (Shift-Alt-f) would
  * collide with the workbench shortcuts (PRD §0.2 #6).
+ *
+ * The folding of the buffer (R3) belongs to the core as well: it is a general
+ * editing ability like the automatic closing of the brackets, and not code
+ * intelligence - the workbench alone must be able to fold a JSON file. The
+ * folding APIs (`codeFolding`, `foldGutter`, `foldAll`, `unfoldAll`) are part
+ * of `@codemirror/language` and therefore already in the bundle: installing
+ * them costs nothing.
+ *
+ * The core also owns the PROMISE of the editing: in edit mode the content of
+ * the file is 100 % faithful. The guard of that promise lives in
+ * `editor-fidelity.js` and is installed with the other extensions - a plugin
+ * that installs a destructive extension must not be able to rewrite the text
+ * of the user behind the back of the workbench.
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { EditorState, Compartment } from '@codemirror/state'
@@ -29,12 +42,16 @@ import {
   EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter,
   drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightSpecialChars,
 } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, indentWithTab, insertNewline } from '@codemirror/commands'
 import { SearchQuery, setSearchQuery, search } from '@codemirror/search'
-import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle } from '@codemirror/language'
+import {
+  bracketMatching, codeFolding, foldGutter, foldKeymap, foldAll, unfoldAll,
+  indentOnInput, syntaxHighlighting, HighlightStyle, language,
+} from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { findMatches, replaceAllMatches } from './find.js'
 import { extensionCompartment, keymapCompartment } from './editor-seam.js'
+import { fidelityGuard } from './editor-fidelity.js'
 import { blameField, blameGutter, blameMapOf, setBlameAnnotations } from './blame-gutter.js'
 import { ContextMenu } from './ui.jsx'
 import { SLOT_KEYS } from '../contract/index.js'
@@ -59,6 +76,15 @@ const languageCompartment = new Compartment()
  * touch the undo history.
  */
 const blameCompartment = new Compartment()
+
+/**
+ * A callback that does nothing.
+ *
+ * The extension list is built by a function of its own (see
+ * `editorExtensions`), and the function must work without the component - so
+ * the callbacks it needs have a default that does nothing.
+ */
+const NOOP_REF = { current: () => {} }
 
 /**
  * The language packages, loaded on demand.
@@ -168,9 +194,34 @@ const HIGHLIGHT = HighlightStyle.define([
   { tag: tags.invalid, color: 'var(--iwb-syn-invalid)' },
 ])
 
-const THEME = EditorView.theme({
+/**
+ * The rules of the theme of the editor.
+ *
+ * They are exported so a test can read the contract: the promise of the
+ * workbench is that the buffer shows EXACTLY what the user typed, and a font
+ * that merges characters into one glyph breaks that promise.
+ *
+ * @type {Record<string, Record<string, string>>}
+ */
+export const EDITOR_THEME_RULES = {
   '&': { height: '100%', backgroundColor: 'var(--iwb-bg)', color: 'var(--iwb-fg)' },
-  '.cm-scroller': { fontFamily: 'var(--iwb-mono)', fontSize: '13px', lineHeight: '1.6', overflow: 'auto' },
+  // The ligatures of the font are switched OFF on purpose.
+  //
+  // A programming font draws runs like `//`, `/*`, `**` as ONE glyph - and a
+  // skin plugin (dsh-claude-style) loads JetBrains Mono as a web font, so the
+  // editor inherits those ligatures even on a machine that never had the
+  // font installed. The user then counts fewer characters than he typed and
+  // the line moves: the file is right, the picture lies.
+  //
+  // The editor is the place where the text of the user has to be faithful -
+  // one character, one character on the screen.
+  '.cm-scroller': {
+    fontFamily: 'var(--iwb-mono)',
+    fontSize: '13px',
+    lineHeight: '1.6',
+    overflow: 'auto',
+    fontVariantLigatures: 'none',
+  },
   '.cm-content': { caretColor: 'var(--iwb-accent)', padding: '10px 0' },
   '.cm-line': { padding: '0 14px 0 6px' },
   '.cm-gutters': {
@@ -203,7 +254,9 @@ const THEME = EditorView.theme({
   // The tooltips (completion, hover, signature) are themed in styles.js: one
   // stylesheet owns them, so the library's own light/dark rules cannot win a
   // precedence fight against a second set of rules here.
-}, { dark: true })
+}
+
+const THEME = EditorView.theme(EDITOR_THEME_RULES, { dark: true })
 
 function selectionOf(view, match) {
   return { anchor: match.from, head: match.to }
@@ -219,6 +272,21 @@ function selectionOf(view, match) {
  * would sink into the buffer and hit the keymap below - which is exactly
  * how it used to slip through. It is therefore not bound here.
  *
+ * The folding of the whole document is bound here as well, IntelliJ style:
+ * `Ctrl+Shift+-` folds every top-level range, `Ctrl+Shift+=` unfolds them
+ * again. The keys live in the keymap of the buffer (and not in a global
+ * handler), so they fire exactly when the editor has the focus. On a Mac the
+ * same gesture is bound to the command key (`Cmd+Shift+-` / `Cmd+Shift+=`).
+ *
+ * The keys are written the way CodeMirror reads them - `Ctrl-Shift-=`, NOT
+ * `Ctrl+Shift++`:
+ *
+ *   - CodeMirror splits a binding on `-`, so a `+` in the key would be read
+ *     as another (empty) part of the name;
+ *   - the shortcut normalisation of the workbench (`normalizeShortcut` in
+ *     `util.js`) splits on `+` and drops the empty parts, so a shortcut
+ *     string with a `+` in it never matches an event.
+ *
  * Exported so the bindings can be checked without a browser.
  * @param {{onSaveRef: object, onFindRef: object, onFindInFilesRef: object, readOnly: boolean}} refs
  * @returns {Array<{key: string, run: Function}>} the keymap entries
@@ -228,7 +296,43 @@ export function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly 
     { key: 'Mod-s', run: () => { if (readOnly !== true) onSaveRef.current(); return true } },
     { key: 'Mod-f', run: () => { onFindRef.current?.(); return true } },
     { key: 'Mod-Alt-f', run: () => { onFindInFilesRef.current?.(); return true } },
+    // Fold everything / unfold everything (R3). `foldAll` and `unfoldAll` of
+    // `@codemirror/language` fold the top-level ranges and unfold them again
+    // - the same granularity as the "Collapse All" of IntelliJ.
+    //
+    // The macOS spelling is the same gesture with the command key: the
+    // documented IntelliJ combo (`Ctrl+Shift+-`) is the one of Windows and
+    // Linux, and `Cmd+Shift+-` is the one of a Mac. CodeMirror picks the
+    // `mac` name on a Mac and the `key` everywhere else.
+    { key: 'Ctrl-Shift--', mac: 'Cmd-Shift--', run: view => foldAll(view) },
+    { key: 'Ctrl-Shift-=', mac: 'Cmd-Shift-=', run: view => unfoldAll(view) },
   ]
+}
+
+/**
+ * Enter in a file WITHOUT a grammar must not move the indentation.
+ *
+ * The default of CodeMirror (`insertNewlineAndIndent`) copies the leading
+ * whitespace of the current line onto the new one - and the whitespace the
+ * user types afterwards lands on TOP of it, so the indentation grows with
+ * every line: a list the user aligns by hand ("` ** 1`", "` ** 2`") comes out
+ * as a staircase. That is exactly what the promise of the workbench forbids
+ * ("no extension may change the indentation of what the user typed").
+ *
+ * A file WITH a grammar keeps the rules of its grammar (the languages ship
+ * their own `indentOnInput`), so this binding steps aside for them: the
+ * facet of the language is empty exactly when the file has no grammar.
+ *
+ * @returns {any} the CodeMirror key binding
+ */
+export function plainTextEnter() {
+  return {
+    key: 'Enter',
+    run: view => {
+      if (view.state.facet(language) !== null) return false
+      return insertNewline(view)
+    },
+  }
 }
 
 /**
@@ -237,12 +341,23 @@ export function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly 
  * The core binds the default keymap of CodeMirror and its history; the
  * bindings of the plugins arrive through the seam and live in the keymap
  * compartment, so they can come and go without rebuilding the document.
+ *
+ * `foldKeymap` adds the folding of the range at the cursor (`Ctrl+Shift+[`
+ * and `Ctrl+Shift+]`); the folding of the whole document is bound in
+ * `editorKeymap` above.
+ *
+ * The Enter of a file without a grammar comes FIRST: the default keymap of
+ * CodeMirror binds Enter to `insertNewlineAndIndent`, and the binding of the
+ * core has to win over it.
+ *
  * @returns {Array<any>} the keymap entries
  */
 export function editorKeymapRest() {
   return [
+    plainTextEnter(),
     ...defaultKeymap,
     ...historyKeymap,
+    ...foldKeymap,
     indentWithTab,
   ]
 }
@@ -291,6 +406,120 @@ export function gutterLineOf(view, element, point) {
   const position = point !== undefined && typeof view?.posAtCoords === 'function' ? view.posAtCoords(point) : null
   if (typeof position === 'number' && position >= 0) return view.state.doc.lineAt(position).number
   return 1
+}
+
+/**
+ * The extensions of the editor.
+ *
+ * The list lives in a function of its own - and not inside the component -
+ * for one reason: **the list is the contract of the editor**, and a contract
+ * that can only be read inside a React effect cannot be tested. The tests of
+ * the editing fidelity mount a REAL editor with THIS list (see
+ * `tests/editor-fidelity.test.mjs`), so the promise of the workbench ("the
+ * content is 100 % faithful") is proved with the stack the client really
+ * ships - and not with a copy of it that could drift away.
+ *
+ * The ORDER of the list is part of the contract:
+ *
+ *   - `codeFolding()` before `foldGutter()` (the gutter needs the field of the
+ *     folding), and both right after the line numbers, so the fold arrows sit
+ *     next to them;
+ *   - the guard of the fidelity AFTER `indentOnInput()` and BEFORE the
+ *     extensions of the seam: the filters of CodeMirror run from the last
+ *     registered to the first one, and a filter that appends its own changes
+ *     (that is what `indentOnInput` does with the indentation of the line)
+ *     does it without running the other filters again.
+ *
+ * @param {{seam?: object|null, readOnly?: boolean, fontSize?: number,
+ *   blameActive?: boolean, buildBlameGutter?: () => any,
+ *   onSaveRef?: object, onFindRef?: object, onFindInFilesRef?: object,
+ *   onChangeRef?: object, onCursorRef?: object}} [options] the parts of the editor
+ * @returns {Array<any>} the extensions of the editor
+ */
+export function editorExtensions(options = {}) {
+  const {
+    seam = null,
+    readOnly = false,
+    fontSize = 13,
+    blameActive = false,
+    buildBlameGutter = () => [],
+    onSaveRef = NOOP_REF,
+    onFindRef = NOOP_REF,
+    onFindInFilesRef = NOOP_REF,
+    onChangeRef = NOOP_REF,
+    onCursorRef = NOOP_REF,
+  } = options
+  return [
+    lineNumbers(),
+    // The folding of the buffer (R3). Both extensions are installed ONCE,
+    // here at mount time: `codeFolding()` adds the `foldState` field, and a
+    // second copy of it would throw the state of the editor away - the
+    // same warning as the one in `editor-seam.js`.
+    //
+    // The fold gutter sits next to the line numbers (the annotate column of
+    // the blame is further to the left, it uses `Prec.high`), so the two
+    // coexist: the arrows of the fold are where the eye already looks for
+    // them.
+    //
+    // The markers appear once the grammar of the document arrives: the
+    // folding needs the syntax tree of the language, and that tree is
+    // fetched on demand (see the effect at the end of the mount hook).
+    codeFolding(),
+    foldGutter(),
+    highlightActiveLineGutter(),
+    highlightSpecialChars(),
+    history(),
+    drawSelection(),
+    dropCursor(),
+    EditorState.allowMultipleSelections.of(true),
+    EditorState.readOnly.of(readOnly === true),
+    EditorView.editable.of(readOnly !== true),
+    indentOnInput(),
+    // The promise of the workbench: in edit mode the content of the file is
+    // 100 % faithful - no extension may rewrite the text of the user.
+    fidelityGuard(),
+    bracketMatching(),
+    rectangularSelection(),
+    crosshairCursor(),
+    highlightActiveLine(),
+    syntaxHighlighting(HIGHLIGHT),
+    THEME,
+    EditorView.theme({ '.cm-scroller': { fontSize: `${fontSize}px` } }),
+    // The extension supplies match highlighting; its default panel is never
+    // opened. FindBar drives the query through the controller below.
+    search({ top: false }),
+    // The extensions of the plugins (and the automatic closing of the
+    // brackets of the core) live in their own compartment: they come and go
+    // while the editor is open, and a reconfiguration must not rebuild the
+    // document.
+    extensionCompartment.of(seam?.extensionSlots ?? []),
+    // The key bindings of the plugins. They come BEFORE the default keymap,
+    // otherwise `Enter` and `Tab` would be swallowed by it and a registered
+    // shortcut could never fire. `keymap.of` is what turns the flat binding
+    // list of the seam into an extension (see the reconfigure effect above).
+    keymapCompartment.of(keymap.of(seam?.keymap ?? [])),
+    keymap.of([
+      ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly }),
+      ...editorKeymapRest(),
+    ]),
+    // The grammar of the document (PERF-03). It is fetched on demand, so
+    // the compartment starts empty and the editor renders without
+    // highlighting until the package arrives.
+    languageCompartment.of([]),
+    // The annotate column: the field carries the annotation, the
+    // compartment the gutter itself (it is switched on and off while the
+    // document stays open, see `blame-gutter.js`).
+    blameField,
+    blameCompartment.of(blameActive ? buildBlameGutter() : []),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) onChangeRef.current?.(update.state.doc.toString())
+      if (update.selectionSet || update.docChanged) {
+        const head = update.state.selection.main.head
+        const line = update.state.doc.lineAt(head)
+        onCursorRef.current?.({ line: line.number, col: head - line.from + 1 })
+      }
+    }),
+  ]
 }
 
 /**
@@ -444,59 +673,18 @@ export function CodeEditor({
   useEffect(() => {
     const host = hostRef.current
     if (host === null) return undefined
-    const extensions = [
-      lineNumbers(),
-      highlightActiveLineGutter(),
-      highlightSpecialChars(),
-      history(),
-      drawSelection(),
-      dropCursor(),
-      EditorState.allowMultipleSelections.of(true),
-      EditorState.readOnly.of(readOnly === true),
-      EditorView.editable.of(readOnly !== true),
-      indentOnInput(),
-      bracketMatching(),
-      rectangularSelection(),
-      crosshairCursor(),
-      highlightActiveLine(),
-      syntaxHighlighting(HIGHLIGHT),
-      THEME,
-      EditorView.theme({ '.cm-scroller': { fontSize: `${fontSize}px` } }),
-      // The extension supplies match highlighting; its default panel is never
-      // opened. FindBar drives the query through the controller below.
-      search({ top: false }),
-      // The extensions of the plugins (and the automatic closing of the
-      // brackets of the core) live in their own compartment: they come and go
-      // while the editor is open, and a reconfiguration must not rebuild the
-      // document.
-      extensionCompartment.of(seam?.extensionSlots ?? []),
-      // The key bindings of the plugins. They come BEFORE the default keymap,
-      // otherwise `Enter` and `Tab` would be swallowed by it and a registered
-      // shortcut could never fire. `keymap.of` is what turns the flat binding
-      // list of the seam into an extension (see the reconfigure effect above).
-      keymapCompartment.of(keymap.of(seam?.keymap ?? [])),
-      keymap.of([
-        ...editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly }),
-        ...editorKeymapRest(),
-      ]),
-      // The grammar of the document (PERF-03). It is fetched on demand, so
-      // the compartment starts empty and the editor renders without
-      // highlighting until the package arrives.
-      languageCompartment.of([]),
-      // The annotate column: the field carries the annotation, the
-      // compartment the gutter itself (it is switched on and off while the
-      // document stays open, see `blame-gutter.js`).
-      blameField,
-      blameCompartment.of(blameActive ? buildBlameGutter() : []),
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged) onChangeRef.current?.(update.state.doc.toString())
-        if (update.selectionSet || update.docChanged) {
-          const head = update.state.selection.main.head
-          const line = update.state.doc.lineAt(head)
-          onCursorRef.current?.({ line: line.number, col: head - line.from + 1 })
-        }
-      }),
-    ]
+    const extensions = editorExtensions({
+      seam,
+      readOnly,
+      fontSize,
+      blameActive,
+      buildBlameGutter,
+      onSaveRef,
+      onFindRef,
+      onFindInFilesRef,
+      onChangeRef,
+      onCursorRef,
+    })
     const view = new EditorView({
       state: EditorState.create({ doc: value ?? '', extensions }),
       parent: host,
@@ -572,13 +760,25 @@ export function CodeEditor({
         if (readOnly === true) return { total: matches.length, active, replaced: false }
         if (active < 0 || matches[active] === undefined) return { total: matches.length, active, replaced: false }
         const match = matches[active]
-        view.dispatch({ changes: { from: match.from, to: match.to, insert: String(replacement ?? '') } })
+        // The user event matters: the replacement of the find bar is a gesture
+        // of the user (the Replace button), and the guard of the fidelity
+        // (`editor-fidelity.js`) only refuses a change that no user made.
+        view.dispatch({
+          changes: { from: match.from, to: match.to, insert: String(replacement ?? '') },
+          userEvent: 'input.replace',
+        })
         return { total: matches.length, active, replaced: true }
       },
       replaceAll: (replacement, query, options) => {
         if (readOnly === true) return { count: 0 }
         const result = replaceAllMatches(view.state.doc.toString(), query, options, replacement)
-        if (result.count > 0) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: result.text } })
+        // The gesture of the user again - see `replaceCurrent`.
+        if (result.count > 0) {
+          view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: result.text },
+            userEvent: 'input.replace',
+          })
+        }
         return result
       },
       clear: () => {

@@ -9,6 +9,7 @@
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CodeEditor } from './CodeEditor.jsx'
+import { ImageViewer } from './ImageViewer.jsx'
 import { MarkdownView } from './MarkdownView.jsx'
 import { PdfViewer } from './PdfViewer.jsx'
 import { isPdfPath } from './pdf-view.js'
@@ -23,6 +24,9 @@ import { baseName, findSeed, selectedText, shortEncoding } from './util.js'
 import { openInIdeMenu } from './ide-menu.js'
 import { isMarkdownPath } from './store.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
+import { defaultSidebarKind, openInDefaultSidebar } from './file-link.js'
+import { fileAddressFor } from './file-address.js'
+import { sessionCwdOf } from './workspace-scope.js'
 import { SLOT_KEYS } from '../contract/index.js'
 
 /**
@@ -132,10 +136,16 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
   const payload = tab.payload
   if (payload === undefined || payload === null) return null
   if (payload.kind === 'image') {
-    return React.createElement('div', { className: 'iwb-editor-empty', style: { flexDirection: 'column', gap: 12 } },
-      React.createElement('img', { src: payload.dataUrl, alt: tab.name, style: { maxWidth: '92%', maxHeight: '82%', objectFit: 'contain', borderRadius: 6, border: '1px solid var(--iwb-border)' } }),
-      React.createElement('span', null, `${tab.rel} · ${payload.size} B`),
-    )
+    // The picture has its own surface: the wheel zooms it around the centre
+    // of the view, the left button drags it, a double click resets it. The
+    // caption keeps the file and its size and adds the current zoom.
+    return React.createElement(ImageViewer, {
+      key: `${tab.id}:${payload.mtimeMs ?? 0}`,
+      src: payload.dataUrl,
+      alt: tab.name,
+      caption: `${tab.rel} · ${payload.size} B`,
+      t,
+    })
   }
   if (payload.kind === 'pdf') {
     return React.createElement(PdfViewer, {
@@ -621,6 +631,83 @@ function isHtmlPath(path) {
 }
 
 /**
+ * The tab kind this workbench registers with the host's tab registry.
+ *
+ * The registry ranks every viewer that can take an address; the workbench's
+ * own kind is the one that has to be skipped when the default sidebar
+ * viewer is looked up.
+ */
+const IDE_TAB_KIND = 'ide-workbench'
+
+/**
+ * The sidebar address of one file, in the spelling the host's registry uses.
+ *
+ * The store builds the same address for its own "open in sidebar" action;
+ * the probe below needs it to ask the registry which viewers can take it.
+ * @param {object} store the workbench store
+ * @param {string} path the absolute file path
+ * @returns {string | undefined} the address, or `undefined` when the host
+ *   has no session to address
+ */
+function sidebarAddressOf(store, path) {
+  const ctx = store.ctx
+  if (ctx === undefined || ctx === null) return undefined
+  let sessionId
+  try {
+    sessionId = ctx.sidebarRight?.mounted?.getSnapshot?.()
+  } catch {
+    return undefined
+  }
+  if (typeof sessionId !== 'string' || sessionId === '') return undefined
+  const cwd = sessionCwdOf(ctx, sessionId) || store.state.workspaceRoot
+  return fileAddressFor(sessionId, cwd, path)
+}
+
+/**
+ * The click handler of the "open in the default browser" button.
+ *
+ * Only a saved document may be handed to the browser: it reads the file
+ * from disk, so an unsaved buffer would show the content of the last save
+ * (or nothing at all). The refusal is a message, never a silent no-op
+ * (R11).
+ * @param {object} store the workbench store
+ * @param {object} tab the active tab
+ * @returns {() => void} the handler
+ */
+export function openInDefaultBrowserAction(store, tab) {
+  return () => {
+    if (store.isPathDirty(tab.path) === true || tab.dirty === true) {
+      store.toast('error', store.t('browser.unsavedChanges'))
+      return
+    }
+    void store.openInDefaultBrowser(tab.path)
+  }
+}
+
+/**
+ * The click handler of the "preview in the DSH sidebar" button.
+ *
+ * The host's registry knows which viewers can take an address, so the
+ * button asks it instead of naming one viewer; the built-in `text` preview
+ * stays the fallback for a host that publishes no ranking.
+ * @param {object} store the workbench store
+ * @param {object} tab the active tab
+ * @returns {() => void} the handler
+ */
+export function openInSidebarPreviewAction(store, tab) {
+  return () => {
+    const address = sidebarAddressOf(store, tab.path)
+    if (address !== undefined) {
+      const kind = defaultSidebarKind(store.ctx, address, IDE_TAB_KIND)
+      if (kind !== undefined && openInDefaultSidebar(store.ctx, address, { kind, ownKind: IDE_TAB_KIND })) return
+    }
+    // No ranking, or no viewer took the address: the store opens it the way
+    // it always did.
+    void store.openInSidebar(tab.path)
+  }
+}
+
+/**
  * Floating actions for HTML files: the right side of the workbench shows the
  * source, while DSH's own sidebar can render the document and the OS default
  * browser can open it with its normal relative-asset behaviour.
@@ -632,12 +719,15 @@ function HtmlPreviewActions({ store, tab }) {
     React.createElement('button', {
       type: 'button', className: 'iwb-html-action', title: t('editor.htmlPreviewSidebar'),
       'aria-label': t('editor.htmlPreviewSidebar'),
-      onClick: () => { void store.openInSidebar(tab.path) },
+      onClick: openInSidebarPreviewAction(store, tab),
     }, React.createElement(IconGlobe, { width: 15, height: 15 })),
     React.createElement('button', {
+      // The glyph is the familiar mark of the action, not a promise about the
+      // program: the button opens the browser the *user* registered, which is
+      // not necessarily the one the mark names.
       type: 'button', className: 'iwb-html-action iwb-chrome', title: t('editor.htmlPreviewBrowser'),
       'aria-label': t('editor.htmlPreviewBrowser'),
-      onClick: () => { void store.openInDefaultBrowser(tab.path) },
+      onClick: openInDefaultBrowserAction(store, tab),
     }, React.createElement(IconChrome, { width: 15, height: 15 })),
   )
 }

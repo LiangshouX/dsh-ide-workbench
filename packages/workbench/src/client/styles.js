@@ -471,6 +471,33 @@ export const CSS = `
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   color: #9aa3af; font-size: 11px; font-variant-numeric: tabular-nums;
 }
+
+/* ── image preview ───────────────────────────────────────────────────────
+   The picture sits on a surface that clips it: the wheel zooms it around
+   the centre of the view, the left button drags it, a double click resets
+   it. The zoom is a transform, so a change never relayouts the picture -
+   the surface only has to be repainted. */
+.iwb-image { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--iwb-bg); }
+.iwb-image-surface {
+  flex: 1; min-height: 0; min-width: 0; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--iwb-bg); cursor: grab; touch-action: none;
+  /* The picture is dragged by the surface: the browser must not start a
+     native drag of it, and the pointer must not select the text around it. */
+  user-select: none; -webkit-user-drag: none;
+}
+.iwb-image-surface[data-dragging='true'] { cursor: grabbing; }
+.iwb-image-img {
+  display: block; width: auto; height: auto; max-width: 92%; max-height: 82%;
+  transform-origin: center center; border-radius: 6px; border: 1px solid var(--iwb-border);
+  user-select: none; -webkit-user-drag: none;
+}
+.iwb-image-caption {
+  flex: 0 0 auto; padding: 5px 12px; border-top: 1px solid var(--iwb-border);
+  background: var(--iwb-panel); color: var(--iwb-muted); font-size: 11.5px;
+  text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
 .iwb-outline {
   position: absolute; top: 10px; right: 14px; width: 274px; max-height: min(62%, 520px); z-index: 12;
   display: flex; flex-direction: column; border-radius: 8px; border: 1px solid var(--iwb-border-strong);
@@ -562,7 +589,12 @@ export const CSS = `
 .iwb-status-dot.iwb-busy { background: var(--iwb-warn); }
 /* A narrow pane only has room for the dot: the label folds away. */
 
-.iwb-tree { padding: 4px 0 12px; font-size: 12.5px; }
+.iwb-tree {
+  /* The padding on top of the scroll container. The frozen bar has to cover
+     it, so the value lives in a variable that both rules use. */
+  --iwb-tree-pad-top: 4px;
+  padding: var(--iwb-tree-pad-top) 0 12px; font-size: 12.5px;
+}
 .iwb-tree-row {
   display: flex; align-items: center; gap: 5px; height: 22px; padding-right: 8px; white-space: nowrap;
   cursor: pointer; position: relative;
@@ -601,6 +633,45 @@ export const CSS = `
 .iwb-tree-msg { color: var(--iwb-muted); font-style: italic; padding: 2px 8px 2px 30px; font-size: 11.5px; }
 .iwb-vlist { position: relative; }
 .iwb-vlist-row { position: absolute; left: 0; right: 0; height: 22px; }
+
+/* ── the frozen "current folder" bar (R4) ───────────────────────────────────
+   The tree rows are absolutely positioned (the tree is virtualised), so CSS
+   position:sticky cannot hold a row in place: the bar is a layer of its
+   own inside the scrolling body and carries the chain of folders the
+   viewport sits in - from the project root down to the current one.
+   It is a navigation bar, not a tree row - it never joins the selection, and
+   it is hidden entirely in the flat quick-file list (there is no hierarchy
+   there to point at). */
+.iwb-tree-sticky {
+  position: sticky;
+  /* The scroll container of the tree has a padding on top, and a sticky
+     element stops at the edge of that padding - so the bar would float a few
+     pixels below the panel header, with a gap between them. The offset lifts
+     the bar over that padding, so it sits flush against the header. */
+  top: calc(-1 * var(--iwb-tree-pad-top, 4px));
+  z-index: 3;
+  display: flex; align-items: center; gap: 4px;
+  /* The bar is a layer on top of the tree: it must not push the rows down
+     when it appears, or the tree would jump on every scroll step. It is one
+     row taller than a row, because it now also covers the padding of the
+     scroll container - its own padding keeps the text on the line of the
+     rows. */
+  height: calc(22px + var(--iwb-tree-pad-top, 4px));
+  padding: var(--iwb-tree-pad-top, 4px) 8px 0 12px;
+  margin: 0 0 calc(-22px - var(--iwb-tree-pad-top, 4px));
+  background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border);
+  font-size: 12px; color: var(--iwb-muted); white-space: nowrap; overflow: hidden;
+}
+/* Every step of the chain is a link; the last one is the folder the viewport
+   is in, and it never shrinks away. */
+.iwb-tree-sticky-item {
+  flex: 0 1 auto; min-width: 0;
+  color: var(--iwb-fg); font-weight: 500; padding: 0 4px; border-radius: 4px;
+  overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.iwb-tree-sticky-item:last-child { flex: 0 0 auto; font-weight: 600; }
+.iwb-tree-sticky-item:hover { color: var(--iwb-accent); background: rgba(127, 127, 127, .14); }
+.iwb-tree-sticky-sep { opacity: .55; flex: 0 0 auto; }
 
 .iwb-filter {
   display: flex; align-items: center; gap: 6px; margin: 6px 8px; height: 26px; padding: 0 8px;
@@ -819,6 +890,13 @@ export const CSS = `
   padding: 0 7px; font-size: 11.5px; outline: none; color: var(--iwb-fg);
 }
 .iwb-input { width: 150px; }
+/* A field that is greyed until the user clicks into it. It must stay
+   focusable, so it is readOnly and never disabled - a disabled input
+   cannot take the focus, and the click would do nothing at all. The class
+   stands on its own: the path box must not carry .iwb-input, whose fixed
+   width would shrink it. */
+.iwb-input-readonly { opacity: .6; cursor: text; }
+.iwb-input-readonly:focus { opacity: 1; }
 .iwb-select:focus, .iwb-input:focus { border-color: var(--iwb-accent); }
 .iwb-git-table { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .iwb-git-head, .iwb-git-row {
@@ -889,6 +967,30 @@ export const CSS = `
    that black instead of the terminal background. The terminal's own background
    is --iwb-bg, so the viewport must let it through. */
 .iwb-term-host .xterm-viewport { background-color: transparent; }
+/* ── the turn change preview (R2) ──────────────────────────────────────────
+   The review of one conversation turn: the changed files on the left, the
+   diff of the selected file on the right. */
+.iwb-review { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.iwb-review-files {
+  flex: 0 0 240px; overflow: auto; border-right: 1px solid var(--iwb-border);
+  background: var(--iwb-panel);
+}
+.iwb-review-file { display: flex; align-items: center; gap: 6px; }
+
+/* ── the IME composition preview of the terminal (R9) ──────────────────────
+   xterm draws the composing text of the input method into a DOM element and
+   ships it with a hard-coded black background and white text - a black box on
+   a light terminal. The terminal paints on a canvas, so the colours cannot
+   come from a token of this stylesheet: the panel pushes them into the custom
+   properties below (--iwb-term-bg / --iwb-term-fg). Only the colours change
+   here - xterm positions the box with inline styles and the candidate window
+   of the input method is placed from its bounding box, so its geometry
+   (display, position, padding) must not be touched. */
+.iwb-term-host .xterm .composition-view {
+  background: var(--iwb-term-bg, var(--iwb-panel-2));
+  color: var(--iwb-term-fg, var(--iwb-fg));
+  border-radius: 3px;
+}
 .iwb-term-error { padding: 16px; color: var(--iwb-error); font-size: 12px; white-space: pre-wrap; user-select: text; }
 
 /*
@@ -1057,6 +1159,47 @@ export const CSS = `
 }
 .iwb-modal-actions .iwb-textbtn.iwb-danger-solid {
   background: var(--iwb-error); border-color: transparent; color: #fff;
+}
+/* ── the "new file / new directory" dialog ─────────────────────────────────
+   The path is the CONTEXT of the entry - the folder it lands in - so it is
+   read FIRST: it sits at the top of the dialog, in a frame of its own that
+   sets it apart from the fields below. The name is the primary input, the
+   template is the last field, the actions stay at the bottom. The rules
+   live under their own class, so the settings modal and the confirmation
+   keep the look they have. Every colour comes from a token, so the dialog
+   follows the host theme like the rest of the workbench. */
+.iwb-new-entry-modal { width: min(480px, calc(100% - 40px)); }
+.iwb-new-entry-title { margin: 0 0 12px; font-size: 15px; }
+/* The frame of the target folder. */
+.iwb-new-entry-path {
+  display: flex; flex-direction: column; gap: 7px;
+  margin: 0 0 14px; padding: 10px 12px 11px;
+  border: 1px solid var(--iwb-border); border-radius: 8px; background: var(--iwb-panel);
+}
+.iwb-new-entry-path-box { display: flex; flex-direction: column; gap: 5px; }
+/* The caption of the frame: it names the block, not the field below it. */
+.iwb-new-entry-path-label {
+  font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--iwb-muted);
+}
+/* A path is a path: the mono face tells it apart from the name below. */
+.iwb-new-entry-path-input {
+  width: 100%; height: 30px; padding: 0 9px; border-radius: 6px;
+  border: 1px solid var(--iwb-border-strong); background: var(--iwb-panel-2);
+  color: var(--iwb-fg); font-family: var(--iwb-mono); font-size: 12px; outline: none;
+}
+.iwb-new-entry-path-input:focus { border-color: var(--iwb-accent); }
+/* The hint is secondary text: one step below the labels in size and in
+   weight - it explains the box above it and never competes with a field. */
+.iwb-new-entry-hint {
+  font-size: 11px; font-weight: 400; line-height: 1.45;
+  color: color-mix(in srgb, var(--iwb-muted) 70%, var(--iwb-panel));
+}
+.iwb-new-entry-modal .iwb-field { margin: 0 0 12px; }
+.iwb-new-entry-modal .iwb-field input, .iwb-new-entry-modal .iwb-field select { height: 30px; font-size: 12.5px; }
+/* The name is the primary input of the dialog: it gets the stronger border
+   and the room it deserves. */
+.iwb-new-entry-modal .iwb-new-entry-name input {
+  height: 34px; font-size: 13.5px; border-color: var(--iwb-border-strong);
 }
 .iwb-toast {
   position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: 8px;
@@ -1338,6 +1481,20 @@ export const CSS = `
 /* The active line is part of the annotate column too, so it answers the same
    way the numbers do instead of looking like a hole. */
 .iwb-blame-gutter .cm-activeLineGutter { background: transparent; color: var(--iwb-fg); }
+
+/* ── code folding (R3) ──────────────────────────────────────────────────────
+   CodeMirror draws the fold markers and the placeholder of a collapsed range;
+   the workbench only gives them the theme's colours, so they follow the host
+   theme like every other part of the editor. The class names are CodeMirror's
+   own - foldGutter() installs the gutter as .cm-foldGutter. */
+.cm-foldGutter { color: var(--iwb-muted); }
+.cm-foldGutter .cm-gutterElement { padding: 0 2px; cursor: pointer; }
+.cm-foldGutter .cm-gutterElement:hover { color: var(--iwb-fg); }
+.cm-foldPlaceholder {
+  color: var(--iwb-muted);
+  background: color-mix(in srgb, var(--iwb-accent) 14%, transparent);
+  border: none; border-radius: 3px; padding: 0 4px; margin: 0 2px; font-size: .92em;
+}
 
 @container ide-workbench (max-width: 760px) {
   .iwb-topbar { gap: 4px; padding: 0 6px; }

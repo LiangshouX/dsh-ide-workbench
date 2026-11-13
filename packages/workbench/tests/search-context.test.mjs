@@ -68,7 +68,9 @@ test('a binary file is marked and has no context', async (t) => {
   const root = await temp(t)
   await writeFile(join(root, 'a.bin'), Buffer.from([0x00, 0x01, 0x6e, 0x65, 0x65, 0x64, 0x6c, 0x65, 0x00]))
   const env = { root, workspaceRoot: root, prefix: '', isRepo: false }
-  const result = await searchFiles(env, { query: 'needle' })
+  // The walk reads the whole file and marks it as binary; the external
+  // scanner stops at the NUL and reports nothing for it.
+  const result = await searchFiles(env, { query: 'needle', scanner: false })
   assert.equal(result.files.length, 1)
   const match = result.files[0].matches[0]
   assert.equal(match.binary, true)
@@ -77,8 +79,7 @@ test('a binary file is marked and has no context', async (t) => {
   assert.equal(match.preview, '')
 })
 
-test('the context of the later hits is dropped when the payload is too big', () => {
-  const line = 'x'.repeat(200)
+test('the context of the later hits is dropped when the payload is too big', () => {  const line = 'x'.repeat(200)
   const files = [{
     path: 'a.ts',
     matches: Array.from({ length: 50 }, (_, index) => ({
@@ -112,4 +113,30 @@ test('a huge result set is trimmed to the two megabyte budget', () => {
   trimContextToBudget(files)
   const size = Buffer.byteLength(JSON.stringify(files), 'utf8')
   assert.ok(size <= 2 << 20, `the payload is ${size} bytes`)
+})
+
+test('the git path and the walk agree on the hits and on their context', async (t) => {
+  try {
+    execFileSync('git', ['--version'], { stdio: 'ignore' })
+  } catch {
+    t.skip('git is not installed')
+    return
+  }
+  const root = await temp(t)
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
+  git('init', '-q', '-b', 'main')
+  git('config', 'user.name', 'IDE Test')
+  git('config', 'user.email', 'ide@test.local')
+  await writeFile(join(root, 'a.ts'), 'one\ntwo\nthree\nneedle\nfive\nsix\nseven\n')
+  await writeFile(join(root, 'b.ts'), 'alpha\nneedle\nbeta\n')
+  git('add', '-A')
+  git('commit', '-q', '-m', 'base')
+  const env = { root, workspaceRoot: root, prefix: '', isRepo: true, gitPath: '' }
+  // The git path reads the context from the output of `git grep -C 5`, the
+  // walk reads it from the file: the answers have to be the same.
+  const walked = await searchFiles(env, { query: 'needle', scanner: false })
+  const gitPath = await searchFiles(env, { query: 'needle' })
+  assert.deepEqual(gitPath.files, walked.files)
+  assert.deepEqual(gitPath.files[0].matches[0].before, ['one', 'two', 'three'])
+  assert.deepEqual(gitPath.files[0].matches[0].after, ['five', 'six', 'seven'])
 })

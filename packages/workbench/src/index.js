@@ -79,6 +79,24 @@ function clamp(value, min, max, fallback) {
 }
 
 /**
+ * The origin the client used to reach this server.
+ *
+ * The plugin's route runs inside the host process, so the host's own API is
+ * one request away - but only when the address of the server is known. The
+ * Host header of the request carries it.
+ *
+ * @param {any} req the incoming request
+ * @returns {string} the origin, '' when the request carries no host
+ */
+function originOf(req) {
+  const host = req?.headers?.host
+  if (typeof host !== 'string' || host === '') return ''
+  const forwarded = req?.headers?.['x-forwarded-proto']
+  const protocol = typeof forwarded === 'string' && forwarded !== '' ? forwarded : 'http'
+  return `${protocol}://${host}`
+}
+
+/**
  * Mount the plugin.
  * @param {any} ctx cordis host context
  */
@@ -191,6 +209,65 @@ export function apply(ctx) {
   /** Prefix a repository-relative path with the workspace prefix. */
   const fromRepoPath = (env, path) => (env.prefix === '' ? path : `${env.prefix}/${path}`)
 
+  /**
+   * Forward one request to the host's own review API.
+   *
+   * The data of a conversation turn lives in the host, and the host serves it
+   * on its own origin (`/api/changes.summary`, `/api/changes.diff`). The
+   * client of the workbench cannot always reach that origin itself, so the
+   * plugin's own route forwards the request inside the host process - with the
+   * credentials of the caller, so the host's fence sees the same client.
+   *
+   * The document is passed through unchanged: the plugin does not interpret
+   * the turn, it only carries the request to the place where the turn is.
+   *
+   * @param {{ origin?: string, headers?: Record<string, string> }} request the
+   *   context of the incoming request
+   * @param {'summary' | 'diff'} kind the document to read
+   * @param {any} payload the coordinates of the turn
+   * @returns {Promise<unknown>} the document of the host
+   */
+  async function forwardHostChanges(request, kind, payload) {
+    const origin = typeof request?.origin === 'string' ? request.origin : ''
+    if (origin === '') throw new ApiError('unavailable', 'the origin of the host is unknown', 503)
+    const query = new URLSearchParams()
+    for (const key of ['sessionId', 'seq', 'turn', 'index', 'path']) {
+      const value = payload?.[key]
+      if (value === undefined || value === null || value === '') continue
+      query.set(key, String(value))
+    }
+    const headers = { accept: 'application/json' }
+    for (const name of ['cookie', 'authorization']) {
+      const value = request?.headers?.[name]
+      if (typeof value === 'string' && value !== '') headers[name] = value
+    }
+    let response
+    try {
+      response = await fetch(`${origin}/api/changes.${kind}?${query.toString()}`, { method: 'GET', headers })
+    } catch (error) {
+      throw new ApiError(
+        'unavailable',
+        `the host did not answer: ${error instanceof Error ? error.message : String(error)}`,
+        503,
+      )
+    }
+    const text = await response.text()
+    if (!response.ok) {
+      // A turn that is gone answers 404: the client reads that as "expired"
+      // and hands the link back to the host's own review tab.
+      throw new ApiError(
+        response.status === 404 ? 'not-found' : 'http',
+        `the host answered ${response.status}`,
+        response.status === 404 ? 404 : 502,
+      )
+    }
+    try {
+      return JSON.parse(text)
+    } catch {
+      throw new ApiError('http', 'the host answered with a document that is not JSON', 502)
+    }
+  }
+
   /** All tool-window API methods. */
   const api = {
     // ── workspaces ───────────────────────────────────────────────────────
@@ -260,7 +337,7 @@ export function apply(ctx) {
       }
     },
 
-    'fs.search': async (payload) => {
+    'fs.search': async (payload, request) => {
       const env = await repoEnv(payload)
       const query = requireString(payload, 'query')
       return searchFiles(env, {
@@ -271,6 +348,9 @@ export function apply(ctx) {
         include: stringArray(payload, 'include'),
         exclude: stringArray(payload, 'exclude'),
         maxResults: optionalInteger(payload, 'maxResults', 2000),
+        // The client aborts a scan that is outdated: the host stops reading
+        // the workspace instead of scanning it for an answer nobody reads.
+        signal: request?.signal,
       })
     },
 
@@ -364,10 +444,14 @@ export function apply(ctx) {
     'git.status': async (payload) => {
       const env = await repoEnv(payload)
       const current = await settings.get()
-      // Ignored entries are only listed when the user enabled that setting,
-      // and the per-file line counts are only computed for the Commit window.
+      // The ignored entries are always asked for - the client setting only
+      // decides whether they are shown - and the per-file line counts are
+      // only computed for the Commit window. The levels above an ignored
+      // directory are only needed when the ignored entries are shown, and
+      // they cost one `git ls-files` call.
       const snapshot = await gitStatus(env, {
         ignored: current.project.showIgnored === true,
+        levels: current.project.showIgnored === true,
         numstat: payload?.numstat === true,
       })
       return {
@@ -528,6 +612,10 @@ export function apply(ctx) {
       }
     },
 
+    // ── the review of a chat turn ─────────────────────────────────────────
+    'changes.summary': async (payload, request) => forwardHostChanges(request, 'summary', payload),
+    'changes.diff': async (payload, request) => forwardHostChanges(request, 'diff', payload),
+
     // ── settings ─────────────────────────────────────────────────────────
     'settings.get': async () => {
       const value = await settings.get()
@@ -670,6 +758,15 @@ export function apply(ctx) {
         writeError(res, new ApiError('not-found', 'unknown API method', 404))
         return
       }
+      // The signal of the request: a client that goes away (an aborted
+      // search) must not leave the host reading the workspace.
+      const controller = new AbortController()
+      const onClose = () => {
+        if (res.writableEnded !== true) controller.abort()
+      }
+      // A response that cannot report its close (a test double) is no reason
+      // to fail the request.
+      if (typeof res.on === 'function') res.on('close', onClose)
       try {
         // The settings document holds the project the client is working in:
         // a consumer of the host service has to see it.
@@ -677,10 +774,23 @@ export function apply(ctx) {
         const payload = await readJsonBody(req)
         const handler = Object.hasOwn(api, method) ? api[method] : undefined
         if (typeof handler !== 'function') throw new ApiError('not-found', `unknown API method "${method}"`, 404)
-        const result = await handler(payload)
+        // The context of the request travels with the payload: a method that
+        // forwards to the host itself (the review of a chat turn) needs the
+        // origin of the server and the credentials of the caller.
+        const result = await handler(payload, {
+          origin: originOf(req),
+          headers: req?.headers,
+          signal: controller.signal,
+        })
+        // The client may be gone: an answer to nobody is not written.
+        if (res.writableEnded === true || res.destroyed === true) return
         writeOk(res, result)
       } catch (error) {
+        // An aborted request has no client left to answer.
+        if (controller.signal.aborted === true) return
         writeError(res, error)
+      } finally {
+        if (typeof res.off === 'function') res.off('close', onClose)
       }
     },
   }), 'dsh-ide-workbench: JSON API')

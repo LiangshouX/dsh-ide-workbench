@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GRAPH_COLORS, layoutGraph, rowGeometry } from './graph.js'
 import { groupByDirectory } from './commit-model.js'
+import { compactLabel, compactLabelFitted, compactTree, isCompactable, isMergedNode } from './compact-path.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 import { ContextMenu } from './ui.jsx'
 import { IconBranch, IconClose, IconCopy, IconRefresh } from './icons.jsx'
@@ -23,6 +24,12 @@ const GRAPH_MAX = 8
 const TREE_DIR_INDENT = 5
 const TREE_FILE_INDENT = 20
 const TREE_INDENT_STEP = 12
+// The width one character of a tree label takes (the mono font at 11.5px).
+// It is only an estimate — the label is a hint, the full path stays in the
+// title of the row.
+const TREE_CHAR_WIDTH = 7
+// The room the row itself needs: the caret, the gap and the padding.
+const TREE_ROW_CHROME = 30
 
 /**
  * Translate with an English fallback for keys the locale table does not
@@ -174,6 +181,81 @@ export function diffFiles(diff) {
 }
 
 /**
+ * Copy one text into the clipboard and tell the user what was copied.
+ *
+ * The toast carries the copied text itself: the short SHA is seven
+ * characters, so the user has to see which text ended up in the clipboard
+ * (R8).
+ *
+ * @param {{ toast: (kind: string, text: string, detail?: string) => void }} store
+ * @param {(key: string) => string} t the translator
+ * @param {string} text the text to copy
+ * @returns {Promise<void>}
+ */
+export async function copyToClipboard(store, t, text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    store.toast('success', t('common.copied'), text)
+  } catch {
+    store.toast('error', t('common.error'), text)
+  }
+}
+
+/**
+ * The short SHA of one commit: exactly seven characters.
+ *
+ * The host already ships the abbreviated hash with every commit, so the
+ * short SHA is never derived here — only its length is fixed, so that the
+ * copied text is the same everywhere and can be typed into `git show` (R8).
+ *
+ * @param {{ hash?: string, shortHash?: string } | undefined | null} commit
+ * @returns {string}
+ */
+export function shortShaOf(commit) {
+  const short = typeof commit?.shortHash === 'string' && commit.shortHash !== ''
+    ? commit.shortHash
+    : (typeof commit?.hash === 'string' ? commit.hash : '')
+  return short.slice(0, 7)
+}
+
+/**
+ * The context menu of one commit row.
+ *
+ * Pure (the actions are handed in), so the menu can be driven by tests.
+ *
+ * @param {{ hash: string, shortHash?: string, subject?: string }} commit
+ * @param {{ t: (key: string) => string, openDetail: Function, copy: Function, store: object }} tools
+ * @returns {Array<object>} the menu items
+ */
+export function commitMenuItems(commit, tools) {
+  const { t, openDetail, copy, store } = tools
+  return [
+    { key: 'open', text: t('git.openDetails'), action: () => openDetail(commit.hash) },
+    {
+      // The full and the short SHA are two different texts, so they get a
+      // submenu: the short one is the seven characters an IDE user types
+      // into `git show` (R8).
+      key: 'copy-sha',
+      text: t('git.copySha'),
+      submenu: [
+        { key: 'copy-sha-full', text: t('git.copyFullSha'), action: () => { void copy(commit.hash) } },
+        { key: 'copy-sha-short', text: t('git.copyShortSha'), action: () => { void copy(shortShaOf(commit)) } },
+      ],
+    },
+    { key: 'compare-head', text: t('git.compareWithHead'), action: () => store.openCompare(commit.hash, 'HEAD') },
+    null,
+    {
+      key: 'checkout', text: t('git.checkout'), action: () => store.requestCheckout(commit.hash),
+    },
+    {
+      key: 'revert', text: t('git.revert'), action: () => {
+        store.askConfirm(t('git.revert'), `${t('git.revertConfirm')}\n\n${commit.shortHash} ${commit.subject}`, t('git.revert'), () => { void store.revert(commit.hash) })
+      },
+    },
+  ]
+}
+
+/**
  * Build the changed-file tree of one commit from repository-relative paths.
  *
  * The first level reuses `groupByDirectory` (the Commit panel's grouping);
@@ -203,17 +285,228 @@ export function buildChangedFileTree(files) {
   return root
 }
 
-/** Directories closed by default: everything below the first level. */
+/**
+ * One node of the changed-file tree.
+ *
+ * @typedef {object} ChangedNode
+ * @property {string} name the display name of the node
+ * @property {string} path the full repository-relative path
+ * @property {number} depth the level of the node in the tree
+ * @property {Map<string, ChangedNode>} dirs the child directories
+ * @property {Array<object>} files the changed files of the node
+ * @property {boolean} [merged] true for a node that stands for a chain
+ * @property {string[]} [segments] the directory names of a merged chain
+ * @property {Array<{ name: string, path: string, depth: number }>} [chain]
+ *   the original directories of a merged chain
+ */
+
+/** The display name of one changed file (its last path segment). */
+function fileNameOf(file) {
+  return file.path.split('/').pop() ?? file.path
+}
+
+/**
+ * The `compact-path.js` shape of one tree node.
+ *
+ * `compact-path.js` works on `{ name, path, kind, children }`; the changed
+ * file tree keeps its directories in a Map and its files in a list, so the
+ * two shapes are bridged here.
+ *
+ * @param {ChangedNode} node
+ * @returns {object} the compact shape of the node
+ */
+function compactShape(node) {
+  const children = []
+  for (const dir of node.dirs.values()) children.push(compactShape(dir))
+  for (const file of node.files) children.push({ name: fileNameOf(file), path: file.path, kind: 'file', file })
+  const shape = { name: node.name, path: node.path, kind: 'dir', depth: node.depth, children }
+  // A merged chain keeps its identity: the chain must not be built again
+  // from the children, which are the children of the leaf.
+  if (isMergedNode(node)) {
+    shape.merged = true
+    shape.segments = node.segments
+    shape.chain = node.chain
+  }
+  return shape
+}
+
+/**
+ * The original directories of one merged chain.
+ *
+ * The chain is the list of directories the merge replaced; the fallback (a
+ * double click on the merged row) shows them again.
+ *
+ * @param {object} node the first node of the chain
+ * @returns {Array<{ name: string, path: string, depth: number }>}
+ */
+function chainOf(node) {
+  if (node === undefined || node === null) return []
+  const chain = [{ name: node.name, path: node.path, depth: node.depth }]
+  let current = node
+  while (isCompactable(current)) {
+    current = current.children[0]
+    chain.push({ name: current.name, path: current.path, depth: current.depth })
+  }
+  return chain
+}
+
+/**
+ * Merge the single-child directory chains of one level.
+ *
+ * `compact-path.js` owns the rule: a directory that holds exactly one
+ * sub-directory (and no file) is merged with it. The merged node keeps the
+ * leaf of the chain as its path and the leaf's children, so expanding it
+ * shows the changed file right away.
+ *
+ * The pass is idempotent: a node that is already a merged chain is never
+ * merged again, so the chain cannot grow with every render.
+ *
+ * @param {Array<object>} children the nodes of one level
+ * @returns {Array<object>} the level with its chains merged
+ */
+function compactLevel(children) {
+  const pending = children.filter(child => !isMergedNode(child))
+  const compacted = compactTree(pending)
+  let cursor = 0
+  return children.map(child => {
+    const depth = child?.depth ?? 0
+    if (isMergedNode(child)) {
+      // The chain of a merged node is already known: it must not be built
+      // again from its children, which are the children of the leaf.
+      return { ...child, depth, children: compactLevel(child.children).map(entry => ({ ...entry, depth: depth + 1 })) }
+    }
+    const node = compacted[cursor]
+    cursor += 1
+    if (node.kind === 'file') return { ...node, depth }
+    const entries = compactLevel(node.children).map(entry => ({ ...entry, depth: depth + 1 }))
+    const result = { ...node, depth, children: entries }
+    if (isMergedNode(node)) result.chain = chainOf(child)
+    return result
+  })
+}
+
+/**
+ * The changed-file tree shape of one compact node.
+ *
+ * @param {object} node the compact shape of the node
+ * @returns {ChangedNode}
+ */
+function treeShape(node) {
+  const dirs = new Map()
+  const files = []
+  for (const child of node.children) {
+    if (child.kind === 'file') {
+      files.push(child.file)
+      continue
+    }
+    dirs.set(child.name, treeShape(child))
+  }
+  const result = { name: node.name, path: node.path, depth: node.depth, dirs, files }
+  if (node.merged === true) {
+    result.merged = true
+    result.segments = node.segments
+    result.chain = node.chain
+  }
+  return result
+}
+
+/**
+ * The changed-file tree with its empty directory chains merged.
+ *
+ * A chain of directories that holds no changed file becomes ONE step instead
+ * of a ladder: the leaf is expanded by default, so the changed file is
+ * visible without a click (R7). The tree root never takes part in a merge —
+ * a root that merged with its only child would lose the path context
+ * completely.
+ *
+ * @param {ChangedNode} root the raw tree
+ * @returns {ChangedNode} the compacted tree
+ */
+export function compactChangedFileTree(root) {
+  if (root === undefined || root === null) return root
+  const shape = compactShape(root)
+  return treeShape({ ...shape, children: compactLevel(shape.children) })
+}
+
+/**
+ * The directories that are closed by default.
+ *
+ * A merged chain is OPEN: the whole point of the merge is that the changed
+ * file is visible without a click. A real directory is closed when it is
+ * deeper than the first level — that is where the tree starts to branch.
+ *
+ * @param {ChangedNode} root the tree
+ * @returns {Set<string>} the paths of the closed directories
+ */
 export function defaultCollapsedDirs(root) {
   const collapsed = new Set()
   const walk = (node) => {
     for (const dir of node.dirs.values()) {
-      if (dir.depth >= 2) collapsed.add(dir.path)
+      if (!isMergedNode(dir) && dir.depth >= 2) collapsed.add(dir.path)
       walk(dir)
     }
   }
-  walk(root)
+  walk(compactChangedFileTree(root))
   return collapsed
+}
+
+/**
+ * The original (unmerged) tree of one merged chain.
+ *
+ * The chain is nested again, so the fallback shows the directories the merge
+ * replaced — the deepest one holds the children of the merged node. The
+ * result is a wrapper around the chain: the tree renderer draws the CHILDREN
+ * of the node it gets, and the first directory of the chain has to be drawn
+ * as well.
+ *
+ * @param {ChangedNode} dir the merged node
+ * @returns {ChangedNode | null}
+ */
+function originalTree(dir) {
+  const chain = Array.isArray(dir.chain) ? dir.chain : []
+  if (chain.length === 0) return null
+  const leaf = chain[chain.length - 1]
+  let node = { name: leaf.name, path: leaf.path, depth: leaf.depth, dirs: dir.dirs, files: dir.files }
+  for (let index = chain.length - 2; index >= 0; index -= 1) {
+    const current = chain[index]
+    node = { name: current.name, path: current.path, depth: current.depth, dirs: new Map([[current.name, node]]), files: [] }
+  }
+  return { name: '', path: '', depth: chain[0].depth - 1, dirs: new Map([[node.name, node]]), files: [] }
+}
+
+/**
+ * How many characters the label of a row may use.
+ *
+ * The drawer width is the only measure the tree has, so the label is fitted
+ * to it — the indentation of the row takes a part of it.
+ *
+ * @param {{ width?: number, depth?: number }} options
+ * @returns {number | undefined} undefined when the width is unknown
+ */
+function labelLimit(options) {
+  const width = options?.width
+  if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) return undefined
+  const indent = TREE_DIR_INDENT + (options.depth ?? 0) * TREE_INDENT_STEP
+  return Math.max(6, Math.floor((width - indent - TREE_ROW_CHROME) / TREE_CHAR_WIDTH))
+}
+
+/**
+ * The label of one directory row.
+ *
+ * A merged chain shows its whole path, so the row stays recognisable; when
+ * the drawer is too narrow the label degrades to "first…last" and then to
+ * the last segment. The full repository-relative path always stays in the
+ * title of the row.
+ *
+ * @param {ChangedNode} dir the directory node
+ * @param {boolean} merged whether the node stands for a chain
+ * @param {{ width?: number, depth?: number }} options
+ * @returns {string}
+ */
+function dirLabel(dir, merged, options) {
+  if (!merged) return dir.name
+  const limit = labelLimit(options)
+  return limit === undefined ? compactLabel(dir, '/') : compactLabelFitted(dir, limit, '/')
 }
 
 /** Children of one tree node: directories and files mixed, sorted by name. */
@@ -245,14 +538,43 @@ function firstLeafOf(node) {
  * `selectedPath` — the two states never mix.
  *
  * @param {object} node tree node to render
- * @param {{ collapsed: Set<string>, selectedPath: string, depth: number, onToggleDir: Function, onSelectFile: Function, onOpenFile: Function }} options
+ * @param {{ collapsed: Set<string>, selectedPath: string, depth: number,
+ *   width?: number, expandedOriginal?: Set<string>,
+ *   onToggleDir: Function, onExpandOriginal?: Function,
+ *   onSelectFile: Function, onOpenFile: Function }} options
  * @returns {Array<React.ReactElement>} the rows of this level
  */
 export function fileTreeRows(node, options) {
+  // The tree is compacted here, so every caller gets the merged rows — the
+  // pass is idempotent, so an already compacted tree stays the same.
+  return renderTreeRows(compactChangedFileTree(node), options)
+}
+
+/**
+ * The rows of one level of the tree.
+ *
+ * @param {object} node tree node to render
+ * @param {{ collapsed: Set<string>, selectedPath: string, depth: number,
+ *   width?: number, expandedOriginal?: Set<string>,
+ *   onToggleDir: Function, onExpandOriginal?: Function,
+ *   onSelectFile: Function, onOpenFile: Function }} options
+ * @returns {Array<React.ReactElement>} the rows of this level
+ */
+function renderTreeRows(node, options) {
   const rows = []
   for (const [index, child] of sortedChildren(node).entries()) {
     if (child.kind === 'dir') {
       const dir = child.node
+      const merged = isMergedNode(dir)
+      // A merged chain can be shown as the original folders: the fallback
+      // that keeps the sense of hierarchy (R7).
+      if (merged && options.expandedOriginal?.has(dir.path) === true) {
+        const original = originalTree(dir)
+        if (original !== null) {
+          rows.push(...renderTreeRows(original, options))
+          continue
+        }
+      }
       const expanded = !options.collapsed.has(dir.path)
       rows.push(React.createElement('button', {
         key: `dir:${dir.path}`,
@@ -261,12 +583,15 @@ export function fileTreeRows(node, options) {
         title: dir.path,
         'aria-expanded': expanded,
         style: { paddingLeft: `${TREE_DIR_INDENT + options.depth * TREE_INDENT_STEP}px` },
-        onClick: () => options.onToggleDir(dir.path),
+        // The two clicks of a double click must not toggle the row: the
+        // double click of a merged chain opens the original folders.
+        onClick: event => { if (event?.detail > 1) return; options.onToggleDir(dir.path) },
+        onDoubleClick: merged ? () => options.onExpandOriginal?.(dir.path) : undefined,
       },
         React.createElement('span', { className: 'iwb-git-tree-caret' }, expanded ? '▾' : '▸'),
-        React.createElement('span', { className: 'iwb-git-tree-dir-name' }, dir.name),
+        React.createElement('span', { className: 'iwb-git-tree-dir-name' }, dirLabel(dir, merged, options)),
       ))
-      if (expanded) rows.push(...fileTreeRows(dir, { ...options, depth: options.depth + 1 }))
+      if (expanded) rows.push(...renderTreeRows(dir, { ...options, depth: options.depth + 1 }))
       continue
     }
     const file = child.file
@@ -289,9 +614,12 @@ export function fileTreeRows(node, options) {
 }
 
 /** Changed files of one commit as a collapsible directory tree. */
-function ChangedFileTree({ store, hash, files }) {
-  const tree = useMemo(() => buildChangedFileTree(files), [files])
+function ChangedFileTree({ store, hash, files, width }) {
+  // The tree is compacted once: a chain of directories that holds no changed
+  // file is one step, and its leaf is open (R7).
+  const tree = useMemo(() => compactChangedFileTree(buildChangedFileTree(files)), [files])
   const [toggles, setToggles] = useState(() => new Map())
+  const [expandedOriginal, setExpandedOriginal] = useState(() => new Set())
   const [selectedPath, setSelectedPath] = useState('')
 
   const collapsed = useMemo(() => {
@@ -303,7 +631,10 @@ function ChangedFileTree({ store, hash, files }) {
     return dirs
   }, [tree, toggles])
 
-  useEffect(() => { setSelectedPath('') }, [hash])
+  useEffect(() => {
+    setSelectedPath('')
+    setExpandedOriginal(new Set())
+  }, [hash])
 
   const toggleDir = useCallback((path) => {
     setToggles(previous => {
@@ -312,6 +643,15 @@ function ChangedFileTree({ store, hash, files }) {
       return next
     })
   }, [collapsed])
+
+  // The fallback of a merged chain: it shows the original folders again.
+  const expandOriginal = useCallback((path) => {
+    setExpandedOriginal(previous => {
+      const next = new Set(previous)
+      next.add(path)
+      return next
+    })
+  }, [])
 
   const openFile = useCallback((path) => { void store.openCommitFile(hash, path) }, [store, hash])
 
@@ -322,7 +662,10 @@ function ChangedFileTree({ store, hash, files }) {
       collapsed,
       selectedPath: selected,
       depth: 0,
+      width,
+      expandedOriginal,
       onToggleDir: toggleDir,
+      onExpandOriginal: expandOriginal,
       onSelectFile: setSelectedPath,
       onOpenFile: openFile,
     }),
@@ -466,14 +809,7 @@ function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
     closeRef.current?.focus()
   }, [detail?.hash])
 
-  const copy = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      store.toast('success', t('common.copied'), text)
-    } catch {
-      store.toast('error', t('common.error'), text)
-    }
-  }
+  const copy = useCallback((text) => copyToClipboard(store, t, text), [store, t])
 
   return React.createElement(React.Fragment, null,
     narrow
@@ -531,7 +867,7 @@ function CommitDrawer({ store, git, narrow, width, onResizeStart, onClose }) {
                 ),
                 files.length === 0
                   ? React.createElement('div', { className: 'iwb-git-detail-dim' }, t('git.noFiles'))
-                  : React.createElement(ChangedFileTree, { store, hash: detail.hash, files }),
+                  : React.createElement(ChangedFileTree, { store, hash: detail.hash, files, width }),
               )),
     ),
   )
@@ -607,14 +943,7 @@ export function GitPanel({ store, state }) {
     if (element.scrollHeight - element.scrollTop - element.clientHeight < 240) store.loadMoreCommits()
   }
 
-  const copy = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      store.toast('success', t('common.copied'), text)
-    } catch {
-      store.toast('error', t('common.error'), text)
-    }
-  }
+  const copy = useCallback((text) => copyToClipboard(store, t, text), [store, t])
 
   const openDetail = (hash) => { void store.openCommitDetail(hash) }
 
@@ -667,21 +996,7 @@ export function GitPanel({ store, state }) {
 
   const menuItems = useMemo(() => {
     if (menu === null) return []
-    const commit = menu.commit
-    return [
-      { key: 'open', text: t('git.openDetails'), action: () => openDetail(commit.hash) },
-      { key: 'copy', text: t('git.copySha'), action: () => { void copy(commit.hash) } },
-      { key: 'compare-head', text: t('git.compareWithHead'), action: () => store.openCompare(commit.hash, 'HEAD') },
-      null,
-      {
-        key: 'checkout', text: t('git.checkout'), action: () => store.requestCheckout(commit.hash),
-      },
-      {
-        key: 'revert', text: t('git.revert'), action: () => {
-          store.askConfirm(t('git.revert'), `${t('git.revertConfirm')}\n\n${commit.shortHash} ${commit.subject}`, t('git.revert'), () => { void store.revert(commit.hash) })
-        },
-      },
-    ]
+    return commitMenuItems(menu.commit, { t, openDetail, copy, store })
   }, [menu, t])
 
   useEffect(() => {

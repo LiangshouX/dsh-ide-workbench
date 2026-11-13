@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Project tree regressions (PRD-v4 §10.1).
  *
  *   - clicking a directory twisty toggles the folder;
@@ -15,7 +15,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import React from 'react'
@@ -86,6 +86,11 @@ async function loadModule() {
 const ROOT = 'C:\\work\\demo'
 const SRC = `${ROOT}\\src`
 const MAIN = `${SRC}\\main.ts`
+const PACKAGES = `${ROOT}\\packages`
+const WORKBENCH = `${PACKAGES}\\workbench`
+const DEEP = `${WORKBENCH}\\src`
+const CLIENT_API = `${DEEP}\\client-api.ts`
+const OTHER = `${DEEP}\\other.ts`
 
 /** One file-tree entry as the host would report it. */
 function entry(name, path, rel, isDir) {
@@ -121,6 +126,60 @@ function baseState() {
     treeFocusTick: 0,
     gitRepoRoot: '',
   }
+}
+
+/**
+ * A project with a chain of folders and a file at the bottom of it - the
+ * shape the tree search is about.
+ *
+ * The chain is already open (the store expands it when the search finds the
+ * file), and the file index of the whole project carries the file. Every
+ * folder of the chain holds a file of its own, so the chain is not merged
+ * into one row: the rows of the chain are the rows of the tree.
+ */
+function searchState(filter = 'client-api') {
+  const state = baseState()
+  state.dirs = new Map([
+    [ROOT, {
+      loading: false,
+      entries: [
+        entry('packages', PACKAGES, 'packages', true),
+        entry('a.ts', `${ROOT}\\a.ts`, 'a.ts', false),
+      ],
+    }],
+    [PACKAGES, {
+      loading: false,
+      entries: [
+        entry('workbench', WORKBENCH, 'packages/workbench', true),
+        entry('README.md', `${PACKAGES}\\README.md`, 'packages/README.md', false),
+      ],
+    }],
+    [WORKBENCH, {
+      loading: false,
+      entries: [
+        entry('src', DEEP, 'packages/workbench/src', true),
+        entry('package.json', `${WORKBENCH}\\package.json`, 'packages/workbench/package.json', false),
+      ],
+    }],
+    [DEEP, {
+      loading: false,
+      entries: [
+        entry('client-api.ts', CLIENT_API, 'packages/workbench/src/client-api.ts', false),
+        entry('other.ts', OTHER, 'packages/workbench/src/other.ts', false),
+      ],
+    }],
+  ])
+  state.expanded = new Set([ROOT, PACKAGES, WORKBENCH, DEEP])
+  state.filter = filter
+  state.filterMode = 'tree'
+  state.fileIndex = [
+    'a.ts',
+    'packages/README.md',
+    'packages/workbench/package.json',
+    'packages/workbench/src/client-api.ts',
+    'packages/workbench/src/other.ts',
+  ]
+  return state
 }
 
 /** A store double that records every call the panel makes. */
@@ -168,6 +227,7 @@ function baseStore(state) {
     showTool: (...args) => record('showTool', ...args),
     setSelectedPath: (...args) => record('setSelectedPath', ...args),
     loadDir: (...args) => record('loadDir', ...args),
+    expandPaths: (...args) => record('expandPaths', ...args),
     toast: () => {},
   }
   return store
@@ -315,17 +375,19 @@ test('the flatten memo depends on every input the tree reads', async () => {
   const mod = await loadModule()
   const state = baseState()
   const ignored = new Set()
-  const inputs = mod.flattenInputs(state, false, ignored, 'tree')
+  const inputs = mod.flattenInputs(state, false, ignored)
 
-  assert.equal(inputs.length, 8)
+  assert.equal(inputs.length, 6)
   assert.equal(inputs[0], state.dirs, 'dirs')
   assert.equal(inputs[1], state.expanded, 'expanded')
   assert.equal(inputs[2], state.root, 'root')
-  assert.equal(inputs[3], state.filter, 'filter')
-  assert.equal(inputs[4], state.gitRepoRoot, 'gitRepoRoot')
-  assert.equal(inputs[5], false, 'showIgnored')
-  assert.equal(inputs[6], ignored, 'status.ignored')
-  assert.equal(inputs[7], 'tree', 'filterMode')
+  assert.equal(inputs[3], state.gitRepoRoot, 'gitRepoRoot')
+  assert.equal(inputs[4], false, 'showIgnored')
+  assert.equal(inputs[5], ignored, 'status.ignored')
+  // The filter is NOT an input of the tree model: a keystroke must not
+  // rebuild the tree - the search is a visibility layer on top of it.
+  const filtered = mod.flattenInputs({ ...state, filter: 'main' }, false, ignored)
+  assert.ok(!filtered.includes('main'), 'the filter is not an input of the model')
 })
 
 test('a status poll that reports the same status leaves the tree inputs alone', async () => {
@@ -348,28 +410,41 @@ test('every tree mutation changes the rows and its memo input', async () => {
   const mod = await loadModule()
   const base = baseState()
   const ignored = new Set()
-  const rowsOf_ = state => mod.flatten(state, state.filter, false, ignored, 'tree').map(row => row.key)
+  const rowsOf_ = state => mod.flatten(state, false, ignored).map(row => row.key)
 
   const before = rowsOf_(base)
 
   // Expand: the folder's child appears and `expanded` is a new Set.
   const expanded = { ...base, expanded: new Set([ROOT, SRC]) }
   assert.notDeepEqual(rowsOf_(expanded), before)
-  assert.notEqual(mod.flattenInputs(expanded, false, ignored, 'tree')[1], mod.flattenInputs(base, false, ignored, 'tree')[1])
+  assert.notEqual(mod.flattenInputs(expanded, false, ignored)[1], mod.flattenInputs(base, false, ignored)[1])
 
   // Collapse: the child disappears again.
   assert.deepEqual(rowsOf_(base), before)
 
-  // Filter: only matching files stay.
-  const filtered = { ...base, filter: 'main' }
-  assert.notDeepEqual(rowsOf_(filtered), before)
-  assert.notEqual(mod.flattenInputs(filtered, false, ignored, 'tree')[3], mod.flattenInputs(base, false, ignored, 'tree')[3])
-
   // Status colour: an ignored entry disappears from the tree.
   const statusIgnored = new Set(['a.ts'])
-  const withIgnored = mod.flatten(base, base.filter, false, statusIgnored, 'tree').map(row => row.key)
+  const withIgnored = mod.flatten(base, false, statusIgnored).map(row => row.key)
   assert.notDeepEqual(withIgnored, before)
   assert.notEqual(statusIgnored, ignored, 'the ignored set is a new reference')
+})
+
+test('the filter is not a tree mutation: the model does not change', async () => {
+  // The tree model does not know the filter: the search is a visibility
+  // layer ON TOP of it. A keystroke may therefore not rebuild the tree -
+  // that is what keeps a search in a big project cheap.
+  const mod = await loadModule()
+  const base = baseState()
+  const ignored = new Set()
+  const filtered = { ...base, filter: 'main' }
+
+  assert.deepEqual(
+    mod.flatten(filtered, false, ignored).map(row => row.key),
+    mod.flatten(base, false, ignored).map(row => row.key),
+    'the rows do not depend on the filter',
+  )
+  assert.deepEqual(mod.flattenInputs(filtered, false, ignored), mod.flattenInputs(base, false, ignored),
+    'the memo inputs do not depend on the filter either')
 })
 
 test('the rendered tree follows expand, collapse, filter and status changes', async () => {
@@ -388,8 +463,12 @@ test('the rendered tree follows expand, collapse, filter and status changes', as
   const filtered = baseState()
   filtered.filter = 'main'
   filtered.filterMode = 'tree'
+  // The search looks into the file index of the whole project: the file is
+  // there, and the tree hides everything that does not lead to it.
+  filtered.fileIndex = ['src/main.ts']
   const filteredHtml = renderPanel(baseStore(filtered), filtered).html
   assert.doesNotMatch(filteredHtml, />a\.ts</)
+  assert.match(filteredHtml, />src</, 'the folder that leads to the match stays')
 
   const ignored = baseState()
   ignored.status = { isRepo: true, branch: 'main', entries: [{ path: 'a.ts', xy: '!!', ignored: true }] }
@@ -422,4 +501,130 @@ test('a status change re-colours its row, and the rows share one callback set', 
     const identities = new Set(rows.map(row => row.props[name]))
     assert.equal(identities.size, 1, `${name} is shared by every row`)
   }
+})
+
+// ── the tree search ──────────────────────────────────────────────────────
+
+test('the tree search shows the chain that leads to the match, and nothing else', async () => {
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  const state = searchState('client-api')
+  const { html, elements } = renderPanel(baseStore(state), state)
+
+  const titles = rowsOf(elements).map(row => row.props.title)
+  assert.deepEqual(titles, [
+    'packages',
+    'packages/workbench',
+    'packages/workbench/src',
+    'packages/workbench/src/client-api.ts',
+  ], 'the chain to the match and the match itself - and nothing else')
+  // The files that do not lead to the match are gone.
+  assert.doesNotMatch(html, /other\.ts/)
+  assert.doesNotMatch(html, />a\.ts</)
+})
+
+test('the tree search keeps a merged chain whose leaf leads to the match', async () => {
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  const state = baseState()
+  // A folder that holds nothing but one sub-folder is shown as ONE row (the
+  // compact tree): the search has to keep that row when its leaf leads to
+  // the match.
+  state.dirs = new Map([
+    [ROOT, { loading: false, entries: [entry('packages', PACKAGES, 'packages', true)] }],
+    [PACKAGES, { loading: false, entries: [entry('workbench', WORKBENCH, 'packages/workbench', true)] }],
+    [WORKBENCH, { loading: false, entries: [entry('src', DEEP, 'packages/workbench/src', true)] }],
+    [DEEP, {
+      loading: false,
+      entries: [entry('client-api.ts', CLIENT_API, 'packages/workbench/src/client-api.ts', false)],
+    }],
+  ])
+  state.expanded = new Set([ROOT, PACKAGES, WORKBENCH, DEEP])
+  state.filter = 'client-api'
+  state.filterMode = 'tree'
+  state.fileIndex = ['packages/workbench/src/client-api.ts']
+  const { elements } = renderPanel(baseStore(state), state)
+  assert.deepEqual(rowsOf(elements).map(row => row.props.title), [
+    'packages/workbench/src',
+    'packages/workbench/src/client-api.ts',
+  ], 'the merged chain is one row, and it leads to the match')
+})
+
+test('the tree search matches the file name, and the case does not matter', async () => {
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  const state = searchState('CLIENT-API')
+  const { elements } = renderPanel(baseStore(state), state)
+  const titles = rowsOf(elements).map(row => row.props.title)
+  assert.ok(titles.includes('packages/workbench/src/client-api.ts'), 'the match is found')
+})
+
+test('the tree search follows the name of a file, not the text of its path', async () => {
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  // `packages` is a folder of the path, not the name of a file: it matches
+  // nothing.
+  const state = searchState('packages')
+  const { elements } = renderPanel(baseStore(state), state)
+  assert.deepEqual(rowsOf(elements).map(row => row.props.title), [])
+})
+
+test('the tree search leaves the tree alone while the index is still loading', async () => {
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  const state = searchState('client-api')
+  // The index of the project is not there yet: a search that hid everything
+  // would look like "nothing found".
+  state.fileIndex = []
+  state.fileIndexLoading = true
+  const { elements } = renderPanel(baseStore(state), state)
+  const titles = rowsOf(elements).map(row => row.props.title)
+  assert.ok(titles.includes('a.ts'), 'the tree stays as it is')
+  assert.ok(titles.includes('packages/workbench/src/other.ts'), 'the tree stays as it is')
+})
+
+test('the file tab lists the files whose path carries the query', async () => {
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  const state = searchState('client-api')
+  state.filterMode = 'files'
+  const { elements } = renderPanel(baseStore(state), state)
+  const titles = rowsOf(elements).map(row => row.props.title)
+  assert.deepEqual(titles, ['packages/workbench/src/client-api.ts'])
+})
+
+test('the file tab matches the whole path: a folder name lists the files under it', async () => {
+  // The file list has always matched the WHOLE project-relative path, and
+  // not only the name of the file. That behaviour stays - only its cost
+  // changed (the paths are lowercased once per index identity).
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  const state = searchState('workbench')
+  state.filterMode = 'files'
+  const { elements } = renderPanel(baseStore(state), state)
+  const titles = rowsOf(elements).map(row => row.props.title)
+  assert.deepEqual(titles, [
+    'packages/workbench/package.json',
+    'packages/workbench/src/client-api.ts',
+    'packages/workbench/src/other.ts',
+  ], 'the files under the folder are listed, not only the files whose name carries the text')
+})
+
+test('the file tab does not care about the case', async () => {
+  const mod = await loadModule()
+  ProjectPanel = mod.ProjectPanel
+  const state = searchState('WORKBENCH')
+  state.filterMode = 'files'
+  const { elements } = renderPanel(baseStore(state), state)
+  assert.equal(rowsOf(elements).length, 3)
+})
+
+test('the tree search expands the chain that leads to the match', async () => {
+  // The chain is computed by the pure module (`expandPathsOf`), and the panel
+  // hands it to the store - which opens the folders and loads them in
+  // parallel. The effect runs in the browser, not in a server render, so the
+  // wiring is guarded at the source level.
+  const source = await readFile(join(root, 'src/client/ProjectPanel.jsx'), 'utf8')
+  assert.match(source, /store\.expandPaths\(treeSearch\.dirs\)/,
+    'the panel hands the chain of the match to the store')
 })

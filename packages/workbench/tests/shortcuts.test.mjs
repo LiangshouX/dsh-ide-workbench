@@ -1,4 +1,4 @@
-﻿import test from 'node:test'
+import test from 'node:test'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 import { mkdir, readFile, rm } from 'node:fs/promises'
@@ -71,7 +71,7 @@ async function loadModule() {
       stdin: {
         contents: `
 export { createEditorKeyHandler } from './src/client/EditorArea.jsx'
-export { editorKeymap } from './src/client/CodeEditor.jsx'
+export { editorKeymap, editorKeymapRest } from './src/client/CodeEditor.jsx'
 export { defaultKeymap, historyKeymap } from '@codemirror/commands'
 `,
         resolveDir: root,
@@ -282,5 +282,33 @@ test('the editor keymap still opens the in-file find through Ctrl+F', async () =
 test('the editor installs the exported keymap and knows no Mod-Shift-f', async () => {
   const source = await readFile(join(root, 'src/client/CodeEditor.jsx'), 'utf8')
   assert.match(source, /keymap\.of\(\[\s*\.\.\.editorKeymap\(/)
+  assert.match(source, /\.\.\.editorKeymapRest\(\)/)
   assert.doesNotMatch(source, /Mod-Shift-f/)
+})
+
+test('the installed keymap of the editor carries the folding bindings', async () => {
+  const mod = await loadModule()
+  const { entries } = editorKeymapFixture(mod)
+  // The keymap CodeMirror really installs: ours plus the rest of the buffer
+  // (the defaults, the history and the folding of CodeMirror).
+  const installed = [...entries, ...mod.editorKeymapRest()]
+  const bound = installed
+    .flatMap(entry => [entry.key, entry.mac])
+    .filter(key => typeof key === 'string')
+    .map(key => key.toLowerCase())
+  // The folding of the whole document, IntelliJ style, and the folding of the
+  // range at the cursor.
+  assert.ok(bound.includes('ctrl-shift--'), 'Ctrl+Shift+- folds everything')
+  assert.ok(bound.includes('ctrl-shift-='), 'Ctrl+Shift+= unfolds everything')
+  assert.ok(bound.includes('cmd-shift--'), 'the macOS spelling folds everything')
+  assert.ok(bound.includes('cmd-shift-='), 'the macOS spelling unfolds everything')
+  assert.ok(bound.includes('ctrl-shift-['), 'Ctrl+Shift+[ folds the range at the cursor')
+  assert.ok(bound.includes('ctrl-shift-]'), 'Ctrl+Shift+] unfolds the range at the cursor')
+  // A `+` in a key never matches anything: CodeMirror splits a binding on
+  // `-`, and the shortcut normalisation of the workbench (`normalizeShortcut`)
+  // splits on `+` and drops the empty parts.
+  assert.ok(bound.every(key => !key.includes('+')), 'no key of the editor holds a plus')
+  // The global find still has exactly one way in.
+  const globalKeys = bound.filter(key => key === 'mod-shift-f' || key === 'mod-alt-f' || key === 'mod-shift-r')
+  assert.deepEqual(globalKeys, ['mod-alt-f'])
 })

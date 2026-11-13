@@ -263,6 +263,33 @@ export function relativeLinkCandidates(path, bases) {
   return relativeLinkCandidateEntries(path, bases).map(entry => entry.absolute)
 }
 
+/**
+ * Whether one chat link can land inside the workspace.
+ *
+ * The CLAIM (the tab registry asks the IDE whether it may open the address)
+ * and the RESOLUTION (the store turns the address into a path) must agree:
+ * a link that the store would open through its relative candidates has to be
+ * claimed, or the candidate fallback of PRD-v4 §7.7 is dead code (R1-d).
+ *
+ * The absolute reading wins when it lands inside the workspace; otherwise the
+ * relative candidates - IDE project root, Session cwd, workspace root - get
+ * their turn, exactly as the store tries them.
+ *
+ * @param {FileAddress | undefined} parsed the parsed address
+ * @param {string} workspace the DSH workspace root (the fence)
+ * @param {string} [cwd] the base a session-scoped link resolves against
+ * @param {string[]} [bases] the candidate bases, most specific first
+ * @returns {boolean}
+ */
+export function linkResolvesInsideWorkspace(parsed, workspace, cwd, bases) {
+  if (parsed === undefined || parsed === null) return false
+  if (typeof workspace !== 'string' || workspace === '') return false
+  const absolute = resolveFileAddress(parsed, typeof cwd === 'string' && cwd !== '' ? cwd : workspace)
+  if (absolute !== undefined && isWithinRoot(workspace, absolute)) return true
+  const list = Array.isArray(bases) ? bases : []
+  return relativeLinkCandidates(parsed.path, list).some(candidate => isWithinRoot(workspace, candidate))
+}
+
 /** Office/archive/binary formats the IDE should leave to the sidebar. */
 const NON_IDE_EXTENSIONS = new Set([
   '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',

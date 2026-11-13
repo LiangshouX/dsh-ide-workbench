@@ -322,9 +322,13 @@ function StatusBar({ store, state, contract = null, renderSlot = null }) {
   const summary = store.summary()
   const active = state.tabs.find(tab => tab.id === state.activeId)
   const text = active?.payload?.kind === 'text' ? active.payload : undefined
-  const lines = text !== undefined && typeof text.content === 'string'
-    ? text.content.split('\n').length
-    : undefined
+  // The line count and the word count are counted by the store, once, when the
+  // buffer is read or written (A1). The status bar re-renders on every
+  // keystroke and on every git poll, so a scan of the text here would be paid
+  // over and over again.
+  const stats = active?.stats
+  const lines = stats?.lines
+  const words = stats?.words
   const encoding = text === undefined
     ? undefined
     : text.encoding === 'utf-8-bom'
@@ -359,6 +363,16 @@ function StatusBar({ store, state, contract = null, renderSlot = null }) {
       : null,
     lines !== undefined
       ? React.createElement('span', { className: 'iwb-status-item' }, `${lines} ${t('editor.lines')}`)
+      : null,
+    // The word count belongs to the Markdown and the plain text files only
+    // (A1); the store leaves it out for every other file type.
+    words !== undefined
+      ? React.createElement('span', {
+          className: 'iwb-status-item',
+          // The number has to be explainable: the tooltip says how a mixed
+          // document is counted.
+          title: label(t, 'status.wordsHint', 'CJK characters count one by one; Latin text counts one word per space'),
+        }, `${words} ${t('status.words')}`)
       : null,
     encoding !== undefined
       ? React.createElement('span', { className: 'iwb-status-item' }, `${encoding} ${eol}`)

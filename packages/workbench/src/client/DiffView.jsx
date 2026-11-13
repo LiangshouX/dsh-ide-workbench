@@ -6,7 +6,7 @@
  * `git apply --cached` changes exactly the selected lines.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { buildPatch, diffInnerWidth, diffPaneWidths, firstFile, hunkChangeIndexes, parseUnifiedDiff, sideBySideRows, unifiedRows, wordLevelDefault, wordSegments } from './diff.js'
+import { buildPatch, diffInnerWidth, diffPaneWidths, firstFile, hunkChangeIndexes, hunksToDiffFile, parseUnifiedDiff, sideBySideRows, unifiedRows, wordLevelDefault, wordSegments } from './diff.js'
 import { IconRefresh } from './icons.jsx'
 import { FindBar } from './FindBar.jsx'
 import { buildFindRegExp } from './find.js'
@@ -36,6 +36,18 @@ function diffSource(tab) {
     if (payload.kind === 'text') return { text: syntheticAddDiff(tab.rel, payload.content), staged: false, stageable, path: tab.rel }
     return { text: '', staged: false, stageable, path: tab.rel, binary: true }
   }
+  // A turn review carries STRUCTURED hunks, not a unified diff text. The
+  // adapter of diff.js turns them into the file shape of the parser, so this
+  // viewer reads one row model for both sources.
+  if (Array.isArray(payload.hunks)) {
+    return {
+      file: hunksToDiffFile(payload),
+      text: '',
+      staged: false,
+      stageable: false,
+      path: payload.path ?? payload.display ?? tab.rel,
+    }
+  }
   return { text: payload.diff ?? '', staged: tab.staged === true, stageable, path: tab.rel }
 }
 
@@ -56,7 +68,11 @@ export function DiffView({ store, tab }) {
   // into it any more.
   const slice = useStoreSlice(store, diffSlice, shallowEqual)
   const source = useMemo(() => diffSource(tab), [tab])
-  const parsed = useMemo(() => parseUnifiedDiff(source.text), [source.text])
+  // A turn review brings its own file (the adapter of the structured hunks);
+  // every other diff is a unified diff text.
+  const parsed = useMemo(() => (source.file === undefined
+    ? parseUnifiedDiff(source.text)
+    : { files: [source.file], raw: '' }), [source])
   const mode = tab.kind === 'commit' ? 'unified' : (slice.commitMode ?? 'side')
   const [selection, setSelection] = useState(() => new Set())
   const [scrollTop, setScrollTop] = useState(0)

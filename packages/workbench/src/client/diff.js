@@ -103,26 +103,143 @@ export function parseUnifiedDiff(text) {
 
   // Assign old/new line numbers per hunk (context advances both sides).
   for (const file of files) {
-    for (const item of file.hunks) {
-      let oldNo = item.oldStart
-      let newNo = item.newStart
-      for (const entry of item.lines) {
-        if (entry.type === ' ') {
-          entry.oldNo = oldNo
-          entry.newNo = newNo
-          oldNo += 1
-          newNo += 1
-        } else if (entry.type === '-') {
-          entry.oldNo = oldNo
-          oldNo += 1
-        } else if (entry.type === '+') {
-          entry.newNo = newNo
-          newNo += 1
-        }
+    numberHunkLines(file.hunks)
+  }
+  return { files, raw }
+}
+
+/**
+ * Assign the old and new line numbers of the lines of every hunk.
+ *
+ * A context line advances both sides, a deletion the old one and an addition
+ * the new one. Both diff views read those numbers, so the numbering is
+ * shared by the parser of a unified diff and by the adapter of the structured
+ * hunks of a turn review: one row model, two sources.
+ *
+ * @param {Array<object>} hunks the hunks of one file
+ */
+export function numberHunkLines(hunks) {
+  for (const item of hunks) {
+    let oldNo = item.oldStart
+    let newNo = item.newStart
+    for (const entry of item.lines) {
+      if (entry.type === ' ') {
+        entry.oldNo = oldNo
+        entry.newNo = newNo
+        oldNo += 1
+        newNo += 1
+      } else if (entry.type === '-') {
+        entry.oldNo = oldNo
+        oldNo += 1
+      } else if (entry.type === '+') {
+        entry.newNo = newNo
+        newNo += 1
       }
     }
   }
-  return { files, raw }
+}
+
+/**
+ * The change marker of one line of a structured hunk.
+ *
+ * The turn review does not deliver a unified diff text but structured hunks.
+ * The shape of one line of a hunk is not written down in the host's API, so
+ * the adapter accepts the spellings that mean the same thing: a text with a
+ * leading marker, or a record with a marker field. A line that carries no
+ * marker at all is context - the safe reading, because a context line only
+ * adds a line number.
+ *
+ * @param {unknown} line one line of a hunk
+ * @returns {{ type: ' ' | '+' | '-', text: string } | null} null for a line
+ *   that carries no text at all
+ */
+function normalizeHunkLine(line) {
+  if (typeof line === 'string') {
+    const marker = line.charAt(0)
+    if (marker === '+' || marker === '-') return { type: marker, text: line.slice(1) }
+    if (marker === ' ') return { type: ' ', text: line.slice(1) }
+    return { type: ' ', text: line }
+  }
+  if (line === null || typeof line !== 'object') return null
+  const text = typeof line.text === 'string'
+    ? line.text
+    : typeof line.content === 'string' ? line.content : ''
+  const raw = line.type ?? line.marker ?? line.sign ?? line.op ?? line.kind
+  let type = ' '
+  if (typeof raw === 'string') {
+    const marker = raw.charAt(0)
+    const word = raw.toLowerCase()
+    if (marker === '+' || marker === '-') type = marker
+    else if (['add', 'added', 'addition', 'insert', 'inserted', 'new'].includes(word)) type = '+'
+    else if (['del', 'deleted', 'deletion', 'remove', 'removed', 'old'].includes(word)) type = '-'
+  }
+  return { type, text }
+}
+
+/**
+ * Adapt the structured hunks of a turn review into the file shape of
+ * `parseUnifiedDiff`.
+ *
+ * The turn data of the host is NOT a unified diff text: it is a list of
+ * hunks with their line lists. The adapter turns it into the very shape the
+ * parser produces, so `unifiedRows` and `sideBySideRows` - and with them the
+ * whole diff viewer - read one row model instead of a second implementation.
+ *
+ * @param {{ kind?: string, path?: string, display?: string, hunks?: Array<object> }} payload
+ *   the diff document of the host
+ * @returns {object} the file entry of the parser
+ */
+export function hunksToDiffFile(payload) {
+  const kind = typeof payload?.kind === 'string' ? payload.kind : 'text'
+  const path = typeof payload?.path === 'string' ? payload.path : ''
+  const display = typeof payload?.display === 'string' ? payload.display : ''
+  const source = Array.isArray(payload?.hunks) ? payload.hunks : []
+  const hunks = []
+  let additions = 0
+  let deletions = 0
+  let index = 0
+  for (const raw of source) {
+    const lines = []
+    for (const line of Array.isArray(raw?.lines) ? raw.lines : []) {
+      const entry = normalizeHunkLine(line)
+      if (entry === null) continue
+      entry.index = index
+      index += 1
+      lines.push(entry)
+      if (entry.type === '+') additions += 1
+      if (entry.type === '-') deletions += 1
+    }
+    const oldStart = Number.isFinite(raw?.oldStart) ? raw.oldStart : 0
+    const newStart = Number.isFinite(raw?.newStart) ? raw.newStart : 0
+    const oldCount = Number.isFinite(raw?.oldLines)
+      ? raw.oldLines
+      : lines.filter(line => line.type !== '+').length
+    const newCount = Number.isFinite(raw?.newLines)
+      ? raw.newLines
+      : lines.filter(line => line.type !== '-').length
+    hunks.push({
+      header: `@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`,
+      oldStart,
+      oldCount,
+      newStart,
+      newCount,
+      heading: '',
+      lines,
+    })
+  }
+  numberHunkLines(hunks)
+  return {
+    header: [],
+    oldPath: path,
+    newPath: path,
+    isNew: false,
+    isDeleted: false,
+    isBinary: kind === 'binary',
+    hunks,
+    additions,
+    deletions,
+    display,
+  }
 }
 
 /** The first file of a per-file diff (the API always scopes one path). */

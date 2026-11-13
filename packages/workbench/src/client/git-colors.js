@@ -74,6 +74,86 @@ function ancestorsOf(rel) {
 }
 
 /**
+ * The ignored paths of one status snapshot.
+ *
+ * `has` is prefix aware: git does not descend into an ignored directory
+ * (`--ignored=matching`), so the status carries no entry at all for the
+ * files below it. A path below an ignored directory is ignored as well —
+ * without that rule the whole subtree would keep its normal colour and the
+ * folder would look like a tracked, unchanged directory (R6).
+ *
+ * The set itself stays a plain set of paths (the ignored entries and the
+ * ancestors of the ignored directories), so the code that only iterates over
+ * it is unaffected.
+ *
+ * Two kinds of paths live in it, and the difference matters:
+ * - the ROOTS: the paths git reported as ignored (`target/`, `node_modules/`).
+ *   Everything below a root is ignored, so a root answers for its subtree.
+ * - the LEVELS: the ancestors of a root. Git does not descend into an ignored
+ *   directory, so the levels above it hold nothing but ignored content and
+ *   have to be grey as well (R6). They are NOT roots: a tracked file that
+ *   sits next to an ignored folder must keep its own colour, so a level
+ *   greys its own row and nothing below it.
+ */
+class IgnoredPaths extends Set {
+  constructor() {
+    super()
+    this.roots = new Set()
+    this.levels = new Set()
+  }
+
+  /**
+   * The path git reported as ignored: it greys its whole subtree.
+   * @param {string} path the repository-relative path
+   */
+  addRoot(path) {
+    if (typeof path !== 'string' || path === '') return
+    this.roots.add(path)
+    super.add(path)
+  }
+
+  /**
+   * An intermediate level above an ignored directory: it greys its own row.
+   * @param {string} path the repository-relative path
+   */
+  addLevel(path) {
+    if (typeof path !== 'string' || path === '') return
+    this.levels.add(path)
+    super.add(path)
+  }
+
+  /**
+   * Whether the path is ignored — directly, below an ignored directory, or as
+   * an intermediate level above one.
+   * @param {unknown} path the repository-relative path
+   * @returns {boolean}
+   */
+  has(path) {
+    if (typeof path !== 'string' || path === '') return false
+    const key = path.replace(/\/+$/, '')
+    if (this.roots.has(key)) return true
+    for (const ancestor of ancestorsOf(key)) if (this.roots.has(ancestor)) return true
+    return this.levels.has(key)
+  }
+}
+
+/**
+ * Whether one path is ignored — directly or below an ignored directory.
+ *
+ * The consumer of the aggregate (the Project tree) looks a row up in the
+ * ignored set, so the set itself answers the question; this helper is the
+ * same rule for callers that keep their own set.
+ *
+ * @param {{ has: (path: string) => boolean }} ignored the ignored paths
+ * @param {string} path the repository-relative path
+ * @returns {boolean}
+ */
+export function isIgnoredPath(ignored, path) {
+  if (ignored === undefined || ignored === null || typeof ignored.has !== 'function') return false
+  return ignored.has(path)
+}
+
+/**
  * Remember the status of one directory, keeping the strongest one.
  *
  * The precedence is the IDEA one (conflict > modified > added > untracked),
@@ -94,25 +174,44 @@ function setDirStatus(dirs, conflictDirs, dir, kind) {
 /**
  * Build the recursive status map.
  *
- * @param {Array<{ path: string, xy?: string, untracked?: boolean, conflict?: boolean, ignored?: boolean }>} entries
+ * @param {Array<{ path: string, xy?: string, untracked?: boolean, conflict?: boolean,
+ *   ignored?: boolean, ignoredDir?: boolean, ignoredLevel?: boolean }>} entries
  *   entries carry workspace-relative `path` values
  * @returns {{ dirs: Map<string, string>, files: Map<string, string>,
  *   ignored: Set<string>, conflictDirs: Set<string>, entries: Array<object> }}
  *   `entries` is the list this aggregate was built from, so a caller can tell
  *   whether a later list still describes the same status.
+ *   `ignored` holds the ignored paths without a trailing slash; `has` also
+ *   answers for the paths below an ignored directory and for the levels the
+ *   host marked (R6).
  */
 export function aggregateStatus(entries) {
   const list = Array.isArray(entries) ? entries : []
   const dirs = new Map()
   const files = new Map()
-  const ignored = new Set()
+  const ignored = new IgnoredPaths()
   const conflictDirs = new Set()
   for (const entry of list) {
     if (entry === null || typeof entry !== 'object' || typeof entry.path !== 'string') continue
     const kind = fileStatusKind(entry)
     if (kind === null) continue
     if (kind === 'ignored') {
-      ignored.add(entry.path)
+      // The host drops the trailing slash of an ignored directory, so both
+      // sides speak the same key. A path that still carries one (an older
+      // host, a hand-written entry) is normalized here as well.
+      const path = entry.path.replace(/\/+$/, '')
+      if (path === '') continue
+      if (entry.ignoredLevel === true) {
+        // A LEVEL is the folder above an ignored directory that holds nothing
+        // but ignored content. It is grey on its own row, and the files next
+        // to the ignored directory keep their own colour (R6). Only git knows
+        // which files are tracked, so the host decides which paths are levels.
+        ignored.addLevel(path)
+        continue
+      }
+      ignored.addRoot(path)
+      // An ignored entry colours nothing: it must not reach the directory
+      // table (`dirs`) nor the file table (`files`).
       continue
     }
     // A porcelain entry that ends with a slash describes a DIRECTORY
@@ -136,7 +235,10 @@ export function aggregateStatus(entries) {
  *
  * The aggregate depends on a file only through its path and its kind, so two
  * lists that agree on those agree on the aggregate — whatever else the host
- * sends alongside an entry does not matter here.
+ * sends alongside an entry does not matter here. The exceptions are the two
+ * ignored flags: the DIRECTORY flag says that the whole subtree below the
+ * path is ignored, and the LEVEL flag says that the path is grey on its own
+ * row only. Both belong to the status (R6).
  *
  * @param {Array<object>} left the earlier entry list
  * @param {Array<object>} right the later entry list
@@ -153,6 +255,11 @@ export function sameStatusEntries(left, right) {
     if (one === null || other === null || typeof one !== 'object' || typeof other !== 'object') return false
     if (one.path !== other.path) return false
     if (fileStatusKind(one) !== fileStatusKind(other)) return false
+    if ((one.ignoredDir === true) !== (other.ignoredDir === true)) return false
+    // A LEVEL greys its own row only, an ignored ROOT greys its subtree: the
+    // two are different colours for the same path, so the change is a change
+    // of the status (R6).
+    if ((one.ignoredLevel === true) !== (other.ignoredLevel === true)) return false
   }
   return true
 }
