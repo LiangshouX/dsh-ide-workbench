@@ -1,6 +1,6 @@
 {
   "name": "dsh-ide-workbench",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "JetBrains-style IDE workbench for DeepSeek Harness: Project, Commit, Terminal and Git tool windows around an embedded editor, with chat file links, send-to-chat @references, IDE selection semantics, file operations, changelists, compare and word-level diff, in one shared repository model, plus a faster session switch and a Git repository picker that leaves the file tree alone. | DSH 插件：JetBrains 风格 IDE 工作台，Project / Commit / Terminal / Git 四窗围绕内置编辑器，支持聊天文件链接、发送到聊天的 @ 引用、选中优先的文件操作、变更列表、比较与单词级差异，并带更快的会话切换、不动文件树的 Git 仓库选择器、文件定位按钮与自动闭合括号。",
   "type": "module",
   "repository": {
@@ -32,7 +32,9 @@
     "LICENSE",
     "CHANGELOG.md",
     "README.md",
-    "README_EN.md"
+    "README_EN.md",
+    "screenshots.json",
+    "assets"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",

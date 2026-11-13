@@ -1,6 +1,6 @@
 {
   "name": "dsh-ide-workbench-monorepo",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Monorepo of the DSH IDE workbench (core) and the DSH code intelligence plugin (codeintel). The repository name and the plugin ID of the core are unchanged (PRD-v6 D4).",
   "type": "module",
