@@ -42,6 +42,82 @@ export const CSS = `
      button black on black in the light theme.) */
   --iwb-on-accent: var(--dsw-alias-label-on-brand, var(--dsw-alias-bg-base, #fff));
   --iwb-shadow: var(--dsw-alias-shadow-1, rgba(0, 0, 0, .32));
+  /* ── the design tokens of this round (PRD-v8 §2.3.1) ───────────────────────
+     The host owns the COLOURS of the workbench; this layer owns its SHAPE:
+     the radii, the spacing, the shadows, the easing and the type scale.
+     Before it, every rule made its own small decision - a 6px radius here,
+     a 7px one there, a 120ms transition in one place and none in the next.
+     The result looked like a collection of widgets instead of a product.
+
+     The surfaces are the other half of the story. The host gives the workbench
+     a base and two layers; what it does not give is a NAME for "the surface
+     a row lights up when the pointer is on it" or "the tint of the selected
+     row". Those are the surfaces the eye reads as depth, so they get tokens
+     of their own - mixed from the theme, never a hard-coded grey. */
+  --iwb-radius-xs: 4px;
+  --iwb-radius-sm: 6px;
+  --iwb-radius-md: 8px;
+  --iwb-radius-lg: 12px;
+  --iwb-radius-pill: 999px;
+
+  --iwb-space-1: 4px;
+  --iwb-space-2: 8px;
+  --iwb-space-3: 12px;
+  --iwb-space-4: 16px;
+  --iwb-space-5: 24px;
+
+  /* One easing and two durations for the whole workbench: a product that
+     animates in a hundred different ways reads as a hundred different
+     widgets. */
+  --iwb-ease: cubic-bezier(.2, .8, .2, 1);
+  --iwb-dur-fast: 120ms;
+  --iwb-dur: 180ms;
+
+  /* The surfaces, from the deepest to the highest. */
+  --iwb-surface-base: var(--iwb-bg);
+  --iwb-surface-raised: var(--iwb-panel);
+  --iwb-surface-sunken: var(--iwb-panel-2);
+  --iwb-surface-overlay: var(--iwb-overlay);
+  /* The pointer on a row. Mixed from the theme's own text colour, so the
+     hover is a hint of the foreground - never a grey that belongs to
+     neither theme. */
+  --iwb-surface-hover: color-mix(in srgb, var(--iwb-fg) 7%, transparent);
+  --iwb-surface-active: color-mix(in srgb, var(--iwb-fg) 13%, transparent);
+  --iwb-surface-selected: color-mix(in srgb, var(--iwb-accent) 17%, transparent);
+  --iwb-surface-selected-soft: color-mix(in srgb, var(--iwb-accent) 9%, transparent);
+  --iwb-surface-glow: color-mix(in srgb, var(--iwb-accent) 32%, transparent);
+
+  /* The light of the room. A surface is not "flat with a border": it is a
+     solid that catches light on its top edge and is shaded underneath. The
+     sheen is made of white and black - not of the text colour - so it stays
+     a highlight in a light theme and a shade in a dark one. */
+  --iwb-sheen: linear-gradient(180deg, color-mix(in srgb, #fff 13%, transparent) 0%, color-mix(in srgb, #000 7%, transparent) 100%);
+  --iwb-highlight: inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent);
+  --iwb-shadow-sm: 0 1px 2px color-mix(in srgb, #000 26%, transparent);
+  --iwb-shadow-md: 0 4px 14px color-mix(in srgb, #000 30%, transparent), 0 1px 2px color-mix(in srgb, #000 22%, transparent);
+  --iwb-shadow-lg: 0 18px 48px color-mix(in srgb, #000 44%, transparent), 0 2px 6px color-mix(in srgb, #000 26%, transparent);
+  --iwb-focus-ring: 0 0 0 2px var(--iwb-bg), 0 0 0 4px color-mix(in srgb, var(--iwb-accent) 72%, transparent);
+  /* ── the glass of the floating layers (PRD-v8 §2.3.5) ─────────────────────
+     The material of the recent system UIs: a surface that is partly
+     TRANSPARENT, that catches the light on its top edge, and that blurs
+     what is behind it.
+
+     It is applied to the FLOATING layers only - the menu, the dialog, the
+     popover, the toast. Those are the surfaces that really sit ABOVE the
+     content, and there are only a few of them at a time.
+
+     The dense surfaces - the file tree, the editor, the bars - stay SOLID on
+     purpose: a tree behind a blur is unreadable, and a blur on every row
+     would cost a frame per row. The discipline of the repository (a
+     performance gate on every panel) is the reason the effect is small.
+
+     The blur is behind a "@supports" rule (at the end of this stylesheet):
+     a browser that cannot do it keeps the plain, opaque surface - the
+     workbench never depends on it. */
+  --iwb-glass: color-mix(in srgb, var(--iwb-overlay) 74%, transparent);
+  --iwb-glass-blur: saturate(180%) blur(20px);
+  --iwb-glass-edge: inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent), inset 0 0 0 1px color-mix(in srgb, #fff 9%, transparent);
+  --iwb-glass-shadow: 0 20px 52px color-mix(in srgb, #000 46%, transparent), 0 2px 8px color-mix(in srgb, #000 26%, transparent);
   /* ── the syntax palette (THEME-03) ──────────────────────────────────────
      The host has no syntax aliases, and no single colour can serve both of
      its themes: a colour that clears 4.5:1 on white needs a relative
@@ -110,8 +186,18 @@ export const CSS = `
   --iwb-git-conflict: #f14c4c;
   --iwb-git-ignored: #b08b4f;
   --iwb-excluded-bg: rgba(176, 139, 79, .16);
-  --iwb-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
-  --iwb-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, "Courier New", monospace;
+  /* The type of the workbench (PRD-v8 TYP-01).
+     The Latin faces come first and the CJK faces last: a Latin face has no
+     CJK glyphs, so the browser walks the list on its own for every script.
+     "Segoe UI Variable Text" is the Windows 11 face - the same design as the
+     "Inter" it replaces, so the workbench looks the same on every machine. */
+  --iwb-font: "Inter", "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --iwb-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  /* The type scale (PRD-v8 TYP-03): three levels and no more. */
+  --iwb-text-title: 12px;
+  --iwb-text-label: 11px;
+  --iwb-text-body: 13px;
+  --iwb-text-mono: 12px;
 }
 .iwb-root {
   container-type: inline-size;
@@ -131,14 +217,83 @@ export const CSS = `
   background: var(--iwb-bg);
   color: var(--iwb-fg);
   font-family: var(--iwb-font);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--iwb-text-body);
+  line-height: 1.5;
+  /* PRD-v8 TYP-02: the text of a workbench is small and dense, and the
+     default rendering on Windows makes it look like it was printed on a
+     dot-matrix printer. The smoothing turns the stems back into stems. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Every number the workbench shows is a COUNT: the line number, the word
+     count, the number of changes. They have to line up in a column, so they
+     get tabular figures - proportional digits make a table of counters jump
+     around on every update. */
+  font-variant-numeric: tabular-nums;
   user-select: none;
   -webkit-app-region: no-drag;
 }
 .iwb-root *, .iwb-root *::before, .iwb-root *::after { box-sizing: border-box; }
-.iwb-root button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+/* ── the buttons (PRD-v8 §2.3.3) ────────────────────────────────────────────
+   The old buttons were flat: a hairline and a fill, nothing else, and no
+   transition at all. A button that does not move and does not react reads
+   as a drawing of a button, not as a button.
+
+   The rules below give every control the three states it needs (rest, hover,
+   pressed), a focus ring a keyboard user can see, and a motion small enough
+   to read as "the surface answered me" rather than as an animation. */
+.iwb-root button {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer;
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease),
+    color var(--iwb-dur-fast) var(--iwb-ease),
+    border-color var(--iwb-dur-fast) var(--iwb-ease),
+    box-shadow var(--iwb-dur-fast) var(--iwb-ease),
+    transform var(--iwb-dur-fast) var(--iwb-ease),
+    opacity var(--iwb-dur-fast) var(--iwb-ease);
+}
 .iwb-root input, .iwb-root textarea, .iwb-root select { font: inherit; color: inherit; }
+.iwb-root button:focus-visible { outline: none; box-shadow: var(--iwb-focus-ring); }
+.iwb-root button:disabled { cursor: not-allowed; }
+
+/* The icon button: a ghost until the pointer arrives. */
+.iwb-iconbtn {
+  width: 26px; height: 26px; border-radius: var(--iwb-radius-sm); display: inline-flex; align-items: center; justify-content: center;
+  color: var(--iwb-muted);
+}
+.iwb-iconbtn:hover:not(:disabled) { background: var(--iwb-surface-hover); color: var(--iwb-fg); transform: translateY(-.5px); }
+.iwb-iconbtn:active:not(:disabled) { background: var(--iwb-surface-active); transform: translateY(0); box-shadow: inset 0 1px 2px color-mix(in srgb, #000 22%, transparent); }
+.iwb-iconbtn:disabled { opacity: .38; }
+.iwb-iconbtn.iwb-on { color: var(--iwb-accent); background: var(--iwb-surface-selected); }
+
+/* The text button: a solid that catches light. */
+.iwb-textbtn {
+  height: 26px; padding: 0 10px; border-radius: var(--iwb-radius-sm); display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--iwb-border); color: var(--iwb-fg);
+  background: var(--iwb-sheen), var(--iwb-panel-2);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm);
+}
+.iwb-textbtn:hover:not(:disabled) {
+  border-color: var(--iwb-border-strong);
+  background: var(--iwb-sheen), color-mix(in srgb, var(--iwb-fg) 7%, var(--iwb-panel-2));
+  transform: translateY(-.5px);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-md);
+}
+.iwb-textbtn:active:not(:disabled) { transform: translateY(0); box-shadow: inset 0 1px 3px color-mix(in srgb, #000 24%, transparent); }
+/* The primary button sits on the brand colour, so its text is the host's
+   "on brand" label - a pale brand colour would make white text unreadable. */
+.iwb-textbtn.iwb-primary {
+  background: var(--iwb-sheen), var(--iwb-accent);
+  border-color: transparent; color: var(--iwb-on-accent);
+  box-shadow: var(--iwb-highlight), 0 4px 14px var(--iwb-surface-glow), var(--iwb-shadow-sm);
+}
+.iwb-textbtn.iwb-primary:hover:not(:disabled) {
+  background: var(--iwb-sheen), color-mix(in srgb, var(--iwb-fg) 10%, var(--iwb-accent));
+  border-color: transparent;
+}
+.iwb-textbtn:disabled { opacity: .42; }
+.iwb-textbtn.iwb-danger { color: var(--iwb-error); }
+.iwb-textbtn.iwb-danger-solid { background: var(--iwb-sheen), var(--iwb-error); color: #fff; border-color: transparent; }
+.iwb-textbtn.iwb-small { height: 22px; padding: 0 8px; font-size: var(--iwb-text-label); }
 .iwb-root ::-webkit-scrollbar { width: 10px; height: 10px; }
 .iwb-root ::-webkit-scrollbar-thumb { background: var(--iwb-border-strong); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
 .iwb-root ::-webkit-scrollbar-thumb:hover { background: var(--iwb-muted); border: 2px solid transparent; background-clip: content-box; }
@@ -147,21 +302,27 @@ export const CSS = `
 
 .iwb-topbar {
   height: 36px; flex: 0 0 36px; display: flex; align-items: center; gap: 8px;
-  padding: 0 10px; border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
+  padding: 0 10px; border-bottom: 1px solid var(--iwb-border); background: var(--iwb-surface-raised);
+  /* The bar is the lid of the workbench: it casts a soft shadow on the body
+     below it, so the body reads as "inside" and the bar as "on top". */
+  box-shadow: 0 1px 0 var(--iwb-border), 0 3px 10px color-mix(in srgb, #000 16%, transparent);
   position: relative; z-index: 6;
 }
 .iwb-topbar button { position: relative; z-index: 7; }
 .iwb-project-select {
   display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px;
-  border-radius: 6px; max-width: 320px; min-width: 0; cursor: pointer;
+  border-radius: var(--iwb-radius-sm); max-width: 320px; min-width: 0; cursor: pointer;
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease);
 }
-.iwb-project-select:hover { background: rgba(127, 127, 127, .12); }
+.iwb-project-select:hover { background: var(--iwb-surface-hover); }
 .iwb-project-select .iwb-project-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-select .iwb-project-path { color: var(--iwb-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-branch-chip {
   display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
-  border: 1px solid var(--iwb-border); border-radius: 999px; color: var(--iwb-muted); font-size: 11.5px;
+  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-pill); color: var(--iwb-muted); font-size: var(--iwb-text-body);
   max-width: 240px; overflow: hidden;
+  background: var(--iwb-sheen), var(--iwb-panel-2);
+  box-shadow: var(--iwb-highlight);
 }
 .iwb-branch-chip .iwb-branch-name { color: var(--iwb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-ahead { color: var(--iwb-success); font-variant-numeric: tabular-nums; }
@@ -171,28 +332,6 @@ export const CSS = `
 .iwb-ahead-btn { background: transparent; border: 0; padding: 0 2px; cursor: pointer; }
 .iwb-ahead-btn:hover { text-decoration: underline; }
 .iwb-top-spacer { flex: 1; }
-.iwb-iconbtn {
-  width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
-  color: var(--iwb-muted);
-}
-.iwb-iconbtn:hover { background: rgba(127, 127, 127, .14); color: var(--iwb-fg); }
-.iwb-iconbtn:disabled { opacity: .4; cursor: default; }
-.iwb-iconbtn.iwb-on { color: var(--iwb-accent); }
-.iwb-textbtn {
-  height: 26px; padding: 0 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid var(--iwb-border); color: var(--iwb-fg); background: var(--iwb-panel-2);
-}
-.iwb-textbtn:hover { border-color: var(--iwb-border-strong); }
-/* The primary button sits on the brand colour, so its text is the host's
-   "on brand" label - a pale brand colour would make white text unreadable. */
-.iwb-textbtn.iwb-primary { background: var(--iwb-accent); border-color: transparent; color: var(--iwb-on-accent); }
-.iwb-textbtn.iwb-primary:hover { filter: brightness(1.08); }
-.iwb-textbtn:disabled { opacity: .45; cursor: default; }
-.iwb-textbtn.iwb-danger { color: var(--iwb-error); }
-/* The solid danger button sits on the error colour, not on the brand colour,
-   so it keeps its own white text. */
-.iwb-textbtn.iwb-danger-solid { background: var(--iwb-error); color: #fff; border-color: transparent; }
-.iwb-textbtn.iwb-small { height: 22px; padding: 0 8px; font-size: 11.5px; }
 
 .iwb-body { flex: 1; min-height: 0; display: flex; }
 .iwb-stripe {
@@ -201,11 +340,12 @@ export const CSS = `
 }
 .iwb-stripe-spacer { flex: 1; }
 .iwb-stripe-btn {
-  position: relative; width: 34px; height: 34px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  position: relative; width: 34px; height: 34px; border-radius: var(--iwb-radius-md); display: flex; align-items: center; justify-content: center;
   color: var(--iwb-muted);
 }
-.iwb-stripe-btn:hover { background: rgba(127, 127, 127, .12); color: var(--iwb-fg); }
-.iwb-stripe-btn.iwb-on { color: var(--iwb-accent); background: rgba(76, 154, 255, .13); }
+.iwb-stripe-btn:hover { background: var(--iwb-surface-hover); color: var(--iwb-fg); transform: translateY(-.5px); }
+.iwb-stripe-btn:active { transform: translateY(0); background: var(--iwb-surface-active); }
+.iwb-stripe-btn.iwb-on { color: var(--iwb-accent); background: var(--iwb-surface-selected); box-shadow: 0 0 0 1px var(--iwb-surface-glow); }
 .iwb-stripe-btn.iwb-on::before {
   content: ''; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--iwb-accent);
 }
@@ -222,23 +362,29 @@ export const CSS = `
 .iwb-left {
   position: relative; flex: 0 0 auto; width: var(--iwb-left-width, 300px);
   min-width: 200px; max-width: 640px; display: flex; flex-direction: column;
-  background: var(--iwb-panel); border-right: 1px solid var(--iwb-border);
+  background: var(--iwb-surface-raised); border-right: 1px solid var(--iwb-border);
 }
 .iwb-left-resizer {
   position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; z-index: 5;
 }
-.iwb-left-resizer:hover { background: rgba(76, 154, 255, .25); }
+.iwb-left-resizer:hover { background: color-mix(in srgb, var(--iwb-accent) 25%, transparent); }
 .iwb-panel-header {
   height: 32px; flex: 0 0 32px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 12px;
-  border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
+  border-bottom: 1px solid var(--iwb-border); background: var(--iwb-surface-raised);
 }
-.iwb-panel-title { font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+/* The title of a tool window: small, spaced out, and a step quieter than the
+   content below it. It is a LABEL, not a heading - the hierarchy of the
+   window is carried by the content, not by the bar. */
+.iwb-panel-title {
+  font-size: var(--iwb-text-title); font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--iwb-muted);
+}
 .iwb-panel-sub { color: var(--iwb-muted); font-size: 11px; }
 .iwb-project-sub-btn {
   display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 64%; padding: 2px 5px;
   border-radius: 5px; color: var(--iwb-muted); font-size: 11px; text-align: left;
 }
-.iwb-project-sub-btn:hover { background: rgba(127, 127, 127, .12); color: var(--iwb-fg); }
+.iwb-project-sub-btn:hover { background: var(--iwb-surface-hover); color: var(--iwb-fg); }
 .iwb-project-workspace-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 110px; }
 .iwb-project-sep { opacity: .55; }
 .iwb-project-sub-name { color: var(--iwb-fg); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -267,16 +413,19 @@ export const CSS = `
 .iwb-side-right .iwb-left-resizer { right: auto; left: -3px; }
 .iwb-tabbar {
   height: 34px; flex: 0 0 34px; display: flex; align-items: stretch; border-bottom: 1px solid var(--iwb-border);
-  background: var(--iwb-panel); overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  background: var(--iwb-surface-raised); overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
 }
 .iwb-tabbar::-webkit-scrollbar { height: 0; }
 .iwb-tab {
   display: flex; align-items: center; gap: 6px; padding: 0 8px 0 10px; min-width: 90px; max-width: 220px;
   border-right: 1px solid var(--iwb-border); color: var(--iwb-muted); position: relative; cursor: pointer; flex: 0 0 auto;
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease), color var(--iwb-dur-fast) var(--iwb-ease);
 }
-.iwb-tab:hover { background: rgba(127, 127, 127, .07); }
-.iwb-tab.iwb-active { background: var(--iwb-bg); color: var(--iwb-fg); }
-.iwb-tab.iwb-active::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--iwb-accent); }
+.iwb-tab:hover { background: var(--iwb-surface-hover); }
+/* The active tab is the sheet in front of the bar: it takes the colour of
+   the editor and carries a hairline of the brand colour on its top edge. */
+.iwb-tab.iwb-active { background: var(--iwb-surface-base); color: var(--iwb-fg); }
+.iwb-tab.iwb-active::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--iwb-accent); box-shadow: 0 0 8px var(--iwb-surface-glow); }
 .iwb-tab .iwb-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
 .iwb-tab.iwb-preview .iwb-tab-name { font-style: italic; }
 .iwb-tab .iwb-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--iwb-muted); flex: 0 0 6px; }
@@ -288,7 +437,7 @@ export const CSS = `
   color: var(--iwb-muted); opacity: 0; margin-left: auto; flex: 0 0 18px;
 }
 .iwb-tab:hover .iwb-tab-close, .iwb-tab.iwb-active .iwb-tab-close { opacity: 1; }
-.iwb-tab .iwb-tab-close:hover { background: rgba(127, 127, 127, .2); color: var(--iwb-fg); }
+.iwb-tab .iwb-tab-close:hover { background: var(--iwb-surface-active); color: var(--iwb-fg); }
 .iwb-tabbar-actions { display: flex; align-items: center; gap: 2px; padding: 0 6px; margin-left: auto; position: sticky; right: 0; background: var(--iwb-panel); }
 
 .iwb-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; overflow: hidden; }
@@ -302,7 +451,7 @@ export const CSS = `
 .iwb-html-action {
   width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
 }
-.iwb-html-action:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .14); }
+.iwb-html-action:hover { color: var(--iwb-fg); background: var(--iwb-surface-active); }
 .iwb-html-action.iwb-chrome { color: #4285f4; }
 .iwb-html-action.iwb-chrome:hover { color: #4285f4; filter: brightness(1.12); }
 .iwb-editor-toolbar {
@@ -367,12 +516,21 @@ export const CSS = `
 .iwb-editor-toolbar[data-overflow='true'] .iwb-breadcrumb .iwb-crumb-mid { display: none; }
 .iwb-editor-toolbar[data-overflow='true'] .iwb-breadcrumb .iwb-crumb-more { display: inline-flex; }
 .iwb-editor-toolbar .iwb-spacer { flex: 0 0 auto; }
+/* The segmented control: a sunken track with the chosen segment lifted out
+   of it. The old one was a hairline box with a coloured fill - the fill had
+   to carry the whole meaning, and a coloured fill on a 10px label is hard to
+   read. */
 .iwb-seg {
-  display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 6px; overflow: hidden; background: var(--iwb-panel);
+  display: inline-flex; border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-sm); overflow: hidden;
+  background: var(--iwb-surface-sunken); padding: 1px; gap: 1px;
 }
-.iwb-seg button { height: 22px; padding: 0 8px; font-size: 11.5px; color: var(--iwb-muted); }
-.iwb-seg button.iwb-on { background: var(--iwb-active-bg, rgba(76,154,255,.16)); color: var(--iwb-fg); }
-.iwb-seg button + button { border-left: 1px solid var(--iwb-border); }
+.iwb-seg button {
+  height: 22px; padding: 0 9px; font-size: 11.5px; color: var(--iwb-muted); border-radius: var(--iwb-radius-xs);
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease), color var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-seg button:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
+.iwb-seg button.iwb-on { background: var(--iwb-surface-raised); color: var(--iwb-fg); box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm); }
+.iwb-seg button + button { border-left: 0; }
 
 .iwb-code {
   flex: 1; min-height: 0; overflow: auto; font-family: var(--iwb-mono); font-size: 12.5px; line-height: var(--iwb-line, 20px);
@@ -380,7 +538,7 @@ export const CSS = `
 }
 .iwb-code-inner { position: relative; min-width: 100%; }
 .iwb-code-line { display: flex; align-items: flex-start; height: var(--iwb-line, 20px); white-space: pre; }
-.iwb-code-line:hover { background: rgba(127, 127, 127, .055); }
+.iwb-code-line:hover { background: var(--iwb-surface-hover); }
 .iwb-ln {
   flex: 0 0 var(--iwb-gutter, 52px); width: var(--iwb-gutter, 52px); text-align: right; padding-right: 12px;
   color: var(--iwb-muted); opacity: .65; font-variant-numeric: tabular-nums; user-select: none;
@@ -447,7 +605,7 @@ export const CSS = `
   height: 22px; min-width: 44px; padding: 0 4px; border-radius: 5px; color: var(--iwb-fg);
   font-variant-numeric: tabular-nums; font-size: 11px;
 }
-.iwb-pdf-zoom:hover { background: rgba(127, 127, 127, .14); }
+.iwb-pdf-zoom:hover { background: var(--iwb-surface-active); }
 .iwb-pdf-zoom.iwb-on { color: var(--iwb-accent); }
 .iwb-pdf-sep { width: 1px; height: 15px; background: var(--iwb-border); margin: 0 3px; flex: 0 0 auto; }
 .iwb-pdf-grow { flex: 1 1 auto; min-width: 0; }
@@ -509,8 +667,8 @@ export const CSS = `
   display: block; width: 100%; text-align: left; padding: 4px 8px; border-radius: 5px;
   color: var(--iwb-fg); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.iwb-outline-item:hover { background: rgba(127, 127, 127, .14); }
-.iwb-outline-item.iwb-active { background: rgba(76, 154, 255, .16); color: var(--iwb-accent); }
+.iwb-outline-item:hover { background: var(--iwb-surface-active); }
+.iwb-outline-item.iwb-active { background: var(--iwb-surface-selected); color: var(--iwb-accent); }
 .iwb-outline-empty { padding: 14px; color: var(--iwb-muted); font-size: 11.5px; text-align: center; }
 
 .iwb-welcome { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px; overflow: auto; }
@@ -520,16 +678,25 @@ export const CSS = `
 .iwb-welcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
 .iwb-welcome-action {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--iwb-border);
-  border-radius: 8px; background: var(--iwb-panel); color: var(--iwb-fg); text-align: left;
+  border-radius: var(--iwb-radius-md); background: var(--iwb-surface-raised); color: var(--iwb-fg); text-align: left;
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm);
+  transition: border-color var(--iwb-dur-fast) var(--iwb-ease), background-color var(--iwb-dur-fast) var(--iwb-ease), transform var(--iwb-dur-fast) var(--iwb-ease), box-shadow var(--iwb-dur-fast) var(--iwb-ease);
 }
-.iwb-welcome-action:hover { border-color: var(--iwb-border-strong); background: var(--iwb-panel-2); }
+.iwb-welcome-action:hover {
+  border-color: var(--iwb-border-strong); background: var(--iwb-panel-2);
+  transform: translateY(-1px); box-shadow: var(--iwb-highlight), var(--iwb-shadow-md);
+}
 .iwb-welcome-action .iwb-kbd { margin-left: auto; }
 .iwb-welcome-meta { display: flex; gap: 16px; color: var(--iwb-muted); font-size: 12px; border-top: 1px solid var(--iwb-border); padding-top: 14px; }
 .iwb-welcome-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--iwb-border); border-radius: 7px; color: var(--iwb-muted); font-size: 12px; }
 .iwb-commit-hint { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 11.5px; background: var(--iwb-panel-2); }
+/* The key cap: a chip that is PRESSED INTO the surface, not a little 3D
+   key drawn with a fat bottom border - that border was the most "retro"
+   detail of the old workbench. */
 .iwb-kbd {
-  display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 4px;
-  border: 1px solid var(--iwb-border-strong); border-bottom-width: 2px; background: var(--iwb-panel-2);
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--iwb-radius-xs);
+  border: 1px solid var(--iwb-border); background: var(--iwb-surface-sunken);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 18%, transparent);
   color: var(--iwb-muted); font-size: 10.5px; font-family: var(--iwb-mono); white-space: nowrap;
 }
 
@@ -543,7 +710,7 @@ export const CSS = `
 .iwb-bottom-resizer {
   position: absolute; top: -3px; left: 0; right: 0; height: 6px; cursor: row-resize; z-index: 5;
 }
-.iwb-bottom-resizer:hover { background: rgba(76, 154, 255, .22); }
+.iwb-bottom-resizer:hover { background: color-mix(in srgb, var(--iwb-accent) 22%, transparent); }
 .iwb-bottom-tabs {
   height: 30px; flex: 0 0 30px; display: flex; align-items: stretch; gap: 2px; padding: 0 8px 0 44px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
@@ -552,7 +719,7 @@ export const CSS = `
   display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 6px 6px 0 0;
   color: var(--iwb-muted); font-size: 12px; border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
-.iwb-bottom-tab:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .07); }
+.iwb-bottom-tab:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
 .iwb-bottom-tab.iwb-on { color: var(--iwb-fg); border-bottom-color: var(--iwb-accent); }
 .iwb-bottom-tab .iwb-badge { position: static; margin-left: 2px; }
 /* The repository picker in the Terminal/Git dock header. It is a chip of its
@@ -563,10 +730,10 @@ export const CSS = `
 .iwb-bottom-tabs .iwb-dock-repo {
   align-self: center; gap: 7px; height: 22px; max-width: 260px; margin-left: 14px;
   padding: 0 11px; border-radius: 11px;
-  background: rgba(127, 127, 127, .07); color: var(--iwb-fg);
+  background: var(--iwb-surface-hover); color: var(--iwb-fg);
 }
 .iwb-bottom-tabs .iwb-dock-repo:hover:not(:disabled) {
-  border-color: var(--iwb-border-strong); background: rgba(127, 127, 127, .14);
+  border-color: var(--iwb-border-strong); background: var(--iwb-surface-active);
 }
 .iwb-bottom-tabs .iwb-dock-repo:disabled { opacity: .5; cursor: default; }
 .iwb-bottom-tabs .iwb-dock-repo-dot {
@@ -582,6 +749,7 @@ export const CSS = `
 .iwb-statusbar {
   height: 22px; flex: 0 0 22px; display: flex; align-items: center; gap: 12px; padding: 0 10px;
   border-top: 1px solid var(--iwb-border); background: var(--iwb-sidebar); color: var(--iwb-muted); font-size: 11px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 5%, transparent);
 }
 .iwb-statusbar .iwb-spacer { flex: 1; }
 .iwb-status-item { display: inline-flex; align-items: center; gap: 4px; }
@@ -599,17 +767,19 @@ export const CSS = `
   display: flex; align-items: center; gap: 5px; height: 22px; padding-right: 8px; white-space: nowrap;
   cursor: pointer; position: relative;
 }
-.iwb-tree-row:hover { background: rgba(127, 127, 127, .1); }
-.iwb-tree-row.iwb-selected { background: rgba(76, 154, 255, .18); }
+.iwb-tree-row:hover { background: var(--iwb-surface-hover); }
+/* The selected row is marked by a hairline of the brand colour on its left
+   edge, not only by a tint: a tint alone is easy to lose in a long list. */
+.iwb-tree-row.iwb-selected { background: var(--iwb-surface-selected); box-shadow: inset 2px 0 0 var(--iwb-accent); }
 .iwb-tree:focus { outline: none; }
-.iwb-tree:focus-visible { outline: 1px solid rgba(76, 154, 255, .35); outline-offset: -1px; }
+.iwb-tree:focus-visible { outline: 1px solid color-mix(in srgb, var(--iwb-accent) 35%, transparent); outline-offset: -1px; }
 .iwb-tree-twisty { width: 16px; flex: 0 0 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--iwb-muted); }
 /* Only a directory twisty is a control; a file row keeps an empty spacer, so
    the pointer is limited to the rows that can actually be toggled. */
 .iwb-tree-twisty.iwb-tree-twisty-click,
 .iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty { cursor: pointer; border-radius: 3px; }
 .iwb-tree-twisty.iwb-tree-twisty-click:hover,
-.iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .16); }
+.iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty:hover { color: var(--iwb-fg); background: var(--iwb-surface-active); }
 /* The host's file glyph is an inline SVG in a flex row: keep it from being
    squeezed when a long name squeezes the row. */
 .iwb-file-icon { flex: 0 0 auto; }
@@ -625,7 +795,7 @@ export const CSS = `
 .iwb-tree-row.iwb-git-ignored { opacity: .65; }
 .iwb-tree-row.iwb-excluded { background: var(--iwb-excluded-bg); }
 .iwb-tree-row.iwb-excluded .iwb-tree-name { color: var(--iwb-git-ignored); }
-.iwb-tree-row.iwb-drop-target { outline: 1px solid var(--iwb-accent); outline-offset: -1px; background: rgba(76, 154, 255, .12); }
+.iwb-tree-row.iwb-drop-target { outline: 1px solid var(--iwb-accent); outline-offset: -1px; background: var(--iwb-surface-selected-soft); }
 .iwb-rename-input {
   flex: 1; min-width: 0; height: 18px; padding: 0 4px; border: 1px solid var(--iwb-accent); border-radius: 3px;
   background: var(--iwb-panel-2); color: var(--iwb-fg); font-size: 12px; outline: none;
@@ -670,7 +840,7 @@ export const CSS = `
   overflow: hidden; text-overflow: ellipsis; cursor: pointer;
 }
 .iwb-tree-sticky-item:last-child { flex: 0 0 auto; font-weight: 600; }
-.iwb-tree-sticky-item:hover { color: var(--iwb-accent); background: rgba(127, 127, 127, .14); }
+.iwb-tree-sticky-item:hover { color: var(--iwb-accent); background: var(--iwb-surface-active); }
 .iwb-tree-sticky-sep { opacity: .55; flex: 0 0 auto; }
 
 .iwb-filter {
@@ -708,18 +878,21 @@ export const CSS = `
 .iwb-link-actions .iwb-textbtn { height: auto; min-height: 28px; padding: 5px 14px; white-space: normal; text-align: center; }
 .iwb-error-box { margin: 8px; padding: 8px 10px; border: 1px solid rgba(226, 104, 111, .4); border-radius: 6px; background: rgba(226, 104, 111, .08); color: var(--iwb-error); font-size: 11.5px; white-space: pre-wrap; word-break: break-word; user-select: text; }
 
+/* The menu floats over the workbench: it has to look like it is ABOVE the
+   page, not painted on it. A soft ambient shadow and a hairline of light on
+   its top edge do that - a hard border alone reads as a panel. */
 .iwb-menu {
-  position: fixed; z-index: 40; padding: 4px; border-radius: 8px;
-  border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .38);
+  position: fixed; z-index: 40; padding: 4px; border-radius: var(--iwb-radius-md);
+  border: 1px solid var(--iwb-border-strong); background: var(--iwb-surface-overlay);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-lg);
   max-height: calc(100vh - 12px); overflow-y: auto; overflow-x: hidden;
 }
 .iwb-menu-sub { z-index: 41; }
 .iwb-menu .iwb-menu-item {
-  display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 6px 5px 4px; border-radius: 5px;
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 6px 5px 4px; border-radius: var(--iwb-radius-xs);
   text-align: left; font-size: 12px; color: var(--iwb-fg); white-space: nowrap;
 }
-.iwb-menu .iwb-menu-item:hover:not(:disabled) { background: rgba(127, 127, 127, .16); }
+.iwb-menu .iwb-menu-item:hover:not(:disabled) { background: var(--iwb-surface-active); }
 .iwb-menu .iwb-menu-item:disabled { opacity: .4; }
 .iwb-menu .iwb-menu-item.iwb-menu-danger { color: var(--iwb-error); }
 .iwb-menu-check { width: 12px; flex: 0 0 12px; text-align: center; color: var(--iwb-accent); }
@@ -731,11 +904,20 @@ export const CSS = `
 .iwb-menu .iwb-menu-label { padding: 5px 8px; color: var(--iwb-muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
 
 .iwb-field { display: flex; flex-direction: column; gap: 5px; margin: 10px 0; font-size: 12px; color: var(--iwb-muted); }
+/* An input is a well the text sits in: it is SUNKEN, not painted on the
+   surface - a soft inner shadow at the top says "this is below the page".
+   The focus ring is the brand colour, so the field that is being typed into
+   is the one that glows. */
 .iwb-field input, .iwb-field select {
-  height: 30px; padding: 0 9px; border-radius: 6px; border: 1px solid var(--iwb-border);
+  height: 30px; padding: 0 9px; border-radius: var(--iwb-radius-sm); border: 1px solid var(--iwb-border);
   background: var(--iwb-panel-2); color: var(--iwb-fg); font-size: 12.5px; outline: none;
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 16%, transparent);
+  transition: border-color var(--iwb-dur-fast) var(--iwb-ease), box-shadow var(--iwb-dur-fast) var(--iwb-ease);
 }
-.iwb-field input:focus, .iwb-field select:focus { border-color: var(--iwb-accent); }
+.iwb-field input:focus, .iwb-field select:focus {
+  border-color: var(--iwb-accent);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 16%, transparent), 0 0 0 3px var(--iwb-surface-glow);
+}
 
 .iwb-commit { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .iwb-commit-message { padding: 8px; border-bottom: 1px solid var(--iwb-border); }
@@ -758,16 +940,16 @@ export const CSS = `
   background: var(--iwb-panel); z-index: 2;
 }
 .iwb-group-header .iwb-count {
-  min-width: 16px; height: 16px; padding: 0 5px; border-radius: 999px; background: rgba(127, 127, 127, .18);
+  min-width: 16px; height: 16px; padding: 0 5px; border-radius: 999px; background: var(--iwb-surface-active);
   color: var(--iwb-fg); font-size: 10px; display: inline-flex; align-items: center; justify-content: center;
 }
 .iwb-group-header .iwb-spacer { flex: 1; }
 .iwb-file-row {
   display: flex; align-items: center; gap: 6px; height: 23px; padding: 0 8px 0 12px; cursor: pointer; font-size: 12px;
 }
-.iwb-file-row:hover { background: rgba(127, 127, 127, .1); }
-.iwb-file-row.iwb-active { background: rgba(76, 154, 255, .16); }
-.iwb-file-row.iwb-selected { background: rgba(76, 154, 255, .16); }
+.iwb-file-row:hover { background: var(--iwb-surface-hover); }
+.iwb-file-row.iwb-active { background: var(--iwb-surface-selected); }
+.iwb-file-row.iwb-selected { background: var(--iwb-surface-selected); box-shadow: inset 2px 0 0 var(--iwb-accent); }
 .iwb-file-row.iwb-file-untracked .iwb-file-name { color: var(--iwb-git-untracked); }
 .iwb-file-row.iwb-file-conflict .iwb-file-name { color: var(--iwb-git-conflict); font-weight: 600; }
 .iwb-file-row .iwb-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -775,7 +957,7 @@ export const CSS = `
 .iwb-file-row .iwb-file-status { color: var(--iwb-muted); font-size: 10px; width: 12px; text-align: center; font-family: var(--iwb-mono); }
 .iwb-group-empty { padding: 8px 12px; color: var(--iwb-muted); font-size: 11.5px; font-style: italic; }
 .iwb-commit-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--iwb-border); border-bottom: 1px solid var(--iwb-border); }
-.iwb-changelist-head { height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--iwb-muted); font-size: 11px; background: rgba(127, 127, 127, .06); }
+.iwb-changelist-head { height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--iwb-muted); font-size: 11px; background: var(--iwb-surface-hover); }
 .iwb-changelist-head .iwb-count { font-size: 10px; }
 .iwb-dir-heading { height: 22px; display: flex; align-items: center; padding: 0 10px 0 22px; color: var(--iwb-muted); font-size: 11px; }
 .iwb-file-row .iwb-file-stat { margin-left: auto; display: flex; gap: 5px; font-size: 10.5px; font-variant-numeric: tabular-nums; }
@@ -837,18 +1019,18 @@ export const CSS = `
    no second column that could be pushed around, so the line overflows
    horizontally into the shared scroll surface instead of being shrunk. */
 .iwb-diff-row .iwb-diff-text { min-width: max-content; }
-.iwb-diff-row.iwb-selected { outline: 1px solid rgba(76, 154, 255, .55); background: rgba(76, 154, 255, .22) !important; }
+.iwb-diff-row.iwb-selected { outline: 1px solid color-mix(in srgb, var(--iwb-accent) 55%, transparent); background: color-mix(in srgb, var(--iwb-accent) 22%, transparent) !important; }
 .iwb-diff-row.iwb-diff-find, .iwb-diff-side.iwb-diff-find { outline: 1px solid rgba(215,162,74,.65); outline-offset: -1px; }
-.iwb-diff-row.iwb-diff-find-active, .iwb-diff-side.iwb-diff-find-active { outline: 2px solid var(--iwb-accent); outline-offset: -2px; background: rgba(76,154,255,.2); }
+.iwb-diff-row.iwb-diff-find-active, .iwb-diff-side.iwb-diff-find-active { outline: 2px solid var(--iwb-accent); outline-offset: -2px; background: var(--iwb-surface-selected); }
 .iwb-word-add { background: rgba(79, 180, 119, .38); border-radius: 2px; }
 .iwb-word-del { background: rgba(226, 104, 111, .38); border-radius: 2px; }
-.iwb-diff-hunk { display: flex; align-items: center; height: 22px; background: rgba(127, 127, 127, .09); color: var(--iwb-muted); font-size: 11.5px; }
+.iwb-diff-hunk { display: flex; align-items: center; height: 22px; background: var(--iwb-surface-hover); color: var(--iwb-muted); font-size: 11.5px; }
 .iwb-diff-collapsed {
   display: flex; align-items: center; justify-content: center; height: 20px; cursor: pointer;
-  color: var(--iwb-muted); font-size: 11px; background: rgba(127, 127, 127, .07);
+  color: var(--iwb-muted); font-size: 11px; background: var(--iwb-surface-hover);
   border-top: 1px dashed var(--iwb-border); border-bottom: 1px dashed var(--iwb-border);
 }
-.iwb-diff-collapsed:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .14); }
+.iwb-diff-collapsed:hover { color: var(--iwb-fg); background: var(--iwb-surface-active); }
 .iwb-diff-hunk .iwb-hunk-text { padding: 0 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .iwb-diff-hunk .iwb-hunk-actions { display: none; padding-right: 6px; }
 .iwb-diff-hunk:hover .iwb-hunk-actions { display: flex; }
@@ -870,7 +1052,7 @@ export const CSS = `
 .iwb-diff-side-cell { display: flex; flex: 1 1 auto; height: 20px; min-width: 0; white-space: pre; overflow: hidden; border-right: 1px solid var(--iwb-border); }
 .iwb-diff-side-cell.iwb-add { background: rgba(79, 180, 119, .12); }
 .iwb-diff-side-cell.iwb-del { background: rgba(226, 104, 111, .12); }
-.iwb-diff-side-cell.iwb-blank { background: rgba(127, 127, 127, .05); }
+.iwb-diff-side-cell.iwb-blank { background: var(--iwb-surface-hover); }
 .iwb-diff-side .iwb-diff-num { width: 44px; flex: 0 0 44px; }
 .iwb-diff-side-head { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; color: var(--iwb-muted); font-size: 11px; background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border); }
 .iwb-binary { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--iwb-muted); }
@@ -884,7 +1066,7 @@ export const CSS = `
 }
 .iwb-path-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--iwb-mono); }
 .iwb-path-chip-clear { width: 16px; height: 16px; border-radius: 50%; color: var(--iwb-muted); font-size: 13px; line-height: 1; }
-.iwb-path-chip-clear:hover { background: rgba(127, 127, 127, .2); color: var(--iwb-fg); }
+.iwb-path-chip-clear:hover { background: var(--iwb-surface-active); color: var(--iwb-fg); }
 .iwb-select, .iwb-input {
   height: 24px; border-radius: 5px; border: 1px solid var(--iwb-border); background: var(--iwb-panel-2);
   padding: 0 7px; font-size: 11.5px; outline: none; color: var(--iwb-fg);
@@ -913,8 +1095,8 @@ export const CSS = `
 .iwb-git-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; }
 .iwb-git-rows { position: relative; }
 .iwb-git-row { position: absolute; left: 0; right: 0; cursor: pointer; font-size: 12px; }
-.iwb-git-row:hover { background: rgba(127, 127, 127, .09); }
-.iwb-git-row.iwb-selected { background: rgba(76, 154, 255, .16); }
+.iwb-git-row:hover { background: var(--iwb-surface-hover); }
+.iwb-git-row.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-git-row.iwb-compare { box-shadow: inset 2px 0 0 var(--iwb-warn); background: rgba(215, 162, 74, .12); }
 .iwb-compare-chip {
   display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 4px 0 8px;
@@ -943,7 +1125,7 @@ export const CSS = `
   display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 2px 6px; border-radius: 4px;
   font-size: 11.5px; color: var(--iwb-fg);
 }
-.iwb-git-file:hover { background: rgba(127, 127, 127, .14); }
+.iwb-git-file:hover { background: var(--iwb-surface-active); }
 .iwb-git-file-name { font-family: var(--iwb-mono); }
 
 .iwb-term { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -952,8 +1134,8 @@ export const CSS = `
   display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 5px;
   color: var(--iwb-muted); font-size: 11.5px; cursor: pointer; white-space: nowrap;
 }
-.iwb-term-tab:hover { background: rgba(127, 127, 127, .12); }
-.iwb-term-tab.iwb-on { color: var(--iwb-fg); background: rgba(76, 154, 255, .16); }
+.iwb-term-tab:hover { background: var(--iwb-surface-hover); }
+.iwb-term-tab.iwb-on { color: var(--iwb-fg); background: var(--iwb-surface-selected); }
 .iwb-term-tab .iwb-term-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--iwb-success); }
 .iwb-term-tab .iwb-term-dot.iwb-exited { background: var(--iwb-muted); }
 .iwb-term-panes { flex: 1; min-height: 0; position: relative; }
@@ -1118,8 +1300,8 @@ export const CSS = `
    dim also keeps the two layers from stacking into a black screen. */
 .iwb-modal-backdrop.iwb-confirm-backdrop { z-index: 55; background: rgba(0, 0, 0, .6); }
 .iwb-modal {
-  width: min(440px, calc(100% - 40px)); border-radius: 10px; border: 1px solid var(--iwb-border-strong);
-  background: var(--iwb-overlay); box-shadow: 0 24px 60px rgba(0, 0, 0, .45); padding: 16px 18px;
+  width: min(440px, calc(100% - 40px)); border-radius: var(--iwb-radius-lg); border: 1px solid var(--iwb-border-strong);
+  background: var(--iwb-surface-overlay); box-shadow: var(--iwb-highlight), var(--iwb-shadow-lg); padding: 16px 18px;
 }
 .iwb-modal h2 { font-size: 15px; margin: 0 0 8px; }
 .iwb-modal p { margin: 0 0 16px; color: var(--iwb-muted); font-size: 12.5px; white-space: pre-wrap; user-select: text; }
@@ -1170,6 +1352,25 @@ export const CSS = `
    follows the host theme like the rest of the workbench. */
 .iwb-new-entry-modal { width: min(480px, calc(100% - 40px)); }
 .iwb-new-entry-title { margin: 0 0 12px; font-size: 15px; }
+/* The kind of the entry (PRD-v8 NEW-01): a switch, not a guess. The shortcut
+   used to open a dialog that could only create a file, so "I wanted a
+   directory" ended up as a file with a directory's name. The kind is the
+   first thing the dialog says, and it can be changed without leaving it. */
+.iwb-new-entry-kind {
+  display: inline-flex; align-items: center; gap: 2px; margin: 0 0 14px; padding: 2px;
+  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-md);
+  background: var(--iwb-surface-sunken);
+}
+.iwb-new-entry-kind button {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 12px;
+  border-radius: var(--iwb-radius-sm); color: var(--iwb-muted); font-size: 12px;
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease), color var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-new-entry-kind button:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
+.iwb-new-entry-kind button.iwb-on {
+  color: var(--iwb-fg); background: var(--iwb-surface-raised);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm);
+}
 /* The frame of the target folder. */
 .iwb-new-entry-path {
   display: flex; flex-direction: column; gap: 7px;
@@ -1202,8 +1403,8 @@ export const CSS = `
   height: 34px; font-size: 13.5px; border-color: var(--iwb-border-strong);
 }
 .iwb-toast {
-  position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: 8px;
-  border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay); box-shadow: 0 10px 30px rgba(0,0,0,.4);
+  position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: var(--iwb-radius-md);
+  border: 1px solid var(--iwb-border-strong); background: var(--iwb-surface-overlay); box-shadow: var(--iwb-highlight), var(--iwb-shadow-lg);
   font-size: 12px; z-index: 60; display: flex; gap: 8px; align-items: flex-start;
 }
 .iwb-toast.iwb-error { border-color: rgba(226, 104, 111, .55); }
@@ -1214,7 +1415,7 @@ export const CSS = `
 .iwb-root-picker { display: flex; flex-direction: column; gap: 8px; }
 .iwb-root-list { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow: auto; }
 .iwb-root-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--iwb-border); text-align: left; }
-.iwb-root-item:hover { background: rgba(127, 127, 127, .1); }
+.iwb-root-item:hover { background: var(--iwb-surface-hover); }
 .iwb-root-item .iwb-root-path { color: var(--iwb-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
 .iwb-project-picker { width: min(620px, calc(100% - 40px)); max-height: min(80vh, 720px); display: flex; flex-direction: column; }
 .iwb-modal-hint { color: var(--iwb-muted); font-size: 12px; margin: -2px 0 12px; }
@@ -1224,8 +1425,8 @@ export const CSS = `
   display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 8px; border-radius: 7px;
   border: 1px solid transparent; text-align: left;
 }
-.iwb-project-choice:hover { background: rgba(127, 127, 127, .1); }
-.iwb-project-choice.iwb-current { border-color: var(--iwb-border-strong); background: rgba(76, 154, 255, .07); }
+.iwb-project-choice:hover { background: var(--iwb-surface-hover); }
+.iwb-project-choice.iwb-current { border-color: var(--iwb-border-strong); background: var(--iwb-surface-selected-soft); }
 .iwb-project-choice-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 18px; color: var(--iwb-muted); }
 .iwb-project-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .iwb-project-choice-text b { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1262,17 +1463,17 @@ export const CSS = `
   width: 24px; height: 24px; border-radius: 5px; color: var(--iwb-muted); display: inline-flex;
   align-items: center; justify-content: center; font-size: 13px;
 }
-.iwb-find-btn:hover:not(:disabled) { background: rgba(127,127,127,.14); color: var(--iwb-fg); }
+.iwb-find-btn:hover:not(:disabled) { background: var(--iwb-surface-active); color: var(--iwb-fg); }
 .iwb-find-btn:disabled { opacity: .35; }
 .iwb-find-flag {
   min-width: 26px; height: 22px; padding: 0 5px; border-radius: 4px; border: 1px solid transparent;
   color: var(--iwb-muted); font-family: var(--iwb-mono); font-size: 10.5px;
 }
-.iwb-find-flag:hover { background: rgba(127,127,127,.14); color: var(--iwb-fg); }
-.iwb-find-flag.iwb-on { border-color: var(--iwb-accent); color: var(--iwb-accent); background: rgba(76,154,255,.12); }
+.iwb-find-flag:hover { background: var(--iwb-surface-active); color: var(--iwb-fg); }
+.iwb-find-flag.iwb-on { border-color: var(--iwb-accent); color: var(--iwb-accent); background: var(--iwb-surface-selected-soft); }
 .iwb-dom-findbar { position: absolute; top: 0; left: 0; right: 0; z-index: 14; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
 ::highlight(iwb-dom-find) { background-color: rgba(215, 162, 74, .38); }
-::highlight(iwb-dom-find-active) { background-color: rgba(76, 154, 255, .55); color: inherit; }
+::highlight(iwb-dom-find-active) { background-color: color-mix(in srgb, var(--iwb-accent) 55%, transparent); color: inherit; }
 /* Editor-owned dialogs center on the *document* window, not on the whole
    workbench root: the backdrop is scoped to the editor pane so the top bar
    and the status bar stay untouched. */
@@ -1318,7 +1519,7 @@ export const CSS = `
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 9px;
   border-radius: 5px; text-align: left; font-size: 12px; color: var(--iwb-fg);
 }
-.iwb-search-popup-file:hover { background: rgba(127, 127, 127, .1); }
+.iwb-search-popup-file:hover { background: var(--iwb-surface-hover); }
 .iwb-search-popup-file.iwb-selected { background: color-mix(in srgb, var(--iwb-accent) 20%, transparent); }
 .iwb-search-popup-file-name { flex: 0 0 auto; white-space: nowrap; }
 .iwb-search-popup-file-dir { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--iwb-muted); font-size: 10.5px; }
@@ -1358,17 +1559,18 @@ export const CSS = `
 .iwb-quick-input { flex: 1; min-width: 80px; height: 30px; padding: 0 7px; border: 0; background: transparent; color: var(--iwb-fg); outline: none; font-size: 14px; user-select: text; }
 .iwb-quick-list { overflow: auto; padding: 4px; min-height: 40px; }
 .iwb-quick-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 27px; padding: 0 9px; border-radius: 5px; text-align: left; }
-.iwb-quick-row.iwb-selected { background: rgba(76,154,255,.2); }
+.iwb-quick-row.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-quick-name { font-size: 12.5px; white-space: nowrap; }
 .iwb-quick-dir { color: var(--iwb-muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-quick-empty { padding: 18px; text-align: center; color: var(--iwb-muted); font-size: 12px; }
 .iwb-quick-foot { padding: 6px 10px; border-top: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 10.5px; }
 
 /* ── Project filter modes / opened-vs-selected ───────────────────────── */
-.iwb-filter-mode { display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 4px; overflow: hidden; flex: 0 0 auto; }
-.iwb-filter-mode button { height: 20px; padding: 0 6px; color: var(--iwb-muted); font-size: 10.5px; }
-.iwb-filter-mode button.iwb-on { background: rgba(76,154,255,.18); color: var(--iwb-fg); }
-.iwb-filter-mode button + button { border-left: 1px solid var(--iwb-border); }
+.iwb-filter-mode { display: inline-flex; border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-sm); overflow: hidden; flex: 0 0 auto; background: var(--iwb-surface-sunken); padding: 1px; gap: 1px; }
+.iwb-filter-mode button { height: 20px; padding: 0 7px; color: var(--iwb-muted); font-size: 11px; border-radius: var(--iwb-radius-xs); }
+.iwb-filter-mode button:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
+.iwb-filter-mode button.iwb-on { background: var(--iwb-surface-raised); color: var(--iwb-fg); box-shadow: var(--iwb-highlight); }
+.iwb-filter-mode button + button { border-left: 0; }
 .iwb-filter-hint { padding: 0 12px 5px; color: var(--iwb-muted); font-size: 10.5px; }
 .iwb-error-text { color: var(--iwb-error); }
 .iwb-tree-row.iwb-opened .iwb-tree-name { color: var(--iwb-accent); font-weight: 600; }
@@ -1383,8 +1585,8 @@ export const CSS = `
   display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 7px; border-radius: 5px;
   border: 1px solid var(--iwb-border); color: var(--iwb-fg); font-size: 11.5px; max-width: 210px;
 }
-.iwb-branch-switch:hover { border-color: var(--iwb-border-strong); background: rgba(127,127,127,.08); }
-.iwb-branch-caret { color: var(--iwb-muted); font-size: 9px; }
+.iwb-branch-switch:hover { border-color: var(--iwb-border-strong); background: var(--iwb-surface-hover); }
+.iwb-branch-caret { color: var(--iwb-muted); font-size: 9px; display: inline-flex; align-items: center; }
 .iwb-branch-popover {
   position: fixed; z-index: 42; width: 260px; padding: 6px; border-radius: 8px;
   border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay);
@@ -1395,7 +1597,7 @@ export const CSS = `
   display: flex; align-items: center; gap: 6px; width: 100%; height: 25px; padding: 0 6px;
   border-radius: 4px; text-align: left; font-size: 12px;
 }
-.iwb-branch-row.iwb-selected { background: rgba(76,154,255,.2); }
+.iwb-branch-row.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-branch-check { width: 12px; flex: 0 0 12px; color: var(--iwb-accent); }
 .iwb-git-main { flex: 1; min-height: 0; display: flex; position: relative; }
 .iwb-git-table { flex: 1; min-width: 0; }
@@ -1408,7 +1610,7 @@ export const CSS = `
 }
 .iwb-git-drawer-backdrop { position: absolute; inset: 0; z-index: 11; background: rgba(0,0,0,.42); }
 .iwb-git-drawer-resizer { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 13; }
-.iwb-git-drawer-resizer:hover { background: rgba(76,154,255,.28); }
+.iwb-git-drawer-resizer:hover { background: color-mix(in srgb, var(--iwb-accent) 28%, transparent); }
 .iwb-git-drawer-head {
   display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 5px 6px 5px 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
@@ -1432,8 +1634,8 @@ export const CSS = `
   display: flex; align-items: center; gap: 5px; width: 100%; min-height: 23px; padding: 0 5px;
   border-radius: 4px; text-align: left; font-size: 11.5px;
 }
-.iwb-git-drawer-file:hover { background: rgba(127,127,127,.12); }
-.iwb-git-drawer-file.iwb-selected { background: rgba(76,154,255,.16); }
+.iwb-git-drawer-file:hover { background: var(--iwb-surface-hover); }
+.iwb-git-drawer-file.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-git-drawer-file .iwb-git-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-git-drawer-file .iwb-additions, .iwb-git-drawer-file .iwb-deletions { margin-left: 0; font-size: 10px; }
 /* Changed files render as a collapsible directory tree. */
@@ -1442,8 +1644,8 @@ export const CSS = `
   display: flex; align-items: center; gap: 5px; width: 100%; min-height: 23px; padding: 0 5px;
   border-radius: 4px; text-align: left; font-size: 11.5px;
 }
-.iwb-git-tree-dir:hover { background: rgba(127,127,127,.12); }
-.iwb-git-tree-caret { width: 10px; flex: 0 0 10px; color: var(--iwb-muted); font-size: 9px; text-align: center; }
+.iwb-git-tree-dir:hover { background: var(--iwb-surface-hover); }
+.iwb-git-tree-caret { width: 10px; flex: 0 0 10px; color: var(--iwb-muted); font-size: 9px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
 .iwb-git-tree-dir-name {
   font-family: var(--iwb-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -1541,5 +1743,27 @@ export const CSS = `
   .iwb-bottom { max-height: 60%; min-height: 100px; }
   .iwb-bottom-tabs { padding-left: 8px; }
   .iwb-bottom-body { padding-left: 0; }
+}
+
+/* ── the glass of the floating layers (PRD-v8 §2.3.5) ───────────────────────
+   The layers that sit ABOVE the content become translucent: they catch the
+   light on their top edge, they blur what is behind them, and they cast a
+   wide, soft shadow. A browser that cannot do the blur keeps the opaque
+   surface - the effect is an addition, never a requirement. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .iwb-menu,
+  .iwb-modal,
+  .iwb-toast,
+  .iwb-outline,
+  .iwb-html-actions {
+    background: var(--iwb-glass);
+    -webkit-backdrop-filter: var(--iwb-glass-blur);
+    backdrop-filter: var(--iwb-glass-blur);
+  }
+  .iwb-menu { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
+  .iwb-modal { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
+  .iwb-toast { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
+  .iwb-outline { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
+  .iwb-html-actions { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
 }
 `
