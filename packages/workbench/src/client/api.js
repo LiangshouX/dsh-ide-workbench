@@ -5,6 +5,10 @@
  * the Desktop shell's `dsh-app://app/` forwarding both work; the terminal
  * WebSocket needs the injected transport origin (`__DSH_TRANSPORT__.streamBaseUrl`)
  * because a custom scheme cannot host `ws:`.
+ *
+ * The JSON route answers the documents of the workspace as text; the binary
+ * route (`rawUrl`) answers the bytes of a document that the browser has to
+ * parse itself - a PDF is the only one today.
  */
 
 const PLACEHOLDER = 'http://dsh.internal/'
@@ -34,6 +38,24 @@ export function httpUrl(path) {
 export function wsUrl(path) {
   const url = new URL(String(path).replace(/^\/+/, ''), directoryBase(transportBase()))
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url
+}
+
+/**
+ * The absolute URL of the raw bytes of one file of the workspace.
+ *
+ * The binary route of the plugin serves the bytes of a document as bytes:
+ * the JSON route answers the metadata of a document only, so a large file
+ * never inflates a JSON answer by a third (PRD-v8 PDF-02).
+ *
+ * @param {string} root the workspace root
+ * @param {string} path the workspace-relative path of the file
+ * @returns {URL} the absolute URL of the bytes
+ */
+export function rawUrl(root, path) {
+  const url = httpUrl('ide-workbench/raw')
+  url.searchParams.set('root', String(root ?? ''))
+  url.searchParams.set('path', String(path ?? ''))
   return url
 }
 

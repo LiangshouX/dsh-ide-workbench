@@ -14,7 +14,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { IconChevron, IconExternal, IconFit, IconWarning } from './icons.jsx'
 import { formatBytes } from './util.js'
 import {
-  PDF_MAX_SCALE, PDF_MIN_SCALE, clampPdfScale, pdfFitScale, pdfOutputScale, pdfPageAtOffset,
+  PDF_MAX_SCALE, PDF_MIN_SCALE, clampPdfScale, fetchPdfBytes, pdfFitScale, pdfOutputScale, pdfPageAtOffset,
   pdfPercent, pdfVisibleRange, pdfZoomStep,
 } from './pdf-view.js'
 
@@ -185,9 +185,14 @@ function statusOf(error) {
 
 /**
  * The PDF preview of one file tab.
- * @param {{ t: Function, data: string, size?: number, name?: string, onOpenExternal?: Function }} props
+ *
+ * The bytes of the document are fetched from the binary route of the host
+ * (PRD-v8 PDF-04): they never travel through the JSON API, and they live in
+ * the renderer only while the tab is open.
+ *
+ * @param {{ t: Function, url: string, size?: number, name?: string, onOpenExternal?: Function }} props
  */
-export function PdfViewer({ t, data, size = 0, name = '', onOpenExternal }) {
+export function PdfViewer({ t, url, size = 0, name = '', onOpenExternal }) {
   const scrollRef = useRef(null)
   const pagesRef = useRef(null)
   const engineRef = useRef(null)
@@ -211,13 +216,18 @@ export function PdfViewer({ t, data, size = 0, name = '', onOpenExternal }) {
     currentPageRef.current = 1
     engineRef.current = null
     void import('./pdf-engine.js')
-      .then(engine => engine.openPdf(data, {
-        onProgress: (progress) => {
-          if (cancelled) return
-          const ratio = progress.total > 0 ? Math.min(1, progress.loaded / progress.total) : 0
-          setDoc(previous => (previous.status === 'loading' ? { ...previous, progress: ratio } : previous))
-        },
-      }))
+      .then(async (engine) => {
+        // The bytes come from the binary route of the host: a document of
+        // 20 MiB must not travel through a JSON answer (PRD-v8 PDF-04).
+        const bytes = await fetchPdfBytes(url)
+        return engine.openPdf(bytes, {
+          onProgress: (progress) => {
+            if (cancelled) return
+            const ratio = progress.total > 0 ? Math.min(1, progress.loaded / progress.total) : 0
+            setDoc(previous => (previous.status === 'loading' ? { ...previous, progress: ratio } : previous))
+          },
+        })
+      })
       .then((opened) => {
         if (cancelled) {
           opened.destroy()
@@ -237,7 +247,7 @@ export function PdfViewer({ t, data, size = 0, name = '', onOpenExternal }) {
         engineRef.current = null
       }
     }
-  }, [data, retryTick])
+  }, [url, retryTick])
 
   // The first page supplies the aspect ratio of the whole document. Every
   // page refines its own ratio when it is painted, so a mixed document still

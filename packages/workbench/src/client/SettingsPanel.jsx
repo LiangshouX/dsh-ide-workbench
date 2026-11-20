@@ -60,6 +60,38 @@ function Row({ label, hint, title, children }) {
 
 
 /**
+ * The default cap of the output of one terminal session (8 MiB).
+ *
+ * The host owns the value and falls back to the same number when the
+ * document carries none (PRD-v8 TERM-05). The constant is repeated here
+ * because the settings form lives in the browser and the host module reads
+ * the file system - it cannot be imported into the client bundle.
+ */
+const DEFAULT_TERMINAL_OUTPUT_LIMIT = 8 * 1024 * 1024
+
+/**
+ * The cap of the output, in MiB - the unit the field speaks.
+ * @param {any} bytes the value of the document
+ * @returns {number} the cap in MiB, at least one
+ */
+export function outputLimitMib(bytes) {
+  const value = typeof bytes === 'number' || typeof bytes === 'string' ? Number(bytes) : Number.NaN
+  const limit = Number.isFinite(value) && value > 0 ? value : DEFAULT_TERMINAL_OUTPUT_LIMIT
+  return Math.max(1, Math.round(limit / (1024 * 1024)))
+}
+
+/**
+ * The cap of the output in bytes.
+ * @param {number} mib the cap in MiB
+ * @returns {number} the cap in bytes
+ */
+export function mibToBytes(mib) {
+  const value = Number(mib)
+  if (!Number.isFinite(value) || value <= 0) return DEFAULT_TERMINAL_OUTPUT_LIMIT
+  return Math.round(value * 1024 * 1024)
+}
+
+/**
  * The patch of the "reset to defaults" button.
  *
  * The core resets the sections it owns. The section of the code intelligence
@@ -73,7 +105,7 @@ export function resetPatch() {
     idea: { path: '' },
     webstorm: { path: '' },
     vscode: { path: '' },
-    terminal: { shell: 'auto', copyOnSelect: false, fontSize: 13 },
+    terminal: { shell: 'auto', copyOnSelect: false, fontSize: 13, outputLimitBytes: DEFAULT_TERMINAL_OUTPUT_LIMIT },
     project: { alwaysSelectOpened: true, showHidden: true, showIgnored: false, singleClickOpen: false },
     commit: { groupByDirectory: false },
     delete: { useRecycleBin: true },
@@ -278,6 +310,18 @@ export function SettingsForm({ store, state, compact, contract = null, renderSlo
           type: 'number', min: 10, max: 20,
           value: draft.terminal?.fontSize ?? 13,
           onChange: event => update({ terminal: { fontSize: Number(event.target.value) || 13 } }),
+        }),
+      ),
+      React.createElement(Row, {
+        label: t('settings.terminalOutputLimit'),
+        hint: t('settings.terminalOutputLimitHint'),
+      },
+        React.createElement('input', {
+          type: 'number', min: 1, max: 512,
+          value: outputLimitMib(draft.terminal?.outputLimitBytes),
+          onChange: event => update({
+            terminal: { outputLimitBytes: mibToBytes(Number(event.target.value)) },
+          }),
         }),
       ),
     ),

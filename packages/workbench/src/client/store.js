@@ -6,7 +6,7 @@
  * not for the lifetime of the rendered panel, so switching back to the
  * Conversation and returning keeps tabs, expanded folders and layout.
  */
-import { call as hostCall } from './api.js'
+import { call as hostCall, rawUrl as hostRawUrl } from './api.js'
 import { isMarkdownFile } from './file-types.js'
 import {
   DEFAULT_CHANGELIST, assignChangelist, changelistOf, isEntryChecked, splitCommitGroups, checkedPathsOf,
@@ -2026,6 +2026,28 @@ export class WorkbenchStore {
     const base = root.replace(/\\/g, '/')
     if (base === '' || wide === base) return ''
     return wide.startsWith(`${base}/`) ? wide.slice(base.length + 1) : wide
+  }
+
+  /**
+   * The URL of the raw bytes of one file of the project.
+   *
+   * The path travels RELATIVE to the root: the host resolves the root
+   * itself, and a root that the host canonicalised (a symbolic link, a
+   * different case on Windows) would refuse an absolute path.
+   *
+   * The bytes themselves never reach the store: they live in the renderer
+   * while the document is open, and they are gone when the tab closes
+   * (PRD-v8 PDF-05).
+   *
+   * @param {string} path the absolute path of the file
+   * @returns {string} the absolute URL, '' when there is no project
+   */
+  rawUrl(path) {
+    const root = this.state.root
+    if (typeof root !== 'string' || root === '') return ''
+    const rel = this.relOf(path)
+    if (rel === '') return ''
+    return hostRawUrl(root, rel).href
   }
 
   // ── file operations (JetBrains tree) ──────────────────────────────────

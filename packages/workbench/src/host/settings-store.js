@@ -43,6 +43,16 @@ const FOREIGN_SECTION = 'lsp'
 /** The shortcuts of the document that belong to another plugin. */
 const FOREIGN_SHORTCUTS = Object.freeze(['findUsages', 'findUsagesText', 'goToDefinition', 'complete'])
 
+/**
+ * The default cap of the output of one terminal session, in bytes (8 MiB).
+ *
+ * The output of a terminal used to reach the renderer without a limit, and a
+ * `cat` of a big file filled the heap of the browser until the whole IDE
+ * died with it (PRD-v8 TERM-01). The cap is a setting, so a document can
+ * carry anything - and a value that is not a positive number is not a cap.
+ */
+export const DEFAULT_TERMINAL_OUTPUT_LIMIT = 8 * 1024 * 1024
+
 /** Deep defaults; a saved document is merged over this at load time. */
 export const DEFAULT_SETTINGS = {
   version: SETTINGS_VERSION,
@@ -72,6 +82,14 @@ export const DEFAULT_SETTINGS = {
     cwdMode: 'root',
     copyOnSelect: false,
     fontSize: 13,
+    /**
+     * The cap of the output of one terminal session, in bytes.
+     *
+     * The bytes of a session travel into the renderer of the IDE, so the
+     * stream has to end somewhere (PRD-v8 TERM-01). The session survives the
+     * cap - only the output stops.
+     */
+    outputLimitBytes: DEFAULT_TERMINAL_OUTPUT_LIMIT,
   },
   project: {
     alwaysSelectOpened: true,
@@ -294,6 +312,25 @@ function foreignSettingsOf(parsed) {
     if (Object.keys(shortcuts).length > 0) kept.shortcuts = shortcuts
   }
   return Object.keys(kept).length > 0 ? kept : null
+}
+
+/**
+ * The cap of the output of one terminal session, read from a document.
+ *
+ * The document is a file the user can edit, so the value can be anything:
+ * a number is a cap, everything else is not. A missing value, a string that
+ * is not a number and a cap of zero bytes all fall back to the default -
+ * a cap of zero would silence the terminal, which is not what a broken
+ * setting may do.
+ *
+ * @param {any} document the settings document
+ * @returns {number} the cap in bytes
+ */
+export function terminalOutputLimit(document) {
+  const value = document?.terminal?.outputLimitBytes
+  const number = typeof value === 'number' || typeof value === 'string' ? Number(value) : Number.NaN
+  if (!Number.isFinite(number) || number <= 0) return DEFAULT_TERMINAL_OUTPUT_LIMIT
+  return Math.trunc(number)
 }
 
 /**
