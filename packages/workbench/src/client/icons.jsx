@@ -11,49 +11,141 @@ import { useHostPrimitives } from './host-primitives.js'
 
 const S = { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': true }
 
+/**
+ * The grid of the four marks of the tool windows.
+ *
+ * They are drawn at 20 units and not at 16: the rail draws them at 17-20
+ * pixels, and a drawing that was made for 14 pixels goes soft when it is
+ * scaled up. The stroke is 1.8 units, which is the SAME optical weight as
+ * the 1.35 of the 16-grid set once the mark is scaled down to the 12-13
+ * pixels of a chip.
+ */
+const T = { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 20 20', width: 20, height: 20, 'aria-hidden': true }
+
 function svg(children, props = {}) {
   return React.createElement('svg', { ...S, ...props }, children)
+}
+
+/** One of the four marks of the tool windows, on the 20-grid. */
+function tool(children, props = {}) {
+  return React.createElement('svg', { ...T, ...props }, children)
 }
 
 function path(d, extra = {}) {
   return React.createElement('path', { key: extra.key ?? 'p', d, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35, strokeLinecap: 'round', strokeLinejoin: 'round', ...extra })
 }
 
+/** A path of the 20-grid: the stroke of the tool-window marks. */
+function toolPath(d, extra = {}) {
+  return React.createElement('path', {
+    key: extra.key ?? 'p', d, fill: 'none', stroke: 'currentColor',
+    strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', ...extra,
+  })
+}
+
+/** A filled dot of the 20-grid. */
+function toolDot(cx, cy, r, key) {
+  return React.createElement('circle', { key, cx, cy, r, fill: 'currentColor', stroke: 'none' })
+}
+
+/**
+ * The Project window: the file tree.
+ *
+ * A comb of three rows hanging off a spine. The old mark was a folder, and a
+ * folder says "folder" - not "the tree of the files of a project". The comb
+ * says exactly what the window shows, and it is a shape nothing else in the
+ * set uses.
+ */
 export function IconProject(props = {}) {
-  return svg([
-    React.createElement('path', { key: 'a', d: 'M1.8 4.2h4l1.3 1.6h7.1v6.9H1.8z', fill: 'none', stroke: 'currentColor', strokeWidth: 1.35, strokeLinejoin: 'round' }),
-    path('M1.8 7.2h12.4', { key: 'b' }),
-    path('M4.4 10h2.2', { key: 'c' }),
+  return tool([
+    toolPath('M4.6 6v8', { key: 'spine' }),
+    toolPath('M4.6 6h4.8', { key: 'arm1' }),
+    toolPath('M4.6 10h4.8', { key: 'arm2' }),
+    toolPath('M4.6 14h4.8', { key: 'arm3' }),
+    React.createElement('rect', { key: 'n1', x: 9.4, y: 4.6, width: 6.2, height: 2.8, rx: 1.1, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 }),
+    React.createElement('rect', { key: 'n2', x: 9.4, y: 8.6, width: 6.2, height: 2.8, rx: 1.1, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 }),
+    React.createElement('rect', { key: 'n3', x: 9.4, y: 12.6, width: 6.2, height: 2.8, rx: 1.1, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 }),
   ], props)
 }
 
+/**
+ * The Commit window: the changes that are waiting to be committed.
+ *
+ * A sheet split down the middle, with a mark on each side: a change here and
+ * a change there. The old mark (two dots joined by a line, with a tick) was
+ * the same drawing as the Git window - two windows that look alike are two
+ * windows nobody can tell apart.
+ */
 export function IconCommit(props = {}) {
-  return svg([
-    React.createElement('circle', { key: 'a', cx: 4, cy: 8, r: 1.8, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
-    path('M5.8 8h7.6', { key: 'b' }),
-    React.createElement('circle', { key: 'c', cx: 11.4, cy: 8, r: 1.8, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
-    path('M8.8 6.6l1.1 1.1 2-2.2', { key: 'd' }),
+  return tool([
+    React.createElement('rect', {
+      key: 'sheet', x: 2.6, y: 3.4, width: 14.8, height: 13.2, rx: 3.2,
+      fill: 'none', stroke: 'currentColor', strokeWidth: 1.8,
+    }),
+    toolPath('M10 3.4v13.2', { key: 'split' }),
+    toolPath('M5.4 8.4h2.4', { key: 'left' }),
+    toolPath('M12.2 11.8h2.4', { key: 'right' }),
   ], props)
 }
 
+/**
+ * The Git window: the history.
+ *
+ * A commit graph - a line with two nodes and a branch that peels off to a
+ * third. It is the shape of the thing itself, which is why it reads at a
+ * glance even at 13 pixels.
+ */
 export function IconGit(props = {}) {
-  return svg([
-    React.createElement('circle', { key: 'a', cx: 8, cy: 3.2, r: 1.7, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
-    path('M8 4.9v3', { key: 'b' }),
-    React.createElement('circle', { key: 'c', cx: 3.6, cy: 11.3, r: 1.7, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
-    React.createElement('circle', { key: 'd', cx: 12.4, cy: 11.3, r: 1.7, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
-    path('M8 7.9L4.2 9.8', { key: 'e' }),
-    path('M8 7.9l3.8 1.9', { key: 'f' }),
-    path('M8 7.9v0', { key: 'g' }),
+  return tool([
+    toolPath('M5.8 6.8v6.4', { key: 'spine' }),
+    toolPath('M5.8 12.2c0-3 2.2-4.6 4.6-4.6h1.6', { key: 'branch' }),
+    toolDot(5.8, 4.6, 2.2, 'head'),
+    toolDot(5.8, 15.4, 2.2, 'tail'),
+    toolDot(14.2, 7.6, 2.2, 'side'),
   ], props)
 }
 
+/**
+ * The Terminal window: the shell.
+ *
+ * A screen with a prompt. The old mark drew the prompt as a thin `>_`; this
+ * one gives the chevron the weight of a keystroke.
+ */
 export function IconTerminal(props = {}) {
-  return svg([
-    React.createElement('rect', { key: 'a', x: 1.6, y: 2.4, width: 12.8, height: 11.2, rx: 1.6, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
-    path('M4.4 6.2L6.6 8l-2.2 1.8', { key: 'b' }),
-    path('M8.7 10h2.9', { key: 'c' }),
+  return tool([
+    React.createElement('rect', {
+      key: 'screen', x: 2.4, y: 3.4, width: 15.2, height: 13.2, rx: 3.2,
+      fill: 'none', stroke: 'currentColor', strokeWidth: 1.8,
+    }),
+    toolPath('M6.2 8.4l2.6 2.6-2.6 2.6', { key: 'prompt' }),
+    toolPath('M11.4 13.4h4.2', { key: 'cursor' }),
   ], props)
+}
+
+/**
+ * The mark of the workbench itself: a window divided into the four tool
+ * windows, with one of them lit.
+ *
+ * It is the only mark of the set that is not about a file, a diff or a
+ * commit - it is about the PLACE, and the empty state of the workbench is
+ * the one place that needs to say so.
+ */
+export function WorkbenchMark(props = {}) {
+  const size = props.size ?? 56
+  const common = {
+    width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': true,
+    fill: 'none', stroke: 'currentColor', strokeWidth: 1.3,
+    strokeLinecap: 'round', strokeLinejoin: 'round',
+  }
+  return React.createElement('svg', { ...common, ...props, width: props.width ?? size, height: props.height ?? size },
+    React.createElement('rect', { key: 'frame', x: 2.6, y: 2.6, width: 18.8, height: 18.8, rx: 5 }),
+    React.createElement('path', { key: 'v', d: 'M12 2.6v18.8' }),
+    React.createElement('path', { key: 'h', d: 'M2.6 12h18.8' }),
+    React.createElement('rect', {
+      key: 'lit', x: 4.8, y: 4.8, width: 5.4, height: 5.4, rx: 1.8,
+      fill: 'currentColor', stroke: 'none',
+    }),
+  )
 }
 
 export function IconChat(props = {}) {

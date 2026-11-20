@@ -118,7 +118,7 @@ export const CSS = `
   --iwb-glass-blur: saturate(180%) blur(20px);
   --iwb-glass-edge: inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent), inset 0 0 0 1px color-mix(in srgb, #fff 9%, transparent);
   --iwb-glass-shadow: 0 20px 52px color-mix(in srgb, #000 46%, transparent), 0 2px 8px color-mix(in srgb, #000 26%, transparent);
-  /* ── the syntax palette (THEME-03) ──────────────────────────────────────
+  /* ── the syntax palette (THEME-03, redone in PRD-v8) ─────────────────────
      The host has no syntax aliases, and no single colour can serve both of
      its themes: a colour that clears 4.5:1 on white needs a relative
      luminance of 0.183 or less, while the dark code layer #232830 needs
@@ -131,47 +131,60 @@ export const CSS = `
      while the lightness comes from the host - and that is what makes one
      token readable on a light theme and on a dark one. Nothing switches on
      prefers-color-scheme, and nothing waits for the host.
-     The SHARE of the hue is what differs per theme, and it has to: in a light
-     theme the text is near-black, so a LARGE share of the hue keeps the token
-     a colour (with the dark theme's 52% the violet washed out to near-black
-     and the code looked unhighlighted); in a dark theme the text is
-     near-white, so a SMALL share lifts the hue just far enough to clear the
-     dark code layer. The branch follows the host through light-dark(),
-     which resolves on the color-scheme the host declares for its theme
-     (the DSH host writes :root { color-scheme: light|dark } for every
-     theme - app or system). Nothing switches on prefers-color-scheme, and
-     nothing waits for the host. tests/styles-theme.test.mjs does the oklab
-     maths and checks every token, in both branches, on all three surfaces
-     (white, the editor background and the code layer). */
-  --iwb-syn-comment-light: color-mix(in oklab, #6b7482 80%, var(--iwb-fg) 20%);
-  --iwb-syn-comment-dark: color-mix(in oklab, #6b7482 52%, var(--iwb-fg) 48%);
+
+     The SHARES are the part that decides whether the code looks ALIVE. Each
+     branch mixes the hue with the text colour of its theme, and the two
+     shares sum to 100%:
+
+       light: 76% hue + 24% near-black   -> the hue darkens into the page
+                                            but keeps its identity;
+       dark:  86% hue + 14% near-white   -> the hue stays VIVID on the dark
+                                            code layer instead of being
+                                            washed into a pastel.
+
+     The old palette mixed 80%/52%, and the dark branch came out dusty: a
+     keyword was a pale violet and a string a pale olive - readable, but
+     nobody would call it modern. The hues below were picked for CHARACTER
+     (a keyword never reads as a string, a type never as a function), and
+     their lightness was then SOLVED for the most colour that still clears
+     5.25:1 on white, on the dark editor and on the dark code layer.
+
+     The branch follows the host through light-dark(), which resolves on the
+     color-scheme the host declares for its theme (the DSH host writes
+     :root { color-scheme: light|dark } for every theme - app or system).
+     Nothing switches on prefers-color-scheme, and nothing waits for the
+     host. tests/styles-theme.test.mjs does the oklab maths and checks every
+     token, in both branches, on all three surfaces (white, the editor
+     background and the code layer). */
+  --iwb-syn-comment-light: color-mix(in oklab, #638392 76%, var(--iwb-fg) 24%);
+  --iwb-syn-comment-dark: color-mix(in oklab, #638392 50%, var(--iwb-fg) 50%);
   --iwb-syn-comment: light-dark(var(--iwb-syn-comment-light), var(--iwb-syn-comment-dark));
-  --iwb-syn-string-light: color-mix(in oklab, #2a8359 80%, var(--iwb-fg) 20%);
-  --iwb-syn-string-dark: color-mix(in oklab, #2a8359 52%, var(--iwb-fg) 48%);
+  --iwb-syn-string-light: color-mix(in oklab, #259f56 76%, var(--iwb-fg) 24%);
+  --iwb-syn-string-dark: color-mix(in oklab, #259f56 76%, var(--iwb-fg) 24%);
   --iwb-syn-string: light-dark(var(--iwb-syn-string-light), var(--iwb-syn-string-dark));
-  --iwb-syn-keyword-light: color-mix(in oklab, #9455b5 80%, var(--iwb-fg) 20%);
-  --iwb-syn-keyword-dark: color-mix(in oklab, #9455b5 52%, var(--iwb-fg) 48%);
+  --iwb-syn-keyword-light: color-mix(in oklab, #a870e9 76%, var(--iwb-fg) 24%);
+  --iwb-syn-keyword-dark: color-mix(in oklab, #a870e9 76%, var(--iwb-fg) 24%);
   --iwb-syn-keyword: light-dark(var(--iwb-syn-keyword-light), var(--iwb-syn-keyword-dark));
-  --iwb-syn-type-light: color-mix(in oklab, #12838d 80%, var(--iwb-fg) 20%);
-  --iwb-syn-type-dark: color-mix(in oklab, #12838d 52%, var(--iwb-fg) 48%);
+  --iwb-syn-type-light: color-mix(in oklab, #0099a8 76%, var(--iwb-fg) 24%);
+  --iwb-syn-type-dark: color-mix(in oklab, #0099a8 74%, var(--iwb-fg) 26%);
   --iwb-syn-type: light-dark(var(--iwb-syn-type-light), var(--iwb-syn-type-dark));
-  --iwb-syn-number-light: color-mix(in oklab, #a1651c 80%, var(--iwb-fg) 20%);
-  --iwb-syn-number-dark: color-mix(in oklab, #a1651c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-number-light: color-mix(in oklab, #d07200 76%, var(--iwb-fg) 24%);
+  --iwb-syn-number-dark: color-mix(in oklab, #d07200 74%, var(--iwb-fg) 26%);
   --iwb-syn-number: light-dark(var(--iwb-syn-number-light), var(--iwb-syn-number-dark));
-  --iwb-syn-function-light: color-mix(in oklab, #2a6cbd 80%, var(--iwb-fg) 20%);
-  --iwb-syn-function-dark: color-mix(in oklab, #2a6cbd 52%, var(--iwb-fg) 48%);
+  --iwb-syn-function-light: color-mix(in oklab, #2a8ee7 76%, var(--iwb-fg) 24%);
+  --iwb-syn-function-dark: color-mix(in oklab, #2a8ee7 76%, var(--iwb-fg) 24%);
   --iwb-syn-function: light-dark(var(--iwb-syn-function-light), var(--iwb-syn-function-dark));
-  --iwb-syn-property-light: color-mix(in oklab, #4a63b8 80%, var(--iwb-fg) 20%);
-  --iwb-syn-property-dark: color-mix(in oklab, #4a63b8 52%, var(--iwb-fg) 48%);
+  --iwb-syn-property-light: color-mix(in oklab, #009b8f 76%, var(--iwb-fg) 24%);
+  --iwb-syn-property-dark: color-mix(in oklab, #009b8f 74%, var(--iwb-fg) 26%);
   --iwb-syn-property: light-dark(var(--iwb-syn-property-light), var(--iwb-syn-property-dark));
-  --iwb-syn-tag-light: color-mix(in oklab, #bb404f 80%, var(--iwb-fg) 20%);
-  --iwb-syn-tag-dark: color-mix(in oklab, #bb404f 52%, var(--iwb-fg) 48%);
+  --iwb-syn-tag-light: color-mix(in oklab, #e45c79 76%, var(--iwb-fg) 24%);
+  --iwb-syn-tag-dark: color-mix(in oklab, #e45c79 74%, var(--iwb-fg) 26%);
   --iwb-syn-tag: light-dark(var(--iwb-syn-tag-light), var(--iwb-syn-tag-dark));
-  --iwb-syn-heading-light: color-mix(in oklab, #1e70e2 80%, var(--iwb-fg) 20%);
-  --iwb-syn-heading-dark: color-mix(in oklab, #1e70e2 52%, var(--iwb-fg) 48%);
+  --iwb-syn-heading-light: color-mix(in oklab, #6684f4 76%, var(--iwb-fg) 24%);
+  --iwb-syn-heading-dark: color-mix(in oklab, #6684f4 76%, var(--iwb-fg) 24%);
   --iwb-syn-heading: light-dark(var(--iwb-syn-heading-light), var(--iwb-syn-heading-dark));
-  --iwb-syn-invalid-light: color-mix(in oklab, #bb352c 80%, var(--iwb-fg) 20%);
-  --iwb-syn-invalid-dark: color-mix(in oklab, #bb352c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-invalid-light: color-mix(in oklab, #ee564a 76%, var(--iwb-fg) 24%);
+  --iwb-syn-invalid-dark: color-mix(in oklab, #ee564a 74%, var(--iwb-fg) 26%);
   --iwb-syn-invalid: light-dark(var(--iwb-syn-invalid-light), var(--iwb-syn-invalid-dark));
   --iwb-sidebar: var(--dsw-specific-sidebar-fill, #181b21);
   --iwb-mod: #4c9aff;
@@ -230,6 +243,15 @@ export const CSS = `
      get tabular figures - proportional digits make a table of counters jump
      around on every update. */
   font-variant-numeric: tabular-nums;
+  /* The ligatures of the code face. Cascadia Code and JetBrains Mono draw
+     the "not equal", the "greater or equal" and the "arrow" of an operator
+     as ONE glyph; on the code of a modern IDE that reads as "this is code",
+     and it costs nothing: the face is already there. */
+  font-variant-ligatures: contextual;
+  /* Segoe UI Variable (Windows 11) is a variable face with an optical size
+     axis: it draws itself differently for a 13px label than for a 28px
+     title. The browser only uses that axis when it is told to. */
+  font-optical-sizing: auto;
   user-select: none;
   -webkit-app-region: no-drag;
 }
@@ -318,13 +340,20 @@ export const CSS = `
 .iwb-project-select .iwb-project-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-select .iwb-project-path { color: var(--iwb-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-branch-chip {
-  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
-  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-pill); color: var(--iwb-muted); font-size: var(--iwb-text-body);
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+  border-radius: var(--iwb-radius-pill); color: var(--iwb-muted); font-size: 11.5px;
   max-width: 240px; overflow: hidden;
-  background: var(--iwb-sheen), var(--iwb-panel-2);
-  box-shadow: var(--iwb-highlight);
+  /* The chip is PART of the bar, not an object lying on it. A sheen and a
+     shadow made it read as a pasted-on sticker from another layer; a tint of
+     the brand colour and a hairline of its own say the same thing without
+     the seam. */
+  background: color-mix(in srgb, var(--iwb-accent) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--iwb-accent) 24%, transparent);
 }
-.iwb-branch-chip .iwb-branch-name { color: var(--iwb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iwb-branch-chip .iwb-branch-name {
+  color: var(--iwb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--iwb-mono); font-size: 11px; letter-spacing: -.01em;
+}
 .iwb-ahead { color: var(--iwb-success); font-variant-numeric: tabular-nums; }
 .iwb-behind { color: var(--iwb-warn); font-variant-numeric: tabular-nums; }
 /* The badge is a button (PUSH-02): it keeps the colour of the badge it
@@ -671,24 +700,80 @@ export const CSS = `
 .iwb-outline-item.iwb-active { background: var(--iwb-surface-selected); color: var(--iwb-accent); }
 .iwb-outline-empty { padding: 14px; color: var(--iwb-muted); font-size: 11.5px; text-align: center; }
 
-.iwb-welcome { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px; overflow: auto; }
-.iwb-welcome-card { max-width: 560px; width: 100%; }
-.iwb-welcome-title { font-size: 26px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 6px; }
-.iwb-welcome-sub { color: var(--iwb-muted); margin: 0 0 22px; font-size: 13px; }
-.iwb-welcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+/* ── the empty state (PRD-v8) ───────────────────────────────────────────────
+   The empty workbench used to read like a README: a title, a sentence and
+   four rows of shortcut. It is now the FRONT DOOR of the workbench - a mark,
+   one sentence, and the four tool windows as CARDS you can walk into.
+
+   The mark sits in a plate of its own and a soft glow sits behind it: the
+   window is empty, and an empty window that is flat reads as "nothing is
+   here" instead of "nothing is open YET". */
+.iwb-welcome {
+  flex: 1; min-height: 0; display: flex; overflow: auto; padding: 28px 32px;
+  position: relative;
+}
+.iwb-welcome::before {
+  content: ''; position: absolute; left: 50%; top: 32%; pointer-events: none;
+  width: 560px; height: 340px; transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--iwb-accent) 15%, transparent), transparent 68%);
+}
+/* The card is centred by its OWN margins, not by the alignment of the
+   parent: a centred flex child that does not fit is clipped at the TOP, and
+   the mark - the first thing the reader sees - is what disappears. With the
+   margins the card is centred when there is room and starts at the top when
+   there is not. */
+.iwb-welcome-card {
+  position: relative; margin: auto; max-width: 680px; width: 100%;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+}
+.iwb-welcome-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 72px; height: 72px; margin-bottom: 20px; border-radius: 22px;
+  color: var(--iwb-accent);
+  background: var(--iwb-sheen), var(--iwb-surface-raised);
+  border: 1px solid var(--iwb-border);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-md), 0 0 0 6px color-mix(in srgb, var(--iwb-accent) 8%, transparent);
+}
+.iwb-welcome-title {
+  margin: 0 0 8px; font-size: 26px; font-weight: 650; letter-spacing: -.02em; line-height: 1.15;
+}
+.iwb-welcome-sub {
+  margin: 0 0 26px; color: var(--iwb-muted); font-size: 13px; line-height: 1.6; max-width: 46ch;
+}
+.iwb-welcome-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  width: 100%; margin-bottom: 22px;
+}
+/* A card, not a row: the four windows are the doors of the workbench, and a
+   door has a face you can read at a glance. */
 .iwb-welcome-action {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--iwb-border);
-  border-radius: var(--iwb-radius-md); background: var(--iwb-surface-raised); color: var(--iwb-fg); text-align: left;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  padding: 14px 14px 12px; border-radius: var(--iwb-radius-lg);
+  border: 1px solid var(--iwb-border); background: var(--iwb-surface-raised);
+  color: var(--iwb-fg); text-align: left;
   box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm);
   transition: border-color var(--iwb-dur-fast) var(--iwb-ease), background-color var(--iwb-dur-fast) var(--iwb-ease), transform var(--iwb-dur-fast) var(--iwb-ease), box-shadow var(--iwb-dur-fast) var(--iwb-ease);
 }
 .iwb-welcome-action:hover {
-  border-color: var(--iwb-border-strong); background: var(--iwb-panel-2);
-  transform: translateY(-1px); box-shadow: var(--iwb-highlight), var(--iwb-shadow-md);
+  border-color: color-mix(in srgb, var(--iwb-accent) 42%, var(--iwb-border));
+  background: var(--iwb-panel-2);
+  transform: translateY(-2px); box-shadow: var(--iwb-highlight), var(--iwb-shadow-md);
 }
-.iwb-welcome-action .iwb-kbd { margin-left: auto; }
-.iwb-welcome-meta { display: flex; gap: 16px; color: var(--iwb-muted); font-size: 12px; border-top: 1px solid var(--iwb-border); padding-top: 14px; }
-.iwb-welcome-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--iwb-border); border-radius: 7px; color: var(--iwb-muted); font-size: 12px; }
+.iwb-welcome-action-icon { color: var(--iwb-accent); display: inline-flex; }
+.iwb-welcome-action-name { font-size: 13px; font-weight: 600; letter-spacing: .01em; }
+.iwb-welcome-action-key {
+  font-family: var(--iwb-mono); font-size: 10.5px; color: var(--iwb-muted); letter-spacing: .02em;
+}
+.iwb-welcome-meta {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  color: var(--iwb-muted); font-size: 12px; border-top: 1px solid var(--iwb-border);
+  padding-top: 16px; width: 100%;
+}
+.iwb-welcome-meta-label { color: var(--iwb-muted); }
+.iwb-welcome-meta-label::after { content: ' ·'; margin-left: 6px; color: var(--iwb-muted); opacity: .6; }
+.iwb-welcome-meta-value { font-family: var(--iwb-mono); color: var(--iwb-fg); }
+.iwb-welcome-meta-path { font-family: var(--iwb-mono); font-size: 11.5px; opacity: .8; }
+.iwb-welcome-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; padding: 8px 10px; border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-md); color: var(--iwb-muted); font-size: 12px; }
 .iwb-commit-hint { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 11.5px; background: var(--iwb-panel-2); }
 /* The key cap: a chip that is PRESSED INTO the surface, not a little 3D
    key drawn with a fat bottom border - that border was the most "retro"
@@ -1058,7 +1143,25 @@ export const CSS = `
 .iwb-binary { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--iwb-muted); }
 
 .iwb-git { display: flex; flex-direction: column; height: 100%; min-height: 0; flex: 1 1 auto; width: 100%; min-width: 0; }
-.iwb-git-filters { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--iwb-border); flex-wrap: wrap; }
+/* The filter row reads as TWO clusters (PRD-v8): the SCOPE says WHERE the
+   history comes from (which repository, which branch), the FILTERS say what
+   of it is shown. One strip of six unrelated controls told the reader
+   nothing about which was which. */
+.iwb-git-filters {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  border-bottom: 1px solid var(--iwb-border); flex-wrap: wrap;
+}
+.iwb-git-scope {
+  display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding-right: 10px; border-right: 1px solid var(--iwb-border);
+}
+.iwb-git-filter-fields {
+  display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0;
+}
+/* The scope control is a segmented switch: it names both options and marks
+   the chosen one, so it can never be mistaken for a label. */
+.iwb-git-scope .iwb-seg { flex: 0 0 auto; }
+.iwb-git-scope .iwb-seg button { white-space: nowrap; }
 .iwb-path-chip {
   display: inline-flex; align-items: center; gap: 4px; max-width: 260px; height: 22px; padding: 0 4px 0 8px;
   border: 1px solid var(--iwb-border-strong); border-radius: 999px; background: var(--iwb-panel-2);

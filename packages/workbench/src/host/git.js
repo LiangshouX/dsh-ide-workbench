@@ -597,6 +597,9 @@ export async function push(env) {
 const LOG_FIELD = '\x1f'
 const LOG_RECORD = '\x1e'
 
+/** The format of one commit record of the log stream. */
+const LOG_FORMAT = `--pretty=format:%H${LOG_FIELD}%h${LOG_FIELD}%P${LOG_FIELD}%an${LOG_FIELD}%ae${LOG_FIELD}%ai${LOG_FIELD}%D${LOG_FIELD}%s${LOG_RECORD}`
+
 /** Parse the custom `git log` record stream. */
 function parseLog(stdout) {
   const commits = []
@@ -621,35 +624,64 @@ function parseLog(stdout) {
 }
 
 /**
+ * One page of one walk of the history.
+ * @param {{ gitPath?: string, root: string }} env
+ * @param {string[]} args the arguments of the walk
+ * @param {{ allowFailure?: boolean }} [options]
+ * @returns {Promise<object[]>} the commits of that page
+ */
+async function logPage(env, args, options = {}) {
+  const { stdout } = await runGit(env, args, options)
+  return parseLog(stdout)
+}
+
+/**
  * One page of history.
+ *
+ * Without a branch the page holds TWO windows: the newest commits of the
+ * whole repository (`--all`) and the newest commits of the branch that is
+ * checked out (`HEAD`). The client filters the rows it has - the branch
+ * scope, the author, the message and the date (see `git-layout.js`) - and it
+ * can only answer the branch scope if the history of that branch is IN the
+ * page: the newest commits of the whole repository do not always include it
+ * (a branch that was not touched for a month has its tip far behind the
+ * newest commits, and the "current branch" scope would have nothing to show).
+ *
+ * The commits of HEAD that the `--all` window does not have are older than
+ * every commit of that window, so the two windows are concatenated and the
+ * page stays ordered from the newest to the oldest.
+ *
  * @param {{ gitPath?: string, root: string }} env
  * @param {{ skip?: number, count?: number, branch?: string, author?: string, query?: string,
- *   since?: string, regex?: boolean }} options
+ *   since?: string, regex?: boolean, path?: string }} options
  */
 export async function log(env, options = {}) {
   const count = Math.min(Math.max(options.count ?? 200, 1), 500)
   const skip = Math.max(options.skip ?? 0, 0)
-  const args = [
-    'log',
-    `--pretty=format:%H${LOG_FIELD}%h${LOG_FIELD}%P${LOG_FIELD}%an${LOG_FIELD}%ae${LOG_FIELD}%ai${LOG_FIELD}%D${LOG_FIELD}%s${LOG_RECORD}`,
-    '--date=iso',
-    '--topo-order',
-    `--max-count=${count}`,
-  ]
-  if (skip > 0) args.push(`--skip=${skip}`)
-  if (options.branch && options.branch !== '') args.push(options.branch)
-  else args.push('--all')
-  if (options.author && options.author !== '') args.push(`--author=${options.author}`)
+  const base = ['log', LOG_FORMAT, '--date=iso', '--topo-order', `--max-count=${count}`]
+  if (skip > 0) base.push(`--skip=${skip}`)
+  const filters = []
+  if (options.author && options.author !== '') filters.push(`--author=${options.author}`)
   if (options.query && options.query !== '') {
     // A literal query must not be interpreted as a regex: typing `[` in the
     // filter used to exit 128 and blank the whole history.
-    if (options.regex !== true) args.push('--fixed-strings')
-    args.push(`--grep=${options.query}`, '--regexp-ignore-case')
+    if (options.regex !== true) filters.push('--fixed-strings')
+    filters.push(`--grep=${options.query}`, '--regexp-ignore-case')
   }
-  if (options.since && options.since !== '') args.push(`--since=${options.since}`)
-  if (options.path && options.path !== '') args.push('--', options.path)
-  const { stdout } = await runGit(env, args)
-  return parseLog(stdout)
+  if (options.since && options.since !== '') filters.push(`--since=${options.since}`)
+  if (options.path && options.path !== '') filters.push('--', options.path)
+  const branch = typeof options.branch === 'string' && options.branch !== '' ? options.branch : ''
+  if (branch !== '') {
+    // A branch filter is a server-side one: git walks that branch itself.
+    return logPage(env, [...base, branch, ...filters])
+  }
+  const commits = await logPage(env, [...base, '--all', ...filters])
+  // The window of the checked out branch. A repository without commits (an
+  // unborn HEAD) has none, and that is not an error: the `--all` window is
+  // the answer then.
+  const head = await logPage(env, [...base, 'HEAD', ...filters], { allowFailure: true })
+  const seen = new Set(commits.map(commit => commit.hash))
+  return [...commits, ...head.filter(commit => !seen.has(commit.hash))]
 }
 
 /** Local branch names plus the current one. */

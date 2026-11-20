@@ -33135,7 +33135,7 @@ function drawTriangle(t3, e2, i3, n2, s16, r2, a3, o3) {
   }
   const p2 = (l2[2 * i3] + e2.offsetX) * e2.scaleX, g2 = (l2[2 * i3 + 1] + e2.offsetY) * e2.scaleY, m2 = (l2[2 * n2] + e2.offsetX) * e2.scaleX, f2 = (l2[2 * n2 + 1] + e2.offsetY) * e2.scaleY, b3 = (l2[2 * s16] + e2.offsetX) * e2.scaleX, y2 = (l2[2 * s16 + 1] + e2.offsetY) * e2.scaleY;
   if (g2 >= y2) return;
-  const v3 = h3[4 * r2], w2 = h3[4 * r2 + 1], A3 = h3[4 * r2 + 2], x2 = h3[4 * a3], C4 = h3[4 * a3 + 1], E2 = h3[4 * a3 + 2], S5 = h3[4 * o3], T2 = h3[4 * o3 + 1], _3 = h3[4 * o3 + 2], k2 = Math.round(g2), D3 = Math.round(y2);
+  const v3 = h3[4 * r2], w2 = h3[4 * r2 + 1], A3 = h3[4 * r2 + 2], x2 = h3[4 * a3], C4 = h3[4 * a3 + 1], E2 = h3[4 * a3 + 2], S5 = h3[4 * o3], T3 = h3[4 * o3 + 1], _3 = h3[4 * o3 + 2], k2 = Math.round(g2), D3 = Math.round(y2);
   let P2, M3, I2, F3, O2, B3, R3, L4;
   for (let t4 = k2; t4 <= D3; t4++) {
     if (t4 < f2) {
@@ -33149,14 +33149,14 @@ function drawTriangle(t3, e2, i3, n2, s16, r2, a3, o3) {
       e4 = t4 > y2 ? 1 : f2 === y2 ? 0 : (f2 - t4) / (f2 - y2);
       P2 = m2 - (m2 - b3) * e4;
       M3 = x2 - (x2 - S5) * e4;
-      I2 = C4 - (C4 - T2) * e4;
+      I2 = C4 - (C4 - T3) * e4;
       F3 = E2 - (E2 - _3) * e4;
     }
     let e3;
     e3 = t4 < g2 ? 0 : t4 > y2 ? 1 : (g2 - t4) / (g2 - y2);
     O2 = p2 - (p2 - b3) * e3;
     B3 = v3 - (v3 - S5) * e3;
-    R3 = w2 - (w2 - T2) * e3;
+    R3 = w2 - (w2 - T3) * e3;
     L4 = A3 - (A3 - _3) * e3;
     const i4 = Math.round(Math.min(P2, O2)), n3 = Math.round(Math.max(P2, O2));
     let s17 = d2 * t4 + 4 * i4;
@@ -33459,7 +33459,7 @@ function getDocument(e2 = {}) {
     throw new Error("Invalid PDF binary data: either TypedArray, string, or array-like object is expected in the data property.");
   })(e2.data) : null, a3 = e2.httpHeaders || null, o3 = true === e2.withCredentials, l2 = e2.password ?? null, h3 = e2.range instanceof PDFDataRangeTransport ? e2.range : null, c2 = Number.isInteger(e2.rangeChunkSize) && e2.rangeChunkSize > 0 ? e2.rangeChunkSize : 65536;
   let d2 = e2.worker instanceof PDFWorker ? e2.worker : null;
-  const u3 = e2.verbosity, p2 = "string" != typeof e2.docBaseUrl || isDataScheme(e2.docBaseUrl) ? null : e2.docBaseUrl, g2 = getFactoryUrlProp(e2.cMapUrl), m2 = false !== e2.cMapPacked, f2 = getFactoryUrlProp(e2.iccUrl), b3 = getFactoryUrlProp(e2.standardFontDataUrl), y2 = getFactoryUrlProp(e2.wasmUrl), v3 = true !== e2.stopAtErrors, w2 = Number.isInteger(e2.maxImageSize) && e2.maxImageSize > -1 ? e2.maxImageSize : -1, A3 = "boolean" == typeof e2.isOffscreenCanvasSupported ? e2.isOffscreenCanvasSupported : !t2, x2 = "boolean" == typeof e2.isImageDecoderSupported ? e2.isImageDecoderSupported : !t2, C4 = Number.isInteger(e2.canvasMaxAreaInBytes) ? e2.canvasMaxAreaInBytes : -1, E2 = "boolean" == typeof e2.disableFontFace ? e2.disableFontFace : t2, S5 = true === e2.fontExtraProperties, T2 = true === e2.enableXfa, _3 = e2.ownerDocument || globalThis.document, k2 = true === e2.disableRange, D3 = true === e2.disableStream, P2 = true === e2.disableAutoFetch, M3 = true === e2.pdfBug, I2 = e2.CanvasFactory || (t2 ? NodeCanvasFactory : DOMCanvasFactory), F3 = e2.FilterFactory || (t2 ? NodeFilterFactory : DOMFilterFactory), O2 = e2.BinaryDataFactory || (t2 ? NodeBinaryDataFactory : DOMBinaryDataFactory), B3 = true === e2.enableHWA, R3 = true === e2.enableWebGPU ? (function initGPU() {
+  const u3 = e2.verbosity, p2 = "string" != typeof e2.docBaseUrl || isDataScheme(e2.docBaseUrl) ? null : e2.docBaseUrl, g2 = getFactoryUrlProp(e2.cMapUrl), m2 = false !== e2.cMapPacked, f2 = getFactoryUrlProp(e2.iccUrl), b3 = getFactoryUrlProp(e2.standardFontDataUrl), y2 = getFactoryUrlProp(e2.wasmUrl), v3 = true !== e2.stopAtErrors, w2 = Number.isInteger(e2.maxImageSize) && e2.maxImageSize > -1 ? e2.maxImageSize : -1, A3 = "boolean" == typeof e2.isOffscreenCanvasSupported ? e2.isOffscreenCanvasSupported : !t2, x2 = "boolean" == typeof e2.isImageDecoderSupported ? e2.isImageDecoderSupported : !t2, C4 = Number.isInteger(e2.canvasMaxAreaInBytes) ? e2.canvasMaxAreaInBytes : -1, E2 = "boolean" == typeof e2.disableFontFace ? e2.disableFontFace : t2, S5 = true === e2.fontExtraProperties, T3 = true === e2.enableXfa, _3 = e2.ownerDocument || globalThis.document, k2 = true === e2.disableRange, D3 = true === e2.disableStream, P2 = true === e2.disableAutoFetch, M3 = true === e2.pdfBug, I2 = e2.CanvasFactory || (t2 ? NodeCanvasFactory : DOMCanvasFactory), F3 = e2.FilterFactory || (t2 ? NodeFilterFactory : DOMFilterFactory), O2 = e2.BinaryDataFactory || (t2 ? NodeBinaryDataFactory : DOMBinaryDataFactory), B3 = true === e2.enableHWA, R3 = true === e2.enableWebGPU ? (function initGPU() {
     return Ct2.init();
   })() : Promise.resolve(false), L4 = false !== e2.useWasm, N2 = e2.pagesMapper || new PagesMapper(), U4 = "boolean" == typeof e2.useSystemFonts ? e2.useSystemFonts : !t2 && !E2, H3 = "boolean" == typeof e2.useWorkerFetch ? e2.useWorkerFetch : !!(O2 === DOMBinaryDataFactory && g2 && m2 && b3 && y2 && isValidFetchUrl(g2, document.baseURI) && isValidFetchUrl(b3, document.baseURI) && isValidFetchUrl(y2, document.baseURI));
   setVerbosityLevel(u3);
@@ -33468,7 +33468,7 @@ function getDocument(e2 = {}) {
     d2 = PDFWorker.create({ verbosity: u3, port: GlobalWorkerOptions.workerPort });
     i3._worker = d2;
   }
-  const z4 = { docId: n2, apiVersion: "6.3.289", data: r2, password: l2, disableAutoFetch: P2, rangeChunkSize: c2, docBaseUrl: p2, enableXfa: T2, evaluatorOptions: { maxImageSize: w2, disableFontFace: E2, ignoreErrors: v3, isOffscreenCanvasSupported: A3, isImageDecoderSupported: x2, canvasMaxAreaInBytes: C4, fontExtraProperties: S5, useSystemFonts: U4, useWasm: L4, useWorkerFetch: H3, cMapUrl: g2, cMapPacked: m2, iccUrl: f2, standardFontDataUrl: b3, wasmUrl: y2, hasGPU: false } }, W2 = { ownerDocument: _3, pdfBug: M3, styleElement: null, enableHWA: B3, loadingParams: { disableAutoFetch: P2, enableXfa: T2 } };
+  const z4 = { docId: n2, apiVersion: "6.3.289", data: r2, password: l2, disableAutoFetch: P2, rangeChunkSize: c2, docBaseUrl: p2, enableXfa: T3, evaluatorOptions: { maxImageSize: w2, disableFontFace: E2, ignoreErrors: v3, isOffscreenCanvasSupported: A3, isImageDecoderSupported: x2, canvasMaxAreaInBytes: C4, fontExtraProperties: S5, useSystemFonts: U4, useWasm: L4, useWorkerFetch: H3, cMapUrl: g2, cMapPacked: m2, iccUrl: f2, standardFontDataUrl: b3, wasmUrl: y2, hasGPU: false } }, W2 = { ownerDocument: _3, pdfBug: M3, styleElement: null, enableHWA: B3, loadingParams: { disableAutoFetch: P2, enableXfa: T3 } };
   Promise.all([d2.promise, R3]).then(function([, e3]) {
     if (d2.destroyed) throw new Error("Worker was destroyed");
     z4.evaluatorOptions.hasGPU = e3;
@@ -33528,7 +33528,7 @@ function normalizeEdgeBoundary(t3, e2, i3) {
 function percentage(t3) {
   return `${(100 * t3).toFixed(2)}%`;
 }
-var import_meta, t2, e, i2, n, s15, r, a2, o2, l, h2, c, d, u2, p, g, m, f, b2, y, v2, w, A2, x, C3, E, S4, T, _2, k, D2, P, M2, I, F2, O, B2, R2, L3, N, U3, H2, G2, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, FeatureTest, Util, z3, W, makeArr, makeMap, makeObj, makeSet, PageViewport, XfaText, V, $2, XfaLayer, PixelsPerInch, RenderingCancelledException, StatTimer, PDFDateString, OutputScale, j2, ColorScheme, CSSConstants, X2, EditorToolbar, FloatingToolbar, K2, CurrentPointers, IdManager, ImageManager, CommandManager, KeyboardManager, ColorManager, AnnotationEditorUIManager, AltText, Comment, Y2, TouchManager, AnnotationEditor, FakeEditor, q2, Q3, J2, MurmurHash3_64, Z2, AnnotationStorage, PrintAnnotationStorage, tt, et, it, nt2, BBoxReader, ensureDebugMetadata, CanvasBBoxTracker, CanvasDependencyTracker, CanvasNestedDependencyTracker, st2, rt2, at2, ot2, lt3, ht, ct2, CanvasImagesTracker, dt2, FontLoader, FontFaceObject, CSS_FONT_INFO, SYSTEM_FONT_INFO, FONT_INFO, PATTERN_INFO, InfoUtils, CssFontInfo, SystemFontInfo, FontInfo, PatternInfo, FontPathInfo, isRefProxy, ut2, LoopbackPort, pt3, gt2, mt2, ft2, bt2, yt, vt2, wt2, At3, xt2, MessageHandler, BaseBinaryDataFactory, DOMBinaryDataFactory, BaseCanvasFactory, DOMCanvasFactory, BaseFilterFactory, DOMFilterFactory, NodeFilterFactory, NodeCanvasFactory, NodeBinaryDataFactory, Ct2, Et, St2, Tt2, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, _t2, kt3, TilingPattern, Dt2, Pt2, CanvasExtraState, Mt3, It2, Ft, Ot2, CanvasGraphics, BasePDFStream, BasePDFStreamReader, BasePDFStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFNetworkStream, PDFNetworkStreamReader, PDFNetworkStreamRangeReader, PDFNodeStream, PDFNodeStreamReader, PDFNodeStreamRangeReader, GlobalWorkerOptions, Metadata, Bt2, OptionalContentGroup, OptionalContentConfig, PagesMapper, Rt2, dataObj, PDFObjects, TextLayer, PDFDocumentLoadingTask, PDFDataRangeTransport, PDFDocumentProxy, PDFPageProxy, PDFWorker, WorkerTransport, RenderTask, InternalRenderTask, Lt2, Nt2, ColorPicker, BasicColorPicker, ColorConverters, BaseSVGFactory, DOMSVGFactory, Ut2, Ht, AnnotationElementFactory, AnnotationElement, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, MediaAnnotationElement, AnnotationLayer, Gt2, FreeTextEditor, DrawingOptions, DrawingEditor, Outline, FreeDrawOutliner, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightDrawer, FreeHighlightOutline, HighlightDrawingOptions, HighlightEditor, InkDrawOutliner, InkDrawOutline, InkDrawingOptions, InkEditor, ContourDrawOutline, SignatureExtractor, SignatureOptions, DrawnSignatureOptions, SignatureEditor, StampEditor, AnnotationEditorLayer, DrawLayer, TextLayerImages;
+var import_meta, t2, e, i2, n, s15, r, a2, o2, l, h2, c, d, u2, p, g, m, f, b2, y, v2, w, A2, x, C3, E, S4, T2, _2, k, D2, P, M2, I, F2, O, B2, R2, L3, N, U3, H2, G2, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, FeatureTest, Util, z3, W, makeArr, makeMap, makeObj, makeSet, PageViewport, XfaText, V, $2, XfaLayer, PixelsPerInch, RenderingCancelledException, StatTimer, PDFDateString, OutputScale, j2, ColorScheme, CSSConstants, X2, EditorToolbar, FloatingToolbar, K2, CurrentPointers, IdManager, ImageManager, CommandManager, KeyboardManager, ColorManager, AnnotationEditorUIManager, AltText, Comment, Y2, TouchManager, AnnotationEditor, FakeEditor, q2, Q3, J2, MurmurHash3_64, Z2, AnnotationStorage, PrintAnnotationStorage, tt, et, it, nt2, BBoxReader, ensureDebugMetadata, CanvasBBoxTracker, CanvasDependencyTracker, CanvasNestedDependencyTracker, st2, rt2, at2, ot2, lt3, ht, ct2, CanvasImagesTracker, dt2, FontLoader, FontFaceObject, CSS_FONT_INFO, SYSTEM_FONT_INFO, FONT_INFO, PATTERN_INFO, InfoUtils, CssFontInfo, SystemFontInfo, FontInfo, PatternInfo, FontPathInfo, isRefProxy, ut2, LoopbackPort, pt3, gt2, mt2, ft2, bt2, yt, vt2, wt2, At3, xt2, MessageHandler, BaseBinaryDataFactory, DOMBinaryDataFactory, BaseCanvasFactory, DOMCanvasFactory, BaseFilterFactory, DOMFilterFactory, NodeFilterFactory, NodeCanvasFactory, NodeBinaryDataFactory, Ct2, Et, St2, Tt2, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, _t2, kt3, TilingPattern, Dt2, Pt2, CanvasExtraState, Mt3, It2, Ft, Ot2, CanvasGraphics, BasePDFStream, BasePDFStreamReader, BasePDFStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFNetworkStream, PDFNetworkStreamReader, PDFNetworkStreamRangeReader, PDFNodeStream, PDFNodeStreamReader, PDFNodeStreamRangeReader, GlobalWorkerOptions, Metadata, Bt2, OptionalContentGroup, OptionalContentConfig, PagesMapper, Rt2, dataObj, PDFObjects, TextLayer, PDFDocumentLoadingTask, PDFDataRangeTransport, PDFDocumentProxy, PDFPageProxy, PDFWorker, WorkerTransport, RenderTask, InternalRenderTask, Lt2, Nt2, ColorPicker, BasicColorPicker, ColorConverters, BaseSVGFactory, DOMSVGFactory, Ut2, Ht, AnnotationElementFactory, AnnotationElement, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, MediaAnnotationElement, AnnotationLayer, Gt2, FreeTextEditor, DrawingOptions, DrawingEditor, Outline, FreeDrawOutliner, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightDrawer, FreeHighlightOutline, HighlightDrawingOptions, HighlightEditor, InkDrawOutliner, InkDrawOutline, InkDrawingOptions, InkEditor, ContourDrawOutline, SignatureExtractor, SignatureOptions, DrawnSignatureOptions, SignatureEditor, StampEditor, AnnotationEditorLayer, DrawLayer, TextLayerImages;
 var init_pdf_min = __esm({
   "../../node_modules/pdfjs-dist/build/pdf.min.mjs"() {
     import_meta = {};
@@ -33558,7 +33558,7 @@ var init_pdf_min = __esm({
     C3 = 3;
     E = 4;
     S4 = { GRAYSCALE_1BPP: 1, RGB_24BPP: 2, RGBA_32BPP: 3 };
-    T = { TEXT: 1, LINK: 2, FREETEXT: 3, LINE: 4, SQUARE: 5, CIRCLE: 6, POLYGON: 7, POLYLINE: 8, HIGHLIGHT: 9, UNDERLINE: 10, SQUIGGLY: 11, STRIKEOUT: 12, STAMP: 13, CARET: 14, INK: 15, POPUP: 16, FILEATTACHMENT: 17, SOUND: 18, MOVIE: 19, WIDGET: 20, SCREEN: 21, PRINTERMARK: 22, TRAPNET: 23, WATERMARK: 24, THREED: 25, REDACT: 26, RICHMEDIA: 27 };
+    T2 = { TEXT: 1, LINK: 2, FREETEXT: 3, LINE: 4, SQUARE: 5, CIRCLE: 6, POLYGON: 7, POLYLINE: 8, HIGHLIGHT: 9, UNDERLINE: 10, SQUIGGLY: 11, STRIKEOUT: 12, STAMP: 13, CARET: 14, INK: 15, POPUP: 16, FILEATTACHMENT: 17, SOUND: 18, MOVIE: 19, WIDGET: 20, SCREEN: 21, PRINTERMARK: 22, TRAPNET: 23, WATERMARK: 24, THREED: 25, REDACT: 26, RICHMEDIA: 27 };
     _2 = 1;
     k = 2;
     D2 = 3;
@@ -36255,10 +36255,10 @@ var init_pdf_min = __esm({
         const [n2, s16] = e2, { screenX: r2, screenY: a3 } = n2, { screenX: o3, screenY: l2 } = s16, h3 = this.#Oe, { touch0X: c2, touch0Y: d2, touch1X: u3, touch1Y: p2, panX: g2, panY: m2 } = h3, f2 = u3 - c2, b3 = p2 - d2, y2 = o3 - r2, v3 = l2 - a3, w2 = (n2.clientX + s16.clientX) / 2, A3 = (n2.clientY + s16.clientY) / 2;
         h3.panX = w2;
         h3.panY = A3;
-        const x2 = w2 - g2, C4 = A3 - m2, E2 = (r2 + o3) / 2, S5 = (a3 + l2) / 2, T2 = Math.hypot(E2 - h3.screenPanX, S5 - h3.screenPanY);
+        const x2 = w2 - g2, C4 = A3 - m2, E2 = (r2 + o3) / 2, S5 = (a3 + l2) / 2, T3 = Math.hypot(E2 - h3.screenPanX, S5 - h3.screenPanY);
         h3.screenPanX = E2;
         h3.screenPanY = S5;
-        const _3 = Math.hypot(y2, v3), k2 = Math.hypot(f2, b3), D3 = this.#Ce ? this.MIN_TOUCH_DISTANCE_TO_SCALE : this.MIN_TOUCH_DISTANCE_TO_PINCH + 2 * T2;
+        const _3 = Math.hypot(y2, v3), k2 = Math.hypot(f2, b3), D3 = this.#Ce ? this.MIN_TOUCH_DISTANCE_TO_SCALE : this.MIN_TOUCH_DISTANCE_TO_PINCH + 2 * T3;
         if (_3 < Y2 || k2 < Y2 || Math.abs(k2 - _3) <= D3) {
           (x2 || C4) && this.#De?.(x2, C4);
           return;
@@ -36272,7 +36272,7 @@ var init_pdf_min = __esm({
           if (this.#Le) {
             const t4 = this.#Le;
             this.#Le = 0;
-            if (P2 !== t4 && Math.abs(_3 - k2) <= 2 * T2) {
+            if (P2 !== t4 && Math.abs(_3 - k2) <= 2 * T3) {
               this.#Ce = false;
               (x2 || C4) && this.#De?.(x2, C4);
               return;
@@ -36794,8 +36794,8 @@ var init_pdf_min = __esm({
           this.#Je[0] = t4;
           this.#Je[1] = i4;
         }
-        [A3, x2] = (S5 = A3 / i3, T2 = x2 / n2, [d2[0] * S5 + d2[2] * T2, d2[1] * S5 + d2[3] * T2]);
-        var S5, T2;
+        [A3, x2] = (S5 = A3 / i3, T3 = x2 / n2, [d2[0] * S5 + d2[2] * T3, d2[1] * S5 + d2[3] * T3]);
+        var S5, T3;
         if (g2) {
           const t4 = Math.hypot(a3, o3);
           C4 = E2 = Math.max(Math.min(Math.hypot(b3[0] - f2[0] - A3, b3[1] - f2[1] - x2) / t4, 1 / a3, 1 / o3), l2 / a3, h3 / o3);
@@ -40283,8 +40283,8 @@ var init_pdf_min = __esm({
         S5 && this.canvasFactory.destroy(S5);
         u3 && this.canvasFactory.destroy(u3);
         x2.globalCompositeOperation = "source-in";
-        const T2 = Util.transform(getCurrentTransformInverse(x2), [1, 0, 0, 1, -C4, -E2]);
-        x2.fillStyle = o3 ? a3.getPattern(n2, this, T2, Et, t3) : a3;
+        const T3 = Util.transform(getCurrentTransformInverse(x2), [1, 0, 0, 1, -C4, -E2]);
+        x2.fillStyle = o3 ? a3.getPattern(n2, this, T3, Et, t3) : a3;
         x2.fillRect(0, 0, s16, r2);
         h3 && !o3 && h3.set(c2, A3.canvas);
         this.dependencyTracker?.recordDependencies(t3, ct2);
@@ -40980,7 +40980,7 @@ var init_pdf_min = __esm({
         a3.translate(i3.x, i3.y + i3.textRise);
         c2 > 0 ? a3.scale(d2, -1) : a3.scale(d2, 1);
         let y2, x2;
-        const S5 = i3.textRenderingMode & C3, T2 = S5 === v2 || S5 === A2, _3 = S5 === w || S5 === A2;
+        const S5 = i3.textRenderingMode & C3, T3 = S5 === v2 || S5 === A2, _3 = S5 === w || S5 === A2;
         let k2 = i3.lineWidth;
         const D3 = i3.textMatrixScale;
         0 === D3 || 0 === k2 ? _3 && (k2 = this.getSinglePixelWidth()) : k2 /= D3;
@@ -40989,7 +40989,7 @@ var init_pdf_min = __esm({
           k2 /= o3;
         }
         a3.lineWidth = k2;
-        if (T2 && i3.patternFill) {
+        if (T3 && i3.patternFill) {
           a3.save();
           const e3 = i3.fillColor.getPattern(a3, this, getCurrentTransformInverse(a3), Et, t3);
           y2 = getCurrentTransform(a3);
@@ -43239,10 +43239,10 @@ var init_pdf_min = __esm({
             globalThis.Stats?.enabled && globalThis.Stats.add(this.pageNumber, this._stats);
           }
         };
-        let S5 = null, T2 = null;
-        (C4 || E2) && (T2 = new CanvasBBoxTracker(e2, w2.operatorList.length));
-        C4 && (S5 = new CanvasDependencyTracker(T2, x2));
-        const _3 = new InternalRenderTask({ callback: complete, params: { canvas: e2, canvasContext: t3, dependencyTracker: S5 ?? T2, imagesTracker: E2 ? new CanvasImagesTracker(e2) : null, viewport: i3, transform: r2, background: a3 }, objs: this.objs, commonObjs: this.commonObjs, annotationCanvasMap: h3, operatorList: w2.operatorList, pageIndex: this._pageIndex, canvasFactory: this._transport.canvasFactory, filterFactory: this._transport.filterFactory, useRequestAnimationFrame: !A3, pdfBug: this._pdfBug, pageColors: c2, enableHWA: this._transport.enableHWA, operationsFilter: f2 });
+        let S5 = null, T3 = null;
+        (C4 || E2) && (T3 = new CanvasBBoxTracker(e2, w2.operatorList.length));
+        C4 && (S5 = new CanvasDependencyTracker(T3, x2));
+        const _3 = new InternalRenderTask({ callback: complete, params: { canvas: e2, canvasContext: t3, dependencyTracker: S5 ?? T3, imagesTracker: E2 ? new CanvasImagesTracker(e2) : null, viewport: i3, transform: r2, background: a3 }, objs: this.objs, commonObjs: this.commonObjs, annotationCanvasMap: h3, operatorList: w2.operatorList, pageIndex: this._pageIndex, canvasFactory: this._transport.canvasFactory, filterFactory: this._transport.filterFactory, useRequestAnimationFrame: !A3, pdfBug: this._pdfBug, pageColors: c2, enableHWA: this._transport.enableHWA, operationsFilter: f2 });
         (w2.renderTasks ||= /* @__PURE__ */ new Set()).add(_3);
         const k2 = _3.task;
         Promise.all([w2.displayReadyCapability.promise, l2]).then(([t4, e3]) => {
@@ -44381,11 +44381,11 @@ var init_pdf_min = __esm({
     AnnotationElementFactory = class {
       static create(t3) {
         switch (t3.data.annotationType) {
-          case T.LINK:
+          case T2.LINK:
             return new LinkAnnotationElement(t3);
-          case T.TEXT:
+          case T2.TEXT:
             return new TextAnnotationElement(t3);
-          case T.WIDGET:
+          case T2.WIDGET:
             switch (t3.data.fieldType) {
               case "Tx":
                 return new TextWidgetAnnotationElement(t3);
@@ -44397,39 +44397,39 @@ var init_pdf_min = __esm({
                 return new SignatureWidgetAnnotationElement(t3);
             }
             return new WidgetAnnotationElement(t3);
-          case T.POPUP:
+          case T2.POPUP:
             return new PopupAnnotationElement(t3);
-          case T.FREETEXT:
+          case T2.FREETEXT:
             return new FreeTextAnnotationElement(t3);
-          case T.LINE:
+          case T2.LINE:
             return new LineAnnotationElement(t3);
-          case T.SQUARE:
+          case T2.SQUARE:
             return new SquareAnnotationElement(t3);
-          case T.CIRCLE:
+          case T2.CIRCLE:
             return new CircleAnnotationElement(t3);
-          case T.POLYLINE:
+          case T2.POLYLINE:
             return new PolylineAnnotationElement(t3);
-          case T.CARET:
+          case T2.CARET:
             return new CaretAnnotationElement(t3);
-          case T.INK:
+          case T2.INK:
             return new InkAnnotationElement(t3);
-          case T.POLYGON:
+          case T2.POLYGON:
             return new PolygonAnnotationElement(t3);
-          case T.HIGHLIGHT:
+          case T2.HIGHLIGHT:
             return new HighlightAnnotationElement(t3);
-          case T.UNDERLINE:
+          case T2.UNDERLINE:
             return new UnderlineAnnotationElement(t3);
-          case T.SQUIGGLY:
+          case T2.SQUIGGLY:
             return new SquigglyAnnotationElement(t3);
-          case T.STRIKEOUT:
+          case T2.STRIKEOUT:
             return new StrikeOutAnnotationElement(t3);
-          case T.STAMP:
+          case T2.STAMP:
             return new StampAnnotationElement(t3);
-          case T.FILEATTACHMENT:
+          case T2.FILEATTACHMENT:
             return new FileAttachmentAnnotationElement(t3);
-          case T.RICHMEDIA:
-          case T.SCREEN:
-          case T.SOUND:
+          case T2.RICHMEDIA:
+          case T2.SCREEN:
+          case T2.SOUND:
             return new MediaAnnotationElement(t3);
           default:
             return new AnnotationElement(t3);
@@ -46372,7 +46372,7 @@ var init_pdf_min = __esm({
         const s16 = /* @__PURE__ */ new Map(), r2 = [], a3 = { data: null, layer: n2, linkService: this.#Co, downloadManager: t3.downloadManager, imageResourcesPath: t3.imageResourcesPath || "", renderForms: false !== t3.renderForms, svgFactory: new DOMSVGFactory(), annotationStorage: this.#$, enableComment: true === t3.enableComment, enableScripting: true === t3.enableScripting, hasJSActions: t3.hasJSActions, fieldObjects: t3.fieldObjects, parent: this, elements: null };
         for (const t4 of e2) {
           if (t4.noHTML) continue;
-          const e3 = t4.annotationType === T.POPUP;
+          const e3 = t4.annotationType === T2.POPUP;
           if (e3) {
             const e4 = s16.get(t4.id);
             if (!e4) continue;
@@ -50946,7 +50946,7 @@ var init_pdf_min = __esm({
       }
     };
     globalThis._pdfjsTestingUtils = { HighlightOutliner };
-    globalThis.pdfjsLib = { AbortException, AnnotationEditorLayer, AnnotationEditorParamsType: b2, AnnotationEditorType: f, AnnotationEditorUIManager, AnnotationLayer, AnnotationMode: p, AnnotationType: T, applyOpacity, build: Nt2, ColorPicker, createValidAbsoluteUrl, CSSConstants, DOMSVGFactory, DrawLayer, FeatureTest, fetchData, findContrastColor, getDocument, getFilenameFromUrl, getPdfFilenameFromUrl, getRGB, getRGBA, getUuid, GlobalWorkerOptions, ImageKind: S4, InvalidPDFException, isDataScheme, isPdfFile, isValidExplicitDest: ut2, makeArr, makeMap, makeObj, makeSet, MathClamp, noContextMenu, normalizeUnicode, OPS: F2, OutputScale, PasswordException, PasswordResponses: U3, PDFDataRangeTransport, PDFDateString, PDFWorker, PermissionFlag: y, PixelsPerInch, RenderingCancelledException, renderRichText, ResponseException, setLayerDimensions, shadow, SignatureExtractor, stopEvent, SupportedImageMimeTypes: j2, TextLayer, TextLayerImages, TouchManager, updateUrlHash, Util, VerbosityLevel: I, version: Lt2, XfaLayer };
+    globalThis.pdfjsLib = { AbortException, AnnotationEditorLayer, AnnotationEditorParamsType: b2, AnnotationEditorType: f, AnnotationEditorUIManager, AnnotationLayer, AnnotationMode: p, AnnotationType: T2, applyOpacity, build: Nt2, ColorPicker, createValidAbsoluteUrl, CSSConstants, DOMSVGFactory, DrawLayer, FeatureTest, fetchData, findContrastColor, getDocument, getFilenameFromUrl, getPdfFilenameFromUrl, getRGB, getRGBA, getUuid, GlobalWorkerOptions, ImageKind: S4, InvalidPDFException, isDataScheme, isPdfFile, isValidExplicitDest: ut2, makeArr, makeMap, makeObj, makeSet, MathClamp, noContextMenu, normalizeUnicode, OPS: F2, OutputScale, PasswordException, PasswordResponses: U3, PDFDataRangeTransport, PDFDateString, PDFWorker, PermissionFlag: y, PixelsPerInch, RenderingCancelledException, renderRichText, ResponseException, setLayerDimensions, shadow, SignatureExtractor, stopEvent, SupportedImageMimeTypes: j2, TextLayer, TextLayerImages, TouchManager, updateUrlHash, Util, VerbosityLevel: I, version: Lt2, XfaLayer };
   }
 });
 
@@ -51708,6 +51708,12 @@ var en = {
   "git.authorFilter": "Author",
   "git.queryFilter": "Message contains",
   "git.allBranches": "All branches",
+  "git.scopeLabel": "Branch scope",
+  "git.scopeCurrent": "Current branch",
+  "git.scopeAll": "All branches",
+  "git.filterLabel": "Filter",
+  "git.clearFilters": "Clear filters",
+  "git.noMatches": "No commit matches the current filters",
   "git.currentBranchOnly": "Current branch only",
   "git.noCommits": "No commits",
   "git.loadMore": "Load more",
@@ -52217,6 +52223,12 @@ var zh = {
   "git.authorFilter": "\u4F5C\u8005",
   "git.queryFilter": "\u6D88\u606F\u5305\u542B",
   "git.allBranches": "\u6240\u6709\u5206\u652F",
+  "git.scopeLabel": "\u5206\u652F\u8303\u56F4",
+  "git.scopeCurrent": "\u5F53\u524D\u5206\u652F",
+  "git.scopeAll": "\u6240\u6709\u5206\u652F",
+  "git.filterLabel": "\u7B5B\u9009",
+  "git.clearFilters": "\u6E05\u9664\u7B5B\u9009",
+  "git.noMatches": "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u63D0\u4EA4",
   "git.currentBranchOnly": "\u4EC5\u5F53\u524D\u5206\u652F",
   "git.noCommits": "\u6CA1\u6709\u63D0\u4EA4",
   "git.loadMore": "\u52A0\u8F7D\u66F4\u591A",
@@ -59888,15 +59900,30 @@ ${outcome.output ?? ""}`.trim();
     return `git push --set-upstream origin ${name2}`;
   }
   // ── git window ────────────────────────────────────────────────────────
+  /**
+   * Change the filters of the Git window.
+   *
+   * The branch scope, the author, the message and the date are applied on the
+   * client (see `git-layout.js`): the rows that are already loaded carry the
+   * refs, the author and the date of every commit, so answering them needs
+   * no subprocess. Only the path filter reaches git, because only git can
+   * limit the history of a path - and it is the only filter that reloads the
+   * log. (Reloading on every filter change was the "switching the branch
+   * lags" defect: a `git log` over the whole repository per keystroke.)
+   * @param {{ branch?: string, author?: string, query?: string, since?: string, path?: string }} patch
+   */
   setGitFilters(patch) {
+    const previous = this.state.git.filters;
+    const next = { ...previous, ...patch };
+    const pathChanged = (next.path ?? "") !== (previous.path ?? "");
     this.patch("git", {
-      filters: { ...this.state.git.filters, ...patch },
-      selectedHash: null,
-      detail: null,
-      detailHash: null,
-      detailLoading: false
+      filters: next,
+      // A reload replaces the rows, so the selection and the Drawer would
+      // point at a commit that may not be in the new page. A client-side
+      // filter keeps them: the Drawer stays open on the commit it shows.
+      ...pathChanged ? { selectedHash: null, detail: null, detailHash: null, detailLoading: false } : {}
     });
-    void this.loadLog(true);
+    if (pathChanged) void this.loadLog(true);
   }
   /** Project → Git | Show History: scope the log to one file or folder. */
   showHistory(rel) {
@@ -59936,14 +59963,22 @@ ${outcome.output ?? ""}`.trim();
         root: this.gitRoot,
         skip,
         count: pageSize,
-        ...this.state.git.filters
+        // Only the path filter is a server-side one - git alone can limit the
+        // history of a path. The other filters (branch scope, author, message,
+        // date) are answered from the loaded rows on the client, so the log
+        // is fetched once and filtered many times.
+        path: this.state.git.filters.path ?? ""
       });
       if (token !== this.gitRequestToken) return;
-      const commits = reset ? result.commits : [...this.state.git.commits, ...result.commits];
+      const known = new Set(this.state.git.commits.map((commit) => commit.hash));
+      const fresh = result.commits.filter((commit) => !known.has(commit.hash));
+      const commits = reset ? result.commits : [...this.state.git.commits, ...fresh];
       const selectedStillVisible = this.state.git.selectedHash === null || commits.some((commit) => commit.hash === this.state.git.selectedHash);
       this.patch("git", {
         commits,
-        skip: skip + result.commits.length,
+        // The host skips a page per window, so the cursor advances by the page
+        // size and not by the number of rows the page happened to hold.
+        skip: skip + pageSize,
         hasMore: result.commits.length >= pageSize,
         loading: false,
         error: null,
@@ -60247,9 +60282,9 @@ ${outcome.output ?? ""}`.trim();
       }
     }
   }
-  toggleTool(tool) {
-    if (tool === "project" || tool === "commit") {
-      const next = this.state.layout.left === tool ? null : tool;
+  toggleTool(tool2) {
+    if (tool2 === "project" || tool2 === "commit") {
+      const next = this.state.layout.left === tool2 ? null : tool2;
       const layout = {
         ...this.state.layout,
         left: next,
@@ -60260,7 +60295,7 @@ ${outcome.output ?? ""}`.trim();
       if (layout.left === "commit") this.#focusCommitLater();
       if (layout.left === "project") this.set({ treeFocusTick: (this.state.treeFocusTick ?? 0) + 1 });
     } else {
-      const next = this.state.layout.bottom === tool ? null : tool;
+      const next = this.state.layout.bottom === tool2 ? null : tool2;
       if (next === "terminal" && this.state.terminal.sessions.length === 0) {
         this.addTerminal();
         return;
@@ -60276,26 +60311,26 @@ ${outcome.output ?? ""}`.trim();
     }
     this.persist();
   }
-  showTool(tool) {
-    if (tool === "project" || tool === "commit") {
+  showTool(tool2) {
+    if (tool2 === "project" || tool2 === "commit") {
       this.set({
         layout: {
           ...this.state.layout,
-          left: tool,
+          left: tool2,
           ...this.state.stacked === true ? { bottom: null } : {}
         }
       });
       this.lastToolGroup = "left";
-      if (tool === "commit") this.#focusCommitLater();
-      if (tool === "project") this.set({ treeFocusTick: (this.state.treeFocusTick ?? 0) + 1 });
+      if (tool2 === "commit") this.#focusCommitLater();
+      if (tool2 === "project") this.set({ treeFocusTick: (this.state.treeFocusTick ?? 0) + 1 });
       this.persist();
-    } else if (tool === "terminal" && this.state.terminal.sessions.length === 0) {
+    } else if (tool2 === "terminal" && this.state.terminal.sessions.length === 0) {
       this.addTerminal();
     } else {
       this.set({
         layout: {
           ...this.state.layout,
-          bottom: tool,
+          bottom: tool2,
           ...this.state.stacked === true ? { left: null } : {}
         }
       });
@@ -60566,44 +60601,116 @@ function useHostPrimitives() {
 
 // src/client/icons.jsx
 var S = { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 16 16", width: 16, height: 16, "aria-hidden": true };
+var T = { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 20 20", width: 20, height: 20, "aria-hidden": true };
 function svg2(children, props = {}) {
   return import_react3.default.createElement("svg", { ...S, ...props }, children);
+}
+function tool(children, props = {}) {
+  return import_react3.default.createElement("svg", { ...T, ...props }, children);
 }
 function path(d2, extra = {}) {
   return import_react3.default.createElement("path", { key: extra.key ?? "p", d: d2, fill: "none", stroke: "currentColor", strokeWidth: 1.35, strokeLinecap: "round", strokeLinejoin: "round", ...extra });
 }
+function toolPath(d2, extra = {}) {
+  return import_react3.default.createElement("path", {
+    key: extra.key ?? "p",
+    d: d2,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    ...extra
+  });
+}
+function toolDot(cx, cy, r2, key) {
+  return import_react3.default.createElement("circle", { key, cx, cy, r: r2, fill: "currentColor", stroke: "none" });
+}
 function IconProject(props = {}) {
-  return svg2([
-    import_react3.default.createElement("path", { key: "a", d: "M1.8 4.2h4l1.3 1.6h7.1v6.9H1.8z", fill: "none", stroke: "currentColor", strokeWidth: 1.35, strokeLinejoin: "round" }),
-    path("M1.8 7.2h12.4", { key: "b" }),
-    path("M4.4 10h2.2", { key: "c" })
+  return tool([
+    toolPath("M4.6 6v8", { key: "spine" }),
+    toolPath("M4.6 6h4.8", { key: "arm1" }),
+    toolPath("M4.6 10h4.8", { key: "arm2" }),
+    toolPath("M4.6 14h4.8", { key: "arm3" }),
+    import_react3.default.createElement("rect", { key: "n1", x: 9.4, y: 4.6, width: 6.2, height: 2.8, rx: 1.1, fill: "none", stroke: "currentColor", strokeWidth: 1.8 }),
+    import_react3.default.createElement("rect", { key: "n2", x: 9.4, y: 8.6, width: 6.2, height: 2.8, rx: 1.1, fill: "none", stroke: "currentColor", strokeWidth: 1.8 }),
+    import_react3.default.createElement("rect", { key: "n3", x: 9.4, y: 12.6, width: 6.2, height: 2.8, rx: 1.1, fill: "none", stroke: "currentColor", strokeWidth: 1.8 })
   ], props);
 }
 function IconCommit(props = {}) {
-  return svg2([
-    import_react3.default.createElement("circle", { key: "a", cx: 4, cy: 8, r: 1.8, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M5.8 8h7.6", { key: "b" }),
-    import_react3.default.createElement("circle", { key: "c", cx: 11.4, cy: 8, r: 1.8, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M8.8 6.6l1.1 1.1 2-2.2", { key: "d" })
+  return tool([
+    import_react3.default.createElement("rect", {
+      key: "sheet",
+      x: 2.6,
+      y: 3.4,
+      width: 14.8,
+      height: 13.2,
+      rx: 3.2,
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: 1.8
+    }),
+    toolPath("M10 3.4v13.2", { key: "split" }),
+    toolPath("M5.4 8.4h2.4", { key: "left" }),
+    toolPath("M12.2 11.8h2.4", { key: "right" })
   ], props);
 }
 function IconGit(props = {}) {
-  return svg2([
-    import_react3.default.createElement("circle", { key: "a", cx: 8, cy: 3.2, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M8 4.9v3", { key: "b" }),
-    import_react3.default.createElement("circle", { key: "c", cx: 3.6, cy: 11.3, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    import_react3.default.createElement("circle", { key: "d", cx: 12.4, cy: 11.3, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M8 7.9L4.2 9.8", { key: "e" }),
-    path("M8 7.9l3.8 1.9", { key: "f" }),
-    path("M8 7.9v0", { key: "g" })
+  return tool([
+    toolPath("M5.8 6.8v6.4", { key: "spine" }),
+    toolPath("M5.8 12.2c0-3 2.2-4.6 4.6-4.6h1.6", { key: "branch" }),
+    toolDot(5.8, 4.6, 2.2, "head"),
+    toolDot(5.8, 15.4, 2.2, "tail"),
+    toolDot(14.2, 7.6, 2.2, "side")
   ], props);
 }
 function IconTerminal(props = {}) {
-  return svg2([
-    import_react3.default.createElement("rect", { key: "a", x: 1.6, y: 2.4, width: 12.8, height: 11.2, rx: 1.6, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M4.4 6.2L6.6 8l-2.2 1.8", { key: "b" }),
-    path("M8.7 10h2.9", { key: "c" })
+  return tool([
+    import_react3.default.createElement("rect", {
+      key: "screen",
+      x: 2.4,
+      y: 3.4,
+      width: 15.2,
+      height: 13.2,
+      rx: 3.2,
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: 1.8
+    }),
+    toolPath("M6.2 8.4l2.6 2.6-2.6 2.6", { key: "prompt" }),
+    toolPath("M11.4 13.4h4.2", { key: "cursor" })
   ], props);
+}
+function WorkbenchMark(props = {}) {
+  const size = props.size ?? 56;
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    "aria-hidden": true,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.3,
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  };
+  return import_react3.default.createElement(
+    "svg",
+    { ...common, ...props, width: props.width ?? size, height: props.height ?? size },
+    import_react3.default.createElement("rect", { key: "frame", x: 2.6, y: 2.6, width: 18.8, height: 18.8, rx: 5 }),
+    import_react3.default.createElement("path", { key: "v", d: "M12 2.6v18.8" }),
+    import_react3.default.createElement("path", { key: "h", d: "M2.6 12h18.8" }),
+    import_react3.default.createElement("rect", {
+      key: "lit",
+      x: 4.8,
+      y: 4.8,
+      width: 5.4,
+      height: 5.4,
+      rx: 1.8,
+      fill: "currentColor",
+      stroke: "none"
+    })
+  );
 }
 function IconChat(props = {}) {
   return svg2([
@@ -63480,6 +63587,77 @@ function gitLayout({ mainWidth = 0, configuredWidth = DRAWER_DEFAULT, drawerOpen
     tableNarrow: tableWidth > 0 && tableWidth < COLUMNS_BELOW
   };
 }
+var DAY_MS = 864e5;
+function gitDateMs(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\s*([+-])(\d{2}):?(\d{2}))?/.exec(String(value ?? "").trim());
+  if (match === null) return null;
+  const [, year, month, day, hour, minute, second, sign, offsetHour, offsetMinute] = match;
+  const offset = sign === void 0 ? 0 : (Number(offsetHour) * 60 + Number(offsetMinute)) * 6e4;
+  const utc = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+  return sign === "-" ? utc + offset : utc - offset;
+}
+function sinceCutoffMs(since, now) {
+  const match = /^(\d+)\s+days?\s+ago$/i.exec(String(since ?? "").trim());
+  if (match === null) return null;
+  return now - Number(match[1]) * DAY_MS;
+}
+function refNamesBranch(ref, branch) {
+  if (typeof ref !== "string" || ref === "" || branch === "") return false;
+  return ref === branch || ref === `HEAD -> ${branch}` || ref === `refs/heads/${branch}`;
+}
+function branchCommitHashes(commits, branch) {
+  const members = /* @__PURE__ */ new Set();
+  if (typeof branch !== "string" || branch === "") return members;
+  const byHash = /* @__PURE__ */ new Map();
+  let tip = null;
+  for (const commit of commits) {
+    byHash.set(commit.hash, commit);
+    if (tip === null && (commit.refs ?? []).some((ref) => refNamesBranch(ref, branch))) tip = commit;
+  }
+  if (tip === null) return members;
+  const pending = [tip.hash];
+  members.add(tip.hash);
+  while (pending.length > 0) {
+    const commit = byHash.get(pending.pop());
+    for (const parent of commit?.parents ?? []) {
+      if (members.has(parent) || !byHash.has(parent)) continue;
+      members.add(parent);
+      pending.push(parent);
+    }
+  }
+  return members;
+}
+function hasActiveFilters(filters = {}) {
+  return ["since", "author", "query", "path"].some((key) => {
+    const value = filters[key];
+    return typeof value === "string" && value.trim() !== "";
+  });
+}
+function filterGitLog(commits, filters = {}, options = {}) {
+  const list = Array.isArray(commits) ? commits : [];
+  const branch = typeof filters.branch === "string" ? filters.branch.trim() : "";
+  const author = typeof filters.author === "string" ? filters.author.trim().toLowerCase() : "";
+  const query = typeof filters.query === "string" ? filters.query.trim().toLowerCase() : "";
+  const cutoff = sinceCutoffMs(filters.since, options.now ?? Date.now());
+  if (branch === "" && author === "" && query === "" && cutoff === null) return list;
+  const members = branch === "" ? null : branchCommitHashes(list, branch);
+  const result = [];
+  for (const commit of list) {
+    if (members !== null && !members.has(commit.hash)) continue;
+    if (author !== "") {
+      const name2 = String(commit.author ?? "").toLowerCase();
+      const email = String(commit.email ?? "").toLowerCase();
+      if (!name2.includes(author) && !email.includes(author)) continue;
+    }
+    if (query !== "" && !String(commit.subject ?? "").toLowerCase().includes(query)) continue;
+    if (cutoff !== null) {
+      const date = gitDateMs(commit.date);
+      if (date !== null && date < cutoff) continue;
+    }
+    result.push(commit);
+  }
+  return result;
+}
 
 // src/client/GitPanel.jsx
 var ROW_HEIGHT2 = 24;
@@ -64212,7 +64390,8 @@ function GitPanel({ store, state }) {
     void store.loadLog(true);
     void store.loadBranches();
   }, []);
-  const layout = (0, import_react7.useMemo)(() => layoutGraph(git.commits), [git.commits]);
+  const visible = (0, import_react7.useMemo)(() => filterGitLog(git.commits, git.filters), [git.commits, git.filters]);
+  const layout = (0, import_react7.useMemo)(() => layoutGraph(visible), [visible]);
   const graphWidth = Math.max(40, Math.min(GRAPH_MAX, layout.maxLanes) * CELL + 16);
   const rows = layout.rows;
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT2) - 6);
@@ -64255,7 +64434,7 @@ function GitPanel({ store, state }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [drawerOpen, git.detail?.hash, git.detailHash]);
   const moveSelection = (delta) => {
-    const list = git.commits;
+    const list = visible;
     const index = list.findIndex((commit2) => commit2.hash === git.selectedHash);
     const next = Math.max(0, Math.min(list.length - 1, index < 0 ? 0 : index + delta));
     const commit = list[next];
@@ -64320,40 +64499,137 @@ function GitPanel({ store, state }) {
     ["30 days ago", "git.last30"],
     ["90 days ago", "git.last90"]
   ];
+  const currentBranch = slice.detached === true ? "" : slice.branch ?? "";
+  const scopeIsCurrent = (git.filters.branch ?? "") !== "";
+  const filtersActive = hasActiveFilters(git.filters);
+  const filteredOut = (git.commits?.length ?? 0) > 0 && rows.length === 0;
+  const clearFilters = () => store.setGitFilters({ since: "", author: "", query: "", path: "" });
   return import_react7.default.createElement(
     "div",
     { className: "iwb-git" },
     import_react7.default.createElement(
       "div",
       { className: "iwb-git-filters" },
+      // ── the scope: WHICH history ──────────────────────────────────────
       import_react7.default.createElement(
-        "button",
-        {
-          type: "button",
-          className: "iwb-branch-switch iwb-repo-switch",
-          title: repoRoot === "" ? label(t3, "git.pickRepoHint", "Choose a repository in the Terminal/Git header.") : repoRoot,
-          onClick: (event) => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            setRepoMenu({ x: rect.left, y: rect.bottom + 4 });
-          }
-        },
-        import_react7.default.createElement("span", { className: "iwb-repo-name" }, repoName === "" ? label(t3, "git.pickRepo", "Choose repository") : repoName),
-        import_react7.default.createElement("span", { className: "iwb-branch-caret" }, import_react7.default.createElement(ChevronDown, { size: 11 }))
+        "div",
+        { className: "iwb-git-scope" },
+        import_react7.default.createElement(
+          "button",
+          {
+            type: "button",
+            className: "iwb-branch-switch iwb-repo-switch",
+            title: repoRoot === "" ? label(t3, "git.pickRepoHint", "Choose a repository in the Terminal/Git header.") : repoRoot,
+            onClick: (event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              setRepoMenu({ x: rect.left, y: rect.bottom + 4 });
+            }
+          },
+          import_react7.default.createElement("span", { className: "iwb-repo-name" }, repoName === "" ? label(t3, "git.pickRepo", "Choose repository") : repoName),
+          import_react7.default.createElement("span", { className: "iwb-branch-caret" }, import_react7.default.createElement(ChevronDown, { size: 11 }))
+        ),
+        import_react7.default.createElement(
+          "button",
+          {
+            type: "button",
+            className: "iwb-branch-switch",
+            title: t3("git.switchBranchTitle"),
+            onClick: (event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              setBranchMenu({ x: rect.left, y: rect.bottom + 4 });
+            }
+          },
+          import_react7.default.createElement(IconBranch, { width: 13, height: 13 }),
+          import_react7.default.createElement("span", null, slice.detached === true ? t3("git.detached") : slice.branch ?? "\u2014"),
+          import_react7.default.createElement("span", { className: "iwb-branch-caret" }, import_react7.default.createElement(ChevronDown, { size: 11 }))
+        ),
+        // The scope is a segmented control: it names BOTH options and marks
+        // the chosen one. A button whose label WAS its own state read like a
+        // static label - the user could not tell it from a heading.
+        import_react7.default.createElement(
+          "div",
+          {
+            className: "iwb-seg",
+            role: "radiogroup",
+            "aria-label": t3("git.scopeLabel")
+          },
+          import_react7.default.createElement("button", {
+            type: "button",
+            role: "radio",
+            "aria-checked": scopeIsCurrent ? "true" : "false",
+            className: scopeIsCurrent ? "iwb-on" : "",
+            disabled: currentBranch === "",
+            title: t3("git.scopeCurrent"),
+            onClick: () => store.setGitFilters({ branch: currentBranch })
+          }, t3("git.scopeCurrent")),
+          import_react7.default.createElement("button", {
+            type: "button",
+            role: "radio",
+            "aria-checked": scopeIsCurrent ? "false" : "true",
+            className: scopeIsCurrent ? "" : "iwb-on",
+            title: t3("git.scopeAll"),
+            onClick: () => store.setGitFilters({ branch: "" })
+          }, t3("git.scopeAll"))
+        )
       ),
+      // ── the filters: WHAT the rows must match ─────────────────────────
       import_react7.default.createElement(
-        "button",
+        "div",
         {
-          type: "button",
-          className: "iwb-branch-switch",
-          title: t3("git.switchBranchTitle"),
-          onClick: (event) => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            setBranchMenu({ x: rect.left, y: rect.bottom + 4 });
-          }
+          className: "iwb-git-filter-fields",
+          role: "group",
+          "aria-label": t3("git.filterLabel")
         },
-        import_react7.default.createElement(IconBranch, { width: 13, height: 13 }),
-        import_react7.default.createElement("span", null, slice.detached === true ? t3("git.detached") : slice.branch ?? "\u2014"),
-        import_react7.default.createElement("span", { className: "iwb-branch-caret" }, import_react7.default.createElement(ChevronDown, { size: 11 }))
+        import_react7.default.createElement(
+          "select",
+          {
+            className: "iwb-select",
+            title: t3("git.dateFilter"),
+            value: git.filters.since ?? "",
+            onChange: (event) => store.setGitFilters({ since: event.target.value })
+          },
+          dateOptions.map(([value, key]) => import_react7.default.createElement("option", { key: value, value }, t3(key)))
+        ),
+        import_react7.default.createElement("input", {
+          className: "iwb-input",
+          style: { width: 100 },
+          placeholder: t3("git.authorFilter"),
+          value: git.filters.author,
+          onChange: (event) => {
+            const value = event.target.value;
+            if (queryTimer.current !== null) clearTimeout(queryTimer.current);
+            queryTimer.current = setTimeout(() => store.setGitFilters({ author: value }), 350);
+          }
+        }),
+        import_react7.default.createElement("input", {
+          className: "iwb-input",
+          style: { flex: 1, minWidth: 100, width: "auto" },
+          placeholder: t3("git.queryFilter"),
+          value: git.filters.query,
+          onChange: (event) => {
+            const value = event.target.value;
+            if (queryTimer.current !== null) clearTimeout(queryTimer.current);
+            queryTimer.current = setTimeout(() => store.setGitFilters({ query: value }), 350);
+          }
+        }),
+        git.filters.path !== void 0 && git.filters.path !== "" ? import_react7.default.createElement(
+          "span",
+          { className: "iwb-path-chip", title: git.filters.path },
+          import_react7.default.createElement("span", { className: "iwb-path-chip-text" }, git.filters.path),
+          import_react7.default.createElement("button", {
+            type: "button",
+            className: "iwb-path-chip-clear",
+            title: t3("git.clearPath"),
+            onClick: () => store.setGitFilters({ path: "" })
+          }, import_react7.default.createElement(IconClose, { width: 11, height: 11 }))
+        ) : null,
+        // The affordance appears only when a filter is doing something.
+        filtersActive ? import_react7.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-small",
+          title: t3("git.clearFilters"),
+          onClick: clearFilters
+        }, t3("git.clearFilters")) : null
       ),
       (git.compare ?? []).length > 0 ? import_react7.default.createElement(
         "span",
@@ -64371,55 +64647,6 @@ function GitPanel({ store, state }) {
         className: "iwb-textbtn iwb-small iwb-primary",
         onClick: () => store.compareSelected()
       }, t3("git.compare")) : null,
-      import_react7.default.createElement("button", {
-        type: "button",
-        className: `iwb-textbtn iwb-small ${git.filters.branch === "" ? "iwb-primary" : ""}`,
-        title: t3("git.branchFilter"),
-        onClick: () => store.setGitFilters({ branch: git.filters.branch === "" ? slice.branch ?? "" : "" })
-      }, git.filters.branch === "" ? t3("git.allBranches") : t3("git.currentBranchOnly")),
-      import_react7.default.createElement(
-        "select",
-        {
-          className: "iwb-select",
-          title: t3("git.dateFilter"),
-          value: git.filters.since ?? "",
-          onChange: (event) => store.setGitFilters({ since: event.target.value })
-        },
-        dateOptions.map(([value, key]) => import_react7.default.createElement("option", { key: value, value }, t3(key)))
-      ),
-      import_react7.default.createElement("input", {
-        className: "iwb-input",
-        style: { width: 100 },
-        placeholder: t3("git.authorFilter"),
-        value: git.filters.author,
-        onChange: (event) => {
-          const value = event.target.value;
-          if (queryTimer.current !== null) clearTimeout(queryTimer.current);
-          queryTimer.current = setTimeout(() => store.setGitFilters({ author: value }), 350);
-        }
-      }),
-      import_react7.default.createElement("input", {
-        className: "iwb-input",
-        style: { flex: 1, minWidth: 100, width: "auto" },
-        placeholder: t3("git.queryFilter"),
-        value: git.filters.query,
-        onChange: (event) => {
-          const value = event.target.value;
-          if (queryTimer.current !== null) clearTimeout(queryTimer.current);
-          queryTimer.current = setTimeout(() => store.setGitFilters({ query: value }), 350);
-        }
-      }),
-      git.filters.path !== void 0 && git.filters.path !== "" ? import_react7.default.createElement(
-        "span",
-        { className: "iwb-path-chip", title: git.filters.path },
-        import_react7.default.createElement("span", { className: "iwb-path-chip-text" }, git.filters.path),
-        import_react7.default.createElement("button", {
-          type: "button",
-          className: "iwb-path-chip-clear",
-          title: t3("git.clearPath"),
-          onClick: () => store.setGitFilters({ path: "" })
-        }, import_react7.default.createElement(IconClose, { width: 11, height: 11 }))
-      ) : null,
       git.selectedHash !== null && git.selectedHash !== void 0 && !drawerOpen ? import_react7.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small",
@@ -64463,8 +64690,16 @@ function GitPanel({ store, state }) {
             import_react7.default.createElement(
               "div",
               null,
-              slice.isRepo === true ? git.error ?? t3("git.noCommits") : t3("project.noRepoHint")
+              slice.isRepo === true ? filteredOut ? label(t3, "git.noMatches", "No commit matches the current filters") : git.error ?? t3("git.noCommits") : t3("project.noRepoHint")
             ),
+            // The rows are there, the filters hide them: the way out is
+            // the filters, and the panel says so.
+            filteredOut ? import_react7.default.createElement("button", {
+              type: "button",
+              className: "iwb-textbtn iwb-small",
+              style: { marginTop: 10 },
+              onClick: clearFilters
+            }, t3("git.clearFilters")) : null,
             slice.isRepo !== true ? import_react7.default.createElement(
               "div",
               { className: "iwb-git-no-repo" },
@@ -65699,38 +65934,38 @@ var $;
   Qe.None = () => D.None;
   function t3(y2) {
     if ($l) {
-      let { onDidAddListener: T2 } = y2, g2 = gi.create(), w2 = 0;
+      let { onDidAddListener: T3 } = y2, g2 = gi.create(), w2 = 0;
       y2.onDidAddListener = () => {
-        ++w2 === 2 && (console.warn("snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here"), g2.print()), T2?.();
+        ++w2 === 2 && (console.warn("snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here"), g2.print()), T3?.();
       };
     }
   }
-  function e2(y2, T2) {
+  function e2(y2, T3) {
     return d2(y2, () => {
-    }, 0, void 0, true, void 0, T2);
+    }, 0, void 0, true, void 0, T3);
   }
   Qe.defer = e2;
   function i3(y2) {
-    return (T2, g2 = null, w2) => {
+    return (T3, g2 = null, w2) => {
       let E2 = false, x2;
       return x2 = y2((N2) => {
-        if (!E2) return x2 ? x2.dispose() : E2 = true, T2.call(g2, N2);
+        if (!E2) return x2 ? x2.dispose() : E2 = true, T3.call(g2, N2);
       }, null, w2), E2 && x2.dispose(), x2;
     };
   }
   Qe.once = i3;
-  function r2(y2, T2, g2) {
-    return h3((w2, E2 = null, x2) => y2((N2) => w2.call(E2, T2(N2)), null, x2), g2);
+  function r2(y2, T3, g2) {
+    return h3((w2, E2 = null, x2) => y2((N2) => w2.call(E2, T3(N2)), null, x2), g2);
   }
   Qe.map = r2;
-  function n2(y2, T2, g2) {
+  function n2(y2, T3, g2) {
     return h3((w2, E2 = null, x2) => y2((N2) => {
-      T2(N2), w2.call(E2, N2);
+      T3(N2), w2.call(E2, N2);
     }, null, x2), g2);
   }
   Qe.forEach = n2;
-  function o3(y2, T2, g2) {
-    return h3((w2, E2 = null, x2) => y2((N2) => T2(N2) && w2.call(E2, N2), null, x2), g2);
+  function o3(y2, T3, g2) {
+    return h3((w2, E2 = null, x2) => y2((N2) => T3(N2) && w2.call(E2, N2), null, x2), g2);
   }
   Qe.filter = o3;
   function l2(y2) {
@@ -65738,34 +65973,34 @@ var $;
   }
   Qe.signal = l2;
   function a3(...y2) {
-    return (T2, g2 = null, w2) => {
-      let E2 = ho(...y2.map((x2) => x2((N2) => T2.call(g2, N2))));
+    return (T3, g2 = null, w2) => {
+      let E2 = ho(...y2.map((x2) => x2((N2) => T3.call(g2, N2))));
       return c2(E2, w2);
     };
   }
   Qe.any = a3;
-  function u3(y2, T2, g2, w2) {
+  function u3(y2, T3, g2, w2) {
     let E2 = g2;
-    return r2(y2, (x2) => (E2 = T2(E2, x2), E2), w2);
+    return r2(y2, (x2) => (E2 = T3(E2, x2), E2), w2);
   }
   Qe.reduce = u3;
-  function h3(y2, T2) {
+  function h3(y2, T3) {
     let g2, w2 = { onWillAddFirstListener() {
       g2 = y2(E2.fire, E2);
     }, onDidRemoveLastListener() {
       g2?.dispose();
     } };
-    T2 || t3(w2);
+    T3 || t3(w2);
     let E2 = new v(w2);
-    return T2?.add(E2), E2.event;
+    return T3?.add(E2), E2.event;
   }
-  function c2(y2, T2) {
-    return T2 instanceof Array ? T2.push(y2) : T2 && T2.add(y2), y2;
+  function c2(y2, T3) {
+    return T3 instanceof Array ? T3.push(y2) : T3 && T3.add(y2), y2;
   }
-  function d2(y2, T2, g2 = 100, w2 = false, E2 = false, x2, N2) {
+  function d2(y2, T3, g2 = 100, w2 = false, E2 = false, x2, N2) {
     let Z3, te, Oe, ze = 0, le, et2 = { leakWarningThreshold: x2, onWillAddFirstListener() {
       Z3 = y2((ht2) => {
-        ze++, te = T2(te, ht2), w2 && !Oe && (me.fire(te), te = void 0), le = () => {
+        ze++, te = T3(te, ht2), w2 && !Oe && (me.fire(te), te = void 0), le = () => {
           let fi = te;
           te = void 0, Oe = void 0, (!w2 || ze > 1) && me.fire(fi), ze = 0;
         }, typeof g2 == "number" ? (clearTimeout(Oe), Oe = setTimeout(le, g2)) : Oe === void 0 && (Oe = 0, queueMicrotask(le));
@@ -65780,23 +66015,23 @@ var $;
     return N2?.add(me), me.event;
   }
   Qe.debounce = d2;
-  function _3(y2, T2 = 0, g2) {
-    return Qe.debounce(y2, (w2, E2) => w2 ? (w2.push(E2), w2) : [E2], T2, void 0, true, void 0, g2);
+  function _3(y2, T3 = 0, g2) {
+    return Qe.debounce(y2, (w2, E2) => w2 ? (w2.push(E2), w2) : [E2], T3, void 0, true, void 0, g2);
   }
   Qe.accumulate = _3;
-  function p2(y2, T2 = (w2, E2) => w2 === E2, g2) {
+  function p2(y2, T3 = (w2, E2) => w2 === E2, g2) {
     let w2 = true, E2;
     return o3(y2, (x2) => {
-      let N2 = w2 || !T2(x2, E2);
+      let N2 = w2 || !T3(x2, E2);
       return w2 = false, E2 = x2, N2;
     }, g2);
   }
   Qe.latch = p2;
-  function m2(y2, T2, g2) {
-    return [Qe.filter(y2, T2, g2), Qe.filter(y2, (w2) => !T2(w2), g2)];
+  function m2(y2, T3, g2) {
+    return [Qe.filter(y2, T3, g2), Qe.filter(y2, (w2) => !T3(w2), g2)];
   }
   Qe.split = m2;
-  function f2(y2, T2 = false, g2 = [], w2) {
+  function f2(y2, T3 = false, g2 = [], w2) {
     let E2 = g2.slice(), x2 = y2((te) => {
       E2 ? E2.push(te) : Z3.fire(te);
     });
@@ -65806,16 +66041,16 @@ var $;
     }, Z3 = new v({ onWillAddFirstListener() {
       x2 || (x2 = y2((te) => Z3.fire(te)), w2 && w2.add(x2));
     }, onDidAddFirstListener() {
-      E2 && (T2 ? setTimeout(N2) : N2());
+      E2 && (T3 ? setTimeout(N2) : N2());
     }, onDidRemoveLastListener() {
       x2 && x2.dispose(), x2 = null;
     } });
     return w2 && w2.add(Z3), Z3.event;
   }
   Qe.buffer = f2;
-  function A3(y2, T2) {
+  function A3(y2, T3) {
     return (w2, E2, x2) => {
-      let N2 = T2(new O2());
+      let N2 = T3(new O2());
       return y2(function(Z3) {
         let te = N2.evaluate(Z3);
         te !== R3 && w2.call(E2, te);
@@ -65828,98 +66063,98 @@ var $;
     constructor() {
       this.steps = [];
     }
-    map(T2) {
-      return this.steps.push(T2), this;
+    map(T3) {
+      return this.steps.push(T3), this;
     }
-    forEach(T2) {
-      return this.steps.push((g2) => (T2(g2), g2)), this;
+    forEach(T3) {
+      return this.steps.push((g2) => (T3(g2), g2)), this;
     }
-    filter(T2) {
-      return this.steps.push((g2) => T2(g2) ? g2 : R3), this;
+    filter(T3) {
+      return this.steps.push((g2) => T3(g2) ? g2 : R3), this;
     }
-    reduce(T2, g2) {
+    reduce(T3, g2) {
       let w2 = g2;
-      return this.steps.push((E2) => (w2 = T2(w2, E2), w2)), this;
+      return this.steps.push((E2) => (w2 = T3(w2, E2), w2)), this;
     }
-    latch(T2 = (g2, w2) => g2 === w2) {
+    latch(T3 = (g2, w2) => g2 === w2) {
       let g2 = true, w2;
       return this.steps.push((E2) => {
-        let x2 = g2 || !T2(E2, w2);
+        let x2 = g2 || !T3(E2, w2);
         return g2 = false, w2 = E2, x2 ? E2 : R3;
       }), this;
     }
-    evaluate(T2) {
-      for (let g2 of this.steps) if (T2 = g2(T2), T2 === R3) break;
-      return T2;
+    evaluate(T3) {
+      for (let g2 of this.steps) if (T3 = g2(T3), T3 === R3) break;
+      return T3;
     }
   }
-  function I2(y2, T2, g2 = (w2) => w2) {
-    let w2 = (...Z3) => N2.fire(g2(...Z3)), E2 = () => y2.on(T2, w2), x2 = () => y2.removeListener(T2, w2), N2 = new v({ onWillAddFirstListener: E2, onDidRemoveLastListener: x2 });
+  function I2(y2, T3, g2 = (w2) => w2) {
+    let w2 = (...Z3) => N2.fire(g2(...Z3)), E2 = () => y2.on(T3, w2), x2 = () => y2.removeListener(T3, w2), N2 = new v({ onWillAddFirstListener: E2, onDidRemoveLastListener: x2 });
     return N2.event;
   }
   Qe.fromNodeEventEmitter = I2;
-  function k2(y2, T2, g2 = (w2) => w2) {
-    let w2 = (...Z3) => N2.fire(g2(...Z3)), E2 = () => y2.addEventListener(T2, w2), x2 = () => y2.removeEventListener(T2, w2), N2 = new v({ onWillAddFirstListener: E2, onDidRemoveLastListener: x2 });
+  function k2(y2, T3, g2 = (w2) => w2) {
+    let w2 = (...Z3) => N2.fire(g2(...Z3)), E2 = () => y2.addEventListener(T3, w2), x2 = () => y2.removeEventListener(T3, w2), N2 = new v({ onWillAddFirstListener: E2, onDidRemoveLastListener: x2 });
     return N2.event;
   }
   Qe.fromDOMEventEmitter = k2;
   function P2(y2) {
-    return new Promise((T2) => i3(y2)(T2));
+    return new Promise((T3) => i3(y2)(T3));
   }
   Qe.toPromise = P2;
   function oe(y2) {
-    let T2 = new v();
+    let T3 = new v();
     return y2.then((g2) => {
-      T2.fire(g2);
+      T3.fire(g2);
     }, () => {
-      T2.fire(void 0);
+      T3.fire(void 0);
     }).finally(() => {
-      T2.dispose();
-    }), T2.event;
+      T3.dispose();
+    }), T3.event;
   }
   Qe.fromPromise = oe;
-  function Me(y2, T2) {
-    return y2((g2) => T2.fire(g2));
+  function Me(y2, T3) {
+    return y2((g2) => T3.fire(g2));
   }
   Qe.forward = Me;
-  function Pe(y2, T2, g2) {
-    return T2(g2), y2((w2) => T2(w2));
+  function Pe(y2, T3, g2) {
+    return T3(g2), y2((w2) => T3(w2));
   }
   Qe.runAndSubscribe = Pe;
   class Ke {
-    constructor(T2, g2) {
-      this._observable = T2;
+    constructor(T3, g2) {
+      this._observable = T3;
       this._counter = 0;
       this._hasChanged = false;
       let w2 = { onWillAddFirstListener: () => {
-        T2.addObserver(this);
+        T3.addObserver(this);
       }, onDidRemoveLastListener: () => {
-        T2.removeObserver(this);
+        T3.removeObserver(this);
       } };
       g2 || t3(w2), this.emitter = new v(w2), g2 && g2.add(this.emitter);
     }
-    beginUpdate(T2) {
+    beginUpdate(T3) {
       this._counter++;
     }
-    handlePossibleChange(T2) {
+    handlePossibleChange(T3) {
     }
-    handleChange(T2, g2) {
+    handleChange(T3, g2) {
       this._hasChanged = true;
     }
-    endUpdate(T2) {
+    endUpdate(T3) {
       this._counter--, this._counter === 0 && (this._observable.reportChanges(), this._hasChanged && (this._hasChanged = false, this.emitter.fire(this._observable.get())));
     }
   }
-  function di(y2, T2) {
-    return new Ke(y2, T2).emitter.event;
+  function di(y2, T3) {
+    return new Ke(y2, T3).emitter.event;
   }
   Qe.fromObservable = di;
   function V2(y2) {
-    return (T2, g2, w2) => {
+    return (T3, g2, w2) => {
       let E2 = 0, x2 = false, N2 = { beginUpdate() {
         E2++;
       }, endUpdate() {
-        E2--, E2 === 0 && (y2.reportChanges(), x2 && (x2 = false, T2.call(g2)));
+        E2--, E2 === 0 && (y2.reportChanges(), x2 && (x2 = false, T3.call(g2)));
       }, handlePossibleChange() {
       }, handleChange() {
         x2 = true;
@@ -68554,20 +68789,20 @@ var Vt = class {
     let f2, A3 = 0, R3 = "", O2 = 0, I2 = 0, k2 = 0, P2 = 0, oe = false, Me = 0, Pe = false, Ke = 0, di = 0, V2 = [], Qe = h3 !== -1 && c2 !== -1;
     for (let y2 = 0; y2 < m2; y2++) {
       t3.loadCell(y2, this._workCell);
-      let T2 = this._workCell.getWidth();
-      if (T2 === 0) continue;
+      let T3 = this._workCell.getWidth();
+      if (T3 === 0) continue;
       let g2 = false, w2 = y2 >= di, E2 = y2, x2 = this._workCell;
       if (_3.length > 0 && y2 === _3[0][0] && w2) {
         let W2 = _3.shift(), An = this._isCellInSelection(W2[0], e2);
         for (O2 = W2[0] + 1; O2 < W2[1]; O2++) w2 &&= An === this._isCellInSelection(O2, e2);
-        w2 &&= !i3 || o3 < W2[0] || o3 >= W2[1], w2 ? (g2 = true, x2 = new Vr(this._workCell, t3.translateToString(true, W2[0], W2[1]), W2[1] - W2[0]), E2 = W2[1] - 1, T2 = x2.getWidth()) : di = W2[1];
+        w2 &&= !i3 || o3 < W2[0] || o3 >= W2[1], w2 ? (g2 = true, x2 = new Vr(this._workCell, t3.translateToString(true, W2[0], W2[1]), W2[1] - W2[0]), E2 = W2[1] - 1, T3 = x2.getWidth()) : di = W2[1];
       }
       let N2 = this._isCellInSelection(y2, e2), Z3 = i3 && y2 === o3, te = Qe && y2 >= h3 && y2 <= c2, Oe = false;
       this._decorationService.forEachDecorationAtCell(y2, e2, void 0, (W2) => {
         Oe = true;
       });
       let ze = x2.getChars() || we;
-      if (ze === " " && (x2.isUnderline() || x2.isOverline()) && (ze = "\xA0"), Ke = T2 * a3 - u3.get(ze, x2.isBold(), x2.isItalic()), !f2) f2 = this._document.createElement("span");
+      if (ze === " " && (x2.isUnderline() || x2.isOverline()) && (ze = "\xA0"), Ke = T3 * a3 - u3.get(ze, x2.isBold(), x2.isItalic()), !f2) f2 = this._document.createElement("span");
       else if (A3 && (N2 && Pe || !N2 && !Pe && x2.bg === I2) && (N2 && Pe && p2.selectionForeground || x2.fg === k2) && x2.extended.ext === P2 && te === oe && Ke === Me && !Z3 && !g2 && !Oe && w2) {
         x2.isInvisible() ? R3 += we : R3 += ze, A3++;
         continue;
@@ -75831,12 +76066,33 @@ function MarkdownView({
 }) {
   const MarkdownText = useMarkdownComponent();
   const containerRef = (0, import_react12.useRef)(null);
+  const outlineRef = (0, import_react12.useRef)(null);
   const [activeSlug, setActiveSlug] = (0, import_react12.useState)("");
   const headings = (0, import_react12.useMemo)(() => extractHeadings(text), [text]);
   const headingKey = (0, import_react12.useMemo)(() => headings.map((heading2) => heading2.slug).join("|"), [headings]);
   const openFind = () => {
     onFindRequest?.();
   };
+  (0, import_react12.useEffect)(() => {
+    if (outlineOpen !== true) return void 0;
+    const onPointerDown = (event) => {
+      const target = event.target;
+      if (target instanceof Element) {
+        if (outlineRef.current?.contains(target) === true) return;
+        if (target.closest?.(".iwb-outline-toggle") !== null) return;
+      }
+      onToggleOutline();
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onToggleOutline();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [outlineOpen, onToggleOutline]);
   (0, import_react12.useEffect)(() => {
     const container = containerRef.current;
     if (container === null) return;
@@ -75910,7 +76166,7 @@ function MarkdownView({
     ),
     outlineOpen === true ? import_react12.default.createElement(
       "div",
-      { className: "iwb-outline", role: "navigation", "aria-label": labels.outline ?? "Outline" },
+      { className: "iwb-outline", role: "navigation", "aria-label": labels.outline ?? "Outline", ref: outlineRef },
       import_react12.default.createElement(
         "div",
         { className: "iwb-outline-head" },
@@ -77617,7 +77873,6 @@ function Welcome({ store, slice }) {
   const t3 = store.t;
   const branch = slice.status?.branch;
   const repoProjects = (slice.projects ?? []).filter((project) => project.isRepo === true && project.path !== slice.root);
-  const Shortcut = ({ shortcut, children }) => import_react16.default.createElement(Kbd, null, shortcut);
   const actions = [
     { key: "project", icon: "project", title: t3("welcome.project"), shortcut: slice.shortcuts?.project ?? "Alt+1", onClick: () => store.showTool("project") },
     { key: "commit", icon: "commit", title: t3("welcome.commit"), shortcut: slice.shortcuts?.commit ?? "Alt+0", onClick: () => store.showTool("commit") },
@@ -77630,6 +77885,11 @@ function Welcome({ store, slice }) {
     import_react16.default.createElement(
       "div",
       { className: "iwb-welcome-card" },
+      import_react16.default.createElement(
+        "div",
+        { className: "iwb-welcome-mark" },
+        import_react16.default.createElement(WorkbenchMark, { size: 44 })
+      ),
       import_react16.default.createElement("h1", { className: "iwb-welcome-title" }, t3("welcome.title")),
       import_react16.default.createElement("p", { className: "iwb-welcome-sub" }, t3("welcome.subtitle")),
       import_react16.default.createElement(
@@ -77643,16 +77903,29 @@ function Welcome({ store, slice }) {
             className: "iwb-welcome-action",
             onClick: action.onClick
           },
-          import_react16.default.createElement(StripeIcon, { tool: action.icon, size: 17 }),
-          import_react16.default.createElement("span", null, action.title),
-          import_react16.default.createElement(Shortcut, { shortcut: action.shortcut, children: action.shortcut })
+          import_react16.default.createElement(
+            "span",
+            { className: "iwb-welcome-action-icon" },
+            import_react16.default.createElement(StripeIcon, { tool: action.icon, size: 22 })
+          ),
+          import_react16.default.createElement("span", { className: "iwb-welcome-action-name" }, action.title),
+          import_react16.default.createElement("span", { className: "iwb-welcome-action-key" }, action.shortcut)
         ))
       ),
       import_react16.default.createElement(
         "div",
         { className: "iwb-welcome-meta" },
-        slice.status?.isRepo === true ? import_react16.default.createElement("span", null, `${t3("welcome.branch")}: ${slice.status.detached === true ? t3("git.detached") : branch ?? "HEAD"}`) : import_react16.default.createElement("span", null, t3("welcome.noRepo")),
-        import_react16.default.createElement("span", null, slice.root)
+        slice.status?.isRepo === true ? import_react16.default.createElement(
+          "span",
+          null,
+          import_react16.default.createElement("span", { className: "iwb-welcome-meta-label" }, t3("welcome.branch")),
+          import_react16.default.createElement(
+            "span",
+            { className: "iwb-welcome-meta-value" },
+            slice.status.detached === true ? t3("git.detached") : branch ?? "HEAD"
+          )
+        ) : import_react16.default.createElement("span", { className: "iwb-welcome-meta-label" }, t3("welcome.noRepo")),
+        import_react16.default.createElement("span", { className: "iwb-welcome-meta-path" }, slice.root)
       ),
       slice.status?.isRepo !== true && repoProjects.length > 0 ? import_react16.default.createElement(
         "div",
@@ -78118,7 +78391,7 @@ function EditorToolbar2({ store, tab: tab3 }) {
       ) : null,
       isText2 && markdown2 && !editing && view === "preview" ? import_react16.default.createElement("button", {
         type: "button",
-        className: `iwb-iconbtn ${tab3.outlineOpen === true ? "iwb-on" : ""}`,
+        className: `iwb-iconbtn iwb-outline-toggle ${tab3.outlineOpen === true ? "iwb-on" : ""}`,
         title: t3("editor.outline"),
         onClick: () => store.updateActiveTab({ outlineOpen: tab3.outlineOpen !== true })
       }, import_react16.default.createElement(IconOutline, { width: 14, height: 14 })) : null,
@@ -79527,11 +79800,11 @@ function TopBar({ store, state, onOpenSettings }) {
 function Stripe({ store, state }) {
   const t3 = store.t;
   const sessions = state.terminal.sessions.length;
-  const button = (tool, active, children) => import_react20.default.createElement("button", {
+  const button = (tool2, active, children) => import_react20.default.createElement("button", {
     type: "button",
     className: `iwb-stripe-btn ${active ? "iwb-on" : ""}`,
-    title: `${t3(`${tool}.title`)} (${state.settings?.shortcuts?.[tool] ?? ""})`,
-    onClick: () => store.toggleTool(tool)
+    title: `${t3(`${tool2}.title`)} (${state.settings?.shortcuts?.[tool2] ?? ""})`,
+    onClick: () => store.toggleTool(tool2)
   }, children);
   return import_react20.default.createElement(
     "div",
@@ -79641,8 +79914,8 @@ function RepoSwitch({ store, state }) {
 }
 function BottomTabs({ store, state }) {
   const t3 = store.t;
-  const tool = state.layout.bottom;
-  if (tool === null || tool === void 0) return null;
+  const tool2 = state.layout.bottom;
+  if (tool2 === null || tool2 === void 0) return null;
   return import_react20.default.createElement(
     "div",
     { className: "iwb-bottom-tabs" },
@@ -79650,7 +79923,7 @@ function BottomTabs({ store, state }) {
       "button",
       {
         type: "button",
-        className: `iwb-bottom-tab ${tool === "terminal" ? "iwb-on" : ""}`,
+        className: `iwb-bottom-tab ${tool2 === "terminal" ? "iwb-on" : ""}`,
         onClick: () => store.showTool("terminal")
       },
       import_react20.default.createElement(IconTerminal, { width: 13, height: 13 }),
@@ -79659,7 +79932,7 @@ function BottomTabs({ store, state }) {
     ),
     import_react20.default.createElement("button", {
       type: "button",
-      className: `iwb-bottom-tab ${tool === "git" ? "iwb-on" : ""}`,
+      className: `iwb-bottom-tab ${tool2 === "git" ? "iwb-on" : ""}`,
       onClick: () => store.showTool("git")
     }, import_react20.default.createElement(IconGit, { width: 13, height: 13 }), t3("git.title")),
     import_react20.default.createElement(RepoSwitch, { store, state }),
@@ -80164,7 +80437,7 @@ var CSS2 = `
   --iwb-glass-blur: saturate(180%) blur(20px);
   --iwb-glass-edge: inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent), inset 0 0 0 1px color-mix(in srgb, #fff 9%, transparent);
   --iwb-glass-shadow: 0 20px 52px color-mix(in srgb, #000 46%, transparent), 0 2px 8px color-mix(in srgb, #000 26%, transparent);
-  /* \u2500\u2500 the syntax palette (THEME-03) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  /* \u2500\u2500 the syntax palette (THEME-03, redone in PRD-v8) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
      The host has no syntax aliases, and no single colour can serve both of
      its themes: a colour that clears 4.5:1 on white needs a relative
      luminance of 0.183 or less, while the dark code layer #232830 needs
@@ -80177,47 +80450,60 @@ var CSS2 = `
      while the lightness comes from the host - and that is what makes one
      token readable on a light theme and on a dark one. Nothing switches on
      prefers-color-scheme, and nothing waits for the host.
-     The SHARE of the hue is what differs per theme, and it has to: in a light
-     theme the text is near-black, so a LARGE share of the hue keeps the token
-     a colour (with the dark theme's 52% the violet washed out to near-black
-     and the code looked unhighlighted); in a dark theme the text is
-     near-white, so a SMALL share lifts the hue just far enough to clear the
-     dark code layer. The branch follows the host through light-dark(),
-     which resolves on the color-scheme the host declares for its theme
-     (the DSH host writes :root { color-scheme: light|dark } for every
-     theme - app or system). Nothing switches on prefers-color-scheme, and
-     nothing waits for the host. tests/styles-theme.test.mjs does the oklab
-     maths and checks every token, in both branches, on all three surfaces
-     (white, the editor background and the code layer). */
-  --iwb-syn-comment-light: color-mix(in oklab, #6b7482 80%, var(--iwb-fg) 20%);
-  --iwb-syn-comment-dark: color-mix(in oklab, #6b7482 52%, var(--iwb-fg) 48%);
+
+     The SHARES are the part that decides whether the code looks ALIVE. Each
+     branch mixes the hue with the text colour of its theme, and the two
+     shares sum to 100%:
+
+       light: 76% hue + 24% near-black   -> the hue darkens into the page
+                                            but keeps its identity;
+       dark:  86% hue + 14% near-white   -> the hue stays VIVID on the dark
+                                            code layer instead of being
+                                            washed into a pastel.
+
+     The old palette mixed 80%/52%, and the dark branch came out dusty: a
+     keyword was a pale violet and a string a pale olive - readable, but
+     nobody would call it modern. The hues below were picked for CHARACTER
+     (a keyword never reads as a string, a type never as a function), and
+     their lightness was then SOLVED for the most colour that still clears
+     5.25:1 on white, on the dark editor and on the dark code layer.
+
+     The branch follows the host through light-dark(), which resolves on the
+     color-scheme the host declares for its theme (the DSH host writes
+     :root { color-scheme: light|dark } for every theme - app or system).
+     Nothing switches on prefers-color-scheme, and nothing waits for the
+     host. tests/styles-theme.test.mjs does the oklab maths and checks every
+     token, in both branches, on all three surfaces (white, the editor
+     background and the code layer). */
+  --iwb-syn-comment-light: color-mix(in oklab, #638392 76%, var(--iwb-fg) 24%);
+  --iwb-syn-comment-dark: color-mix(in oklab, #638392 50%, var(--iwb-fg) 50%);
   --iwb-syn-comment: light-dark(var(--iwb-syn-comment-light), var(--iwb-syn-comment-dark));
-  --iwb-syn-string-light: color-mix(in oklab, #2a8359 80%, var(--iwb-fg) 20%);
-  --iwb-syn-string-dark: color-mix(in oklab, #2a8359 52%, var(--iwb-fg) 48%);
+  --iwb-syn-string-light: color-mix(in oklab, #259f56 76%, var(--iwb-fg) 24%);
+  --iwb-syn-string-dark: color-mix(in oklab, #259f56 76%, var(--iwb-fg) 24%);
   --iwb-syn-string: light-dark(var(--iwb-syn-string-light), var(--iwb-syn-string-dark));
-  --iwb-syn-keyword-light: color-mix(in oklab, #9455b5 80%, var(--iwb-fg) 20%);
-  --iwb-syn-keyword-dark: color-mix(in oklab, #9455b5 52%, var(--iwb-fg) 48%);
+  --iwb-syn-keyword-light: color-mix(in oklab, #a870e9 76%, var(--iwb-fg) 24%);
+  --iwb-syn-keyword-dark: color-mix(in oklab, #a870e9 76%, var(--iwb-fg) 24%);
   --iwb-syn-keyword: light-dark(var(--iwb-syn-keyword-light), var(--iwb-syn-keyword-dark));
-  --iwb-syn-type-light: color-mix(in oklab, #12838d 80%, var(--iwb-fg) 20%);
-  --iwb-syn-type-dark: color-mix(in oklab, #12838d 52%, var(--iwb-fg) 48%);
+  --iwb-syn-type-light: color-mix(in oklab, #0099a8 76%, var(--iwb-fg) 24%);
+  --iwb-syn-type-dark: color-mix(in oklab, #0099a8 74%, var(--iwb-fg) 26%);
   --iwb-syn-type: light-dark(var(--iwb-syn-type-light), var(--iwb-syn-type-dark));
-  --iwb-syn-number-light: color-mix(in oklab, #a1651c 80%, var(--iwb-fg) 20%);
-  --iwb-syn-number-dark: color-mix(in oklab, #a1651c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-number-light: color-mix(in oklab, #d07200 76%, var(--iwb-fg) 24%);
+  --iwb-syn-number-dark: color-mix(in oklab, #d07200 74%, var(--iwb-fg) 26%);
   --iwb-syn-number: light-dark(var(--iwb-syn-number-light), var(--iwb-syn-number-dark));
-  --iwb-syn-function-light: color-mix(in oklab, #2a6cbd 80%, var(--iwb-fg) 20%);
-  --iwb-syn-function-dark: color-mix(in oklab, #2a6cbd 52%, var(--iwb-fg) 48%);
+  --iwb-syn-function-light: color-mix(in oklab, #2a8ee7 76%, var(--iwb-fg) 24%);
+  --iwb-syn-function-dark: color-mix(in oklab, #2a8ee7 76%, var(--iwb-fg) 24%);
   --iwb-syn-function: light-dark(var(--iwb-syn-function-light), var(--iwb-syn-function-dark));
-  --iwb-syn-property-light: color-mix(in oklab, #4a63b8 80%, var(--iwb-fg) 20%);
-  --iwb-syn-property-dark: color-mix(in oklab, #4a63b8 52%, var(--iwb-fg) 48%);
+  --iwb-syn-property-light: color-mix(in oklab, #009b8f 76%, var(--iwb-fg) 24%);
+  --iwb-syn-property-dark: color-mix(in oklab, #009b8f 74%, var(--iwb-fg) 26%);
   --iwb-syn-property: light-dark(var(--iwb-syn-property-light), var(--iwb-syn-property-dark));
-  --iwb-syn-tag-light: color-mix(in oklab, #bb404f 80%, var(--iwb-fg) 20%);
-  --iwb-syn-tag-dark: color-mix(in oklab, #bb404f 52%, var(--iwb-fg) 48%);
+  --iwb-syn-tag-light: color-mix(in oklab, #e45c79 76%, var(--iwb-fg) 24%);
+  --iwb-syn-tag-dark: color-mix(in oklab, #e45c79 74%, var(--iwb-fg) 26%);
   --iwb-syn-tag: light-dark(var(--iwb-syn-tag-light), var(--iwb-syn-tag-dark));
-  --iwb-syn-heading-light: color-mix(in oklab, #1e70e2 80%, var(--iwb-fg) 20%);
-  --iwb-syn-heading-dark: color-mix(in oklab, #1e70e2 52%, var(--iwb-fg) 48%);
+  --iwb-syn-heading-light: color-mix(in oklab, #6684f4 76%, var(--iwb-fg) 24%);
+  --iwb-syn-heading-dark: color-mix(in oklab, #6684f4 76%, var(--iwb-fg) 24%);
   --iwb-syn-heading: light-dark(var(--iwb-syn-heading-light), var(--iwb-syn-heading-dark));
-  --iwb-syn-invalid-light: color-mix(in oklab, #bb352c 80%, var(--iwb-fg) 20%);
-  --iwb-syn-invalid-dark: color-mix(in oklab, #bb352c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-invalid-light: color-mix(in oklab, #ee564a 76%, var(--iwb-fg) 24%);
+  --iwb-syn-invalid-dark: color-mix(in oklab, #ee564a 74%, var(--iwb-fg) 26%);
   --iwb-syn-invalid: light-dark(var(--iwb-syn-invalid-light), var(--iwb-syn-invalid-dark));
   --iwb-sidebar: var(--dsw-specific-sidebar-fill, #181b21);
   --iwb-mod: #4c9aff;
@@ -80276,6 +80562,15 @@ var CSS2 = `
      get tabular figures - proportional digits make a table of counters jump
      around on every update. */
   font-variant-numeric: tabular-nums;
+  /* The ligatures of the code face. Cascadia Code and JetBrains Mono draw
+     the "not equal", the "greater or equal" and the "arrow" of an operator
+     as ONE glyph; on the code of a modern IDE that reads as "this is code",
+     and it costs nothing: the face is already there. */
+  font-variant-ligatures: contextual;
+  /* Segoe UI Variable (Windows 11) is a variable face with an optical size
+     axis: it draws itself differently for a 13px label than for a 28px
+     title. The browser only uses that axis when it is told to. */
+  font-optical-sizing: auto;
   user-select: none;
   -webkit-app-region: no-drag;
 }
@@ -80364,13 +80659,20 @@ var CSS2 = `
 .iwb-project-select .iwb-project-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-select .iwb-project-path { color: var(--iwb-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-branch-chip {
-  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
-  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-pill); color: var(--iwb-muted); font-size: var(--iwb-text-body);
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+  border-radius: var(--iwb-radius-pill); color: var(--iwb-muted); font-size: 11.5px;
   max-width: 240px; overflow: hidden;
-  background: var(--iwb-sheen), var(--iwb-panel-2);
-  box-shadow: var(--iwb-highlight);
+  /* The chip is PART of the bar, not an object lying on it. A sheen and a
+     shadow made it read as a pasted-on sticker from another layer; a tint of
+     the brand colour and a hairline of its own say the same thing without
+     the seam. */
+  background: color-mix(in srgb, var(--iwb-accent) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--iwb-accent) 24%, transparent);
 }
-.iwb-branch-chip .iwb-branch-name { color: var(--iwb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iwb-branch-chip .iwb-branch-name {
+  color: var(--iwb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--iwb-mono); font-size: 11px; letter-spacing: -.01em;
+}
 .iwb-ahead { color: var(--iwb-success); font-variant-numeric: tabular-nums; }
 .iwb-behind { color: var(--iwb-warn); font-variant-numeric: tabular-nums; }
 /* The badge is a button (PUSH-02): it keeps the colour of the badge it
@@ -80717,24 +81019,80 @@ var CSS2 = `
 .iwb-outline-item.iwb-active { background: var(--iwb-surface-selected); color: var(--iwb-accent); }
 .iwb-outline-empty { padding: 14px; color: var(--iwb-muted); font-size: 11.5px; text-align: center; }
 
-.iwb-welcome { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px; overflow: auto; }
-.iwb-welcome-card { max-width: 560px; width: 100%; }
-.iwb-welcome-title { font-size: 26px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 6px; }
-.iwb-welcome-sub { color: var(--iwb-muted); margin: 0 0 22px; font-size: 13px; }
-.iwb-welcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+/* \u2500\u2500 the empty state (PRD-v8) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The empty workbench used to read like a README: a title, a sentence and
+   four rows of shortcut. It is now the FRONT DOOR of the workbench - a mark,
+   one sentence, and the four tool windows as CARDS you can walk into.
+
+   The mark sits in a plate of its own and a soft glow sits behind it: the
+   window is empty, and an empty window that is flat reads as "nothing is
+   here" instead of "nothing is open YET". */
+.iwb-welcome {
+  flex: 1; min-height: 0; display: flex; overflow: auto; padding: 28px 32px;
+  position: relative;
+}
+.iwb-welcome::before {
+  content: ''; position: absolute; left: 50%; top: 32%; pointer-events: none;
+  width: 560px; height: 340px; transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--iwb-accent) 15%, transparent), transparent 68%);
+}
+/* The card is centred by its OWN margins, not by the alignment of the
+   parent: a centred flex child that does not fit is clipped at the TOP, and
+   the mark - the first thing the reader sees - is what disappears. With the
+   margins the card is centred when there is room and starts at the top when
+   there is not. */
+.iwb-welcome-card {
+  position: relative; margin: auto; max-width: 680px; width: 100%;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+}
+.iwb-welcome-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 72px; height: 72px; margin-bottom: 20px; border-radius: 22px;
+  color: var(--iwb-accent);
+  background: var(--iwb-sheen), var(--iwb-surface-raised);
+  border: 1px solid var(--iwb-border);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-md), 0 0 0 6px color-mix(in srgb, var(--iwb-accent) 8%, transparent);
+}
+.iwb-welcome-title {
+  margin: 0 0 8px; font-size: 26px; font-weight: 650; letter-spacing: -.02em; line-height: 1.15;
+}
+.iwb-welcome-sub {
+  margin: 0 0 26px; color: var(--iwb-muted); font-size: 13px; line-height: 1.6; max-width: 46ch;
+}
+.iwb-welcome-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  width: 100%; margin-bottom: 22px;
+}
+/* A card, not a row: the four windows are the doors of the workbench, and a
+   door has a face you can read at a glance. */
 .iwb-welcome-action {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--iwb-border);
-  border-radius: var(--iwb-radius-md); background: var(--iwb-surface-raised); color: var(--iwb-fg); text-align: left;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  padding: 14px 14px 12px; border-radius: var(--iwb-radius-lg);
+  border: 1px solid var(--iwb-border); background: var(--iwb-surface-raised);
+  color: var(--iwb-fg); text-align: left;
   box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm);
   transition: border-color var(--iwb-dur-fast) var(--iwb-ease), background-color var(--iwb-dur-fast) var(--iwb-ease), transform var(--iwb-dur-fast) var(--iwb-ease), box-shadow var(--iwb-dur-fast) var(--iwb-ease);
 }
 .iwb-welcome-action:hover {
-  border-color: var(--iwb-border-strong); background: var(--iwb-panel-2);
-  transform: translateY(-1px); box-shadow: var(--iwb-highlight), var(--iwb-shadow-md);
+  border-color: color-mix(in srgb, var(--iwb-accent) 42%, var(--iwb-border));
+  background: var(--iwb-panel-2);
+  transform: translateY(-2px); box-shadow: var(--iwb-highlight), var(--iwb-shadow-md);
 }
-.iwb-welcome-action .iwb-kbd { margin-left: auto; }
-.iwb-welcome-meta { display: flex; gap: 16px; color: var(--iwb-muted); font-size: 12px; border-top: 1px solid var(--iwb-border); padding-top: 14px; }
-.iwb-welcome-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--iwb-border); border-radius: 7px; color: var(--iwb-muted); font-size: 12px; }
+.iwb-welcome-action-icon { color: var(--iwb-accent); display: inline-flex; }
+.iwb-welcome-action-name { font-size: 13px; font-weight: 600; letter-spacing: .01em; }
+.iwb-welcome-action-key {
+  font-family: var(--iwb-mono); font-size: 10.5px; color: var(--iwb-muted); letter-spacing: .02em;
+}
+.iwb-welcome-meta {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  color: var(--iwb-muted); font-size: 12px; border-top: 1px solid var(--iwb-border);
+  padding-top: 16px; width: 100%;
+}
+.iwb-welcome-meta-label { color: var(--iwb-muted); }
+.iwb-welcome-meta-label::after { content: ' \xB7'; margin-left: 6px; color: var(--iwb-muted); opacity: .6; }
+.iwb-welcome-meta-value { font-family: var(--iwb-mono); color: var(--iwb-fg); }
+.iwb-welcome-meta-path { font-family: var(--iwb-mono); font-size: 11.5px; opacity: .8; }
+.iwb-welcome-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; padding: 8px 10px; border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-md); color: var(--iwb-muted); font-size: 12px; }
 .iwb-commit-hint { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 11.5px; background: var(--iwb-panel-2); }
 /* The key cap: a chip that is PRESSED INTO the surface, not a little 3D
    key drawn with a fat bottom border - that border was the most "retro"
@@ -81104,7 +81462,25 @@ var CSS2 = `
 .iwb-binary { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--iwb-muted); }
 
 .iwb-git { display: flex; flex-direction: column; height: 100%; min-height: 0; flex: 1 1 auto; width: 100%; min-width: 0; }
-.iwb-git-filters { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--iwb-border); flex-wrap: wrap; }
+/* The filter row reads as TWO clusters (PRD-v8): the SCOPE says WHERE the
+   history comes from (which repository, which branch), the FILTERS say what
+   of it is shown. One strip of six unrelated controls told the reader
+   nothing about which was which. */
+.iwb-git-filters {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  border-bottom: 1px solid var(--iwb-border); flex-wrap: wrap;
+}
+.iwb-git-scope {
+  display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding-right: 10px; border-right: 1px solid var(--iwb-border);
+}
+.iwb-git-filter-fields {
+  display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0;
+}
+/* The scope control is a segmented switch: it names both options and marks
+   the chosen one, so it can never be mistaken for a label. */
+.iwb-git-scope .iwb-seg { flex: 0 0 auto; }
+.iwb-git-scope .iwb-seg button { white-space: nowrap; }
 .iwb-path-chip {
   display: inline-flex; align-items: center; gap: 4px; max-width: 260px; height: 22px; padding: 0 4px 0 8px;
   border: 1px solid var(--iwb-border-strong); border-radius: 999px; background: var(--iwb-panel-2);

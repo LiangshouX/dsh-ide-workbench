@@ -14,7 +14,7 @@ import { shallowEqual, useStoreSlice } from './hooks.js'
 import { ChevronDown, ChevronRight, ContextMenu } from './ui.jsx'
 import { IconBranch, IconCheck, IconClose, IconCopy, IconRefresh } from './icons.jsx'
 import { formatGitDate } from './util.js'
-import { gitLayout, DRAWER_MIN } from './git-layout.js'
+import { gitLayout, DRAWER_MIN, filterGitLog, hasActiveFilters } from './git-layout.js'
 
 const ROW_HEIGHT = 24
 const CELL = 14
@@ -925,7 +925,12 @@ export function GitPanel({ store, state }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const layout = useMemo(() => layoutGraph(git.commits), [git.commits])
+  // The rows the filters let through. The branch scope, the author, the
+  // message and the date are answered from the loaded page, so a filter
+  // change costs one pass over the rows that are already in memory - and no
+  // `git log` subprocess over the whole repository.
+  const visible = useMemo(() => filterGitLog(git.commits, git.filters), [git.commits, git.filters])
+  const layout = useMemo(() => layoutGraph(visible), [visible])
   const graphWidth = Math.max(40, Math.min(GRAPH_MAX, layout.maxLanes) * CELL + 16)
   const rows = layout.rows
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 6)
@@ -973,7 +978,7 @@ export function GitPanel({ store, state }) {
   }, [drawerOpen, git.detail?.hash, git.detailHash])
 
   const moveSelection = (delta) => {
-    const list = git.commits
+    const list = visible
     const index = list.findIndex(commit => commit.hash === git.selectedHash)
     const next = Math.max(0, Math.min(list.length - 1, index < 0 ? 0 : index + delta))
     const commit = list[next]
@@ -1036,29 +1041,111 @@ export function GitPanel({ store, state }) {
     ['90 days ago', 'git.last90'],
   ]
 
+  // The branch the window is on. A detached HEAD has no branch, so the
+  // "current branch" scope cannot be chosen then.
+  const currentBranch = slice.detached === true ? '' : (slice.branch ?? '')
+  // The scope is a two-state switch: the history of the current branch, or
+  // the history of every branch. An empty branch filter means "every branch".
+  const scopeIsCurrent = (git.filters.branch ?? '') !== ''
+  // The filters narrow the rows; the scope does not (the segmented control
+  // says which scope is chosen).
+  const filtersActive = hasActiveFilters(git.filters)
+  // The rows are there, but the filters hide all of them.
+  const filteredOut = (git.commits?.length ?? 0) > 0 && rows.length === 0
+  const clearFilters = () => store.setGitFilters({ since: '', author: '', query: '', path: '' })
+
   return React.createElement('div', { className: 'iwb-git' },
     React.createElement('div', { className: 'iwb-git-filters' },
-      React.createElement('button', {
-        type: 'button', className: 'iwb-branch-switch iwb-repo-switch',
-        title: repoRoot === '' ? label(t, 'git.pickRepoHint', 'Choose a repository in the Terminal/Git header.') : repoRoot,
-        onClick: event => {
-          const rect = event.currentTarget.getBoundingClientRect()
-          setRepoMenu({ x: rect.left, y: rect.bottom + 4 })
+      // ── the scope: WHICH history ──────────────────────────────────────
+      React.createElement('div', { className: 'iwb-git-scope' },
+        React.createElement('button', {
+          type: 'button', className: 'iwb-branch-switch iwb-repo-switch',
+          title: repoRoot === '' ? label(t, 'git.pickRepoHint', 'Choose a repository in the Terminal/Git header.') : repoRoot,
+          onClick: event => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            setRepoMenu({ x: rect.left, y: rect.bottom + 4 })
+          },
         },
-      },
-        React.createElement('span', { className: 'iwb-repo-name' }, repoName === '' ? label(t, 'git.pickRepo', 'Choose repository') : repoName),
-        React.createElement('span', { className: 'iwb-branch-caret' }, React.createElement(ChevronDown, { size: 11 })),
+          React.createElement('span', { className: 'iwb-repo-name' }, repoName === '' ? label(t, 'git.pickRepo', 'Choose repository') : repoName),
+          React.createElement('span', { className: 'iwb-branch-caret' }, React.createElement(ChevronDown, { size: 11 })),
+        ),
+        React.createElement('button', {
+          type: 'button', className: 'iwb-branch-switch', title: t('git.switchBranchTitle'),
+          onClick: event => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            setBranchMenu({ x: rect.left, y: rect.bottom + 4 })
+          },
+        },
+          React.createElement(IconBranch, { width: 13, height: 13 }),
+          React.createElement('span', null, slice.detached === true ? t('git.detached') : (slice.branch ?? '—')),
+          React.createElement('span', { className: 'iwb-branch-caret' }, React.createElement(ChevronDown, { size: 11 })),
+        ),
+        // The scope is a segmented control: it names BOTH options and marks
+        // the chosen one. A button whose label WAS its own state read like a
+        // static label - the user could not tell it from a heading.
+        React.createElement('div', {
+          className: 'iwb-seg', role: 'radiogroup', 'aria-label': t('git.scopeLabel'),
+        },
+          React.createElement('button', {
+            type: 'button', role: 'radio', 'aria-checked': scopeIsCurrent ? 'true' : 'false',
+            className: scopeIsCurrent ? 'iwb-on' : '',
+            disabled: currentBranch === '',
+            title: t('git.scopeCurrent'),
+            onClick: () => store.setGitFilters({ branch: currentBranch }),
+          }, t('git.scopeCurrent')),
+          React.createElement('button', {
+            type: 'button', role: 'radio', 'aria-checked': scopeIsCurrent ? 'false' : 'true',
+            className: scopeIsCurrent ? '' : 'iwb-on',
+            title: t('git.scopeAll'),
+            onClick: () => store.setGitFilters({ branch: '' }),
+          }, t('git.scopeAll')),
+        ),
       ),
-      React.createElement('button', {
-        type: 'button', className: 'iwb-branch-switch', title: t('git.switchBranchTitle'),
-        onClick: event => {
-          const rect = event.currentTarget.getBoundingClientRect()
-          setBranchMenu({ x: rect.left, y: rect.bottom + 4 })
-        },
+      // ── the filters: WHAT the rows must match ─────────────────────────
+      React.createElement('div', {
+        className: 'iwb-git-filter-fields', role: 'group', 'aria-label': t('git.filterLabel'),
       },
-        React.createElement(IconBranch, { width: 13, height: 13 }),
-        React.createElement('span', null, slice.detached === true ? t('git.detached') : (slice.branch ?? '—')),
-        React.createElement('span', { className: 'iwb-branch-caret' }, React.createElement(ChevronDown, { size: 11 })),
+        React.createElement('select', {
+          className: 'iwb-select', title: t('git.dateFilter'),
+          value: git.filters.since ?? '',
+          onChange: event => store.setGitFilters({ since: event.target.value }),
+        },
+          dateOptions.map(([value, key]) => React.createElement('option', { key: value, value }, t(key))),
+        ),
+        React.createElement('input', {
+          className: 'iwb-input', style: { width: 100 }, placeholder: t('git.authorFilter'),
+          value: git.filters.author,
+          onChange: event => {
+            const value = event.target.value
+            if (queryTimer.current !== null) clearTimeout(queryTimer.current)
+            queryTimer.current = setTimeout(() => store.setGitFilters({ author: value }), 350)
+          },
+        }),
+        React.createElement('input', {
+          className: 'iwb-input', style: { flex: 1, minWidth: 100, width: 'auto' }, placeholder: t('git.queryFilter'),
+          value: git.filters.query,
+          onChange: event => {
+            const value = event.target.value
+            if (queryTimer.current !== null) clearTimeout(queryTimer.current)
+            queryTimer.current = setTimeout(() => store.setGitFilters({ query: value }), 350)
+          },
+        }),
+        git.filters.path !== undefined && git.filters.path !== ''
+          ? React.createElement('span', { className: 'iwb-path-chip', title: git.filters.path },
+              React.createElement('span', { className: 'iwb-path-chip-text' }, git.filters.path),
+              React.createElement('button', {
+                type: 'button', className: 'iwb-path-chip-clear', title: t('git.clearPath'),
+                onClick: () => store.setGitFilters({ path: '' }),
+              }, React.createElement(IconClose, { width: 11, height: 11 })),
+            )
+          : null,
+        // The affordance appears only when a filter is doing something.
+        filtersActive
+          ? React.createElement('button', {
+              type: 'button', className: 'iwb-textbtn iwb-small', title: t('git.clearFilters'),
+              onClick: clearFilters,
+            }, t('git.clearFilters'))
+          : null,
       ),
       (git.compare ?? []).length > 0
         ? React.createElement('span', { className: 'iwb-compare-chip', title: t('git.compareHint') },
@@ -1074,46 +1161,6 @@ export function GitPanel({ store, state }) {
             type: 'button', className: 'iwb-textbtn iwb-small iwb-primary',
             onClick: () => store.compareSelected(),
           }, t('git.compare'))
-        : null,
-      React.createElement('button', {
-        type: 'button',
-        className: `iwb-textbtn iwb-small ${git.filters.branch === '' ? 'iwb-primary' : ''}`,
-        title: t('git.branchFilter'),
-        onClick: () => store.setGitFilters({ branch: git.filters.branch === '' ? (slice.branch ?? '') : '' }),
-      }, git.filters.branch === '' ? t('git.allBranches') : t('git.currentBranchOnly')),
-      React.createElement('select', {
-        className: 'iwb-select', title: t('git.dateFilter'),
-        value: git.filters.since ?? '',
-        onChange: event => store.setGitFilters({ since: event.target.value }),
-      },
-        dateOptions.map(([value, key]) => React.createElement('option', { key: value, value }, t(key))),
-      ),
-      React.createElement('input', {
-        className: 'iwb-input', style: { width: 100 }, placeholder: t('git.authorFilter'),
-        value: git.filters.author,
-        onChange: event => {
-          const value = event.target.value
-          if (queryTimer.current !== null) clearTimeout(queryTimer.current)
-          queryTimer.current = setTimeout(() => store.setGitFilters({ author: value }), 350)
-        },
-      }),
-      React.createElement('input', {
-        className: 'iwb-input', style: { flex: 1, minWidth: 100, width: 'auto' }, placeholder: t('git.queryFilter'),
-        value: git.filters.query,
-        onChange: event => {
-          const value = event.target.value
-          if (queryTimer.current !== null) clearTimeout(queryTimer.current)
-          queryTimer.current = setTimeout(() => store.setGitFilters({ query: value }), 350)
-        },
-      }),
-      git.filters.path !== undefined && git.filters.path !== ''
-        ? React.createElement('span', { className: 'iwb-path-chip', title: git.filters.path },
-            React.createElement('span', { className: 'iwb-path-chip-text' }, git.filters.path),
-            React.createElement('button', {
-              type: 'button', className: 'iwb-path-chip-clear', title: t('git.clearPath'),
-              onClick: () => store.setGitFilters({ path: '' }),
-            }, React.createElement(IconClose, { width: 11, height: 11 })),
-          )
         : null,
       git.selectedHash !== null && git.selectedHash !== undefined && !drawerOpen
         ? React.createElement('button', {
@@ -1143,9 +1190,19 @@ export function GitPanel({ store, state }) {
             ? React.createElement('div', { className: 'iwb-git-empty' },
                 React.createElement('div', null,
                   slice.isRepo === true
-                    ? (git.error ?? t('git.noCommits'))
+                    ? (filteredOut
+                        ? label(t, 'git.noMatches', 'No commit matches the current filters')
+                        : (git.error ?? t('git.noCommits')))
                     : t('project.noRepoHint'),
                 ),
+                // The rows are there, the filters hide them: the way out is
+                // the filters, and the panel says so.
+                filteredOut
+                  ? React.createElement('button', {
+                      type: 'button', className: 'iwb-textbtn iwb-small', style: { marginTop: 10 },
+                      onClick: clearFilters,
+                    }, t('git.clearFilters'))
+                  : null,
                 slice.isRepo !== true
                   ? React.createElement('div', { className: 'iwb-git-no-repo' },
                       React.createElement('div', { className: 'iwb-git-detail-dim' },

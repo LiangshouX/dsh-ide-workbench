@@ -109,10 +109,43 @@ export function MarkdownView({
 }) {
   const MarkdownText = useMarkdownComponent()
   const containerRef = useRef(null)
+  const outlineRef = useRef(null)
   const [activeSlug, setActiveSlug] = useState('')
   const headings = useMemo(() => extractHeadings(text), [text])
   const headingKey = useMemo(() => headings.map(heading => heading.slug).join('|'), [headings])
   const openFind = () => { onFindRequest?.() }
+
+  /**
+   * The outline is a POPOVER, and a popover closes when the reader clicks
+   * outside of it.
+   *
+   * Until now the only way out was the button that opened it - which means
+   * the reader had to find that button again, in a corner of the window,
+   * after reading a paragraph somewhere else. A click on the empty page, on
+   * the text, or on any other control closes it; Escape does too.
+   */
+  useEffect(() => {
+    if (outlineOpen !== true) return undefined
+    const onPointerDown = (event) => {
+      const target = event.target
+      if (target instanceof Element) {
+        // Inside the outline itself, or on the button that owns it: not a
+        // click "outside".
+        if (outlineRef.current?.contains(target) === true) return
+        if (target.closest?.('.iwb-outline-toggle') !== null) return
+      }
+      onToggleOutline()
+    }
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onToggleOutline()
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [outlineOpen, onToggleOutline])
 
   // Assign the parsed slugs to the rendered heading elements in document order.
   useEffect(() => {
@@ -191,7 +224,7 @@ export function MarkdownView({
         : React.createElement(FallbackMarkdown, { text }),
     ),
     outlineOpen === true
-      ? React.createElement('div', { className: 'iwb-outline', role: 'navigation', 'aria-label': labels.outline ?? 'Outline' },
+      ? React.createElement('div', { className: 'iwb-outline', role: 'navigation', 'aria-label': labels.outline ?? 'Outline', ref: outlineRef },
           React.createElement('div', { className: 'iwb-outline-head' },
             React.createElement(IconOutline, { width: 13, height: 13 }),
             React.createElement('span', null, labels.outline ?? 'Outline'),

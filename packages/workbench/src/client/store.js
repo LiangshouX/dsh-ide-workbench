@@ -3410,15 +3410,30 @@ export class WorkbenchStore {
   }
 
   // ── git window ────────────────────────────────────────────────────────
+  /**
+   * Change the filters of the Git window.
+   *
+   * The branch scope, the author, the message and the date are applied on the
+   * client (see `git-layout.js`): the rows that are already loaded carry the
+   * refs, the author and the date of every commit, so answering them needs
+   * no subprocess. Only the path filter reaches git, because only git can
+   * limit the history of a path - and it is the only filter that reloads the
+   * log. (Reloading on every filter change was the "switching the branch
+   * lags" defect: a `git log` over the whole repository per keystroke.)
+   * @param {{ branch?: string, author?: string, query?: string, since?: string, path?: string }} patch
+   */
   setGitFilters(patch) {
+    const previous = this.state.git.filters
+    const next = { ...previous, ...patch }
+    const pathChanged = (next.path ?? '') !== (previous.path ?? '')
     this.patch('git', {
-      filters: { ...this.state.git.filters, ...patch },
-      selectedHash: null,
-      detail: null,
-      detailHash: null,
-      detailLoading: false,
+      filters: next,
+      // A reload replaces the rows, so the selection and the Drawer would
+      // point at a commit that may not be in the new page. A client-side
+      // filter keeps them: the Drawer stays open on the commit it shows.
+      ...(pathChanged ? { selectedHash: null, detail: null, detailHash: null, detailLoading: false } : {}),
     })
-    void this.loadLog(true)
+    if (pathChanged) void this.loadLog(true)
   }
 
   /** Project → Git | Show History: scope the log to one file or folder. */
@@ -3463,15 +3478,26 @@ export class WorkbenchStore {
         root: this.gitRoot,
         skip,
         count: pageSize,
-        ...this.state.git.filters,
+        // Only the path filter is a server-side one - git alone can limit the
+        // history of a path. The other filters (branch scope, author, message,
+        // date) are answered from the loaded rows on the client, so the log
+        // is fetched once and filtered many times.
+        path: this.state.git.filters.path ?? '',
       })
       if (token !== this.gitRequestToken) return
-      const commits = reset ? result.commits : [...this.state.git.commits, ...result.commits]
+      // The page holds two windows (the whole repository and the branch that
+      // is checked out), so the same commit can be in two pages: it is added
+      // once.
+      const known = new Set(this.state.git.commits.map(commit => commit.hash))
+      const fresh = result.commits.filter(commit => !known.has(commit.hash))
+      const commits = reset ? result.commits : [...this.state.git.commits, ...fresh]
       const selectedStillVisible = this.state.git.selectedHash === null
         || commits.some(commit => commit.hash === this.state.git.selectedHash)
       this.patch('git', {
         commits,
-        skip: skip + result.commits.length,
+        // The host skips a page per window, so the cursor advances by the page
+        // size and not by the number of rows the page happened to hold.
+        skip: skip + pageSize,
         hasMore: result.commits.length >= pageSize,
         loading: false,
         error: null,
