@@ -167,6 +167,11 @@ export const en = {
   'project.refreshProjects': 'Refresh folders',
   'project.newFile': 'New File…',
   'project.newDir': 'New Directory…',
+  // The kind switch of the new-entry dialog (PRD-v8 NEW-01). The labels are
+  // the nouns, not the actions: the switch says WHICH KIND is created.
+  'project.kindFile': 'File',
+  'project.kindDir': 'Directory',
+  'project.kindLabel': 'What to create',
   'project.nameLabel': 'Name',
   'project.pathLabel': 'Full path',
   'project.pathHint': 'Relative to the project root. Leave it unchanged to create in the current folder.',
@@ -691,6 +696,10 @@ export const zh = {
   'project.refreshProjects': '刷新目录',
   'project.newFile': '新建文件…',
   'project.newDir': '新建目录…',
+  // 新建对话框的「类型」切换（PRD-v8 NEW-01）。
+  'project.kindFile': '文件',
+  'project.kindDir': '目录',
+  'project.kindLabel': '创建类型',
   'project.nameLabel': '名称',
   'project.pathLabel': '完整路径',
   'project.pathHint': '相对于项目根目录；不修改则在当前目录创建。',

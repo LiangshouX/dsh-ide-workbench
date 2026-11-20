@@ -19,7 +19,7 @@
  *     user sees the code before opening anything.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { FileTypeIcon, IconSearch } from './icons.jsx'
+import { FileTypeIcon, IconClose, IconSearch } from './icons.jsx'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 
 /**
@@ -259,7 +259,7 @@ export function SearchPopup({ store }) {
         React.createElement('button', {
           type: 'button', className: 'iwb-iconbtn', title: t('common.close'), 'aria-label': t('common.close'),
           onClick: () => store.closeSearchPopup(),
-        }, React.createElement('span', { style: { fontSize: 15, lineHeight: 1 } }, '×')),
+        }, React.createElement(IconClose, { width: 13, height: 13 })),
       ),
       React.createElement('div', { className: 'iwb-search-popup-meta' },
         search?.loading === true

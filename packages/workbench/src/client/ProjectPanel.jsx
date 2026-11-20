@@ -13,7 +13,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ContextMenu } from './ui.jsx'
-import { FileTypeIcon, IconChat, IconExternal, IconGlobe, IconRefresh, IconSearch } from './icons.jsx'
+import { FileTypeIcon, IconChat, IconExternal, IconFile, IconFolder, IconGlobe, IconLocate, IconRefresh, IconSearch } from './icons.jsx'
 import { openInIdeMenu } from './ide-menu.js'
 import { statusClass, stableAggregateStatus } from './git-colors.js'
 import { compactLabel, compactTree } from './compact-path.js'
@@ -441,6 +441,24 @@ export function resolveEntryPath(value) {
 }
 
 /**
+ * The kind of the entry a shortcut asks for (PRD-v8 NEW-03).
+ *
+ * `Alt+Insert` repeats the kind of the last dialog - so the muscle memory of
+ * "Alt+Insert makes a directory" survives - and `Alt+Shift+Insert` always
+ * asks for a directory.
+ *
+ * Pure, so the rule can be checked without a browser.
+ *
+ * @param {{ shiftKey?: boolean }} event the keyboard event
+ * @param {boolean} lastKind the kind of the last new-entry dialog
+ * @returns {boolean} true for a directory
+ */
+export function newEntryKindFor(event, lastKind) {
+  if (event !== null && event !== undefined && event.shiftKey === true) return true
+  return lastKind === true
+}
+
+/**
  * The state of the new-entry dialog when it opens (R5).
  *
  * The path box starts with the full relative path of the folder the entry
@@ -793,10 +811,11 @@ const TreeRow = React.memo(function TreeRow({
  * @param {{ dialog: object, t: (key: string) => string,
  *   onNameChange: (value: string) => void, onPathChange: (value: string) => void,
  *   onPathFocus: () => void, onTemplateChange: (template: string) => void,
+ *   onKindChange: (isDir: boolean) => void,
  *   onSubmit: () => void, onCancel: () => void }} props
  */
 export function NewEntryDialog({
-  dialog, t, onNameChange, onPathChange, onPathFocus, onTemplateChange, onSubmit, onCancel,
+  dialog, t, onNameChange, onPathChange, onPathFocus, onTemplateChange, onKindChange, onSubmit, onCancel,
 }) {
   return React.createElement('div', {
     className: 'iwb-modal-backdrop',
@@ -805,6 +824,29 @@ export function NewEntryDialog({
     React.createElement('div', { className: 'iwb-modal iwb-new-entry-modal', role: 'dialog', 'aria-modal': 'true' },
       React.createElement('h2', { className: 'iwb-new-entry-title' },
         dialog.isDir ? t('project.newDir') : t('project.newFile')),
+      // PRD-v8 NEW-01: the kind of the entry is a SWITCH, not a guess.
+      //
+      // The shortcut opened a dialog that could only create a file, so
+      // "I wanted a directory" ended up as a file with a directory's name -
+      // and the context menu offered two entries that both claimed the same
+      // shortcut. The kind is now the first thing the dialog says, and it can
+      // be changed without leaving the dialog.
+      React.createElement('div', {
+        className: 'iwb-new-entry-kind', role: 'radiogroup', 'aria-label': t('project.kindLabel'),
+      },
+        React.createElement('button', {
+          type: 'button', role: 'radio', 'aria-checked': dialog.isDir ? 'false' : 'true',
+          className: dialog.isDir ? '' : 'iwb-on',
+          title: t('project.newFile'),
+          onClick: () => onKindChange(false),
+        }, React.createElement(IconFile, { width: 14, height: 14 }), t('project.kindFile')),
+        React.createElement('button', {
+          type: 'button', role: 'radio', 'aria-checked': dialog.isDir ? 'true' : 'false',
+          className: dialog.isDir ? 'iwb-on' : '',
+          title: t('project.newDir'),
+          onClick: () => onKindChange(true),
+        }, React.createElement(IconFolder, { width: 14, height: 14 }), t('project.kindDir')),
+      ),
       // The frame of the target folder: it comes before the fields, because
       // it says WHERE the entry lands.
       React.createElement('div', { className: 'iwb-new-entry-path' },
@@ -1258,9 +1300,27 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     setRenaming({ path: entry.path, value: entry.name })
   }
 
+  /**
+   * The kind of the last new-entry dialog.
+   *
+   * The shortcut opens the SAME kind the user chose the last time, so the
+   * muscle memory of "Alt+Insert makes a directory" survives (PRD-v8 NEW-01).
+   * It is a ref on purpose: the kind is remembered, not rendered, and a ref
+   * never triggers a re-render of the tree.
+   */
+  const lastKindRef = useRef(false)
+
   const beginNew = (parentPath, isDir) => {
+    lastKindRef.current = isDir === true
     setDialog(newEntryDialogState(parentPath, isDir, slice.root))
   }
+
+  /** The kind of the entry changed in the dialog. */
+  const onDialogKindChange = useCallback((isDir) => {
+    setDialog(current => (current === null || current.kind !== 'new'
+      ? current
+      : { ...current, isDir: isDir === true }))
+  }, [])
 
   /** The name box changed: the full path follows it. */
   const onDialogNameChange = useCallback(value => {
@@ -1313,8 +1373,8 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
         action: () => { void store.sendToChat(currentEntries.map(item => ({ path: item.path, isDir: item.isDir }))) },
       },
       null,
-      { key: 'new-file', text: t('project.newFile'), shortcut: 'Alt+Insert', action: () => beginNew(parentDir, false) },
-      { key: 'new-dir', text: t('project.newDir'), shortcut: 'Alt+Insert', action: () => beginNew(parentDir, true) },
+      { key: 'new-file', text: t('project.newFile'), shortcut: 'Alt+Insert', icon: React.createElement(IconFile, { width: 13, height: 13 }), action: () => beginNew(parentDir, false) },
+      { key: 'new-dir', text: t('project.newDir'), shortcut: 'Alt+Shift+Insert', icon: React.createElement(IconFolder, { width: 13, height: 13 }), action: () => beginNew(parentDir, true) },
       null,
       { key: 'cut', text: t('project.cut'), shortcut: shortcut('cut') || 'Ctrl+X', disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, true) },
       { key: 'copy', text: t('project.copy'), shortcut: shortcut('copy') || 'Ctrl+C', disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, false) },
@@ -1411,7 +1471,10 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       event.preventDefault()
       const row = rows.find(item => item.entry?.path === slice.selectedPath)
       const parent = row === undefined ? slice.root : (row.entry.isDir ? row.entry.path : parentOf(row.entry.path))
-      beginNew(parent, false)
+      // Alt+Insert repeats the last kind; Alt+Shift+Insert always asks for a
+      // directory (PRD-v8 NEW-03). The two are not the same gesture any more,
+      // so the two menu entries may name two different shortcuts.
+      beginNew(parent, newEntryKindFor(event, lastKindRef.current))
       return
     }
     if (event.ctrlKey && event.altKey && event.shiftKey && (key === 'c' || key === 'C')) {
@@ -1698,13 +1761,14 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
         title: t('project.locateFile'), 'aria-label': t('project.locateFile'),
         disabled: !canLocate,
         onClick: onLocateFile,
-      }, React.createElement('span', { style: { fontSize: 15, lineHeight: 1 } }, '\u2316')),
+      }, React.createElement(IconLocate, { width: 14, height: 14 })),
+      // PRD-v8 §4.1: the "new file" button is gone. It could only create ONE
+      // file, and only at the root of the project - a function the context
+      // menu (and Alt+Insert) covers better. A button that does one narrow
+      // thing does not earn a slot next to the ones that do everything.
       React.createElement('button', {
-        type: 'button', className: 'iwb-iconbtn', title: t('project.newFile'),
-        onClick: () => beginNew(slice.root, false),
-      }, '+'),
-      React.createElement('button', {
-        type: 'button', className: 'iwb-iconbtn', title: t('common.refresh'),
+        type: 'button', className: 'iwb-iconbtn',
+        title: t('common.refresh'), 'aria-label': t('common.refresh'),
         onClick: () => { void store.sync() },
       }, React.createElement(IconRefresh, { width: 14, height: 14 })),
     ),
@@ -1766,6 +1830,7 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
           onPathChange: onDialogPathChange,
           onPathFocus: onDialogPathFocus,
           onTemplateChange: template => setDialog(current => current === null ? current : { ...current, template }),
+          onKindChange: onDialogKindChange,
           onSubmit: submitDialog,
           onCancel: () => setDialog(null),
         })

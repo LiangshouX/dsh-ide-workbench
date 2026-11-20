@@ -11,8 +11,8 @@ import { GRAPH_COLORS, layoutGraph, rowGeometry } from './graph.js'
 import { groupByDirectory } from './commit-model.js'
 import { compactLabel, compactLabelFitted, compactTree, isCompactable, isMergedNode } from './compact-path.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
-import { ContextMenu } from './ui.jsx'
-import { IconBranch, IconClose, IconCopy, IconRefresh } from './icons.jsx'
+import { ChevronDown, ChevronRight, ContextMenu } from './ui.jsx'
+import { IconBranch, IconCheck, IconClose, IconCopy, IconRefresh } from './icons.jsx'
 import { formatGitDate } from './util.js'
 import { gitLayout, DRAWER_MIN } from './git-layout.js'
 
@@ -588,7 +588,8 @@ function renderTreeRows(node, options) {
         onClick: event => { if (event?.detail > 1) return; options.onToggleDir(dir.path) },
         onDoubleClick: merged ? () => options.onExpandOriginal?.(dir.path) : undefined,
       },
-        React.createElement('span', { className: 'iwb-git-tree-caret' }, expanded ? '▾' : '▸'),
+        React.createElement('span', { className: 'iwb-git-tree-caret' },
+          expanded ? React.createElement(ChevronDown, { size: 10 }) : React.createElement(ChevronRight, { size: 10 })),
         React.createElement('span', { className: 'iwb-git-tree-dir-name' }, dirLabel(dir, merged, options)),
       ))
       if (expanded) rows.push(...renderTreeRows(dir, { ...options, depth: options.depth + 1 }))
@@ -713,7 +714,8 @@ function BranchPopover({ store, branches, currentBranch, x, y, onClose }) {
             onMouseEnter: () => setIndex(position),
             onClick: () => choose(name),
           },
-            React.createElement('span', { className: 'iwb-branch-check' }, name === currentBranch ? '✓' : ''),
+            React.createElement('span', { className: 'iwb-branch-check' },
+              name === currentBranch ? React.createElement(IconCheck, { width: 12, height: 12 }) : ''),
             React.createElement('span', { className: 'iwb-branch-name' }, name),
           )),
     ),
@@ -737,7 +739,8 @@ export function repoRows(repos, options) {
     onMouseEnter: () => options.onHover?.(position),
     onClick: () => options.onChoose(repo.path),
   },
-    React.createElement('span', { className: 'iwb-branch-check' }, repo.path === options.current ? '✓' : ''),
+    React.createElement('span', { className: 'iwb-branch-check' },
+      repo.path === options.current ? React.createElement(IconCheck, { width: 12, height: 12 }) : ''),
     React.createElement('span', { className: 'iwb-branch-name' }, repo.name),
   ))
 }
@@ -1044,7 +1047,7 @@ export function GitPanel({ store, state }) {
         },
       },
         React.createElement('span', { className: 'iwb-repo-name' }, repoName === '' ? label(t, 'git.pickRepo', 'Choose repository') : repoName),
-        React.createElement('span', { className: 'iwb-branch-caret' }, '▾'),
+        React.createElement('span', { className: 'iwb-branch-caret' }, React.createElement(ChevronDown, { size: 11 })),
       ),
       React.createElement('button', {
         type: 'button', className: 'iwb-branch-switch', title: t('git.switchBranchTitle'),
@@ -1055,7 +1058,7 @@ export function GitPanel({ store, state }) {
       },
         React.createElement(IconBranch, { width: 13, height: 13 }),
         React.createElement('span', null, slice.detached === true ? t('git.detached') : (slice.branch ?? '—')),
-        React.createElement('span', { className: 'iwb-branch-caret' }, '▾'),
+        React.createElement('span', { className: 'iwb-branch-caret' }, React.createElement(ChevronDown, { size: 11 })),
       ),
       (git.compare ?? []).length > 0
         ? React.createElement('span', { className: 'iwb-compare-chip', title: t('git.compareHint') },
@@ -1063,7 +1066,7 @@ export function GitPanel({ store, state }) {
             React.createElement('button', {
               type: 'button', className: 'iwb-path-chip-clear', title: t('git.clearCompare'),
               onClick: () => store.patch('git', { compare: [] }),
-            }, '\u00d7'),
+            }, React.createElement(IconClose, { width: 11, height: 11 })),
           )
         : null,
       (git.compare ?? []).length === 2
@@ -1109,7 +1112,7 @@ export function GitPanel({ store, state }) {
             React.createElement('button', {
               type: 'button', className: 'iwb-path-chip-clear', title: t('git.clearPath'),
               onClick: () => store.setGitFilters({ path: '' }),
-            }, '×'),
+            }, React.createElement(IconClose, { width: 11, height: 11 })),
           )
         : null,
       git.selectedHash !== null && git.selectedHash !== undefined && !drawerOpen

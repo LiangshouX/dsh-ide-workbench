@@ -4,6 +4,7 @@
  * append), so theme tokens and stacking stay in one tree.
  */
 import React, { useEffect, useRef, useState } from 'react'
+import { IconCheck } from './icons.jsx'
 
 /**
  * One floating context menu anchored at a viewport point.
@@ -103,11 +104,13 @@ export function ContextMenu({ x, y, items, onClose, depth = 0, extra = null }) {
         }
       },
     },
-      React.createElement('span', { className: 'iwb-menu-check' }, item.checked === true ? '✓' : ''),
+      React.createElement('span', { className: 'iwb-menu-check' },
+        item.checked === true ? React.createElement(IconCheck, { width: 12, height: 12 }) : ''),
       React.createElement('span', { className: 'iwb-menu-icon' }, item.icon ?? null),
       React.createElement('span', { className: 'iwb-menu-text' }, item.text),
       React.createElement('span', { className: 'iwb-menu-shortcut' }, item.shortcut ?? ''),
-      React.createElement('span', { className: 'iwb-menu-arrow' }, hasSubmenu ? '▸' : ''),
+      React.createElement('span', { className: 'iwb-menu-arrow' },
+        hasSubmenu ? React.createElement(ChevronRight, { size: 10 }) : ''),
     )
     if (!hasSubmenu || !open || subAnchor === null) return row
     return React.createElement(React.Fragment, { key: `group-${index}` },

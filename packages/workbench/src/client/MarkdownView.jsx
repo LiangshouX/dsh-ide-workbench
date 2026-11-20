@@ -13,7 +13,7 @@
  * preview; the active row follows the scroll position.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { IconOutline } from './icons.jsx'
+import { IconClose, IconOutline } from './icons.jsx'
 import { extractHeadings } from './markdown-outline.js'
 import { DomFindBar } from './DomFindBar.jsx'
 import { useHostPrimitives } from './host-primitives.js'
@@ -198,7 +198,7 @@ export function MarkdownView({
             React.createElement('button', {
               type: 'button', className: 'iwb-iconbtn', style: { width: 20, height: 20, marginLeft: 'auto' },
               onClick: onToggleOutline, title: labels.close ?? 'Close',
-            }, React.createElement('span', { style: { fontSize: 14, lineHeight: 1 } }, '×')),
+            }, React.createElement(IconClose, { width: 12, height: 12 })),
           ),
           headings.length === 0
             ? React.createElement('div', { className: 'iwb-outline-empty' }, labels.empty ?? 'No headings')

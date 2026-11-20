@@ -101,12 +101,18 @@ test('workbench renders the project window and welcome screen', async () => {
   assert.match(html, /src/)
 })
 
-test('fullscreen IDE pane offers restore with pressed state', async () => {
+test('the top bar carries no fullscreen button of its own', async () => {
+  // PRD-v8 §4.2: the button that put the workbench into fullscreen was
+  // removed - the HOST's right sidebar owns that action, and F11 still does
+  // the same thing. A second button for the same action is a second place
+  // to look for it.
   const mod = await loadModule()
   const html = mod.renderFullscreen()
-  assert.match(html, /layout\.exitFullscreen/)
-  assert.match(html, /aria-pressed="true"/)
   assert.doesNotMatch(html, /title="layout\.fullscreen"/)
+  assert.doesNotMatch(html, /title="layout\.exitFullscreen"/)
+  assert.doesNotMatch(html, /aria-pressed="true"/)
+  // The settings are the one action the bar keeps.
+  assert.match(html, /title="common\.settings"/)
 })
 
 test('commit and git windows render their rows and graph', async () => {
@@ -388,7 +394,11 @@ test('client opens a native sidebar tab without registering a central page', asy
     assert.equal(types[0].title('sidebar://ide-workbench'), 'panelLabel')
     assert.ok(entries.some(entry => entry.name === 'sidebar.right.pane.tab'))
     assert.ok(entries.some(entry => entry.name === 'conversation.hero.options'))
-    assert.ok(entries.some(entry => entry.name === 'sidebar.footer.action'))
+    // PRD-v8 ENTRY-01: the entry in the footer of the left Sidebar - the one
+    // above the avatar of the desktop shell - is gone. The workbench does not
+    // put a sticker on the host's own bottom bar any more.
+    assert.ok(!entries.some(entry => entry.name === 'sidebar.footer.action'),
+      'the workbench claims no slot in the footer of the left Sidebar')
     assert.ok(!entries.some(entry => entry.name === 'main' || entry.name === 'sidebar.panellist'))
     const header = entries.find(entry => entry.name === 'conversation.session.header.utilities')
     const fragment = header.component()

@@ -11,7 +11,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useWorkbench } from './hooks.js'
-import { FileTypeIcon, IconGit, IconGear, IconRefresh, IconTerminal, StripeIcon } from './icons.jsx'
+import { FileTypeIcon, IconClose, IconGit, IconGear, IconPin, IconRefresh, IconTerminal, StripeIcon } from './icons.jsx'
 import { ProjectPanel } from './ProjectPanel.jsx'
 import { CommitPanel } from './CommitPanel.jsx'
 import { GitPanel, RepoPopover } from './GitPanel.jsx'
@@ -20,7 +20,7 @@ import { EditorArea } from './EditorArea.jsx'
 import { SettingsForm } from './SettingsPanel.jsx'
 import { QuickOpen } from './QuickOpen.jsx'
 import { SearchPopup } from './SearchPopup.jsx'
-import { ContextMenu, ConfirmModal, Kbd, Toast } from './ui.jsx'
+import { ChevronDown, ContextMenu, ConfirmModal, Kbd, Toast } from './ui.jsx'
 import { baseName } from './util.js'
 import { DEFAULT_ENTRY_SIDE, STACK_WIDTH } from './layout.js'
 import { createContract } from './contract.js'
@@ -63,7 +63,7 @@ const MemoCommitPanel = React.memo(CommitPanel)
 const MemoGitPanel = React.memo(GitPanel)
 const MemoTerminalPanel = React.memo(TerminalPanel)
 
-function TopBar({ store, state, fullscreen, onOpenSettings }) {
+function TopBar({ store, state, onOpenSettings }) {
   const t = store.t
   const branch = state.status.branch
   const detached = state.status.detached === true
@@ -121,23 +121,18 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
         )
       : null,
     React.createElement('div', { className: 'iwb-top-spacer' }),
+    // PRD-v8 §4.2: the top bar carries ONE button now.
+    //
+    // The three that are gone had a better home each:
+    //   - "hide all" (Ctrl+Shift+F12) had a keyboard path and one button of
+    //     its own is not worth a slot in the bar;
+    //   - "fullscreen" duplicated the button of the HOST's right sidebar, and
+    //     F11 still does the same thing;
+    //   - "refresh" duplicated the refresh of the Project panel, which is
+    //     where the file tree lives.
+    // Removing a button is a CONFLATION of the entry, never of the function.
     React.createElement('button', {
-      type: 'button', className: 'iwb-iconbtn', title: t('layout.hideAll'),
-      onClick: () => store.toggleHideAll(),
-    }, '⊟'),
-    React.createElement('button', {
-      type: 'button', className: `iwb-iconbtn ${fullscreen ? 'iwb-on' : ''}`,
-      title: t(fullscreen ? 'layout.exitFullscreen' : 'layout.fullscreen'),
-      'aria-label': t(fullscreen ? 'layout.exitFullscreen' : 'layout.fullscreen'),
-      'aria-pressed': fullscreen,
-      onClick: event => store.toggleFullscreen(event.currentTarget),
-    }, '⛶'),
-    React.createElement('button', {
-      type: 'button', className: 'iwb-iconbtn', title: t('common.refresh'),
-      onClick: () => { void store.reloadTree(); void store.refreshStatus({ initial: true }); void store.loadBranches() },
-    }, React.createElement(IconRefresh, { width: 15, height: 15 })),
-    React.createElement('button', {
-      type: 'button', className: 'iwb-iconbtn', title: t('common.settings'), onClick: onOpenSettings,
+      type: 'button', className: 'iwb-iconbtn', title: t('common.settings'), 'aria-label': t('common.settings'), onClick: onOpenSettings,
     }, React.createElement(IconGear, { width: 15, height: 15 })),
     menu !== null
       ? React.createElement(ContextMenu, {
@@ -148,7 +143,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
               ? state.workspaces.map(workspace => ({
                   key: workspace.path,
                   text: workspace.title,
-                  icon: workspace.path === state.workspaceRoot ? React.createElement('span', { style: { color: 'var(--iwb-accent)' } }, '●') : null,
+                  icon: workspace.path === state.workspaceRoot ? React.createElement(IconPin, { width: 9, height: 9, style: { color: 'var(--iwb-accent)' } }) : null,
                   action: () => { void store.setRoot(workspace.path) },
                 }))
               : [{ text: t('project.empty'), disabled: true }]),
@@ -268,7 +263,7 @@ function RepoSwitch({ store, state }) {
     },
       React.createElement('span', { className: 'iwb-dock-repo-dot' }),
       React.createElement('span', { className: 'iwb-repo-name' }, name === '' ? label(t, 'git.pickRepo', 'Choose repository') : name),
-      React.createElement('span', { className: 'iwb-branch-caret' }, '▾'),
+      React.createElement('span', { className: 'iwb-branch-caret' }, React.createElement(ChevronDown, { size: 11 })),
     ),
     anchor !== null
       ? React.createElement('div', {
@@ -304,7 +299,7 @@ function BottomTabs({ store, state }) {
     React.createElement('button', {
       type: 'button', className: 'iwb-iconbtn iwb-bottom-close', title: t('common.close'),
       onClick: () => store.setLayout({ bottom: null }),
-    }, React.createElement('span', { style: { fontSize: 16, lineHeight: 1 } }, '×')),
+    }, React.createElement(IconClose, { width: 13, height: 13 })),
   )
 }
 
@@ -508,7 +503,7 @@ function SettingsModal({ store, state, contract = null, renderSlot = null, onClo
         React.createElement('button', {
           type: 'button', className: 'iwb-iconbtn', title: t('common.close'), 'aria-label': t('common.close'),
           onClick: onClose,
-        }, React.createElement('span', { style: { fontSize: 17, lineHeight: 1 } }, '×')),
+        }, React.createElement(IconClose, { width: 14, height: 14 })),
       ),
       React.createElement('div', { className: 'iwb-modal-body' },
         React.createElement(SettingsForm, { store, state, compact: true, contract, renderSlot, onStatusChange: setStatus }),
@@ -527,9 +522,9 @@ function SettingsModal({ store, state, contract = null, renderSlot = null, onClo
  * child slots of the contract are rendered (PRD-v6 §3.3). The workbench
  * renders them and hands every occupant the contract as a prop.
  *
- * @param {{store: object, visible?: boolean, fullscreen?: boolean, renderSlot?: Function}} props
+ * @param {{store: object, visible?: boolean, renderSlot?: Function}} props
  */
-export function Workbench({ store, visible = true, fullscreen = false, renderSlot = null }) {
+export function Workbench({ store, visible = true, renderSlot = null }) {
   const state = useWorkbench(store)
   // The side the four entries dock on. The settings document may not have
   // loaded yet (or may predate this option), so only an explicit 'left'
@@ -644,7 +639,7 @@ export function Workbench({ store, visible = true, fullscreen = false, renderSlo
   // stylesheet reorders the body and mirrors its borders, and the left
   // (default) side keeps every existing rule untouched.
   return React.createElement('div', { className: `iwb-root iwb-side-${entrySide}`, ref: rootRef },
-    React.createElement(TopBar, { store, state, fullscreen, onOpenSettings: () => setSettingsOpen(true) }),
+    React.createElement(TopBar, { store, state, onOpenSettings: () => setSettingsOpen(true) }),
     React.createElement('div', { className: 'iwb-body' },
       React.createElement(Stripe, { store, state }),
       left,

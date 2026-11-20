@@ -79,6 +79,68 @@ export function IconClose(props = {}) {
   return svg([path('M3.6 3.6l8.8 8.8M12.4 3.6l-8.8 8.8', props)])
 }
 
+/**
+ * A target with four ticks: "put the cursor on this file".
+ *
+ * The locate button used to carry a Unicode character that renders as a
+ * tiny black blob in most fonts and tells the reader nothing. A crosshair
+ * says "aim here" in every script.
+ */
+export function IconLocate(props = {}) {
+  return svg([
+    React.createElement('circle', { key: 'a', cx: 8, cy: 8, r: 3.1, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
+    path('M8 1.5v2.4', { key: 'b' }),
+    path('M8 12.1v2.4', { key: 'c' }),
+    path('M1.5 8h2.4', { key: 'd' }),
+    path('M12.1 8h2.4', { key: 'e' }),
+  ], props)
+}
+
+/** A sheet of paper with a folded corner. */
+export function IconFile(props = {}) {
+  return svg([
+    path('M4 2.4h5l3 3v8.2H4z', { key: 'a' }),
+    path('M9 2.4v3h3', { key: 'b' }),
+  ], props)
+}
+
+/** A folder. */
+export function IconFolder(props = {}) {
+  return svg([path('M1.7 4.1h4.2l1.3 1.6h7.1v6.9H1.7z', { key: 'a' })], props)
+}
+
+/** A sheet of paper with a plus: "new file". */
+export function IconFilePlus(props = {}) {
+  return svg([
+    path('M3.6 2.2h4.6l2.8 2.8v5.1', { key: 'a' }),
+    path('M8.2 2.2V5h2.8', { key: 'b' }),
+    path('M11.2 10.4v4.2', { key: 'c' }),
+    path('M9.1 12.5h4.2', { key: 'd' }),
+  ], props)
+}
+
+/** A folder with a plus: "new directory". */
+export function IconFolderPlus(props = {}) {
+  return svg([
+    path('M1.7 4.1h4.2l1.3 1.6h6.1v3.1', { key: 'a' }),
+    path('M1.7 4.1v7.5h5.6', { key: 'b' }),
+    path('M11.2 10.4v4.2', { key: 'c' }),
+    path('M9.1 12.5h4.2', { key: 'd' }),
+  ], props)
+}
+
+/**
+ * The "hide every tool window" glyph: a column of panels with the last one
+ * folded away.
+ */
+export function IconCollapseAll(props = {}) {
+  return svg([
+    React.createElement('rect', { key: 'a', x: 2, y: 2.4, width: 12, height: 11.2, rx: 1.4, fill: 'none', stroke: 'currentColor', strokeWidth: 1.35 }),
+    path('M2 6.1h12', { key: 'b' }),
+    path('M6 9.4h8', { key: 'c' }),
+  ], props)
+}
+
 export function IconPlus(props = {}) {
   return svg([path('M8 3v10M3 8h10', props)])
 }

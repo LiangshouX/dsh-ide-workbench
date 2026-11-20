@@ -15,7 +15,7 @@ import { PdfViewer } from './PdfViewer.jsx'
 import { isPdfPath } from './pdf-view.js'
 import { DiffView } from './DiffView.jsx'
 import { FindBar } from './FindBar.jsx'
-import { ConfirmModal, ContextMenu, Kbd } from './ui.jsx'
+import { ChevronDown, ConfirmModal, ContextMenu, Kbd } from './ui.jsx'
 import {
   FileTypeIcon, IconChrome, IconClose, IconCode, IconEdit, IconEye, IconGlobe, IconLock,
   IconMore, IconOutline, IconPin, IconRestore, IconSave, StripeIcon,
@@ -151,7 +151,9 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
     return React.createElement(PdfViewer, {
       key: `${tab.id}:${payload.mtimeMs ?? 0}`,
       t,
-      data: payload.data,
+      // The bytes come from the binary route of the host: the read answers
+      // the metadata of the document only (PRD-v8 PDF-01).
+      url: store.rawUrl(tab.path),
       size: payload.size,
       name: tab.name,
       onOpenExternal: () => { void store.openInDefaultBrowser(tab.path) },
@@ -462,7 +464,7 @@ function EditorToolbar({ store, tab }) {
               React.createElement('button', {
                 type: 'button', className: 'iwb-textbtn iwb-small',
                 onClick: anchor,
-              }, t('commit.showDiffWith'), ' ▾'),
+              }, t('commit.showDiffWith'), ' ', React.createElement(ChevronDown, { size: 10 })),
               React.createElement('button', {
                 type: 'button', className: 'iwb-textbtn iwb-small', title: t('commit.jumpToSource'),
                 onClick: () => store.jumpToSource(tab.rel),
