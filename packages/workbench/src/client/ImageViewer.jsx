@@ -12,7 +12,7 @@
  */
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
-  clampPan, nextZoom, zoomAroundCentre, zoomPercent,
+  beginDrag, clampPan, dragPan, nextZoom, zoomAroundCentre, zoomPercent,
 } from './image-zoom.js'
 
 /**
@@ -31,6 +31,13 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
   const [dragging, setDragging] = useState(false)
   const zoom = view.zoom
   const pan = view.pan
+  // The state of the last render, for the gesture.
+  //
+  // The drag starts from it, and it must be the state of the MOMENT the drag
+  // started - a closure that a re-render replaced in between two pointer
+  // events would measure the drag against a pan that is already moving.
+  const viewRef = useRef(view)
+  viewRef.current = view
 
   // ── the measurements ───────────────────────────────────────────────────
   // The surface is the view; the picture is measured in its own layout box
@@ -144,24 +151,79 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
   // fallback for a host that swallows them. The move and the release are
   // watched on the WINDOW, so the drag continues when the pointer leaves the
   // picture.
+  //
+  // Two rules make the drag feel right (PRD-v8 §6):
+  //
+  //   - the pan is ABSOLUTE: it is the pan of the moment the drag started,
+  //     plus the displacement of the pointer since then. The old code added
+  //     the whole distance travelled so far to a pan that already contained
+  //     it, so the picture ran away and jumped against the clamp on the
+  //     second move;
+  //   - the picture follows the pointer in the SAME FRAME: the transform is
+  //     written to the element directly, and the React state is updated at
+  //     most once per animation frame. A state update per pointer event
+  //     arrives late on a busy frame, and a picture that lags behind the
+  //     mouse feels broken no matter how correct the maths is.
   useEffect(() => {
     const surface = surfaceRef.current
     if (surface === null) return undefined
     let drag = null
+    let frame = 0
+    let pending = null
+
+    /** Write the transform of the picture straight into the DOM. */
+    const paint = (zoom, pan) => {
+      const img = imgRef.current
+      if (img === null) return
+      img.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
+    }
+
+    /** Hand the state of the drag over to React, at most once per frame. */
+    const schedule = (zoom, pan) => {
+      pending = { zoom, pan }
+      if (frame !== 0) return
+      const commit = () => {
+        frame = 0
+        const next = pending
+        pending = null
+        if (next === null) return
+        setView(previous => (
+          previous.zoom === next.zoom
+          && previous.pan.x === next.pan.x
+          && previous.pan.y === next.pan.y
+            ? previous
+            : { zoom: next.zoom, pan: next.pan }
+        ))
+      }
+      if (typeof requestAnimationFrame === 'function') frame = requestAnimationFrame(commit)
+      else commit()
+    }
 
     const onMove = (event) => {
       if (drag === null) return
-      const dx = event.clientX - drag.x
-      const dy = event.clientY - drag.y
-      setView(previous => ({
-        zoom: previous.zoom,
-        pan: clampFor({ x: previous.pan.x + dx, y: previous.pan.y + dy }, previous.zoom),
-      }))
+      // The pan of the drag is the pan of its BEGINNING plus the distance
+      // the pointer travelled since then - never the sum of the distances.
+      const pan = dragPan(
+        drag,
+        { x: event.clientX, y: event.clientY },
+        { width: drag.imageWidth, height: drag.imageHeight },
+        { width: drag.viewportWidth, height: drag.viewportHeight },
+      )
+      drag.pan = pan
+      paint(drag.zoom, pan)
+      schedule(drag.zoom, pan)
     }
     const onUp = () => {
       if (drag === null) return
+      const { zoom, pan } = drag
       drag = null
       setDragging(false)
+      if (frame !== 0) {
+        if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
+        frame = 0
+      }
+      pending = null
+      setView({ zoom, pan })
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('mousemove', onMove)
@@ -172,7 +234,17 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
       if (typeof event.button === 'number' && event.button !== 0) return
       // The picture is dragged by the surface, never by the browser.
       if (typeof event.preventDefault === 'function') event.preventDefault()
-      drag = { x: event.clientX, y: event.clientY }
+      // The state of the moment: the drag is measured against it.
+      const current = viewRef.current
+      drag = {
+        ...beginDrag(current, { x: event.clientX, y: event.clientY }),
+        // The pan of the moment, for the commit at the end of the drag.
+        pan: { x: current.pan.x, y: current.pan.y },
+        imageWidth: imageSize.width,
+        imageHeight: imageSize.height,
+        viewportWidth: viewport.width,
+        viewportHeight: viewport.height,
+      }
       setDragging(true)
       window.addEventListener('pointermove', onMove)
       window.addEventListener('pointerup', onUp)
@@ -207,9 +279,12 @@ export function ImageViewer({ src, alt = '', caption = '', t = key => key }) {
       surface.removeEventListener('mousedown', onDown)
       surface.removeEventListener('dblclick', onDouble)
       surface.removeEventListener('dragstart', onDragStart)
+      if (frame !== 0 && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
+      frame = 0
+      pending = null
       onUp()
     }
-  }, [clampFor])
+  }, [clampFor, imageSize.width, imageSize.height, viewport.width, viewport.height])
 
   return React.createElement('div', { className: 'iwb-image' },
     React.createElement('div', {
