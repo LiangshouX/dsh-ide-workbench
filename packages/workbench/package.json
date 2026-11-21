@@ -33,7 +33,9 @@
     "LICENSE",
     "CHANGELOG.md",
     "README.md",
-    "README_EN.md"
+    "README_EN.md",
+    "screenshots.json",
+    "assets"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",

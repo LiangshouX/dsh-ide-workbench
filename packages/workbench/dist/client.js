@@ -75058,9 +75058,25 @@ var HIGHLIGHT = HighlightStyle.define([
   { tag: tags.link, color: "var(--iwb-syn-heading)", textDecoration: "underline" },
   { tag: tags.invalid, color: "var(--iwb-syn-invalid)" }
 ]);
-var THEME = EditorView.theme({
+var EDITOR_THEME_RULES = {
   "&": { height: "100%", backgroundColor: "var(--iwb-bg)", color: "var(--iwb-fg)" },
-  ".cm-scroller": { fontFamily: "var(--iwb-mono)", fontSize: "13px", lineHeight: "1.6", overflow: "auto" },
+  // The ligatures of the font are switched OFF on purpose.
+  //
+  // A programming font draws runs like `//`, `/*`, `**` as ONE glyph - and a
+  // skin plugin (dsh-claude-style) loads JetBrains Mono as a web font, so the
+  // editor inherits those ligatures even on a machine that never had the
+  // font installed. The user then counts fewer characters than he typed and
+  // the line moves: the file is right, the picture lies.
+  //
+  // The editor is the place where the text of the user has to be faithful -
+  // one character, one character on the screen.
+  ".cm-scroller": {
+    fontFamily: "var(--iwb-mono)",
+    fontSize: "13px",
+    lineHeight: "1.6",
+    overflow: "auto",
+    fontVariantLigatures: "none"
+  },
   ".cm-content": { caretColor: "var(--iwb-accent)", padding: "10px 0" },
   ".cm-line": { padding: "0 14px 0 6px" },
   ".cm-gutters": {
@@ -75093,7 +75109,8 @@ var THEME = EditorView.theme({
   // The tooltips (completion, hover, signature) are themed in styles.js: one
   // stylesheet owns them, so the library's own light/dark rules cannot win a
   // precedence fight against a second set of rules here.
-}, { dark: true });
+};
+var THEME = EditorView.theme(EDITOR_THEME_RULES, { dark: true });
 function selectionOf(view, match) {
   return { anchor: match.from, head: match.to };
 }
@@ -75123,8 +75140,18 @@ function editorKeymap({ onSaveRef, onFindRef, onFindInFilesRef, readOnly: readOn
     { key: "Ctrl-Shift-=", mac: "Cmd-Shift-=", run: (view) => unfoldAll(view) }
   ];
 }
+function plainTextEnter() {
+  return {
+    key: "Enter",
+    run: (view) => {
+      if (view.state.facet(language) !== null) return false;
+      return insertNewline(view);
+    }
+  };
+}
 function editorKeymapRest() {
   return [
+    plainTextEnter(),
     ...defaultKeymap,
     ...historyKeymap,
     ...foldKeymap,

@@ -48,7 +48,7 @@ A DSH conversation is a good place to think and change code, but the actual edit
 ### Option 1: DSH Desktop (recommended)
 
 1. Open **Settings → Plugins**.
-2. Choose **Add plugin** and enter `dsh-ide-workbench` (optionally with a version, e.g. `dsh-ide-workbench@0.6.0`); a `.tgz` URL from a Release also works (see option 4).
+2. Choose **Add plugin** and enter `dsh-ide-workbench` (optionally with a version, e.g. `dsh-ide-workbench@0.7.0`); a `.tgz` URL from a Release also works (see option 4).
 3. After installing, open the workbench from the session header button (or the persistent entry at the bottom of the sidebar).
 
 > The Desktop profile belongs to the Electron application: `dsh plugin --profile desktop ...` is refused. Use the plugin page there — it installs into the profile the Desktop itself serves.
@@ -60,7 +60,7 @@ A DSH conversation is a good place to think and change code, but the actual edit
 dsh plugin --profile web add dsh-ide-workbench
 
 # Pin a version
-dsh plugin --profile web add dsh-ide-workbench@0.6.0
+dsh plugin --profile web add dsh-ide-workbench@0.7.0
 ```
 
 Restart that profile afterwards; if the bundle is not enabled yet, turn on **IDE Workbench** in **Settings → Plugins**.
@@ -82,7 +82,7 @@ Every [Release](https://github.com/LiangshouX/dsh-ide-workbench/releases) ships 
 
 | Package | Use it when | How |
 |:--|:--|:--|
-| `dsh-ide-workbench-<version>.tgz` | the profile can reach the npm registry (or an internal mirror) | `dsh plugin --profile web add ./dsh-ide-workbench-0.6.0.tgz` |
+| `dsh-ide-workbench-<version>.tgz` | the profile can reach the npm registry (or an internal mirror) | `dsh plugin --profile web add ./dsh-ide-workbench-0.7.0.tgz` |
 | `dsh-ide-workbench-<version>-offline.zip` | the machine is **fully offline** | unpack it and run `install-offline.ps1` (Windows) or `install-offline.sh` (macOS / Linux); see `README-OFFLINE.md` inside |
 
 The offline zip carries the runtime `node_modules` and an install script: the script copies the plugin into
