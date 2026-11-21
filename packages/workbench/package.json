@@ -25,6 +25,7 @@
     "src/host",
     "src/contract",
     "dist/client.js",
+    "assets/fonts",
     "cordis.patch.yml",
     "dsh.plugin.json",
     "locale/*.json",

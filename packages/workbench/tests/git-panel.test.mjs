@@ -339,7 +339,15 @@ test('the changed-file tree groups by repository-relative path (GIT-03)', async 
   assert.deepEqual(tree.dirs.get('src').files.map(file => file.path), ['src/app.js'])
 })
 
-test('the Git panel shows the repository it works against (GIT-01)', async () => {
+test('the Git panel leaves the repository to the dock header (GIT-01)', async () => {
+  // PRD-v8 §6.4: the repository used to be switchable in TWO places - the
+  // header of the Terminal/Git dock and the filter row of the Git window.
+  // Two switches for one thing is one too many, and the one in the filter row
+  // squeezed the BRANCH - the name that matters - into a second line.
+  //
+  // The dock header keeps the switcher (it is the header of the dock the
+  // Git window lives in), and the filter row keeps the branch, the scope and
+  // the filters.
   const mod = await loadModule()
   const state = makeState(null)
   state.gitRepoRoot = 'C:\\work\\demo'
@@ -349,10 +357,11 @@ test('the Git panel shows the repository it works against (GIT-01)', async () =>
   ]
   const store = makeStore(state)
   const html = renderToStaticMarkup(React.createElement(mod.GitPanel, { store, state }))
-  // The switch shows the repository name; the full path stays in the title.
-  assert.match(html, /iwb-repo-switch/)
-  assert.match(html, /iwb-repo-name[^>]*>demo</)
-  assert.match(html, /title="C:\\work\\demo"/)
+  assert.doesNotMatch(html, /iwb-repo-switch/, 'the Git window has no second repository switcher')
+  assert.doesNotMatch(html, /iwb-repo-name/, 'the Git window does not name the repository twice')
+  // The branch, which the filter row is now free to give room to.
+  assert.match(html, /iwb-branch-pick/, 'the branch picker is there')
+  assert.match(html, /iwb-branch-pick-name[^>]*>main</)
 })
 
 test('the repository picker offers the candidate repositories (GIT-01)', async () => {

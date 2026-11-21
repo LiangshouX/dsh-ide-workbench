@@ -39,7 +39,7 @@ function path(d, extra = {}) {
 function toolPath(d, extra = {}) {
   return React.createElement('path', {
     key: extra.key ?? 'p', d, fill: 'none', stroke: 'currentColor',
-    strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', ...extra,
+    strokeWidth: 1.55, strokeLinecap: 'round', strokeLinejoin: 'round', ...extra,
   })
 }
 
@@ -51,40 +51,46 @@ function toolDot(cx, cy, r, key) {
 /**
  * The Project window: the file tree.
  *
- * A comb of three rows hanging off a spine. The old mark was a folder, and a
- * folder says "folder" - not "the tree of the files of a project". The comb
- * says exactly what the window shows, and it is a shape nothing else in the
- * set uses.
+ * A spine with two arms, each ending in a node. The first version of this
+ * mark was a COMB - a spine with three arms ending in three boxes - and on
+ * the screen it read as a pile of books: six thin strokes at 20 pixels are
+ * mush, and three boxes of 4 pixels are noise.
+ *
+ * The tree is therefore drawn with the fewest marks that still say "tree":
+ * one spine, two arms, two SOLID nodes. A solid dot stays sharp at any size;
+ * an outline of a few pixels does not.
  */
 export function IconProject(props = {}) {
   return tool([
-    toolPath('M4.6 6v8', { key: 'spine' }),
-    toolPath('M4.6 6h4.8', { key: 'arm1' }),
-    toolPath('M4.6 10h4.8', { key: 'arm2' }),
-    toolPath('M4.6 14h4.8', { key: 'arm3' }),
-    React.createElement('rect', { key: 'n1', x: 9.4, y: 4.6, width: 6.2, height: 2.8, rx: 1.1, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 }),
-    React.createElement('rect', { key: 'n2', x: 9.4, y: 8.6, width: 6.2, height: 2.8, rx: 1.1, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 }),
-    React.createElement('rect', { key: 'n3', x: 9.4, y: 12.6, width: 6.2, height: 2.8, rx: 1.1, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 }),
+    toolPath('M5 5.2v9.2', { key: 'spine' }),
+    toolPath('M5 8.4h3.9', { key: 'arm1' }),
+    toolPath('M5 13.2h3.9', { key: 'arm2' }),
+    toolDot(11.5, 8.4, 2.3, 'leaf1'),
+    toolDot(11.5, 13.2, 2.3, 'leaf2'),
   ], props)
 }
 
 /**
  * The Commit window: the changes that are waiting to be committed.
  *
- * A sheet split down the middle, with a mark on each side: a change here and
- * a change there. The old mark (two dots joined by a line, with a tick) was
- * the same drawing as the Git window - two windows that look alike are two
- * windows nobody can tell apart.
+ * A sheet split down the middle, with a mark on the changed side. The old
+ * mark (two dots joined by a line, with a tick) was the same drawing as the
+ * Git window - two windows that look alike are two windows nobody can tell
+ * apart.
  */
 export function IconCommit(props = {}) {
   return tool([
     React.createElement('rect', {
-      key: 'sheet', x: 2.6, y: 3.4, width: 14.8, height: 13.2, rx: 3.2,
-      fill: 'none', stroke: 'currentColor', strokeWidth: 1.8,
+      key: 'sheet', x: 2.8, y: 3.6, width: 14.4, height: 12.8, rx: 3,
+      fill: 'none', stroke: 'currentColor', strokeWidth: 1.55,
     }),
-    toolPath('M10 3.4v13.2', { key: 'split' }),
-    toolPath('M5.4 8.4h2.4', { key: 'left' }),
-    toolPath('M12.2 11.8h2.4', { key: 'right' }),
+    toolPath('M10 3.6v12.8', { key: 'split' }),
+    // The mark of the change: SOLID, because an outline of three pixels is
+    // invisible.
+    React.createElement('rect', {
+      key: 'mark', x: 5.1, y: 7.5, width: 3.6, height: 2.2, rx: 1.1,
+      fill: 'currentColor', stroke: 'none',
+    }),
   ], props)
 }
 
@@ -115,10 +121,10 @@ export function IconTerminal(props = {}) {
   return tool([
     React.createElement('rect', {
       key: 'screen', x: 2.4, y: 3.4, width: 15.2, height: 13.2, rx: 3.2,
-      fill: 'none', stroke: 'currentColor', strokeWidth: 1.8,
+      fill: 'none', stroke: 'currentColor', strokeWidth: 1.55,
     }),
-    toolPath('M6.2 8.4l2.6 2.6-2.6 2.6', { key: 'prompt' }),
-    toolPath('M11.4 13.4h4.2', { key: 'cursor' }),
+    toolPath('M5.8 8l3.2 3.2-3.2 3.2', { key: 'prompt' }),
+    toolPath('M11.6 13.6h4.4', { key: 'cursor' }),
   ], props)
 }
 

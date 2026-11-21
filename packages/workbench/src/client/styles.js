@@ -6,7 +6,15 @@
  */
 import { LEFT_PANE_RATIO, STACK_WIDTH } from './layout.js'
 
-export const CSS = `
+// The two faces of the workbench ride along with it: the build replaces the
+// placeholder below with the `@font-face` rules of Inter and JetBrains Mono,
+// whose bytes are inlined as data URIs (see `scripts/build-client.mjs`).
+//
+// The placeholder is a COMMENT on purpose: the source of the client has to
+// stay buildable without a binary loader, because every test suite bundles
+// it with a plain esbuild call. A comment is a no-op there, and the build
+// fills it in.
+export const CSS = `/*__DSH_FONT_CSS__*/
 .iwb-root, .iwb-settings, .iwb-link-shell {
   --iwb-bg: var(--dsw-alias-bg-base, #15171c);
   --iwb-panel: var(--dsw-alias-bg-layer-1, #191d24);
@@ -203,8 +211,12 @@ export const CSS = `
      The Latin faces come first and the CJK faces last: a Latin face has no
      CJK glyphs, so the browser walks the list on its own for every script.
      "Segoe UI Variable Text" is the Windows 11 face - the same design as the
-     "Inter" it replaces, so the workbench looks the same on every machine. */
-  --iwb-font: "Inter", "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+     "Inter" it replaces, so the workbench looks the same on every machine.
+
+     Inter and JetBrains Mono are not merely WISHED for any more: they ship
+     with the plugin (see fonts.js), so the workbench looks the same on a
+     machine that has neither of them. */
+  --iwb-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
   --iwb-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", "Courier New", monospace;
   /* The type scale (PRD-v8 TYP-03): three levels and no more. */
   --iwb-text-title: 12px;
@@ -1685,10 +1697,23 @@ export const CSS = `
 
 /* ── Git Drawer ──────────────────────────────────────────────────────── */
 .iwb-branch-switch {
-  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 7px; border-radius: 5px;
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 7px; border-radius: var(--iwb-radius-sm);
   border: 1px solid var(--iwb-border); color: var(--iwb-fg); font-size: 11.5px; max-width: 210px;
+  white-space: nowrap;
 }
 .iwb-branch-switch:hover { border-color: var(--iwb-border-strong); background: var(--iwb-surface-hover); }
+/* The branch of the history is the longest name in the row, and it used to
+   WRAP onto a second line - which made the whole filter row taller and
+   looked broken. It takes the room the second repository switcher used to
+   take, and it gives the room back with an ellipsis. */
+.iwb-branch-pick {
+  flex: 1 1 auto; min-width: 120px; max-width: 46%;
+  background: var(--iwb-surface-raised);
+}
+.iwb-branch-pick-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--iwb-mono); font-size: 11.5px; letter-spacing: -.01em;
+}
 .iwb-branch-caret { color: var(--iwb-muted); font-size: 9px; display: inline-flex; align-items: center; }
 .iwb-branch-popover {
   position: fixed; z-index: 42; width: 260px; padding: 6px; border-radius: 8px;

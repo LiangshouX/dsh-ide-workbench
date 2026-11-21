@@ -888,14 +888,6 @@ export function GitPanel({ store, state }) {
   const [mainWidth, setMainWidth] = useState(0)
   const [branchMenu, setBranchMenu] = useState(null)
   const [repoMenu, setRepoMenu] = useState(null)
-  const repoRoot = slice.gitRepoRoot ?? ''
-  const repoName = useMemo(() => {
-    const match = gitRepoCandidates(slice).find(repo => repo.path === repoRoot)
-    if (match !== undefined) return match.name
-    if (repoRoot === '') return ''
-    const parts = repoRoot.split(/[\\/]/)
-    return parts[parts.length - 1] ?? repoRoot
-  }, [slice, repoRoot])
   const scrollRef = useRef(null)
   const mainRef = useRef(null)
   const queryTimer = useRef(null)
@@ -1058,26 +1050,19 @@ export function GitPanel({ store, state }) {
     React.createElement('div', { className: 'iwb-git-filters' },
       // ── the scope: WHICH history ──────────────────────────────────────
       React.createElement('div', { className: 'iwb-git-scope' },
+        // PRD-v8 §6.4: the repository is chosen in the header of the DOCK -
+        // one place, not two. The filter row used to offer a second switcher
+        // for the same thing, and the branch that matters more had to share
+        // the row with it.
         React.createElement('button', {
-          type: 'button', className: 'iwb-branch-switch iwb-repo-switch',
-          title: repoRoot === '' ? label(t, 'git.pickRepoHint', 'Choose a repository in the Terminal/Git header.') : repoRoot,
-          onClick: event => {
-            const rect = event.currentTarget.getBoundingClientRect()
-            setRepoMenu({ x: rect.left, y: rect.bottom + 4 })
-          },
-        },
-          React.createElement('span', { className: 'iwb-repo-name' }, repoName === '' ? label(t, 'git.pickRepo', 'Choose repository') : repoName),
-          React.createElement('span', { className: 'iwb-branch-caret' }, React.createElement(ChevronDown, { size: 11 })),
-        ),
-        React.createElement('button', {
-          type: 'button', className: 'iwb-branch-switch', title: t('git.switchBranchTitle'),
+          type: 'button', className: 'iwb-branch-switch iwb-branch-pick', title: t('git.switchBranchTitle'),
           onClick: event => {
             const rect = event.currentTarget.getBoundingClientRect()
             setBranchMenu({ x: rect.left, y: rect.bottom + 4 })
           },
         },
           React.createElement(IconBranch, { width: 13, height: 13 }),
-          React.createElement('span', null, slice.detached === true ? t('git.detached') : (slice.branch ?? '—')),
+          React.createElement('span', { className: 'iwb-branch-pick-name' }, slice.detached === true ? t('git.detached') : (slice.branch ?? '—')),
           React.createElement('span', { className: 'iwb-branch-caret' }, React.createElement(ChevronDown, { size: 11 })),
         ),
         // The scope is a segmented control: it names BOTH options and marks
@@ -1281,6 +1266,9 @@ export function GitPanel({ store, state }) {
           x: branchMenu.x, y: branchMenu.y, onClose: () => setBranchMenu(null),
         })
       : null,
+    // The repository is chosen in the header of the DOCK. The popover is still
+    // here for the one case the header cannot cover: there is NO repository
+    // yet, and the window has to offer a way to pick one.
     repoMenu !== null
       ? React.createElement(RepoPopover, {
           store, x: repoMenu.x, y: repoMenu.y, onClose: () => setRepoMenu(null),
