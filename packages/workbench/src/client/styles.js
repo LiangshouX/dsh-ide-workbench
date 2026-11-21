@@ -1875,14 +1875,22 @@ export const CSS = `/*__DSH_FONT_CSS__*/
 }
 .iwb-branch-caret { color: var(--iwb-muted); font-size: 9px; display: inline-flex; align-items: center; }
 .iwb-branch-popover {
-  position: fixed; z-index: 42; width: 260px; padding: 6px; border-radius: 8px;
+  position: fixed; z-index: 42; width: min(340px, calc(100vw - 24px)); padding: 6px; border-radius: 8px;
   border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay);
   box-shadow: 0 14px 36px rgba(0,0,0,.4);
 }
 .iwb-branch-list { max-height: 280px; overflow: auto; margin-top: 5px; }
 .iwb-branch-row {
-  display: flex; align-items: center; gap: 6px; width: 100%; height: 25px; padding: 0 6px;
+  display: flex; align-items: center; gap: 6px; width: 100%; min-height: 25px; padding: 0 6px;
   border-radius: 4px; text-align: left; font-size: 12px;
+}
+/* The name of a branch is longer than the row. Without the ellipsis it wraps
+   onto a second line, and the second line falls out of the row - onto the row
+   below it, so the two names lie on top of each other. The row grows instead
+   of clipping (min-height), and the name takes what is left of the row. */
+.iwb-branch-row .iwb-branch-name {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .iwb-branch-row.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-branch-check { width: 12px; flex: 0 0 12px; color: var(--iwb-accent); }

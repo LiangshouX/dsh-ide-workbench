@@ -64240,6 +64240,25 @@ function ChangedFileTree({ store, hash: hash3, files, width }) {
     })
   );
 }
+function branchRows(names, options) {
+  return names.map((name2, position) => import_react7.default.createElement(
+    "button",
+    {
+      key: name2,
+      type: "button",
+      className: `iwb-branch-row ${position === options.index ? "iwb-selected" : ""}`,
+      title: name2,
+      onMouseEnter: () => options.onHover?.(position),
+      onClick: () => options.onChoose(name2)
+    },
+    import_react7.default.createElement(
+      "span",
+      { className: "iwb-branch-check" },
+      name2 === options.current ? import_react7.default.createElement(IconCheck, { width: 12, height: 12 }) : ""
+    ),
+    import_react7.default.createElement("span", { className: "iwb-branch-name" }, name2)
+  ));
+}
 function BranchPopover({ store, branches, currentBranch, x: x2, y: y2, onClose }) {
   const t3 = store.t;
   const [query, setQuery] = (0, import_react7.useState)("");
@@ -64292,22 +64311,7 @@ function BranchPopover({ store, branches, currentBranch, x: x2, y: y2, onClose }
     import_react7.default.createElement(
       "div",
       { className: "iwb-branch-list" },
-      names.length === 0 ? import_react7.default.createElement("div", { className: "iwb-quick-empty" }, t3("quickOpen.empty")) : names.map((name2, position) => import_react7.default.createElement(
-        "button",
-        {
-          key: name2,
-          type: "button",
-          className: `iwb-branch-row ${position === index ? "iwb-selected" : ""}`,
-          onMouseEnter: () => setIndex(position),
-          onClick: () => choose(name2)
-        },
-        import_react7.default.createElement(
-          "span",
-          { className: "iwb-branch-check" },
-          name2 === currentBranch ? import_react7.default.createElement(IconCheck, { width: 12, height: 12 }) : ""
-        ),
-        import_react7.default.createElement("span", { className: "iwb-branch-name" }, name2)
-      ))
+      names.length === 0 ? import_react7.default.createElement("div", { className: "iwb-quick-empty" }, t3("quickOpen.empty")) : branchRows(names, { current: currentBranch, index, onHover: setIndex, onChoose: choose })
     )
   );
 }
@@ -82770,14 +82774,22 @@ var CSS2 = `@font-face{font-family:'Inter';font-style:normal;font-weight:100 900
 }
 .iwb-branch-caret { color: var(--iwb-muted); font-size: 9px; display: inline-flex; align-items: center; }
 .iwb-branch-popover {
-  position: fixed; z-index: 42; width: 260px; padding: 6px; border-radius: 8px;
+  position: fixed; z-index: 42; width: min(340px, calc(100vw - 24px)); padding: 6px; border-radius: 8px;
   border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay);
   box-shadow: 0 14px 36px rgba(0,0,0,.4);
 }
 .iwb-branch-list { max-height: 280px; overflow: auto; margin-top: 5px; }
 .iwb-branch-row {
-  display: flex; align-items: center; gap: 6px; width: 100%; height: 25px; padding: 0 6px;
+  display: flex; align-items: center; gap: 6px; width: 100%; min-height: 25px; padding: 0 6px;
   border-radius: 4px; text-align: left; font-size: 12px;
+}
+/* The name of a branch is longer than the row. Without the ellipsis it wraps
+   onto a second line, and the second line falls out of the row - onto the row
+   below it, so the two names lie on top of each other. The row grows instead
+   of clipping (min-height), and the name takes what is left of the row. */
+.iwb-branch-row .iwb-branch-name {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .iwb-branch-row.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-branch-check { width: 12px; flex: 0 0 12px; color: var(--iwb-accent); }

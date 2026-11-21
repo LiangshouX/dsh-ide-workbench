@@ -465,3 +465,17 @@ test('the category bar scrolls instead of piling the chips up', () => {
   // The bar is scrollable, so the scrollbar is visible.
   assert.match(styles, /\.iwb-settings-tabs::\-webkit-scrollbar \{/)
 })
+
+test('a branch name never falls out of its row', () => {
+  // A branch name is longer than the row of the picker. Without the ellipsis
+  // it wrapped onto a second line, and the second line fell out of the fixed
+  // height of the row - onto the row below it, so two names lay on top of
+  // each other and neither could be read.
+  assert.match(styles, /\.iwb-branch-row \.iwb-branch-name \{[^}]*white-space: nowrap;/)
+  assert.match(styles, /\.iwb-branch-row \.iwb-branch-name \{[^}]*text-overflow: ellipsis;/)
+  assert.match(styles, /\.iwb-branch-row \.iwb-branch-name \{[^}]*overflow: hidden;/)
+  assert.match(styles, /\.iwb-branch-row \.iwb-branch-name \{[^}]*min-width: 0;/)
+  // The row grows with its content instead of clipping it.
+  assert.match(styles, /\.iwb-branch-row \{[^}]*min-height: 25px;/)
+  assert.doesNotMatch(styles, /\.iwb-branch-row \{[^}]*(?<!min-)height: 25px;/)
+})

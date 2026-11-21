@@ -673,6 +673,33 @@ function ChangedFileTree({ store, hash, files, width }) {
   )
 }
 
+/**
+ * The rows of the branch picker (pure, so the choices can be driven directly
+ * in a test - the same seam the repository picker has).
+ *
+ * The name of a branch is longer than the row and is cut with an ellipsis, so
+ * the row carries the whole name as its tooltip: the name has to stay
+ * readable somewhere.
+ *
+ * @param {string[]} names the branches to offer
+ * @param {{ current: string, index: number, onHover?: Function, onChoose: Function }} options
+ * @returns {Array<React.ReactElement>}
+ */
+export function branchRows(names, options) {
+  return names.map((name, position) => React.createElement('button', {
+    key: name,
+    type: 'button',
+    className: `iwb-branch-row ${position === options.index ? 'iwb-selected' : ''}`,
+    title: name,
+    onMouseEnter: () => options.onHover?.(position),
+    onClick: () => options.onChoose(name),
+  },
+    React.createElement('span', { className: 'iwb-branch-check' },
+      name === options.current ? React.createElement(IconCheck, { width: 12, height: 12 }) : ''),
+    React.createElement('span', { className: 'iwb-branch-name' }, name),
+  ))
+}
+
 function BranchPopover({ store, branches, currentBranch, x, y, onClose }) {
   const t = store.t
   const [query, setQuery] = useState('')
@@ -707,17 +734,7 @@ function BranchPopover({ store, branches, currentBranch, x, y, onClose }) {
     React.createElement('div', { className: 'iwb-branch-list' },
       names.length === 0
         ? React.createElement('div', { className: 'iwb-quick-empty' }, t('quickOpen.empty'))
-        : names.map((name, position) => React.createElement('button', {
-            key: name,
-            type: 'button',
-            className: `iwb-branch-row ${position === index ? 'iwb-selected' : ''}`,
-            onMouseEnter: () => setIndex(position),
-            onClick: () => choose(name),
-          },
-            React.createElement('span', { className: 'iwb-branch-check' },
-              name === currentBranch ? React.createElement(IconCheck, { width: 12, height: 12 }) : ''),
-            React.createElement('span', { className: 'iwb-branch-name' }, name),
-          )),
+        : branchRows(names, { current: currentBranch, index, onHover: setIndex, onChoose: choose }),
     ),
   )
 }
