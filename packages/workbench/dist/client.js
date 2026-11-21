@@ -51402,6 +51402,33 @@ var en = {
   "chat.sent": "Sent to chat",
   "chat.unavailable": "The chat input is not available right now",
   "settings.reset": "Reset to defaults",
+  // The categories of the page, the filter and the honest states of a row.
+  "settings.categoryAll": "All",
+  "settings.categoryGeneral": "General",
+  "settings.categoryDeletion": "Deletion",
+  "settings.categoriesLabel": "Setting categories",
+  "settings.filterLabel": "Search settings",
+  "settings.filterPlaceholder": "Search settings by name, description or key",
+  "settings.countAll": "settings",
+  "settings.countMatches": "matches",
+  "settings.emptyTitle": "No setting matches",
+  "settings.emptyHint": "Try a shorter word, or clear the filter and pick a category.",
+  "settings.emptyClear": "Clear the filter",
+  "settings.changedBadge": "Changed",
+  "settings.deferredBadge": "New sessions only",
+  "settings.externalBadge": "Changed elsewhere",
+  "settings.failedBadge": "Not saved",
+  "settings.dangerBadge": "Permanent delete",
+  "settings.resetOne": "Restore the default",
+  "settings.saveFailed": "Saving failed",
+  "settings.resetConfirm": "Reset every setting?",
+  "settings.resetConfirmYes": "Reset",
+  "settings.resetTitle": "Put every setting of the workbench back to its default",
+  "settings.resetDone": "The defaults are back",
+  "settings.density": "Density",
+  "settings.densityHint": "How much room every row of the page takes",
+  "settings.densityComfortable": "Comfortable",
+  "settings.densityCompact": "Compact",
   "settings.shortcuts": "Shortcuts",
   "settings.shortcutsGroupHint": "Click a shortcut, then press the new key combination. Esc cancels.",
   "settings.pressKeys": "Press keys\u2026",
@@ -51424,6 +51451,22 @@ var en = {
   "settings.findInFilesShortcutHint": "Search the whole project",
   "settings.findInFilesAltShortcut": "Find in Files (fallback)",
   "settings.findInFilesAltShortcutHint": "Used when the shell reserves Ctrl+Shift+R (in a browser Ctrl+Shift+R is a hard reload)",
+  "settings.openCommitDetailShortcut": "Open commit detail",
+  "settings.openCommitDetailShortcutHint": "Open the selected commit in the Git window",
+  "settings.renameShortcut": "Rename",
+  "settings.renameShortcutHint": "Rename the entry selected in the file tree",
+  "settings.deleteShortcut": "Delete",
+  "settings.deleteShortcutHint": "Delete the entry selected in the file tree",
+  "settings.duplicateShortcut": "Duplicate",
+  "settings.duplicateShortcutHint": "Copy the entry selected in the file tree",
+  "settings.moveShortcut": "Move",
+  "settings.moveShortcutHint": "Move the entry selected in the file tree",
+  "settings.synchronizeShortcut": "Synchronize with disk",
+  "settings.synchronizeShortcutHint": "Read the file tree from the disk again",
+  "settings.jumpToSourceShortcut": "Jump to source",
+  "settings.jumpToSourceShortcutHint": "Open the source of the selected file",
+  "settings.hideAllShortcut": "Hide all tool windows",
+  "settings.hideAllShortcutHint": "Hide the four tool windows of the workbench",
   "settings.terminalGroup": "Terminal",
   "settings.defaultShell": "Default shell profile",
   "settings.defaultShellHint": "New sessions use this shell",
@@ -51918,6 +51961,33 @@ var zh = {
   "chat.sent": "\u5DF2\u53D1\u9001\u5230\u804A\u5929\u6846",
   "chat.unavailable": "\u6682\u65F6\u65E0\u6CD5\u5199\u5165\u804A\u5929\u8F93\u5165\u6846",
   "settings.reset": "\u6062\u590D\u9ED8\u8BA4\u8BBE\u7F6E",
+  // 分类、筛选与一行的“诚实状态”
+  "settings.categoryAll": "\u5168\u90E8",
+  "settings.categoryGeneral": "\u901A\u7528",
+  "settings.categoryDeletion": "\u5220\u9664",
+  "settings.categoriesLabel": "\u8BBE\u7F6E\u5206\u7C7B",
+  "settings.filterLabel": "\u641C\u7D22\u8BBE\u7F6E",
+  "settings.filterPlaceholder": "\u6309\u540D\u79F0\u3001\u8BF4\u660E\u6216\u952E\u540D\u641C\u7D22\u8BBE\u7F6E",
+  "settings.countAll": "\u9879\u8BBE\u7F6E",
+  "settings.countMatches": "\u9879\u5339\u914D",
+  "settings.emptyTitle": "\u6CA1\u6709\u5339\u914D\u7684\u8BBE\u7F6E",
+  "settings.emptyHint": "\u6362\u4E00\u4E2A\u66F4\u77ED\u7684\u5173\u952E\u8BCD\uFF0C\u6216\u6E05\u9664\u7B5B\u9009\u540E\u6309\u5206\u7C7B\u6D4F\u89C8\u3002",
+  "settings.emptyClear": "\u6E05\u9664\u7B5B\u9009",
+  "settings.changedBadge": "\u5DF2\u4FEE\u6539",
+  "settings.deferredBadge": "\u4EC5\u5BF9\u65B0\u4F1A\u8BDD\u751F\u6548",
+  "settings.externalBadge": "\u5DF2\u5728\u522B\u5904\u66F4\u6539",
+  "settings.failedBadge": "\u672A\u80FD\u4FDD\u5B58",
+  "settings.dangerBadge": "\u6C38\u4E45\u5220\u9664",
+  "settings.resetOne": "\u6062\u590D\u9ED8\u8BA4\u503C",
+  "settings.saveFailed": "\u4FDD\u5B58\u5931\u8D25",
+  "settings.resetConfirm": "\u628A\u5168\u90E8\u8BBE\u7F6E\u6062\u590D\u4E3A\u9ED8\u8BA4\u503C\uFF1F",
+  "settings.resetConfirmYes": "\u786E\u8BA4\u91CD\u7F6E",
+  "settings.resetTitle": "\u628A\u5DE5\u4F5C\u53F0\u7684\u5168\u90E8\u8BBE\u7F6E\u6062\u590D\u4E3A\u9ED8\u8BA4\u503C",
+  "settings.resetDone": "\u5DF2\u6062\u590D\u9ED8\u8BA4\u8BBE\u7F6E",
+  "settings.density": "\u4FE1\u606F\u5BC6\u5EA6",
+  "settings.densityHint": "\u6BCF\u4E00\u884C\u5360\u7528\u7684\u7A7A\u95F4",
+  "settings.densityComfortable": "\u8212\u9002",
+  "settings.densityCompact": "\u7D27\u51D1",
   "settings.shortcuts": "\u5FEB\u6377\u952E",
   "settings.shortcutsGroupHint": "\u70B9\u51FB\u5FEB\u6377\u952E\u540E\u6309\u4E0B\u65B0\u7684\u7EC4\u5408\u952E\uFF1B\u6309 Esc \u53D6\u6D88\u3002",
   "settings.pressKeys": "\u6309\u4E0B\u7EC4\u5408\u952E\u2026",
@@ -51940,6 +52010,22 @@ var zh = {
   "settings.findInFilesShortcutHint": "\u641C\u7D22\u6574\u4E2A\u9879\u76EE",
   "settings.findInFilesAltShortcut": "\u5168\u9879\u76EE\u67E5\u627E\uFF08\u5907\u7528\uFF09",
   "settings.findInFilesAltShortcutHint": "\u5F53\u5916\u58F3\u5360\u7528 Ctrl+Shift+R \u65F6\u4F7F\u7528\uFF08\u6D4F\u89C8\u5668\u5F62\u6001\u4E0B Ctrl+Shift+R \u662F\u786C\u5237\u65B0\uFF09",
+  "settings.openCommitDetailShortcut": "\u6253\u5F00\u63D0\u4EA4\u8BE6\u60C5",
+  "settings.openCommitDetailShortcutHint": "\u5728 Git \u7A97\u53E3\u4E2D\u6253\u5F00\u9009\u4E2D\u7684\u63D0\u4EA4",
+  "settings.renameShortcut": "\u91CD\u547D\u540D",
+  "settings.renameShortcutHint": "\u91CD\u547D\u540D\u6587\u4EF6\u6811\u4E2D\u9009\u4E2D\u7684\u6761\u76EE",
+  "settings.deleteShortcut": "\u5220\u9664",
+  "settings.deleteShortcutHint": "\u5220\u9664\u6587\u4EF6\u6811\u4E2D\u9009\u4E2D\u7684\u6761\u76EE",
+  "settings.duplicateShortcut": "\u590D\u5236",
+  "settings.duplicateShortcutHint": "\u590D\u5236\u6587\u4EF6\u6811\u4E2D\u9009\u4E2D\u7684\u6761\u76EE",
+  "settings.moveShortcut": "\u79FB\u52A8",
+  "settings.moveShortcutHint": "\u79FB\u52A8\u6587\u4EF6\u6811\u4E2D\u9009\u4E2D\u7684\u6761\u76EE",
+  "settings.synchronizeShortcut": "\u4E0E\u78C1\u76D8\u540C\u6B65",
+  "settings.synchronizeShortcutHint": "\u91CD\u65B0\u8BFB\u53D6\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u6811",
+  "settings.jumpToSourceShortcut": "\u8DF3\u8F6C\u5230\u6E90\u7801",
+  "settings.jumpToSourceShortcutHint": "\u6253\u5F00\u9009\u4E2D\u6587\u4EF6\u7684\u6E90\u7801",
+  "settings.hideAllShortcut": "\u6536\u8D77\u5168\u90E8\u5DE5\u5177\u7A97",
+  "settings.hideAllShortcutHint": "\u9690\u85CF\u5DE5\u4F5C\u53F0\u7684\u56DB\u4E2A\u5DE5\u5177\u7A97",
   "settings.terminalGroup": "\u7EC8\u7AEF",
   "settings.defaultShell": "\u9ED8\u8BA4 Shell \u914D\u7F6E",
   "settings.defaultShellHint": "\u65B0\u4F1A\u8BDD\u4F7F\u7528\u8BE5 Shell",
@@ -78798,51 +78884,324 @@ var STACK_WIDTH = 560;
 var LEFT_PANE_RATIO = 42;
 var DEFAULT_ENTRY_SIDE = "right";
 
-// src/client/SettingsPanel.jsx
-var SHORTCUT_FIELDS = [
-  ["project", "projectShortcut"],
-  ["commit", "commitShortcut"],
-  ["git", "gitShortcut"],
-  ["terminal", "terminalShortcut"],
-  ["focusCommit", "focusCommitShortcut"],
-  ["push", "pushShortcut"],
-  ["findInFiles", "findInFilesShortcut"],
-  ["findInFilesAlt", "findInFilesAltShortcut"],
-  ["quickOpen", "quickOpenShortcut"]
-];
-function Group({ title, description, children }) {
-  return import_react17.default.createElement(
-    "section",
-    { className: "iwb-settings-group" },
-    import_react17.default.createElement("h3", { className: "iwb-settings-group-title" }, title),
-    description !== void 0 ? import_react17.default.createElement("p", { className: "iwb-settings-group-desc" }, description) : null,
-    import_react17.default.createElement("div", { className: "iwb-settings-rows" }, children)
-  );
+// src/client/settings-model.js
+var SETTINGS_CATEGORIES = Object.freeze([
+  { id: "general", labelKey: "settings.categoryGeneral" },
+  { id: "editor", labelKey: "settings.editorGroup" },
+  { id: "files", labelKey: "settings.filesGroup" },
+  { id: "deletion", labelKey: "settings.categoryDeletion" },
+  { id: "terminal", labelKey: "settings.terminalGroup" },
+  { id: "git", labelKey: "settings.gitGroup" },
+  { id: "commit", labelKey: "settings.commitGroup" },
+  { id: "shortcuts", labelKey: "settings.shortcuts" },
+  { id: "ide", labelKey: "settings.ideGroup" },
+  { id: "layout", labelKey: "settings.layoutGroup" }
+]);
+var SHORTCUTS = "shortcuts";
+var SETTING_DESCRIPTORS = Object.freeze([
+  // ── general ────────────────────────────────────────────────────────────
+  {
+    key: "ui.density",
+    category: "general",
+    labelKey: "settings.density",
+    hintKey: "settings.densityHint",
+    control: { type: "select", options: [
+      { value: "comfortable", labelKey: "settings.densityComfortable" },
+      { value: "compact", labelKey: "settings.densityCompact" }
+    ] }
+  },
+  {
+    key: "ui.language",
+    category: "general",
+    labelKey: "settings.language",
+    hintKey: "settings.languageHint",
+    control: { type: "value" }
+  },
+  // ── editor ─────────────────────────────────────────────────────────────
+  {
+    key: "editor.openMode",
+    category: "editor",
+    labelKey: "settings.openMode",
+    hintKey: "settings.openModeHint",
+    control: { type: "select", options: [
+      { value: "auto", labelKey: "settings.openModeAuto" },
+      { value: "editable", labelKey: "settings.openModeEditable" },
+      { value: "readonly", labelKey: "settings.openModeReadonly" }
+    ] }
+  },
+  {
+    key: "editor.editableMaxBytes",
+    category: "editor",
+    labelKey: "settings.editableMaxBytes",
+    hintKey: "settings.editableMaxBytesHint",
+    control: { type: "number", min: 64, max: 16384, step: 64, view: "kb" }
+  },
+  {
+    key: "editor.fontSize",
+    category: "editor",
+    labelKey: "settings.editorFontSize",
+    control: { type: "number", min: 10, max: 20, step: 1 }
+  },
+  {
+    key: "editor.markdownPreview",
+    category: "editor",
+    labelKey: "settings.markdownPreview",
+    hintKey: "settings.markdownPreviewHint",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "editor.highlight",
+    category: "editor",
+    labelKey: "settings.highlight",
+    control: { type: "checkbox" }
+  },
+  // ── file tree ──────────────────────────────────────────────────────────
+  {
+    key: "project.alwaysSelectOpened",
+    category: "files",
+    labelKey: "project.alwaysSelect",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "project.showHidden",
+    category: "files",
+    labelKey: "settings.showHidden",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "project.showIgnored",
+    category: "files",
+    labelKey: "settings.showIgnored",
+    hintKey: "settings.showIgnoredHint",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "project.singleClickOpen",
+    category: "files",
+    labelKey: "settings.singleClickOpen",
+    hintKey: "settings.singleClickOpenHint",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "links.chatFiles",
+    category: "files",
+    labelKey: "settings.chatFileLinks",
+    hintKey: "settings.chatFileLinksHint",
+    control: { type: "select", options: [
+      { value: "ide", labelKey: "settings.chatFileLinksIde" },
+      { value: "sidebar", labelKey: "settings.chatFileLinksSidebar" }
+    ] }
+  },
+  // ── deletion ───────────────────────────────────────────────────────────
+  {
+    key: "delete.useRecycleBin",
+    category: "deletion",
+    labelKey: "settings.useRecycleBin",
+    hintKey: "settings.useRecycleBinHint",
+    control: { type: "checkbox" },
+    danger: true
+  },
+  // ── terminal ───────────────────────────────────────────────────────────
+  {
+    key: "terminal.shell",
+    category: "terminal",
+    labelKey: "settings.defaultShell",
+    hintKey: "settings.defaultShellHint",
+    control: { type: "select", optionsFrom: "shells" },
+    defer: "sessions"
+  },
+  {
+    key: "terminal.copyOnSelect",
+    category: "terminal",
+    labelKey: "settings.copyOnSelect",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "terminal.fontSize",
+    category: "terminal",
+    labelKey: "settings.terminalFontSize",
+    control: { type: "number", min: 10, max: 20, step: 1 }
+  },
+  {
+    key: "terminal.outputLimitBytes",
+    category: "terminal",
+    labelKey: "settings.terminalOutputLimit",
+    hintKey: "settings.terminalOutputLimitHint",
+    control: { type: "number", min: 1, max: 512, step: 1, view: "mib" },
+    defer: "sessions"
+  },
+  // ── git ────────────────────────────────────────────────────────────────
+  {
+    key: "git.path",
+    category: "git",
+    labelKey: "settings.gitPath",
+    hintKey: "settings.gitPathHint",
+    control: { type: "text", placeholder: "git" }
+  },
+  {
+    key: "git.commitTemplate",
+    category: "git",
+    labelKey: "settings.commitTemplate",
+    hintKey: "settings.commitTemplateHint",
+    control: { type: "text" }
+  },
+  {
+    key: "git.colors",
+    category: "git",
+    labelKey: "project.gitColors",
+    control: { type: "checkbox" }
+  },
+  // ── commit ─────────────────────────────────────────────────────────────
+  {
+    key: "commit.groupByDirectory",
+    category: "commit",
+    labelKey: "settings.groupByDirectory",
+    hintKey: "settings.groupByDirectoryHint",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "commit.testCommand",
+    category: "commit",
+    labelKey: "settings.testCommand",
+    hintKey: "settings.testCommandHint",
+    control: { type: "text", placeholder: "npm test" }
+  },
+  {
+    key: "commit.optimizeImportsCommand",
+    category: "commit",
+    labelKey: "settings.optimizeCommand",
+    hintKey: "settings.optimizeCommandHint",
+    control: { type: "text" }
+  },
+  {
+    key: "commit.cleanupCommand",
+    category: "commit",
+    labelKey: "settings.cleanupCommand",
+    hintKey: "settings.cleanupCommandHint",
+    control: { type: "text" }
+  },
+  // ── shortcuts ──────────────────────────────────────────────────────────
+  //
+  // Every shortcut the workbench really reads is here. The ones that were
+  // missing before (the keys of the file tree, the commit detail, the jump
+  // to the source, the hide of the tool windows) were live in the code and
+  // unreachable in the settings page.
+  ...[
+    ["shortcuts.project", "settings.projectShortcut", "settings.projectShortcutHint"],
+    ["shortcuts.commit", "settings.commitShortcut", "settings.commitShortcutHint"],
+    ["shortcuts.git", "settings.gitShortcut", "settings.gitShortcutHint"],
+    ["shortcuts.terminal", "settings.terminalShortcut", "settings.terminalShortcutHint"],
+    ["shortcuts.focusCommit", "settings.focusCommitShortcut", "settings.focusCommitShortcutHint"],
+    ["shortcuts.push", "settings.pushShortcut", "settings.pushShortcutHint"],
+    ["shortcuts.findInFiles", "settings.findInFilesShortcut", "settings.findInFilesShortcutHint"],
+    ["shortcuts.findInFilesAlt", "settings.findInFilesAltShortcut", "settings.findInFilesAltShortcutHint"],
+    ["shortcuts.quickOpen", "settings.quickOpenShortcut", "settings.quickOpenShortcutHint"],
+    ["shortcuts.openCommitDetail", "settings.openCommitDetailShortcut", "settings.openCommitDetailShortcutHint"],
+    ["shortcuts.rename", "settings.renameShortcut", "settings.renameShortcutHint"],
+    ["shortcuts.delete", "settings.deleteShortcut", "settings.deleteShortcutHint"],
+    ["shortcuts.duplicate", "settings.duplicateShortcut", "settings.duplicateShortcutHint"],
+    ["shortcuts.move", "settings.moveShortcut", "settings.moveShortcutHint"],
+    ["shortcuts.synchronize", "settings.synchronizeShortcut", "settings.synchronizeShortcutHint"],
+    ["shortcuts.jumpToSource", "settings.jumpToSourceShortcut", "settings.jumpToSourceShortcutHint"],
+    ["shortcuts.hideAll", "settings.hideAllShortcut", "settings.hideAllShortcutHint"]
+  ].map(([key, labelKey, hintKey]) => ({
+    key,
+    category: SHORTCUTS,
+    labelKey,
+    hintKey,
+    control: { type: "shortcut" }
+  })),
+  // ── external IDEs ──────────────────────────────────────────────────────
+  // The names of the IDEs are brand names: they read the same in every
+  // language, exactly as the menus of the file tree carry them.
+  ...[
+    ["idea.path", "IntelliJ IDEA"],
+    ["webstorm.path", "WebStorm"],
+    ["vscode.path", "Visual Studio Code"]
+  ].map(([key, label3]) => ({
+    key,
+    category: "ide",
+    label: label3,
+    control: { type: "text", placeholderKey: "settings.ideAuto" }
+  })),
+  // ── layout ─────────────────────────────────────────────────────────────
+  {
+    key: "layout.entrySide",
+    category: "layout",
+    labelKey: "settings.toolWindowSide",
+    hintKey: "settings.toolWindowSideHint",
+    control: { type: "select", options: [
+      { value: "left", labelKey: "settings.toolWindowSideLeft" },
+      { value: "right", labelKey: "settings.toolWindowSideRight" }
+    ] },
+    // The side of the tool windows is written through, not debounced: the
+    // root class of the workbench follows the saved settings, so the entries
+    // move as the user picks a side.
+    writeThrough: "entrySide"
+  }
+]);
+function pathOf(key) {
+  return String(key ?? "").split(".");
 }
-function Row({ label: label3, hint, title, children }) {
-  return import_react17.default.createElement(
-    "div",
-    { className: "iwb-settings-row", title },
-    import_react17.default.createElement(
-      "div",
-      { className: "iwb-settings-label" },
-      import_react17.default.createElement("div", { className: "iwb-settings-title" }, label3),
-      hint !== void 0 ? import_react17.default.createElement("div", { className: "iwb-settings-hint" }, hint) : null
-    ),
-    import_react17.default.createElement("div", { className: "iwb-settings-control" }, children)
-  );
+function readSetting(document2, key) {
+  let value = document2;
+  for (const part of pathOf(key)) {
+    if (value === null || typeof value !== "object") return void 0;
+    value = value[part];
+  }
+  return value;
+}
+function searchEntry(descriptor, t3, categoryLabels) {
+  const label3 = descriptor.labelKey !== void 0 ? t3(descriptor.labelKey) : descriptor.label ?? "";
+  const hint = descriptor.hintKey === void 0 ? "" : t3(descriptor.hintKey);
+  const category = categoryLabels[descriptor.category] ?? "";
+  const haystack = `${label3} ${hint} ${descriptor.key} ${category}`.toLowerCase();
+  return { key: descriptor.key, category: descriptor.category, label: label3, hint, haystack };
+}
+function buildSearchIndex(t3) {
+  const categoryLabels = {};
+  for (const category of SETTINGS_CATEGORIES) categoryLabels[category.id] = t3(category.labelKey);
+  const entries = SETTING_DESCRIPTORS.map((descriptor) => searchEntry(descriptor, t3, categoryLabels));
+  const byKey = {};
+  for (const descriptor of SETTING_DESCRIPTORS) byKey[descriptor.key] = descriptor;
+  return { entries, byKey };
+}
+function normalizeQuery(query) {
+  return String(query ?? "").trim().toLowerCase();
+}
+function matchesEntry(entry, query) {
+  const text = normalizeQuery(query);
+  if (text === "") return true;
+  const words = text.split(/\s+/).filter((word) => word !== "");
+  return words.every((word) => entry.haystack.includes(word));
+}
+function filterSettings(entries, query) {
+  const text = normalizeQuery(query);
+  if (text === "") return entries;
+  return entries.filter((entry) => matchesEntry(entry, text));
+}
+function countByCategory(entries) {
+  const byCategory = {};
+  for (const category of SETTINGS_CATEGORIES) byCategory[category.id] = 0;
+  for (const entry of entries) byCategory[entry.category] = (byCategory[entry.category] ?? 0) + 1;
+  return { total: entries.length, byCategory };
+}
+function groupByCategory(entries) {
+  const groups = [];
+  for (const category of SETTINGS_CATEGORIES) {
+    const own = entries.filter((entry) => entry.category === category.id);
+    if (own.length === 0) continue;
+    groups.push({ category, entries: own });
+  }
+  return groups;
+}
+
+// src/client/SettingsPanel.jsx
+var ALL = "all";
+function controlId(key) {
+  return `iwb-settings-${String(key).replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }
 var DEFAULT_TERMINAL_OUTPUT_LIMIT = 8 * 1024 * 1024;
-function outputLimitMib(bytes) {
-  const value = typeof bytes === "number" || typeof bytes === "string" ? Number(bytes) : Number.NaN;
-  const limit = Number.isFinite(value) && value > 0 ? value : DEFAULT_TERMINAL_OUTPUT_LIMIT;
-  return Math.max(1, Math.round(limit / (1024 * 1024)));
-}
-function mibToBytes(mib) {
-  const value = Number(mib);
-  if (!Number.isFinite(value) || value <= 0) return DEFAULT_TERMINAL_OUTPUT_LIMIT;
-  return Math.round(value * 1024 * 1024);
-}
 function resetPatch() {
   return {
     git: { path: "", colors: true, commitTemplate: "" },
@@ -78855,6 +79214,8 @@ function resetPatch() {
     delete: { useRecycleBin: true },
     editor: { fontSize: 13, highlight: true, openMode: "auto", editableMaxBytes: 1 << 20, markdownPreview: true },
     links: { chatFiles: "ide" },
+    layout: { entrySide: "right" },
+    ui: { density: "comfortable" },
     shortcuts: {
       project: "Alt+1",
       commit: "Alt+0",
@@ -78865,23 +79226,136 @@ function resetPatch() {
       findInFiles: "Ctrl+Shift+R",
       findInFilesAlt: "Ctrl+Alt+F",
       openCommitDetail: "Ctrl+Alt+D",
-      quickOpen: "Ctrl+Shift+N"
+      quickOpen: "Ctrl+Shift+N",
+      rename: "F2",
+      delete: "Delete",
+      duplicate: "F5",
+      move: "F6",
+      synchronize: "Ctrl+Alt+Y",
+      jumpToSource: "F4",
+      hideAll: "Ctrl+Shift+F12"
     }
   };
 }
-function SettingsForm({ store, state, compact, contract = null, renderSlot = null, onStatusChange }) {
+function defaultsByKey() {
+  const map = {};
+  for (const [section, value] of Object.entries(resetPatch())) {
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      for (const [key, inner] of Object.entries(value)) map[`${section}.${key}`] = inner;
+    } else {
+      map[section] = value;
+    }
+  }
+  return map;
+}
+var SETTING_DEFAULTS = defaultsByKey();
+function leafPaths(patch, prefix = "") {
+  const paths = [];
+  if (patch === null || typeof patch !== "object" || Array.isArray(patch)) return paths;
+  for (const [key, value] of Object.entries(patch)) {
+    const path2 = prefix === "" ? key : `${prefix}.${key}`;
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) paths.push(...leafPaths(value, path2));
+    else paths.push(path2);
+  }
+  return paths;
+}
+function Group({ id: id2, title, description, children }) {
+  return import_react17.default.createElement(
+    "section",
+    {
+      className: "iwb-settings-group",
+      id: `iwb-settings-group-${id2}`,
+      "aria-labelledby": `iwb-settings-group-title-${id2}`
+    },
+    import_react17.default.createElement("h3", { className: "iwb-settings-group-title", id: `iwb-settings-group-title-${id2}` }, title),
+    description !== void 0 ? import_react17.default.createElement("p", { className: "iwb-settings-group-desc" }, description) : null,
+    import_react17.default.createElement("div", { className: "iwb-settings-rows" }, children)
+  );
+}
+var Row = import_react17.default.memo(function Row2({
+  descriptor,
+  label: label3,
+  hint,
+  changed,
+  deferred,
+  failed,
+  external,
+  danger,
+  control,
+  onReset
+}) {
+  const id2 = controlId(descriptor.key);
+  const hintId = `${id2}-hint`;
+  return import_react17.default.createElement(
+    "div",
+    {
+      className: `iwb-settings-row${failed === true ? " iwb-settings-row-failed" : ""}`,
+      "data-setting": descriptor.key
+    },
+    import_react17.default.createElement(
+      "div",
+      { className: "iwb-settings-label" },
+      control.labelable === true ? import_react17.default.createElement("label", { className: "iwb-settings-title", htmlFor: id2 }, label3) : import_react17.default.createElement("span", { className: "iwb-settings-title", id: `${id2}-label` }, label3),
+      hint !== "" ? import_react17.default.createElement("div", { className: "iwb-settings-hint", id: hintId }, hint) : null,
+      import_react17.default.createElement(
+        "div",
+        { className: "iwb-settings-badges" },
+        changed === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-changed" }, descriptor.changedLabel) : null,
+        deferred === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-deferred" }, descriptor.deferredLabel) : null,
+        danger === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-danger" }, descriptor.dangerLabel) : null,
+        external === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-external" }, descriptor.externalLabel) : null,
+        failed === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-failed" }, descriptor.failedLabel) : null,
+        changed === true ? import_react17.default.createElement("button", {
+          type: "button",
+          className: "iwb-settings-reset-row",
+          title: descriptor.resetLabel,
+          "aria-label": descriptor.resetLabel,
+          onClick: () => onReset(descriptor.key)
+        }, descriptor.resetLabel) : null
+      )
+    ),
+    import_react17.default.createElement("div", {
+      className: "iwb-settings-control",
+      role: control.labelable === true ? void 0 : "group",
+      "aria-labelledby": control.labelable === true ? void 0 : `${id2}-label`
+    }, control.element)
+  );
+});
+var SettingsForm = import_react17.default.memo(function SettingsForm2({
+  store,
+  state,
+  settings: settingsProp,
+  shells: shellsProp,
+  localeTick,
+  compact,
+  contract = null,
+  renderSlot = null,
+  onStatusChange
+}) {
   const t3 = store.t;
-  const settings = state.settings ?? {};
+  const settings = settingsProp ?? state?.settings ?? {};
+  const shells = shellsProp ?? state?.terminal?.shells ?? [];
   const entrySide = state.settings?.layout?.entrySide === "left" ? "left" : DEFAULT_ENTRY_SIDE;
   const [draft, setDraft] = (0, import_react17.useState)(settings);
   const [saved, setSaved] = (0, import_react17.useState)(false);
   const [saving, setSaving] = (0, import_react17.useState)(false);
-  const [capturing, setCapturing] = (0, import_react17.useState)(false);
+  const [failedSave, setFailedSave] = (0, import_react17.useState)(false);
+  const [capturing, setCapturing] = (0, import_react17.useState)(null);
+  const [filter, setFilter] = (0, import_react17.useState)("");
+  const [category, setCategory] = (0, import_react17.useState)(ALL);
+  const [resetArmed, setResetArmed] = (0, import_react17.useState)(false);
+  const [failedKeys, setFailedKeys] = (0, import_react17.useState)(() => /* @__PURE__ */ new Set());
+  const [externalKeys, setExternalKeys] = (0, import_react17.useState)(() => /* @__PURE__ */ new Set());
   const timer = (0, import_react17.useRef)(null);
   const savedTimer = (0, import_react17.useRef)(null);
+  const resetTimer = (0, import_react17.useRef)(null);
   const rootRef = (0, import_react17.useRef)(null);
+  const filterRef = (0, import_react17.useRef)(null);
+  const tabRefs = (0, import_react17.useRef)(/* @__PURE__ */ new Map());
   const scrollRef = (0, import_react17.useRef)({ parent: null, top: 0 });
   const pendingPatch = (0, import_react17.useRef)({});
+  const draftRef = (0, import_react17.useRef)(draft);
+  draftRef.current = draft;
   const alive = (0, import_react17.useRef)(true);
   const captureScroll = () => {
     let node = rootRef.current?.parentElement ?? null;
@@ -78906,11 +79380,23 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
   };
   (0, import_react17.useEffect)(() => {
     if (Object.keys(pendingPatch.current).length > 0) return;
+    const touched = /* @__PURE__ */ new Set();
+    for (const key of Object.keys(SETTING_DEFAULTS)) {
+      if (readSetting(settings, key) === void 0) continue;
+      if (readSetting(draftRef.current, key) !== readSetting(settings, key)) touched.add(key);
+    }
     setDraft(settings);
+    if (touched.size > 0) {
+      setExternalKeys(touched);
+      if (savedTimer.current !== null) clearTimeout(savedTimer.current);
+      savedTimer.current = setTimeout(() => {
+        if (alive.current) setExternalKeys(/* @__PURE__ */ new Set());
+      }, 4e3);
+    }
   }, [settings]);
   (0, import_react17.useEffect)(() => {
-    onStatusChange?.({ saving, saved });
-  }, [saving, saved]);
+    onStatusChange?.({ saving, saved, failed: failedSave });
+  }, [saving, saved, failedSave]);
   const mergePatch = (base2, patch) => {
     const output = { ...base2 };
     for (const [key, value] of Object.entries(patch)) {
@@ -78931,11 +79417,24 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
     return store.updateSettings(patch).finally(() => {
       if (!alive.current) return;
       setSaving(false);
-      setSaved(true);
-      if (savedTimer.current !== null) clearTimeout(savedTimer.current);
-      savedTimer.current = setTimeout(() => {
-        if (alive.current) setSaved(false);
-      }, 1800);
+      const published = typeof store.getSnapshot === "function" ? store.getSnapshot().settings : null;
+      const broken = [];
+      if (published !== null && published !== void 0) {
+        for (const path2 of leafPaths(patch)) {
+          if (readSetting(published, path2) !== readSetting(patch, path2)) broken.push(path2);
+        }
+      }
+      if (broken.length > 0) {
+        setFailedKeys((previous) => /* @__PURE__ */ new Set([...previous, ...broken]));
+        setFailedSave(true);
+      } else {
+        setFailedSave(false);
+        setSaved(true);
+        if (savedTimer.current !== null) clearTimeout(savedTimer.current);
+        savedTimer.current = setTimeout(() => {
+          if (alive.current) setSaved(false);
+        }, 1800);
+      }
     });
   };
   (0, import_react17.useEffect)(() => {
@@ -78945,6 +79444,7 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
       if (Object.keys(pendingPatch.current).length > 0) void flush();
       if (timer.current !== null) clearTimeout(timer.current);
       if (savedTimer.current !== null) clearTimeout(savedTimer.current);
+      if (resetTimer.current !== null) clearTimeout(resetTimer.current);
     };
   }, []);
   const commit = (patch) => {
@@ -78973,357 +79473,377 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
       layout: { ...draft.layout, ...patch.layout ?? {} },
       editor: { ...draft.editor, ...patch.editor ?? {} },
       links: { ...draft.links, ...patch.links ?? {} },
+      ui: { ...draft.ui, ...patch.ui ?? {} },
       shortcuts: { ...draft.shortcuts, ...patch.shortcuts ?? {} }
     };
     setDraft(next);
     commit(patch);
   };
+  const change = (0, import_react17.useCallback)((key, value) => {
+    const path2 = pathOf(key);
+    const section = path2[0];
+    const leaf = path2.slice(1);
+    update(leaf.length === 1 ? { [section]: { [leaf[0]]: value } } : { [section]: value });
+    setExternalKeys((previous) => {
+      if (!previous.has(key)) return previous;
+      const next = new Set(previous);
+      next.delete(key);
+      return next;
+    });
+    setFailedKeys((previous) => {
+      if (!previous.has(key)) return previous;
+      const next = new Set(previous);
+      next.delete(key);
+      return next;
+    });
+  }, [store]);
+  const resetOne = (0, import_react17.useCallback)((key) => {
+    const fallback2 = SETTING_DEFAULTS[key];
+    if (fallback2 === void 0) return;
+    change(key, fallback2);
+  }, [change]);
+  const index = (0, import_react17.useMemo)(() => buildSearchIndex(t3), [t3, localeTick]);
+  const entries = (0, import_react17.useMemo)(() => filterSettings(index.entries, filter), [index, filter]);
+  const counts = (0, import_react17.useMemo)(() => countByCategory(entries), [entries]);
+  const visible = (0, import_react17.useMemo)(
+    () => category === ALL ? entries : entries.filter((entry) => entry.category === category),
+    [entries, category]
+  );
+  const groups = (0, import_react17.useMemo)(() => groupByCategory(visible), [visible]);
+  const tabs = (0, import_react17.useMemo)(() => {
+    const list = [{ id: ALL, label: t3("settings.categoryAll"), count: counts.total }];
+    for (const item of SETTINGS_CATEGORIES) {
+      const count2 = counts.byCategory[item.id] ?? 0;
+      if (filter !== "" && count2 === 0) continue;
+      list.push({ id: item.id, label: t3(item.labelKey), count: count2 });
+    }
+    return list;
+  }, [counts, filter, t3]);
+  const selectTab = (0, import_react17.useCallback)((id2, focus = false) => {
+    setCategory(id2);
+    if (focus) {
+      const node = tabRefs.current.get(id2);
+      if (node !== void 0 && node !== null) node.focus();
+    }
+  }, []);
+  const onTabKeyDown = (0, import_react17.useCallback)((event) => {
+    const keys2 = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+    if (!keys2.includes(event.key)) return;
+    event.preventDefault();
+    const current = tabs.findIndex((tab3) => tab3.id === category);
+    let next = current;
+    if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = tabs.length - 1;
+    else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (current - 1 + tabs.length) % tabs.length;
+    else next = (current + 1) % tabs.length;
+    selectTab(tabs[next].id, true);
+  }, [tabs, category, selectTab]);
+  const onFilterKeyDown = (0, import_react17.useCallback)((event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (filter !== "") {
+      setFilter("");
+      return;
+    }
+    if (typeof event.currentTarget?.blur === "function") event.currentTarget.blur();
+  }, [filter]);
+  const onRootKeyDown = (0, import_react17.useCallback)((event) => {
+    if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    const tag = target instanceof Element ? target.tagName : "";
+    if (tag === "TEXTAREA") return;
+    if (tag === "INPUT") {
+      const type = (target.getAttribute("type") ?? "text").toLowerCase();
+      if (!["checkbox", "radio", "button", "submit", "reset"].includes(type)) return;
+    }
+    if (target instanceof Element && target.isContentEditable === true) return;
+    event.preventDefault();
+    filterRef.current?.focus();
+    filterRef.current?.select?.();
+  }, []);
+  const controlOf = (0, import_react17.useCallback)((descriptor, value) => {
+    const spec = descriptor.control;
+    const id2 = controlId(descriptor.key);
+    const hintId = `${id2}-hint`;
+    const labelable = spec.type !== "shortcut" && spec.type !== "value";
+    const described = descriptor.hintKey === void 0 ? void 0 : hintId;
+    switch (spec.type) {
+      case "checkbox":
+        return {
+          labelable,
+          element: import_react17.default.createElement("input", {
+            type: "checkbox",
+            id: id2,
+            checked: value === true,
+            "aria-describedby": described,
+            onChange: (event) => change(descriptor.key, event.target.checked)
+          })
+        };
+      case "text":
+        return {
+          labelable,
+          element: import_react17.default.createElement("input", {
+            type: "text",
+            id: id2,
+            className: "iwb-input",
+            value: typeof value === "string" ? value : "",
+            placeholder: spec.placeholder ?? (spec.placeholderKey === void 0 ? "" : t3(spec.placeholderKey)),
+            "aria-describedby": described,
+            onChange: (event) => change(descriptor.key, event.target.value)
+          })
+        };
+      case "number": {
+        const factor = spec.view === "mib" ? 1024 * 1024 : spec.view === "kb" ? 1024 : 1;
+        const shown = typeof value === "number" && Number.isFinite(value) ? Math.round(value / factor) : "";
+        return {
+          labelable,
+          element: import_react17.default.createElement("input", {
+            type: "number",
+            id: id2,
+            min: spec.min,
+            max: spec.max,
+            step: spec.step ?? 1,
+            value: shown,
+            "aria-describedby": described,
+            onChange: (event) => {
+              const number2 = Number(event.target.value);
+              change(descriptor.key, Number.isFinite(number2) ? number2 * factor : 0);
+            }
+          })
+        };
+      }
+      case "select": {
+        const options = spec.optionsFrom === "shells" ? [{ value: "auto", labelKey: "settings.auto" }, ...shells.map((shell) => ({ value: shell.id, label: shell.label }))] : spec.options;
+        const live = descriptor.writeThrough === "entrySide";
+        const write = (event) => {
+          if (live) {
+            void store.updateSettings({ layout: { entrySide: event.target.value === "left" ? "left" : "right" } });
+            return;
+          }
+          change(descriptor.key, event.target.value);
+        };
+        const control = live ? { id: id2, className: "iwb-input", value: entrySide, "aria-describedby": described, onChange: write } : {
+          id: id2,
+          className: "iwb-input",
+          value: typeof value === "string" ? value : "",
+          "aria-describedby": described,
+          onChange: write
+        };
+        return {
+          labelable,
+          element: import_react17.default.createElement("select", control, options.map((option) => import_react17.default.createElement("option", {
+            key: option.value,
+            value: option.value
+          }, option.label !== void 0 ? option.label : t3(option.labelKey))))
+        };
+      }
+      case "shortcut":
+        return {
+          labelable,
+          element: import_react17.default.createElement(ShortcutCapture, {
+            value: typeof value === "string" ? value : "",
+            active: capturing === descriptor.key,
+            onActivate: (active) => setCapturing(active ? descriptor.key : null),
+            onCapture: (next) => change(descriptor.key, next),
+            pressText: t3("settings.pressKeys"),
+            hint: t3("settings.recordShortcutHint")
+          })
+        };
+      default:
+        return {
+          labelable,
+          element: import_react17.default.createElement("span", { className: "iwb-settings-value" }, t3("settings.followDsh"))
+        };
+    }
+  }, [change, capturing, entrySide, shells, store, t3]);
+  const rowOf = (0, import_react17.useCallback)((entry) => {
+    const descriptor = index.byKey[entry.key];
+    const value = readSetting(draft, entry.key);
+    const fallback2 = SETTING_DEFAULTS[entry.key];
+    const changed = fallback2 !== void 0 && value !== void 0 && value !== fallback2;
+    return import_react17.default.createElement(Row, {
+      key: entry.key,
+      descriptor: {
+        ...descriptor,
+        changedLabel: t3("settings.changedBadge"),
+        deferredLabel: t3("settings.deferredBadge"),
+        externalLabel: t3("settings.externalBadge"),
+        failedLabel: t3("settings.failedBadge"),
+        dangerLabel: t3("settings.dangerBadge"),
+        resetLabel: t3("settings.resetOne")
+      },
+      label: entry.label,
+      hint: entry.hint,
+      changed,
+      deferred: descriptor.defer === "sessions",
+      failed: failedKeys.has(entry.key),
+      external: externalKeys.has(entry.key),
+      danger: descriptor.danger === true && value === false,
+      control: controlOf(descriptor, value),
+      onReset: resetOne
+    });
+  }, [index, draft, failedKeys, externalKeys, controlOf, resetOne, t3]);
+  const blocks = (0, import_react17.useMemo)(() => groups.map((group) => {
+    const description = group.category.id === "shortcuts" ? t3("settings.shortcutsGroupHint") : group.category.id === "ide" ? t3("settings.idePathHint") : void 0;
+    return import_react17.default.createElement(Group, {
+      key: group.category.id,
+      id: group.category.id,
+      title: t3(group.category.labelKey),
+      description
+    }, group.entries.map((entry) => rowOf(entry)));
+  }), [groups, rowOf, t3]);
+  const density = draft.ui?.density === "compact" ? "compact" : "comfortable";
+  const armReset = (0, import_react17.useCallback)(() => {
+    setResetArmed(true);
+    if (resetTimer.current !== null) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => {
+      if (alive.current) setResetArmed(false);
+    }, 8e3);
+  }, []);
+  const doReset = (0, import_react17.useCallback)(() => {
+    const reset = resetPatch();
+    setDraft({ ...draftRef.current, ...reset });
+    commit(reset);
+    setResetArmed(false);
+    if (resetTimer.current !== null) clearTimeout(resetTimer.current);
+    store.toast?.("success", t3("settings.resetDone"), "");
+  }, [store, t3]);
   return import_react17.default.createElement(
     "div",
-    { className: "iwb-settings", ref: rootRef },
+    {
+      className: `iwb-settings iwb-settings-${density}`,
+      ref: rootRef,
+      onKeyDown: onRootKeyDown
+    },
+    // ── the header: the filter, the categories and the reset ─────────────
     import_react17.default.createElement(
-      Group,
-      {
-        title: t3("settings.shortcuts"),
-        description: t3("settings.shortcutsGroupHint")
-      },
-      SHORTCUT_FIELDS.map(([field, labelKey]) => import_react17.default.createElement(
-        Row,
-        {
-          key: field,
-          label: t3(`settings.${labelKey}`),
-          hint: t3(`settings.${labelKey}Hint`)
-        },
-        import_react17.default.createElement(ShortcutCapture, {
-          value: draft.shortcuts?.[field] ?? "",
-          active: capturing,
-          onActivate: setCapturing,
-          onCapture: (value) => update({ shortcuts: { [field]: value } }),
-          pressText: t3("settings.pressKeys"),
-          hint: t3("settings.recordShortcutHint")
-        })
-      ))
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.terminalGroup") },
+      "div",
+      { className: "iwb-settings-header" },
       import_react17.default.createElement(
-        Row,
-        { label: t3("settings.defaultShell"), hint: t3("settings.defaultShellHint") },
+        "div",
+        { className: "iwb-settings-header-row" },
         import_react17.default.createElement(
-          "select",
-          {
-            className: "iwb-select",
-            value: draft.terminal?.shell ?? "auto",
-            onChange: (event) => update({ terminal: { shell: event.target.value } })
-          },
-          import_react17.default.createElement("option", { value: "auto" }, t3("settings.auto")),
-          state.terminal.shells.map((shell) => import_react17.default.createElement("option", { key: shell.id, value: shell.id }, shell.label))
-        )
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.copyOnSelect") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.terminal?.copyOnSelect === true,
-          onChange: (event) => update({ terminal: { copyOnSelect: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.terminalFontSize") },
-        import_react17.default.createElement("input", {
-          type: "number",
-          min: 10,
-          max: 20,
-          value: draft.terminal?.fontSize ?? 13,
-          onChange: (event) => update({ terminal: { fontSize: Number(event.target.value) || 13 } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        {
-          label: t3("settings.terminalOutputLimit"),
-          hint: t3("settings.terminalOutputLimitHint")
-        },
-        import_react17.default.createElement("input", {
-          type: "number",
-          min: 1,
-          max: 512,
-          value: outputLimitMib(draft.terminal?.outputLimitBytes),
-          onChange: (event) => update({
-            terminal: { outputLimitBytes: mibToBytes(Number(event.target.value)) }
-          })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.filesGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("project.alwaysSelect") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.project?.alwaysSelectOpened !== false,
-          onChange: (event) => update({ project: { alwaysSelectOpened: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("project.gitColors") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.git?.colors !== false,
-          onChange: (event) => update({ git: { colors: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.showHidden") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.project?.showHidden !== false,
-          onChange: (event) => update({ project: { showHidden: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.singleClickOpen"), hint: t3("settings.singleClickOpenHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.project?.singleClickOpen === true,
-          onChange: (event) => update({ project: { singleClickOpen: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.chatFileLinks"), hint: t3("settings.chatFileLinksHint") },
-        import_react17.default.createElement(
-          "select",
-          {
-            className: "iwb-select",
-            value: draft.links?.chatFiles === "sidebar" ? "sidebar" : "ide",
-            onChange: (event) => update({ links: { chatFiles: event.target.value } })
-          },
-          import_react17.default.createElement("option", { value: "ide" }, t3("settings.chatFileLinksIde")),
-          import_react17.default.createElement("option", { value: "sidebar" }, t3("settings.chatFileLinksSidebar"))
-        )
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.showIgnored"), hint: t3("settings.showIgnoredHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.project?.showIgnored === true,
-          onChange: (event) => update({ project: { showIgnored: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.groupByDirectory"), hint: t3("settings.groupByDirectoryHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.commit?.groupByDirectory === true,
-          onChange: (event) => update({ commit: { groupByDirectory: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.useRecycleBin"), hint: t3("settings.useRecycleBinHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.delete?.useRecycleBin !== false,
-          onChange: (event) => update({ delete: { useRecycleBin: event.target.checked } })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.ideGroup"), description: t3("settings.idePathHint") },
-      IDE_OPTIONS.map((ide) => import_react17.default.createElement(
-        Row,
-        { key: ide.id, label: ide.title },
-        import_react17.default.createElement("input", {
-          type: "text",
-          className: "iwb-input",
-          "aria-label": ide.title,
-          value: draft[ide.id]?.path ?? "",
-          placeholder: t3("settings.ideAuto"),
-          onChange: (event) => update({ [ide.id]: { path: event.target.value } })
-        })
-      ))
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.editorGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.openMode"), hint: t3("settings.openModeHint") },
-        import_react17.default.createElement(
-          "select",
-          {
-            value: draft.editor?.openMode ?? "auto",
-            onChange: (event) => update({ editor: { openMode: event.target.value } })
-          },
-          import_react17.default.createElement("option", { value: "auto" }, t3("settings.openModeAuto")),
-          import_react17.default.createElement("option", { value: "editable" }, t3("settings.openModeEditable")),
-          import_react17.default.createElement("option", { value: "readonly" }, t3("settings.openModeReadonly"))
-        )
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.editableMaxBytes"), hint: t3("settings.editableMaxBytesHint") },
-        import_react17.default.createElement("input", {
-          type: "number",
-          min: 64,
-          max: 16384,
-          step: 64,
-          value: Math.round((draft.editor?.editableMaxBytes ?? 1 << 20) / 1024),
-          onChange: (event) => update({ editor: { editableMaxBytes: (Number(event.target.value) || 1024) * 1024 } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.editorFontSize") },
-        import_react17.default.createElement("input", {
-          type: "number",
-          min: 10,
-          max: 20,
-          value: draft.editor?.fontSize ?? 13,
-          onChange: (event) => update({ editor: { fontSize: Number(event.target.value) || 13 } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.markdownPreview"), hint: t3("settings.markdownPreviewHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.editor?.markdownPreview !== false,
-          onChange: (event) => update({ editor: { markdownPreview: event.target.checked } })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.gitGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.gitPath"), hint: t3("settings.gitPathHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          placeholder: "git",
-          value: draft.git?.path ?? "",
-          onChange: (event) => update({ git: { path: event.target.value } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.commitTemplate"), hint: t3("settings.commitTemplateHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          value: draft.git?.commitTemplate ?? "",
-          onChange: (event) => update({ git: { commitTemplate: event.target.value } })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.commitGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.testCommand"), hint: t3("settings.testCommandHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          placeholder: "npm test",
-          value: draft.commit?.testCommand ?? "",
-          onChange: (event) => update({ commit: { testCommand: event.target.value } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.optimizeCommand"), hint: t3("settings.optimizeCommandHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          value: draft.commit?.optimizeImportsCommand ?? "",
-          onChange: (event) => update({ commit: { optimizeImportsCommand: event.target.value } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.cleanupCommand"), hint: t3("settings.cleanupCommandHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          value: draft.commit?.cleanupCommand ?? "",
-          onChange: (event) => update({ commit: { cleanupCommand: event.target.value } })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.layoutGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.toolWindowSide"), hint: t3("settings.toolWindowSideHint") },
-        import_react17.default.createElement(
-          "select",
-          {
-            className: "iwb-input",
-            value: entrySide,
-            onChange: (event) => {
-              void store.updateSettings({ layout: { entrySide: event.target.value === "left" ? "left" : "right" } });
+          "div",
+          { className: "iwb-settings-search", role: "search" },
+          import_react17.default.createElement("input", {
+            ref: filterRef,
+            type: "search",
+            id: "iwb-settings-filter",
+            className: "iwb-settings-filter",
+            placeholder: t3("settings.filterPlaceholder"),
+            "aria-label": t3("settings.filterLabel"),
+            "aria-controls": "iwb-settings-panel",
+            value: filter,
+            onChange: (event) => setFilter(event.target.value),
+            onKeyDown: onFilterKeyDown
+          }),
+          import_react17.default.createElement("span", {
+            className: "iwb-settings-count",
+            role: "status",
+            "aria-live": "polite"
+          }, `${counts.total} ${filter === "" ? t3("settings.countAll") : t3("settings.countMatches")}`)
+        ),
+        resetArmed === true ? import_react17.default.createElement(
+          "div",
+          { className: "iwb-settings-reset-confirm" },
+          import_react17.default.createElement("span", null, t3("settings.resetConfirm")),
+          import_react17.default.createElement("button", {
+            type: "button",
+            className: "iwb-textbtn iwb-small iwb-danger-solid",
+            onClick: doReset
+          }, t3("settings.resetConfirmYes")),
+          import_react17.default.createElement("button", {
+            type: "button",
+            className: "iwb-textbtn iwb-small",
+            onClick: () => {
+              setResetArmed(false);
+              if (resetTimer.current !== null) clearTimeout(resetTimer.current);
             }
-          },
-          import_react17.default.createElement("option", { value: "left" }, t3("settings.toolWindowSideLeft")),
-          import_react17.default.createElement("option", { value: "right" }, t3("settings.toolWindowSideRight"))
-        )
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.appearanceGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.highlight") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.editor?.highlight !== false,
-          onChange: (event) => update({ editor: { highlight: event.target.checked } })
-        })
+          }, t3("common.cancel"))
+        ) : import_react17.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-small iwb-settings-reset",
+          title: t3("settings.resetTitle"),
+          "aria-label": t3("settings.resetTitle"),
+          onClick: armReset
+        }, t3("settings.reset"))
       ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.language"), hint: t3("settings.languageHint") },
-        import_react17.default.createElement("span", { className: "iwb-settings-value" }, t3("settings.followDsh"))
-      )
+      import_react17.default.createElement("div", {
+        className: "iwb-settings-tabs",
+        role: "tablist",
+        "aria-label": t3("settings.categoriesLabel"),
+        onKeyDown: onTabKeyDown
+      }, tabs.map((tab3) => import_react17.default.createElement(
+        "button",
+        {
+          key: tab3.id,
+          type: "button",
+          role: "tab",
+          id: `iwb-settings-tab-${tab3.id}`,
+          className: "iwb-settings-tab",
+          "aria-selected": category === tab3.id,
+          "aria-controls": "iwb-settings-panel",
+          tabIndex: category === tab3.id ? 0 : -1,
+          ref: (node) => {
+            if (node === null) tabRefs.current.delete(tab3.id);
+            else tabRefs.current.set(tab3.id, node);
+          },
+          onClick: () => selectTab(tab3.id)
+        },
+        tab3.label,
+        import_react17.default.createElement("span", { className: "iwb-settings-tab-count" }, String(tab3.count))
+      )))
     ),
-    // The settings groups of the plugins (PRD-v6 §3.3). The codeintel brings
-    // its language-server group here; the core does not know who occupies
-    // the slot.
-    renderSlot !== null && contract !== null ? renderSlot(SLOT_KEYS.settingsSection, { contract }) : null,
+    // ── the panel: the rows of the selected category ──────────────────────
+    import_react17.default.createElement(
+      "div",
+      {
+        className: "iwb-settings-panel",
+        id: "iwb-settings-panel",
+        role: "tabpanel",
+        "aria-labelledby": `iwb-settings-tab-${category}`,
+        // The panel holds the controls of the rows: it is named by its tab and
+        // it is not a stop of the tab order (the controls are).
+        tabIndex: -1
+      },
+      blocks.length === 0 ? import_react17.default.createElement(
+        "div",
+        { className: "iwb-settings-empty" },
+        import_react17.default.createElement(
+          "p",
+          { className: "iwb-settings-empty-title" },
+          t3("settings.emptyTitle"),
+          import_react17.default.createElement("code", { className: "iwb-settings-empty-query" }, filter)
+        ),
+        import_react17.default.createElement("p", { className: "iwb-settings-empty-hint" }, t3("settings.emptyHint")),
+        import_react17.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-small",
+          onClick: () => {
+            setFilter("");
+            selectTab(ALL);
+          }
+        }, t3("settings.emptyClear"))
+      ) : blocks,
+      // The settings groups of the plugins (PRD-v6 §3.3). The codeintel brings
+      // its language-server group here; the core does not know who occupies
+      // the slot. The slot is part of the full page - a single category is a
+      // view of the core's own settings.
+      category === ALL && renderSlot !== null && contract !== null ? renderSlot(SLOT_KEYS.settingsSection, { contract }) : null
+    ),
     compact === true ? null : import_react17.default.createElement(
       "div",
       { className: "iwb-settings-footer" },
-      import_react17.default.createElement("button", {
-        type: "button",
-        className: "iwb-textbtn iwb-small iwb-settings-reset",
-        onClick: () => {
-          const reset = resetPatch();
-          setDraft({ ...draft, ...reset });
-          commit(reset);
-        }
-      }, t3("settings.reset")),
-      saving === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t3("settings.saving")) : saved === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t3("settings.saved")) : null
+      saving === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t3("settings.saving")) : failedSave === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved iwb-settings-saved-failed", role: "status", "aria-live": "polite" }, t3("settings.saveFailed")) : saved === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t3("settings.saved")) : null
     )
   );
-}
+});
 function SettingsSection({ store, state }) {
-  return import_react17.default.createElement(
-    "div",
-    { className: "iwb-settings-section" },
-    import_react17.default.createElement(SettingsForm, { store, state })
-  );
+  const settings = useStoreSlice(store, (current) => current.settings);
+  const shells = useStoreSlice(store, (current) => current.terminal?.shells);
+  const localeTick = useStoreSlice(store, (current) => current.localeTick);
+  return import_react17.default.createElement(SettingsForm, { store, settings, shells, localeTick });
 }
 
 // src/client/QuickOpen.jsx
@@ -81648,35 +82168,69 @@ var CSS2 = `@font-face{font-family:'Inter';font-style:normal;font-weight:100 900
   container-name: iwb-settings;
   width: 100%;
   max-width: 720px;
-  padding: 8px 0;
+  padding: 0;
   color: var(--iwb-fg);
   font-family: var(--iwb-font);
-  font-size: 14px;
+  font-size: var(--iwb-text-body);
   line-height: 1.45;
+  /* The component tokens of the page. They are built from the semantic
+     tokens of the theme - the page never names a colour or a length of its
+     own (design-system: primitive -> semantic -> component). */
+  --iwb-settings-header-height: 88px;
+  --iwb-settings-row-pad: var(--iwb-space-3);
+  --iwb-settings-row-gap: var(--iwb-space-4);
+  --iwb-settings-group-gap: var(--iwb-space-5);
+  --iwb-settings-read-measure: 65ch;
+}
+.iwb-settings-compact {
+  --iwb-settings-row-pad: var(--iwb-space-2);
+  --iwb-settings-row-gap: var(--iwb-space-3);
+  --iwb-settings-group-gap: var(--iwb-space-4);
 }
 .iwb-settings *, .iwb-settings *::before, .iwb-settings *::after { box-sizing: border-box; }
 .iwb-settings :where(button, input, select) { font: inherit; color: inherit; }
 .iwb-settings :where(button) { background: none; border: 0; padding: 0; cursor: pointer; }
 .iwb-settings-group { margin: 0; }
 .iwb-settings-group + .iwb-settings-group {
-  margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--iwb-divider);
+  margin-top: var(--iwb-settings-group-gap);
+  padding-top: var(--iwb-space-4);
+  border-top: 1px solid var(--iwb-divider);
 }
 .iwb-settings-group-title {
-  margin: 0; color: var(--iwb-fg); font-size: 15px; font-weight: 600; line-height: 24px;
-  letter-spacing: 0; text-transform: none;
+  margin: 0; color: var(--iwb-fg); font-size: var(--iwb-text-title); font-weight: 600;
+  line-height: 1.6; letter-spacing: 0; text-transform: none;
 }
-.iwb-settings-group-desc { margin: 2px 0 0; max-width: 560px; color: var(--iwb-muted); font-size: 12px; line-height: 18px; }
-.iwb-settings-rows { display: flex; flex-direction: column; margin-top: 4px; }
+.iwb-settings-group-desc {
+  margin: 2px 0 0; max-width: var(--iwb-settings-read-measure);
+  color: var(--iwb-muted); font-size: var(--iwb-text-label); line-height: 1.5;
+}
+.iwb-settings-rows { display: flex; flex-direction: column; margin-top: var(--iwb-space-1); }
+/* The row is a grid, not a fixed-height box: the height of a row follows its
+   content, so a long explanation is never cut off (ui-ux-pro-max: text
+   reflow and spacing - the line height is content driven). */
 .iwb-settings-row {
-  display: flex; align-items: center; gap: 24px; min-height: 48px; padding: 12px 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start;
+  gap: 2px var(--iwb-settings-row-gap);
+  padding: var(--iwb-settings-row-pad) 0;
   border-bottom: .5px solid var(--iwb-divider);
+  scroll-margin-top: var(--iwb-settings-header-height);
 }
 .iwb-settings-rows > .iwb-settings-row:last-child { border-bottom: 0; }
-.iwb-settings-label { flex: 1 1 auto; min-width: 0; }
-.iwb-settings-title { color: var(--iwb-fg); font-size: 14px; line-height: 22px; }
-.iwb-settings-hint { margin-top: 2px; color: var(--iwb-muted); font-size: 12px; line-height: 18px; }
+.iwb-settings-row-failed { border-left: 2px solid var(--iwb-error); padding-left: var(--iwb-space-2); }
+.iwb-settings-label { grid-column: 1; min-width: 0; }
+.iwb-settings-title {
+  display: inline-block; color: var(--iwb-fg); font-size: var(--iwb-text-body);
+  line-height: 1.55; cursor: default;
+}
+/* The explanation is the description of the control. Its measure is bounded
+   in characters, not in pixels, so it reflows with the width of the page. */
+.iwb-settings-hint {
+  margin-top: 2px; max-width: var(--iwb-settings-read-measure);
+  color: var(--iwb-muted); font-size: var(--iwb-text-label); line-height: 1.5;
+}
 .iwb-settings-control {
-  flex: 0 0 auto; margin-left: auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  grid-column: 2; grid-row: 1; justify-self: end;
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--iwb-space-2);
 }
 /* The inputs of the settings page are painted by ONE rule: a control whose
    wrapper is missing from the selector list falls back to the browser's own
@@ -81742,10 +82296,105 @@ var CSS2 = `@font-face{font-family:'Inter';font-style:normal;font-weight:100 900
   /* Keep the save feedback visible while a long settings page scrolls. */
   position: sticky; bottom: 0; z-index: 2; background: var(--iwb-bg);
 }
-.iwb-settings-saved { margin-left: auto; color: var(--iwb-success); font-size: 12px; }
-@container iwb-settings (max-width: 520px) {
-  .iwb-settings-row { flex-wrap: wrap; gap: 8px 16px; padding: 12px 0; }
-  .iwb-settings-control { width: 100%; justify-content: flex-start; }
+.iwb-settings-saved { margin-left: auto; color: var(--iwb-success); font-size: var(--iwb-text-label); }
+.iwb-settings-saved-failed { color: var(--iwb-error); }
+
+/* \u2500\u2500 the header of the page \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The filter comes first (the workspace design system asks for a prominent
+   search bar) and it sticks to the top of the scroll container, so it is
+   always at hand while the user looks for a setting. */
+.iwb-settings-header {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; flex-direction: column; gap: var(--iwb-space-2);
+  padding: var(--iwb-space-3) 0 var(--iwb-space-2);
+  background: var(--iwb-bg);
+  border-bottom: 1px solid var(--iwb-divider);
+}
+.iwb-settings-search { display: flex; align-items: center; gap: var(--iwb-space-2); }
+.iwb-settings-filter {
+  flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 10px;
+  color: var(--iwb-fg); background: var(--iwb-bg);
+  border: 1px solid var(--iwb-border-strong); border-radius: var(--iwb-radius-sm);
+  font-size: var(--iwb-text-body); outline: none;
+  transition: border-color var(--iwb-dur-fast) var(--iwb-ease), box-shadow var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-settings-filter::placeholder { color: var(--iwb-muted); }
+.iwb-settings-filter:hover { border-color: var(--iwb-muted); }
+.iwb-settings-filter:focus-visible { border-color: var(--iwb-accent); box-shadow: 0 0 0 1px var(--iwb-accent); }
+.iwb-settings-count {
+  flex: 0 0 auto; color: var(--iwb-muted); font-size: var(--iwb-text-label);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.iwb-settings-header-row { display: flex; align-items: center; gap: var(--iwb-space-2); }
+.iwb-settings-header-row .iwb-settings-search { flex: 1 1 auto; min-width: 0; }
+/* The reset is a destructive action: its label never wraps (a wrapped button
+   reads as two words), and it never shrinks. */
+.iwb-settings-header-row .iwb-settings-reset,
+.iwb-settings-header-row .iwb-textbtn { flex: 0 0 auto; white-space: nowrap; }
+/* The category bar WRAPS: a chip is never cut off and never hidden
+   (ui-ux-pro-max: chip collection reflow - the collection wraps instead of
+   being cropped into one line). */
+.iwb-settings-tabs { display: flex; flex-wrap: wrap; gap: var(--iwb-space-1); flex: 1 1 auto; min-width: 0; }
+.iwb-settings-tab {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px;
+  border: 1px solid transparent; border-radius: var(--iwb-radius-sm);
+  color: var(--iwb-muted); background: transparent; font-size: var(--iwb-text-label);
+  white-space: nowrap;
+  transition: color var(--iwb-dur-fast) var(--iwb-ease), background var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-settings-tab:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
+.iwb-settings-tab:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 1px; }
+.iwb-settings-tab[aria-selected="true"] {
+  color: var(--iwb-fg); background: var(--iwb-surface-selected); border-color: var(--iwb-border-strong);
+}
+.iwb-settings-tab-count { color: var(--iwb-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.iwb-settings-tab[aria-selected="true"] .iwb-settings-tab-count { color: var(--iwb-fg); }
+.iwb-settings-panel { padding-bottom: var(--iwb-space-4); scroll-margin-top: var(--iwb-settings-header-height); }
+.iwb-settings-panel:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 2px; }
+
+/* The honest states of a row. The colour is the only thing that changes, and
+   it is a state colour of the theme - the page itself stays quiet. */
+.iwb-settings-badges { display: flex; flex-wrap: wrap; align-items: center; gap: var(--iwb-space-1); margin-top: 4px; }
+.iwb-settings-badge {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px;
+  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-xs);
+  color: var(--iwb-muted); background: var(--iwb-panel-2);
+  font-size: 10.5px; line-height: 1; white-space: nowrap;
+}
+.iwb-settings-badge-changed { color: var(--iwb-accent); }
+.iwb-settings-badge-deferred { color: var(--iwb-warn); }
+.iwb-settings-badge-danger { color: var(--iwb-error); }
+.iwb-settings-badge-failed { color: var(--iwb-error); }
+.iwb-settings-reset-row {
+  height: 18px; padding: 0 6px; border: 1px solid var(--iwb-border);
+  border-radius: var(--iwb-radius-xs); color: var(--iwb-muted); background: transparent;
+  font-size: 10.5px; line-height: 1; white-space: nowrap;
+  transition: color var(--iwb-dur-fast) var(--iwb-ease), border-color var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-settings-reset-row:hover { color: var(--iwb-fg); border-color: var(--iwb-muted); }
+.iwb-settings-reset-row:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 1px; }
+.iwb-settings-reset-confirm {
+  display: inline-flex; align-items: center; gap: var(--iwb-space-1); flex: 0 0 auto;
+  color: var(--iwb-warn); font-size: var(--iwb-text-label); white-space: nowrap;
+}
+
+/* The empty state of the filter is a dead end only when it says nothing: it
+   names the word that found nothing, it says what to try, and it offers the
+   way out (ui-ux-pro-max: no results - a dead end is not an answer). */
+.iwb-settings-empty { padding: var(--iwb-space-5) 0; text-align: center; }
+.iwb-settings-empty-title { margin: 0; color: var(--iwb-fg); font-size: var(--iwb-text-body); }
+.iwb-settings-empty-query {
+  padding: 1px 5px; border-radius: var(--iwb-radius-xs); background: var(--iwb-panel-2);
+  color: var(--iwb-fg); font-family: var(--iwb-mono);
+}
+.iwb-settings-empty-hint { margin: var(--iwb-space-1) 0 var(--iwb-space-3); color: var(--iwb-muted); font-size: var(--iwb-text-label); }
+
+@container iwb-settings (max-width: 560px) {
+  /* A narrow page (the modal of the workbench is about 460 px wide): the
+     control moves under its label, so the explanation keeps its measure and
+     the row stays as tall as its content. */
+  .iwb-settings-row { grid-template-columns: minmax(0, 1fr); }
+  .iwb-settings-control { grid-column: 1; grid-row: auto; justify-self: start; }
   .iwb-settings-control input[type="text"] { width: 100%; }
   .iwb-settings-control select { width: 100%; }
   .iwb-settings-shortcut { min-width: 132px; }

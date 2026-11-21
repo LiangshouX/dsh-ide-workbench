@@ -1302,35 +1302,69 @@ export const CSS = `/*__DSH_FONT_CSS__*/
   container-name: iwb-settings;
   width: 100%;
   max-width: 720px;
-  padding: 8px 0;
+  padding: 0;
   color: var(--iwb-fg);
   font-family: var(--iwb-font);
-  font-size: 14px;
+  font-size: var(--iwb-text-body);
   line-height: 1.45;
+  /* The component tokens of the page. They are built from the semantic
+     tokens of the theme - the page never names a colour or a length of its
+     own (design-system: primitive -> semantic -> component). */
+  --iwb-settings-header-height: 88px;
+  --iwb-settings-row-pad: var(--iwb-space-3);
+  --iwb-settings-row-gap: var(--iwb-space-4);
+  --iwb-settings-group-gap: var(--iwb-space-5);
+  --iwb-settings-read-measure: 65ch;
+}
+.iwb-settings-compact {
+  --iwb-settings-row-pad: var(--iwb-space-2);
+  --iwb-settings-row-gap: var(--iwb-space-3);
+  --iwb-settings-group-gap: var(--iwb-space-4);
 }
 .iwb-settings *, .iwb-settings *::before, .iwb-settings *::after { box-sizing: border-box; }
 .iwb-settings :where(button, input, select) { font: inherit; color: inherit; }
 .iwb-settings :where(button) { background: none; border: 0; padding: 0; cursor: pointer; }
 .iwb-settings-group { margin: 0; }
 .iwb-settings-group + .iwb-settings-group {
-  margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--iwb-divider);
+  margin-top: var(--iwb-settings-group-gap);
+  padding-top: var(--iwb-space-4);
+  border-top: 1px solid var(--iwb-divider);
 }
 .iwb-settings-group-title {
-  margin: 0; color: var(--iwb-fg); font-size: 15px; font-weight: 600; line-height: 24px;
-  letter-spacing: 0; text-transform: none;
+  margin: 0; color: var(--iwb-fg); font-size: var(--iwb-text-title); font-weight: 600;
+  line-height: 1.6; letter-spacing: 0; text-transform: none;
 }
-.iwb-settings-group-desc { margin: 2px 0 0; max-width: 560px; color: var(--iwb-muted); font-size: 12px; line-height: 18px; }
-.iwb-settings-rows { display: flex; flex-direction: column; margin-top: 4px; }
+.iwb-settings-group-desc {
+  margin: 2px 0 0; max-width: var(--iwb-settings-read-measure);
+  color: var(--iwb-muted); font-size: var(--iwb-text-label); line-height: 1.5;
+}
+.iwb-settings-rows { display: flex; flex-direction: column; margin-top: var(--iwb-space-1); }
+/* The row is a grid, not a fixed-height box: the height of a row follows its
+   content, so a long explanation is never cut off (ui-ux-pro-max: text
+   reflow and spacing - the line height is content driven). */
 .iwb-settings-row {
-  display: flex; align-items: center; gap: 24px; min-height: 48px; padding: 12px 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start;
+  gap: 2px var(--iwb-settings-row-gap);
+  padding: var(--iwb-settings-row-pad) 0;
   border-bottom: .5px solid var(--iwb-divider);
+  scroll-margin-top: var(--iwb-settings-header-height);
 }
 .iwb-settings-rows > .iwb-settings-row:last-child { border-bottom: 0; }
-.iwb-settings-label { flex: 1 1 auto; min-width: 0; }
-.iwb-settings-title { color: var(--iwb-fg); font-size: 14px; line-height: 22px; }
-.iwb-settings-hint { margin-top: 2px; color: var(--iwb-muted); font-size: 12px; line-height: 18px; }
+.iwb-settings-row-failed { border-left: 2px solid var(--iwb-error); padding-left: var(--iwb-space-2); }
+.iwb-settings-label { grid-column: 1; min-width: 0; }
+.iwb-settings-title {
+  display: inline-block; color: var(--iwb-fg); font-size: var(--iwb-text-body);
+  line-height: 1.55; cursor: default;
+}
+/* The explanation is the description of the control. Its measure is bounded
+   in characters, not in pixels, so it reflows with the width of the page. */
+.iwb-settings-hint {
+  margin-top: 2px; max-width: var(--iwb-settings-read-measure);
+  color: var(--iwb-muted); font-size: var(--iwb-text-label); line-height: 1.5;
+}
 .iwb-settings-control {
-  flex: 0 0 auto; margin-left: auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  grid-column: 2; grid-row: 1; justify-self: end;
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--iwb-space-2);
 }
 /* The inputs of the settings page are painted by ONE rule: a control whose
    wrapper is missing from the selector list falls back to the browser's own
@@ -1396,10 +1430,105 @@ export const CSS = `/*__DSH_FONT_CSS__*/
   /* Keep the save feedback visible while a long settings page scrolls. */
   position: sticky; bottom: 0; z-index: 2; background: var(--iwb-bg);
 }
-.iwb-settings-saved { margin-left: auto; color: var(--iwb-success); font-size: 12px; }
-@container iwb-settings (max-width: 520px) {
-  .iwb-settings-row { flex-wrap: wrap; gap: 8px 16px; padding: 12px 0; }
-  .iwb-settings-control { width: 100%; justify-content: flex-start; }
+.iwb-settings-saved { margin-left: auto; color: var(--iwb-success); font-size: var(--iwb-text-label); }
+.iwb-settings-saved-failed { color: var(--iwb-error); }
+
+/* ── the header of the page ───────────────────────────────────────────────
+   The filter comes first (the workspace design system asks for a prominent
+   search bar) and it sticks to the top of the scroll container, so it is
+   always at hand while the user looks for a setting. */
+.iwb-settings-header {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; flex-direction: column; gap: var(--iwb-space-2);
+  padding: var(--iwb-space-3) 0 var(--iwb-space-2);
+  background: var(--iwb-bg);
+  border-bottom: 1px solid var(--iwb-divider);
+}
+.iwb-settings-search { display: flex; align-items: center; gap: var(--iwb-space-2); }
+.iwb-settings-filter {
+  flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 10px;
+  color: var(--iwb-fg); background: var(--iwb-bg);
+  border: 1px solid var(--iwb-border-strong); border-radius: var(--iwb-radius-sm);
+  font-size: var(--iwb-text-body); outline: none;
+  transition: border-color var(--iwb-dur-fast) var(--iwb-ease), box-shadow var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-settings-filter::placeholder { color: var(--iwb-muted); }
+.iwb-settings-filter:hover { border-color: var(--iwb-muted); }
+.iwb-settings-filter:focus-visible { border-color: var(--iwb-accent); box-shadow: 0 0 0 1px var(--iwb-accent); }
+.iwb-settings-count {
+  flex: 0 0 auto; color: var(--iwb-muted); font-size: var(--iwb-text-label);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.iwb-settings-header-row { display: flex; align-items: center; gap: var(--iwb-space-2); }
+.iwb-settings-header-row .iwb-settings-search { flex: 1 1 auto; min-width: 0; }
+/* The reset is a destructive action: its label never wraps (a wrapped button
+   reads as two words), and it never shrinks. */
+.iwb-settings-header-row .iwb-settings-reset,
+.iwb-settings-header-row .iwb-textbtn { flex: 0 0 auto; white-space: nowrap; }
+/* The category bar WRAPS: a chip is never cut off and never hidden
+   (ui-ux-pro-max: chip collection reflow - the collection wraps instead of
+   being cropped into one line). */
+.iwb-settings-tabs { display: flex; flex-wrap: wrap; gap: var(--iwb-space-1); flex: 1 1 auto; min-width: 0; }
+.iwb-settings-tab {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px;
+  border: 1px solid transparent; border-radius: var(--iwb-radius-sm);
+  color: var(--iwb-muted); background: transparent; font-size: var(--iwb-text-label);
+  white-space: nowrap;
+  transition: color var(--iwb-dur-fast) var(--iwb-ease), background var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-settings-tab:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
+.iwb-settings-tab:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 1px; }
+.iwb-settings-tab[aria-selected="true"] {
+  color: var(--iwb-fg); background: var(--iwb-surface-selected); border-color: var(--iwb-border-strong);
+}
+.iwb-settings-tab-count { color: var(--iwb-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.iwb-settings-tab[aria-selected="true"] .iwb-settings-tab-count { color: var(--iwb-fg); }
+.iwb-settings-panel { padding-bottom: var(--iwb-space-4); scroll-margin-top: var(--iwb-settings-header-height); }
+.iwb-settings-panel:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 2px; }
+
+/* The honest states of a row. The colour is the only thing that changes, and
+   it is a state colour of the theme - the page itself stays quiet. */
+.iwb-settings-badges { display: flex; flex-wrap: wrap; align-items: center; gap: var(--iwb-space-1); margin-top: 4px; }
+.iwb-settings-badge {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px;
+  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-xs);
+  color: var(--iwb-muted); background: var(--iwb-panel-2);
+  font-size: 10.5px; line-height: 1; white-space: nowrap;
+}
+.iwb-settings-badge-changed { color: var(--iwb-accent); }
+.iwb-settings-badge-deferred { color: var(--iwb-warn); }
+.iwb-settings-badge-danger { color: var(--iwb-error); }
+.iwb-settings-badge-failed { color: var(--iwb-error); }
+.iwb-settings-reset-row {
+  height: 18px; padding: 0 6px; border: 1px solid var(--iwb-border);
+  border-radius: var(--iwb-radius-xs); color: var(--iwb-muted); background: transparent;
+  font-size: 10.5px; line-height: 1; white-space: nowrap;
+  transition: color var(--iwb-dur-fast) var(--iwb-ease), border-color var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-settings-reset-row:hover { color: var(--iwb-fg); border-color: var(--iwb-muted); }
+.iwb-settings-reset-row:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 1px; }
+.iwb-settings-reset-confirm {
+  display: inline-flex; align-items: center; gap: var(--iwb-space-1); flex: 0 0 auto;
+  color: var(--iwb-warn); font-size: var(--iwb-text-label); white-space: nowrap;
+}
+
+/* The empty state of the filter is a dead end only when it says nothing: it
+   names the word that found nothing, it says what to try, and it offers the
+   way out (ui-ux-pro-max: no results - a dead end is not an answer). */
+.iwb-settings-empty { padding: var(--iwb-space-5) 0; text-align: center; }
+.iwb-settings-empty-title { margin: 0; color: var(--iwb-fg); font-size: var(--iwb-text-body); }
+.iwb-settings-empty-query {
+  padding: 1px 5px; border-radius: var(--iwb-radius-xs); background: var(--iwb-panel-2);
+  color: var(--iwb-fg); font-family: var(--iwb-mono);
+}
+.iwb-settings-empty-hint { margin: var(--iwb-space-1) 0 var(--iwb-space-3); color: var(--iwb-muted); font-size: var(--iwb-text-label); }
+
+@container iwb-settings (max-width: 560px) {
+  /* A narrow page (the modal of the workbench is about 460 px wide): the
+     control moves under its label, so the explanation keeps its measure and
+     the row stays as tall as its content. */
+  .iwb-settings-row { grid-template-columns: minmax(0, 1fr); }
+  .iwb-settings-control { grid-column: 1; grid-row: auto; justify-self: start; }
   .iwb-settings-control input[type="text"] { width: 100%; }
   .iwb-settings-control select { width: 100%; }
   .iwb-settings-shortcut { min-width: 132px; }

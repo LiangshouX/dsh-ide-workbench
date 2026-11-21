@@ -26,8 +26,14 @@ import { ApiError } from './wire.js'
  * has neither key, every missing key is filled from DEFAULT_SETTINGS, and
  * every key the document does carry - above all the settings of the user -
  * is kept. Reading an old file is therefore additive, never destructive.
+ *
+ * Version 5 (PRD-v8 SET-03) adds one key and nothing else: `ui.density`
+ * (`'comfortable'` or `'compact'`: how much room every row of the settings
+ * page takes). A version-4 document has no `ui.density`, the deep merge
+ * fills it from DEFAULT_SETTINGS, and every other key of the user survives -
+ * the same additive rule as version 4 followed.
  */
-export const SETTINGS_VERSION = 4
+export const SETTINGS_VERSION = 5
 
 /**
  * The keys of the settings document that belong to another plugin.
@@ -158,7 +164,17 @@ export const DEFAULT_SETTINGS = {
   /** Local-history retention policy. */
   history: { maxPerFile: 100, maxBytes: 209715200, maxDays: 90 },
   delete: { useRecycleBin: true, confirm: true },
-  ui: { showStatusBar: true },
+  ui: {
+    showStatusBar: true,
+    /**
+     * The density of the settings page (PRD-v8 SET-03).
+     *
+     * 'comfortable' is the default: every row carries its own explanation,
+     * and the explanation is what makes a setting findable. 'compact' drops
+     * the extra room of the rows for the screens that are short.
+     */
+    density: 'comfortable',
+  },
   shortcuts: {
     project: 'Alt+1',
     commit: 'Alt+0',
@@ -262,6 +278,38 @@ export function deepMerge(base, patch) {
 export function migrateLegacyShortcuts(value) {
   if (!isPlainObject(value) || !isPlainObject(value.shortcuts)) return value
   if (value.shortcuts.findInFiles === 'Ctrl+Shift+F') value.shortcuts.findInFiles = 'Ctrl+Shift+R'
+  return value
+}
+
+/**
+ * The densities the settings page knows.
+ *
+ * A value that is not one of them is not a density: the document of the
+ * profile is a file the user may edit, and a broken value falls back to the
+ * default instead of reaching the panel as a broken control.
+ */
+export const SETTINGS_DENSITIES = Object.freeze(['comfortable', 'compact'])
+
+/**
+ * Migrate a settings document to the schema of this build.
+ *
+ * The migration is additive and never destructive: a key the document does
+ * not carry is filled from the defaults, a key it does carry is kept - and a
+ * value that is not a value of its kind (the file is a file the user may
+ * edit) falls back to the default instead of reaching the panel as a broken
+ * control.
+ *
+ * @param {any} value the merged settings document
+ * @returns {any} the same document, migrated in place
+ */
+export function migrateSettings(value) {
+  if (!isPlainObject(value)) return value
+  migrateLegacyShortcuts(value)
+  if (!isPlainObject(value.ui)) {
+    value.ui = { ...DEFAULT_SETTINGS.ui }
+  } else if (!SETTINGS_DENSITIES.includes(value.ui.density)) {
+    value.ui.density = DEFAULT_SETTINGS.ui.density
+  }
   return value
 }
 
@@ -386,7 +434,7 @@ export class SettingsStore {
         await copyFile(settingsFile(), `${settingsFile()}.v${parsed.version ?? 1}.bak.json`).catch(() => {})
       }
       this.value = deepMerge(DEFAULT_SETTINGS, isPlainObject(parsed) ? { ...parsed, version: SETTINGS_VERSION } : {})
-      migrateLegacyShortcuts(this.value)
+      migrateSettings(this.value)
       // The keys of the other plugin are taken out of the document the core
       // works with, and kept aside for the next write.
       this.foreign = foreignSettingsOf(parsed)
@@ -429,6 +477,12 @@ export class SettingsStore {
           throw new ApiError('bad-request', `${ide}.path must be a string without NUL characters`)
         }
       }
+    }
+    // The density of the settings page is a choice, not a free text: a value
+    // that is not one of the two densities is not a choice, and the store
+    // refuses it instead of writing a document the panel cannot read.
+    if (isPlainObject(patch.ui) && Object.hasOwn(patch.ui, 'density') && !SETTINGS_DENSITIES.includes(patch.ui.density)) {
+      throw new ApiError('bad-request', `ui.density must be one of ${SETTINGS_DENSITIES.join(', ')}`)
     }
     await this.get()
     // The patch is merged when its turn comes, and not before: the merge has

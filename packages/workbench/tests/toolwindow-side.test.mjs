@@ -30,6 +30,9 @@ const clientDir = join(root, 'src/client')
 
 const workbench = await readFile(join(clientDir, 'Workbench.jsx'), 'utf8')
 const settingsPanel = await readFile(join(clientDir, 'SettingsPanel.jsx'), 'utf8')
+// The rows of the settings page live in the model of the page: the panel
+// renders what the model says, and the model is what the filter matches.
+const settingsModel = await readFile(join(clientDir, 'settings-model.js'), 'utf8')
 const i18nSource = await readFile(join(clientDir, 'i18n.js'), 'utf8')
 
 /** The stylesheet's stacking query: everything after it applies when stacked. */
@@ -159,11 +162,13 @@ test('stacked, the right side is the same top bar as the left side', () => {
 })
 
 test('the settings page offers the side and writes it through', () => {
-  assert.match(settingsPanel, /t\('settings\.layoutGroup'\)/, 'the group has its title')
-  assert.match(settingsPanel, /t\('settings\.toolWindowSide'\)/, 'the row has its label')
-  assert.match(settingsPanel, /t\('settings\.toolWindowSideHint'\)/, 'the row has its hint')
-  assert.match(settingsPanel, /t\('settings\.toolWindowSideLeft'\)/, 'the left option is translated')
-  assert.match(settingsPanel, /t\('settings\.toolWindowSideRight'\)/, 'the right option is translated')
+  // The group, the row and its two options are named by the model of the
+  // page: the panel renders what the model says.
+  assert.match(settingsModel, /labelKey: 'settings\.layoutGroup'/, 'the group has its title')
+  assert.match(settingsModel, /labelKey: 'settings\.toolWindowSide'/, 'the row has its label')
+  assert.match(settingsModel, /hintKey: 'settings\.toolWindowSideHint'/, 'the row has its hint')
+  assert.match(settingsModel, /labelKey: 'settings\.toolWindowSideLeft'/, 'the left option is translated')
+  assert.match(settingsModel, /labelKey: 'settings\.toolWindowSideRight'/, 'the right option is translated')
   assert.match(settingsPanel, /className: 'iwb-input'/, 'the select follows the settings input skin')
   // The current value is the resolved side of the store, not a local copy:
   // the row writes through, so a draft would lag one save behind.
