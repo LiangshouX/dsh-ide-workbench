@@ -339,7 +339,15 @@ test('the changed-file tree groups by repository-relative path (GIT-03)', async 
   assert.deepEqual(tree.dirs.get('src').files.map(file => file.path), ['src/app.js'])
 })
 
-test('the Git panel shows the repository it works against (GIT-01)', async () => {
+test('the Git panel leaves the repository to the dock header (GIT-01)', async () => {
+  // PRD-v8 §6.4: the repository used to be switchable in TWO places - the
+  // header of the Terminal/Git dock and the filter row of the Git window.
+  // Two switches for one thing is one too many, and the one in the filter row
+  // squeezed the BRANCH - the name that matters - into a second line.
+  //
+  // The dock header keeps the switcher (it is the header of the dock the
+  // Git window lives in), and the filter row keeps the branch, the scope and
+  // the filters.
   const mod = await loadModule()
   const state = makeState(null)
   state.gitRepoRoot = 'C:\\work\\demo'
@@ -349,10 +357,11 @@ test('the Git panel shows the repository it works against (GIT-01)', async () =>
   ]
   const store = makeStore(state)
   const html = renderToStaticMarkup(React.createElement(mod.GitPanel, { store, state }))
-  // The switch shows the repository name; the full path stays in the title.
-  assert.match(html, /iwb-repo-switch/)
-  assert.match(html, /iwb-repo-name[^>]*>demo</)
-  assert.match(html, /title="C:\\work\\demo"/)
+  assert.doesNotMatch(html, /iwb-repo-switch/, 'the Git window has no second repository switcher')
+  assert.doesNotMatch(html, /iwb-repo-name/, 'the Git window does not name the repository twice')
+  // The branch, which the filter row is now free to give room to.
+  assert.match(html, /iwb-branch-pick/, 'the branch picker is there')
+  assert.match(html, /iwb-branch-pick-name[^>]*>main</)
 })
 
 test('the repository picker offers the candidate repositories (GIT-01)', async () => {
@@ -372,6 +381,30 @@ test('the repository picker offers the candidate repositories (GIT-01)', async (
   const html = renderToStaticMarkup(React.createElement('div', null, rows))
   assert.match(html, /demo/)
   assert.match(html, /repo-a/)
+})
+
+test('a branch row carries the whole name, not only what fits (GIT-01)', async () => {
+  const mod = await loadModule()
+  const names = ['feat(core)/issue-fixing-and-enhancement', 'main']
+  const chosen = []
+  const rows = mod.branchRows(names, { current: 'main', index: 0, onHover: () => {}, onChoose: name => chosen.push(name) })
+  assert.equal(rows.length, 2)
+  // The name of a branch is longer than the row and is cut with an ellipsis:
+  // the whole name has to stay readable somewhere.
+  assert.equal(rows[0].props.title, 'feat(core)/issue-fixing-and-enhancement')
+  assert.equal(rows[1].props.title, 'main')
+  // The check marks the branch of the repository; the selection marks the row
+  // the keyboard is on.
+  assert.match(rows[0].props.className, /iwb-selected/)
+  assert.doesNotMatch(rows[1].props.className, /iwb-selected/)
+  const checked = renderToStaticMarkup(React.createElement('div', null, rows[1]))
+  assert.match(checked, /iwb-branch-check/)
+  rows[0].props.onClick()
+  assert.deepEqual(chosen, ['feat(core)/issue-fixing-and-enhancement'])
+  // The rows are the rows of the picker.
+  const html = renderToStaticMarkup(React.createElement('div', null, rows))
+  assert.match(html, /iwb-branch-row/)
+  assert.match(html, /feat\(core\)\/issue-fixing-and-enhancement/)
 })
 
 test('the empty state points at the repository picker (GIT-01)', async () => {

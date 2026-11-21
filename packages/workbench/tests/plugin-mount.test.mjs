@@ -75,8 +75,10 @@ test('the plugin mounts its routes and its WebSocket upgrades', () => {
   const { ctx, routes, upgrades, disposers } = fakeContext()
   apply(ctx)
   const prefix = routes.filter(route => route.kind === 'prefix')
-  assert.equal(prefix.length, 1)
-  assert.equal(prefix[0].path, '/ide-workbench/api')
+  // Two HTTP surfaces: the JSON API and the binary route that serves the
+  // bytes of a document (PRD-v8 PDF-02).
+  assert.equal(prefix.length, 2)
+  assert.deepEqual(prefix.map(route => route.path).sort(), ['/ide-workbench/api', '/ide-workbench/raw'])
   // The terminal is the only socket of the core: the socket of the language
   // servers belongs to the plugin that runs them.
   const paths = upgrades.map(upgrade => upgrade.path).sort()

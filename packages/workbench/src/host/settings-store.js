@@ -26,8 +26,48 @@ import { ApiError } from './wire.js'
  * has neither key, every missing key is filled from DEFAULT_SETTINGS, and
  * every key the document does carry - above all the settings of the user -
  * is kept. Reading an old file is therefore additive, never destructive.
+ *
+ * Version 5 (PRD-v8 SET-03) adds one key and nothing else: `ui.density`
+ * (`'comfortable'` or `'compact'`: how much room every row of the settings
+ * page takes). A version-4 document has no `ui.density`, the deep merge
+ * fills it from DEFAULT_SETTINGS, and every other key of the user survives -
+ * the same additive rule as version 4 followed.
+ *
+ * Version 6 REMOVES the keys that nothing reads. A setting that no code
+ * reads is worse than a missing one: the user changes it and nothing
+ * happens, and the page would offer it as if it worked. The keys are
+ * dropped from the defaults and taken out of a document that still carries
+ * them - the only destructive step this store ever takes, and the backup
+ * of the file (written on a version change) holds the old document.
  */
-export const SETTINGS_VERSION = 4
+export const SETTINGS_VERSION = 6
+
+/**
+ * The keys of the settings document that no code reads.
+ *
+ * Every key of this list was a default that nothing ever looked at: the
+ * workbench never read it, so changing it did nothing. They are removed
+ * instead of being left in the document as a promise the IDE cannot keep.
+ *
+ * The keys of the OTHER plugin are not here: they are taken out of the
+ * document of the core and written back to the file (see `FOREIGN_SECTION`).
+ *
+ * @type {ReadonlyArray<[string, string]>} the section and the key
+ */
+export const DEAD_SETTINGS = Object.freeze([
+  ['editor', 'wordWrap'],
+  ['git', 'diffStyle'],
+  ['git', 'structuralOnly'],
+  ['git', 'logPageSize'],
+  ['terminal', 'cwdMode'],
+  ['delete', 'confirm'],
+  ['ui', 'showStatusBar'],
+  ['shortcuts', 'compare'],
+  ['shortcuts', 'renameRefs'],
+  ['shortcuts', 'searchEverywhere'],
+  ['shortcuts', 'revertCommit'],
+  ['shortcuts', 'openEntry'],
+])
 
 /**
  * The keys of the settings document that belong to another plugin.
@@ -43,6 +83,16 @@ const FOREIGN_SECTION = 'lsp'
 /** The shortcuts of the document that belong to another plugin. */
 const FOREIGN_SHORTCUTS = Object.freeze(['findUsages', 'findUsagesText', 'goToDefinition', 'complete'])
 
+/**
+ * The default cap of the output of one terminal session, in bytes (8 MiB).
+ *
+ * The output of a terminal used to reach the renderer without a limit, and a
+ * `cat` of a big file filled the heap of the browser until the whole IDE
+ * died with it (PRD-v8 TERM-01). The cap is a setting, so a document can
+ * carry anything - and a value that is not a positive number is not a cap.
+ */
+export const DEFAULT_TERMINAL_OUTPUT_LIMIT = 8 * 1024 * 1024
+
 /** Deep defaults; a saved document is merged over this at load time. */
 export const DEFAULT_SETTINGS = {
   version: SETTINGS_VERSION,
@@ -55,7 +105,6 @@ export const DEFAULT_SETTINGS = {
     path: '',
     colors: true,
     commitTemplate: '',
-    diffStyle: 'side',
     /**
      * Word-level highlighting of the changed lines of a diff (the 'Aa'
      * button). On by default (V6): reading the file with `!== false` keeps an
@@ -63,15 +112,20 @@ export const DEFAULT_SETTINGS = {
      * only the explicit `false` of the user who turned it off disables it.
      */
     wordLevel: true,
-    structuralOnly: false,
-    logPageSize: 200,
   },
   terminal: {
     /** 'auto' or a shell id from terminal.shells. */
     shell: 'auto',
-    cwdMode: 'root',
     copyOnSelect: false,
     fontSize: 13,
+    /**
+     * The cap of the output of one terminal session, in bytes.
+     *
+     * The bytes of a session travel into the renderer of the IDE, so the
+     * stream has to end somewhere (PRD-v8 TERM-01). The session survives the
+     * cap - only the output stops.
+     */
+    outputLimitBytes: DEFAULT_TERMINAL_OUTPUT_LIMIT,
   },
   project: {
     alwaysSelectOpened: true,
@@ -87,7 +141,6 @@ export const DEFAULT_SETTINGS = {
   },
   editor: {
     fontSize: 13,
-    wordWrap: false,
     sideBySide: true,
     highlight: true,
     /**
@@ -139,8 +192,17 @@ export const DEFAULT_SETTINGS = {
   changelists: {},
   /** Local-history retention policy. */
   history: { maxPerFile: 100, maxBytes: 209715200, maxDays: 90 },
-  delete: { useRecycleBin: true, confirm: true },
-  ui: { showStatusBar: true },
+  delete: { useRecycleBin: true },
+  ui: {
+    /**
+     * The density of the settings page (PRD-v8 SET-03).
+     *
+     * 'comfortable' is the default: every row carries its own explanation,
+     * and the explanation is what makes a setting findable. 'compact' drops
+     * the extra room of the rows for the screens that are short.
+     */
+    density: 'comfortable',
+  },
   shortcuts: {
     project: 'Alt+1',
     commit: 'Alt+0',
@@ -149,22 +211,17 @@ export const DEFAULT_SETTINGS = {
     focusCommit: 'Ctrl+K',
     push: 'Ctrl+Shift+K',
     synchronize: 'Ctrl+Alt+Y',
-    compare: 'Ctrl+D',
     findInFiles: 'Ctrl+Shift+R',
     /** Fallback because some Electron shells swallow Ctrl+Shift+… combos. */
     findInFilesAlt: 'Ctrl+Alt+F',
     openCommitDetail: 'Ctrl+Alt+D',
     quickOpen: 'Ctrl+Shift+N',
     rename: 'F2',
-    renameRefs: 'Shift+F6',
     duplicate: 'F5',
     move: 'F6',
     delete: 'Delete',
     hideAll: 'Ctrl+Shift+F12',
-    searchEverywhere: 'Ctrl+Shift+A',
-    revertCommit: 'Ctrl+Alt+Z',
     jumpToSource: 'F4',
-    openEntry: 'Enter',
   },
   /** Selected IDE project root per workspace root. */
   projectRoots: {},
@@ -248,6 +305,63 @@ export function migrateLegacyShortcuts(value) {
 }
 
 /**
+ * The densities the settings page knows.
+ *
+ * A value that is not one of them is not a density: the document of the
+ * profile is a file the user may edit, and a broken value falls back to the
+ * default instead of reaching the panel as a broken control.
+ */
+export const SETTINGS_DENSITIES = Object.freeze(['comfortable', 'compact'])
+
+/**
+ * Take the settings that nothing reads out of a document.
+ *
+ * The keys of `DEAD_SETTINGS` are not in the defaults any more, but a
+ * document written before they were removed still carries them. A key that
+ * nothing reads is a promise the IDE cannot keep, so it is dropped here -
+ * the backup of the file (written on a version change) keeps the old
+ * document.
+ *
+ * @param {any} value the merged settings document
+ * @returns {any} the same document, migrated in place
+ */
+export function dropDeadSettings(value) {
+  if (!isPlainObject(value)) return value
+  for (const [section, key] of DEAD_SETTINGS) {
+    const group = value[section]
+    if (!isPlainObject(group)) continue
+    delete group[key]
+    // A section that held nothing but a dead key is gone with it.
+    if (Object.keys(group).length === 0) delete value[section]
+  }
+  return value
+}
+
+/**
+ * Migrate a settings document to the schema of this build.
+ *
+ * The migration is additive and never destructive: a key the document does
+ * not carry is filled from the defaults, a key it does carry is kept - and a
+ * value that is not a value of its kind (the file is a file the user may
+ * edit) falls back to the default instead of reaching the panel as a broken
+ * control.
+ *
+ * @param {any} value the merged settings document
+ * @returns {any} the same document, migrated in place
+ */
+export function migrateSettings(value) {
+  if (!isPlainObject(value)) return value
+  migrateLegacyShortcuts(value)
+  dropDeadSettings(value)
+  if (!isPlainObject(value.ui)) {
+    value.ui = { ...DEFAULT_SETTINGS.ui }
+  } else if (!SETTINGS_DENSITIES.includes(value.ui.density)) {
+    value.ui.density = DEFAULT_SETTINGS.ui.density
+  }
+  return value
+}
+
+/**
  * Take the keys of the other plugin out of a settings document.
  *
  * The core works with a document that holds its own settings only, and the
@@ -294,6 +408,25 @@ function foreignSettingsOf(parsed) {
     if (Object.keys(shortcuts).length > 0) kept.shortcuts = shortcuts
   }
   return Object.keys(kept).length > 0 ? kept : null
+}
+
+/**
+ * The cap of the output of one terminal session, read from a document.
+ *
+ * The document is a file the user can edit, so the value can be anything:
+ * a number is a cap, everything else is not. A missing value, a string that
+ * is not a number and a cap of zero bytes all fall back to the default -
+ * a cap of zero would silence the terminal, which is not what a broken
+ * setting may do.
+ *
+ * @param {any} document the settings document
+ * @returns {number} the cap in bytes
+ */
+export function terminalOutputLimit(document) {
+  const value = document?.terminal?.outputLimitBytes
+  const number = typeof value === 'number' || typeof value === 'string' ? Number(value) : Number.NaN
+  if (!Number.isFinite(number) || number <= 0) return DEFAULT_TERMINAL_OUTPUT_LIMIT
+  return Math.trunc(number)
 }
 
 /**
@@ -349,7 +482,7 @@ export class SettingsStore {
         await copyFile(settingsFile(), `${settingsFile()}.v${parsed.version ?? 1}.bak.json`).catch(() => {})
       }
       this.value = deepMerge(DEFAULT_SETTINGS, isPlainObject(parsed) ? { ...parsed, version: SETTINGS_VERSION } : {})
-      migrateLegacyShortcuts(this.value)
+      migrateSettings(this.value)
       // The keys of the other plugin are taken out of the document the core
       // works with, and kept aside for the next write.
       this.foreign = foreignSettingsOf(parsed)
@@ -393,12 +526,22 @@ export class SettingsStore {
         }
       }
     }
+    // The density of the settings page is a choice, not a free text: a value
+    // that is not one of the two densities is not a choice, and the store
+    // refuses it instead of writing a document the panel cannot read.
+    if (isPlainObject(patch.ui) && Object.hasOwn(patch.ui, 'density') && !SETTINGS_DENSITIES.includes(patch.ui.density)) {
+      throw new ApiError('bad-request', `ui.density must be one of ${SETTINGS_DENSITIES.join(', ')}`)
+    }
     await this.get()
     // The patch is merged when its turn comes, and not before: the merge has
     // to see the result of the writes that came before it, and a write that
     // failed must not leave a value behind that the next one would build on.
     const written = this.pending.then(async () => {
       const next = deepMerge(this.value, patch)
+      // A setting that nothing reads does not come back: a client that
+      // still knows it may write it, and the document must not keep a key
+      // the IDE cannot honour.
+      dropDeadSettings(next)
       await this.#write(structuredClone(next))
       // The disk has the value now: the memory may follow.
       this.value = next

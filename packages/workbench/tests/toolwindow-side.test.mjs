@@ -30,6 +30,9 @@ const clientDir = join(root, 'src/client')
 
 const workbench = await readFile(join(clientDir, 'Workbench.jsx'), 'utf8')
 const settingsPanel = await readFile(join(clientDir, 'SettingsPanel.jsx'), 'utf8')
+// The rows of the settings page live in the model of the page: the panel
+// renders what the model says, and the model is what the filter matches.
+const settingsModel = await readFile(join(clientDir, 'settings-model.js'), 'utf8')
 const i18nSource = await readFile(join(clientDir, 'i18n.js'), 'utf8')
 
 /** The stylesheet's stacking query: everything after it applies when stacked. */
@@ -159,18 +162,34 @@ test('stacked, the right side is the same top bar as the left side', () => {
 })
 
 test('the settings page offers the side and writes it through', () => {
-  assert.match(settingsPanel, /t\('settings\.layoutGroup'\)/, 'the group has its title')
-  assert.match(settingsPanel, /t\('settings\.toolWindowSide'\)/, 'the row has its label')
-  assert.match(settingsPanel, /t\('settings\.toolWindowSideHint'\)/, 'the row has its hint')
-  assert.match(settingsPanel, /t\('settings\.toolWindowSideLeft'\)/, 'the left option is translated')
-  assert.match(settingsPanel, /t\('settings\.toolWindowSideRight'\)/, 'the right option is translated')
+  // The group, the row and its two options are named by the model of the
+  // page: the panel renders what the model says.
+  assert.match(settingsModel, /labelKey: 'settings\.layoutGroup'/, 'the group has its title')
+  assert.match(settingsModel, /labelKey: 'settings\.toolWindowSide'/, 'the row has its label')
+  assert.match(settingsModel, /hintKey: 'settings\.toolWindowSideHint'/, 'the row has its hint')
+  assert.match(settingsModel, /labelKey: 'settings\.toolWindowSideLeft'/, 'the left option is translated')
+  assert.match(settingsModel, /labelKey: 'settings\.toolWindowSideRight'/, 'the right option is translated')
   assert.match(settingsPanel, /className: 'iwb-input'/, 'the select follows the settings input skin')
   // The current value is the resolved side of the store, not a local copy:
-  // the row writes through, so a draft would lag one save behind.
+  // the row writes through, so a draft would lag one save behind. The live
+  // value is the slice the page was given, or the state of the store - the
+  // native page of DSH hands over the slice and no state at all.
   assert.match(
     settingsPanel,
-    /state\.settings\?\.layout\?\.entrySide === 'left' \? 'left' : DEFAULT_ENTRY_SIDE/,
+    /const settings = settingsProp \?\? state\?\.settings \?\? \{\}/,
+    'the live value is the slice of the page or the state of the store',
+  )
+  assert.match(
+    settingsPanel,
+    /settings\.layout\?\.entrySide === 'left' \? 'left' : DEFAULT_ENTRY_SIDE/,
     'the select shows the resolved side',
+  )
+  // The page may not read the state of the store unguarded: the native page
+  // has no state, and a page that reads it shows a white screen.
+  assert.doesNotMatch(
+    settingsPanel,
+    /(?<![\w?])state\.[a-zA-Z]/,
+    'the form does not read the state of the store directly',
   )
   assert.match(settingsPanel, /value: entrySide/, 'the select is controlled by the resolved side')
   assert.doesNotMatch(settingsPanel, /useState\([^)]*entrySide/, 'the row keeps no local side state')

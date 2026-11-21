@@ -15,24 +15,34 @@ export function isPdfPath(path) {
 export const PDF_MIN_SCALE = 0.25
 export const PDF_MAX_SCALE = 4
 
-/** Hard boundary for the bytes the host is willing to inline. */
+/** Hard boundary for the bytes the host is willing to serve. */
 export const PDF_MAX_BYTES = 32 << 20
 
 /**
- * Decode the base64 payload of `fs.read` into the bytes PDF.js takes.
+ * Fetch the bytes of one PDF from the binary route of the host.
  *
- * `atob` is the browser decoder; a very large document is decoded in one
- * pass, which is what the worker needs anyway (it takes ownership of the
- * ArrayBuffer).
- * @param {string} data base64 (no data URL prefix)
- * @returns {Uint8Array} the decoded bytes
+ * The bytes travel as bytes: the JSON route answers the metadata of the
+ * document only, so a large PDF never inflates a JSON answer by a third and
+ * never sits in the store of the renderer (PRD-v8 PDF-04).
+ *
+ * @param {string} url the absolute URL of the binary route
+ * @param {{ fetch?: Function }} [options] the fetch of the client
+ * @returns {Promise<Uint8Array>} the bytes of the document
  */
-export function decodePdfBase64(data) {
-  if (typeof data !== 'string' || data === '') throw new Error('empty PDF payload')
-  const binary = globalThis.atob(data)
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
-  return bytes
+export async function fetchPdfBytes(url, options = {}) {
+  const target = String(url ?? '')
+  if (target === '') throw new Error('the document has no source')
+  const request = options.fetch ?? globalThis.fetch
+  if (typeof request !== 'function') throw new Error('fetch is not available')
+  const response = await request(target)
+  if (response === null || response === undefined || response.ok !== true) {
+    throw new Error(`the document could not be read (HTTP ${response?.status ?? 0})`)
+  }
+  const buffer = await response.arrayBuffer()
+  // The host serves nothing above its cap; a host that serves more is a
+  // host that would fill the heap of the renderer (PRD-v8 §3.2).
+  if (buffer.byteLength > PDF_MAX_BYTES) throw new Error('the document is too large')
+  return new Uint8Array(buffer)
 }
 
 /** Clamp one scale to the range of the viewer. */

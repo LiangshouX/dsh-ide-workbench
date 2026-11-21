@@ -15061,31 +15061,23 @@ function buildTree(data2) {
       cursor.next();
       let localChildren = [], localPositions = [];
       let localInRepeat = id2 >= minRepeatType ? id2 : -1;
-      let lastGroup = 0, lastEnd = end, groupLookAhead = lookAheadAtStart;
+      let lastGroup = 0, lastEnd = end;
       while (cursor.pos > endPos) {
         if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
           if (cursor.end <= lastEnd - maxBufferLength) {
-            makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, groupLookAhead, contextAtStart);
+            makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
             lastGroup = localChildren.length;
             lastEnd = cursor.end;
-            groupLookAhead = lookAhead;
           }
           cursor.next();
         } else if (depth2 > 2500) {
           takeFlatNode(start, endPos, localChildren, localPositions);
         } else {
-          if (localInRepeat >= 0 && cursor.size == -1 && reused[cursor.id].type == nodeSet2.types[localInRepeat]) {
-            if (lastGroup < localChildren.length)
-              makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, groupLookAhead, contextAtStart);
-            lastGroup = localChildren.length + 1;
-            lastEnd = cursor.start;
-            groupLookAhead = lookAhead;
-          }
           takeNode(start, endPos, localChildren, localPositions, localInRepeat, depth2 + 1);
         }
       }
       if (localInRepeat >= 0 && lastGroup > 0 && lastGroup < localChildren.length)
-        makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, groupLookAhead, contextAtStart);
+        makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
       localChildren.reverse();
       localPositions.reverse();
       if (localInRepeat > -1 && lastGroup > 0) {
@@ -15135,7 +15127,7 @@ function buildTree(data2) {
         if (!lastI && last2.type == type && last2.length == length2)
           return last2;
         if (lookAheadProp = last2.prop(NodeProp.lookAhead))
-          lookAhead2 = positions2[lastI] + last2.length + lookAheadProp - length2;
+          lookAhead2 = positions2[lastI] + last2.length + lookAheadProp;
       }
       return makeTree(type, children2, positions2, length2, lookAhead2, contextHash2);
     };
@@ -15332,10 +15324,6 @@ function materialize(cursor) {
     let tree = cursor.tree.children[index], pos = cursor.tree.positions[index];
     cursor.yield(new TreeNode(tree, pos + cursor.from, index, cursor._tree));
   }
-}
-function fragEnd(frag) {
-  let stopped = frag.tree.prop(stoppedInner);
-  return stopped == null ? frag.to : Math.min(frag.to, stopped - frag.offset);
 }
 function punchRanges(outer, ranges) {
   let copy = null, current = ranges;
@@ -16898,7 +16886,7 @@ var init_dist3 = __esm({
       moveTo(pos) {
         let { cursor } = this, p2 = pos - this.offset;
         while (!this.done && cursor.from < p2) {
-          if (cursor.to >= p2 && cursor.enter(p2, 1, IterMode.IncludeAnonymous | IterMode.IgnoreMounts | IterMode.IgnoreOverlays | IterMode.ExcludeBuffers)) ;
+          if (cursor.to >= p2 && cursor.enter(p2, 1, IterMode.IncludeAnonymous | IterMode.IgnoreOverlays | IterMode.ExcludeBuffers)) ;
           else if (cursor.to <= p2) {
             if (!cursor.next(false))
               this.done = true;
@@ -16924,12 +16912,13 @@ var init_dist3 = __esm({
     };
     FragmentCursor = class {
       constructor(fragments) {
+        var _a2;
         this.fragments = fragments;
         this.curTo = 0;
         this.fragI = 0;
         if (fragments.length) {
           let first = this.curFrag = fragments[0];
-          this.curTo = fragEnd(first);
+          this.curTo = (_a2 = first.tree.prop(stoppedInner)) !== null && _a2 !== void 0 ? _a2 : first.to;
           this.inner = new StructureCursor(first.tree, -first.offset);
         } else {
           this.curFrag = this.inner = null;
@@ -16941,12 +16930,13 @@ var init_dist3 = __esm({
         return this.curFrag && this.curFrag.from <= node.from && this.curTo >= node.to && this.inner.hasNode(node);
       }
       nextFrag() {
+        var _a2;
         this.fragI++;
         if (this.fragI == this.fragments.length) {
           this.curFrag = this.inner = null;
         } else {
           let frag = this.curFrag = this.fragments[this.fragI];
-          this.curTo = fragEnd(frag);
+          this.curTo = (_a2 = frag.tree.prop(stoppedInner)) !== null && _a2 !== void 0 ? _a2 : frag.to;
           this.inner = new StructureCursor(frag.tree, -frag.offset);
         }
       }
@@ -23086,8 +23076,6 @@ var init_dist8 = __esm({
             this.nextFragment();
             return null;
           }
-          if (pos < this.safeFrom)
-            return null;
           let top2 = this.trees[last2], index = this.index[last2];
           if (index == top2.children.length) {
             this.trees.pop();
@@ -23112,6 +23100,8 @@ var init_dist8 = __esm({
                 }
                 if (start == pos)
                   return next;
+              } else if (start == pos) {
+                return null;
               }
             }
             this.index[last2]++;
@@ -26490,12 +26480,12 @@ var init_dist13 = __esm({
         return tree && tree.prop(NodeProp.contextHash) == hash3;
       }
       takeNodes(cx) {
-        let cur2 = this.cursor, off = this.fragment.offset, fragEnd2 = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
+        let cur2 = this.cursor, off = this.fragment.offset, fragEnd = this.fragmentEnd - (this.fragment.openEnd ? 1 : 0);
         let start = cx.absoluteLineStart, end = start, blockI = cx.block.children.length;
         let maxAnonSize = cx.lineStart - cx.block.from >> 2;
         let prevEnd = end, prevI = blockI;
         scan: for (; ; ) {
-          if (cur2.to - off > Math.min(fragEnd2, cx.to) || cur2.type.isAnonymous && cur2.tree && (cur2.to - cur2.from > maxAnonSize || !canStopAfterLastChild(cur2.tree))) {
+          if (cur2.to - off > Math.min(fragEnd, cx.to) || cur2.type.isAnonymous && cur2.tree && (cur2.to - cur2.from > maxAnonSize || !canStopAfterLastChild(cur2.tree))) {
             if (cur2.type.isAnonymous && cur2.firstChild())
               continue;
             break;
@@ -32608,96 +32598,6 @@ var init_dist33 = __esm({
   }
 });
 
-// src/client/pdf-view.js
-function isPdfPath(path2) {
-  return typeof path2 === "string" && /\.pdf$/i.test(path2);
-}
-function decodePdfBase64(data2) {
-  if (typeof data2 !== "string" || data2 === "") throw new Error("empty PDF payload");
-  const binary = globalThis.atob(data2);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
-function clampPdfScale(scale) {
-  const value = Number(scale);
-  if (!Number.isFinite(value)) return 1;
-  return Math.min(Math.max(value, PDF_MIN_SCALE), PDF_MAX_SCALE);
-}
-function pdfFitScale(availableWidth, pageWidth, padding = 32) {
-  if (!Number.isFinite(availableWidth) || !Number.isFinite(pageWidth) || pageWidth <= 0) return 1;
-  const width = Math.max(1, availableWidth - padding);
-  return clampPdfScale(width / pageWidth);
-}
-function pdfZoomStep(scale, direction) {
-  return clampPdfScale(Number(scale) * (direction > 0 ? 1.2 : 1 / 1.2));
-}
-function pdfPercent(scale) {
-  return `${Math.round(Number(scale) * 100)}%`;
-}
-function pdfOutputScale(ratio = 1) {
-  const value = Number(ratio);
-  if (!Number.isFinite(value) || value <= 0) return 1;
-  return Math.min(Math.max(value, 1), 2);
-}
-function pdfPageAtOffset(pages, scrollTop, viewportHeight) {
-  if (!Array.isArray(pages) || pages.length === 0) return 1;
-  const target = Number(scrollTop) + Math.max(0, Number(viewportHeight)) * 0.35;
-  let low = 0;
-  let high = pages.length - 1;
-  let found = 0;
-  while (low <= high) {
-    const middle = low + high >> 1;
-    if (pages[middle].top <= target) {
-      found = middle;
-      low = middle + 1;
-    } else {
-      high = middle - 1;
-    }
-  }
-  return found + 1;
-}
-function pdfVisibleRange(pages, scrollTop, viewportHeight, margin = 360) {
-  if (!Array.isArray(pages) || pages.length === 0) return { first: 1, last: 1 };
-  const start = Number(scrollTop) - margin;
-  const end = Number(scrollTop) + Number(viewportHeight) + margin;
-  let first = pages.length - 1;
-  let low = 0;
-  let high = pages.length - 1;
-  while (low <= high) {
-    const middle = low + high >> 1;
-    const page = pages[middle];
-    if (page.top + page.height >= start) {
-      first = middle;
-      high = middle - 1;
-    } else {
-      low = middle + 1;
-    }
-  }
-  let last2 = first;
-  low = first;
-  high = pages.length - 1;
-  while (low <= high) {
-    const middle = low + high >> 1;
-    const page = pages[middle];
-    if (page.top <= end) {
-      last2 = middle;
-      low = middle + 1;
-    } else {
-      high = middle - 1;
-    }
-  }
-  return { first: first + 1, last: last2 + 1 };
-}
-var PDF_MIN_SCALE, PDF_MAX_SCALE, PDF_MAX_BYTES;
-var init_pdf_view = __esm({
-  "src/client/pdf-view.js"() {
-    PDF_MIN_SCALE = 0.25;
-    PDF_MAX_SCALE = 4;
-    PDF_MAX_BYTES = 32 << 20;
-  }
-});
-
 // ../../node_modules/pdfjs-dist/build/pdf.min.mjs
 function setVerbosityLevel(t3) {
   Number.isInteger(t3) && (H2 = t3);
@@ -33235,7 +33135,7 @@ function drawTriangle(t3, e2, i3, n2, s16, r2, a3, o3) {
   }
   const p2 = (l2[2 * i3] + e2.offsetX) * e2.scaleX, g2 = (l2[2 * i3 + 1] + e2.offsetY) * e2.scaleY, m2 = (l2[2 * n2] + e2.offsetX) * e2.scaleX, f2 = (l2[2 * n2 + 1] + e2.offsetY) * e2.scaleY, b3 = (l2[2 * s16] + e2.offsetX) * e2.scaleX, y2 = (l2[2 * s16 + 1] + e2.offsetY) * e2.scaleY;
   if (g2 >= y2) return;
-  const v3 = h3[4 * r2], w2 = h3[4 * r2 + 1], A3 = h3[4 * r2 + 2], x2 = h3[4 * a3], C4 = h3[4 * a3 + 1], E2 = h3[4 * a3 + 2], S5 = h3[4 * o3], T2 = h3[4 * o3 + 1], _3 = h3[4 * o3 + 2], k2 = Math.round(g2), D3 = Math.round(y2);
+  const v3 = h3[4 * r2], w2 = h3[4 * r2 + 1], A3 = h3[4 * r2 + 2], x2 = h3[4 * a3], C4 = h3[4 * a3 + 1], E2 = h3[4 * a3 + 2], S5 = h3[4 * o3], T3 = h3[4 * o3 + 1], _3 = h3[4 * o3 + 2], k2 = Math.round(g2), D3 = Math.round(y2);
   let P2, M3, I2, F3, O2, B3, R3, L4;
   for (let t4 = k2; t4 <= D3; t4++) {
     if (t4 < f2) {
@@ -33249,14 +33149,14 @@ function drawTriangle(t3, e2, i3, n2, s16, r2, a3, o3) {
       e4 = t4 > y2 ? 1 : f2 === y2 ? 0 : (f2 - t4) / (f2 - y2);
       P2 = m2 - (m2 - b3) * e4;
       M3 = x2 - (x2 - S5) * e4;
-      I2 = C4 - (C4 - T2) * e4;
+      I2 = C4 - (C4 - T3) * e4;
       F3 = E2 - (E2 - _3) * e4;
     }
     let e3;
     e3 = t4 < g2 ? 0 : t4 > y2 ? 1 : (g2 - t4) / (g2 - y2);
     O2 = p2 - (p2 - b3) * e3;
     B3 = v3 - (v3 - S5) * e3;
-    R3 = w2 - (w2 - T2) * e3;
+    R3 = w2 - (w2 - T3) * e3;
     L4 = A3 - (A3 - _3) * e3;
     const i4 = Math.round(Math.min(P2, O2)), n3 = Math.round(Math.max(P2, O2));
     let s17 = d2 * t4 + 4 * i4;
@@ -33559,7 +33459,7 @@ function getDocument(e2 = {}) {
     throw new Error("Invalid PDF binary data: either TypedArray, string, or array-like object is expected in the data property.");
   })(e2.data) : null, a3 = e2.httpHeaders || null, o3 = true === e2.withCredentials, l2 = e2.password ?? null, h3 = e2.range instanceof PDFDataRangeTransport ? e2.range : null, c2 = Number.isInteger(e2.rangeChunkSize) && e2.rangeChunkSize > 0 ? e2.rangeChunkSize : 65536;
   let d2 = e2.worker instanceof PDFWorker ? e2.worker : null;
-  const u3 = e2.verbosity, p2 = "string" != typeof e2.docBaseUrl || isDataScheme(e2.docBaseUrl) ? null : e2.docBaseUrl, g2 = getFactoryUrlProp(e2.cMapUrl), m2 = false !== e2.cMapPacked, f2 = getFactoryUrlProp(e2.iccUrl), b3 = getFactoryUrlProp(e2.standardFontDataUrl), y2 = getFactoryUrlProp(e2.wasmUrl), v3 = true !== e2.stopAtErrors, w2 = Number.isInteger(e2.maxImageSize) && e2.maxImageSize > -1 ? e2.maxImageSize : -1, A3 = "boolean" == typeof e2.isOffscreenCanvasSupported ? e2.isOffscreenCanvasSupported : !t2, x2 = "boolean" == typeof e2.isImageDecoderSupported ? e2.isImageDecoderSupported : !t2, C4 = Number.isInteger(e2.canvasMaxAreaInBytes) ? e2.canvasMaxAreaInBytes : -1, E2 = "boolean" == typeof e2.disableFontFace ? e2.disableFontFace : t2, S5 = true === e2.fontExtraProperties, T2 = true === e2.enableXfa, _3 = e2.ownerDocument || globalThis.document, k2 = true === e2.disableRange, D3 = true === e2.disableStream, P2 = true === e2.disableAutoFetch, M3 = true === e2.pdfBug, I2 = e2.CanvasFactory || (t2 ? NodeCanvasFactory : DOMCanvasFactory), F3 = e2.FilterFactory || (t2 ? NodeFilterFactory : DOMFilterFactory), O2 = e2.BinaryDataFactory || (t2 ? NodeBinaryDataFactory : DOMBinaryDataFactory), B3 = true === e2.enableHWA, R3 = true === e2.enableWebGPU ? (function initGPU() {
+  const u3 = e2.verbosity, p2 = "string" != typeof e2.docBaseUrl || isDataScheme(e2.docBaseUrl) ? null : e2.docBaseUrl, g2 = getFactoryUrlProp(e2.cMapUrl), m2 = false !== e2.cMapPacked, f2 = getFactoryUrlProp(e2.iccUrl), b3 = getFactoryUrlProp(e2.standardFontDataUrl), y2 = getFactoryUrlProp(e2.wasmUrl), v3 = true !== e2.stopAtErrors, w2 = Number.isInteger(e2.maxImageSize) && e2.maxImageSize > -1 ? e2.maxImageSize : -1, A3 = "boolean" == typeof e2.isOffscreenCanvasSupported ? e2.isOffscreenCanvasSupported : !t2, x2 = "boolean" == typeof e2.isImageDecoderSupported ? e2.isImageDecoderSupported : !t2, C4 = Number.isInteger(e2.canvasMaxAreaInBytes) ? e2.canvasMaxAreaInBytes : -1, E2 = "boolean" == typeof e2.disableFontFace ? e2.disableFontFace : t2, S5 = true === e2.fontExtraProperties, T3 = true === e2.enableXfa, _3 = e2.ownerDocument || globalThis.document, k2 = true === e2.disableRange, D3 = true === e2.disableStream, P2 = true === e2.disableAutoFetch, M3 = true === e2.pdfBug, I2 = e2.CanvasFactory || (t2 ? NodeCanvasFactory : DOMCanvasFactory), F3 = e2.FilterFactory || (t2 ? NodeFilterFactory : DOMFilterFactory), O2 = e2.BinaryDataFactory || (t2 ? NodeBinaryDataFactory : DOMBinaryDataFactory), B3 = true === e2.enableHWA, R3 = true === e2.enableWebGPU ? (function initGPU() {
     return Ct2.init();
   })() : Promise.resolve(false), L4 = false !== e2.useWasm, N2 = e2.pagesMapper || new PagesMapper(), U4 = "boolean" == typeof e2.useSystemFonts ? e2.useSystemFonts : !t2 && !E2, H3 = "boolean" == typeof e2.useWorkerFetch ? e2.useWorkerFetch : !!(O2 === DOMBinaryDataFactory && g2 && m2 && b3 && y2 && isValidFetchUrl(g2, document.baseURI) && isValidFetchUrl(b3, document.baseURI) && isValidFetchUrl(y2, document.baseURI));
   setVerbosityLevel(u3);
@@ -33568,7 +33468,7 @@ function getDocument(e2 = {}) {
     d2 = PDFWorker.create({ verbosity: u3, port: GlobalWorkerOptions.workerPort });
     i3._worker = d2;
   }
-  const z4 = { docId: n2, apiVersion: "6.3.289", data: r2, password: l2, disableAutoFetch: P2, rangeChunkSize: c2, docBaseUrl: p2, enableXfa: T2, evaluatorOptions: { maxImageSize: w2, disableFontFace: E2, ignoreErrors: v3, isOffscreenCanvasSupported: A3, isImageDecoderSupported: x2, canvasMaxAreaInBytes: C4, fontExtraProperties: S5, useSystemFonts: U4, useWasm: L4, useWorkerFetch: H3, cMapUrl: g2, cMapPacked: m2, iccUrl: f2, standardFontDataUrl: b3, wasmUrl: y2, hasGPU: false } }, W2 = { ownerDocument: _3, pdfBug: M3, styleElement: null, enableHWA: B3, loadingParams: { disableAutoFetch: P2, enableXfa: T2 } };
+  const z4 = { docId: n2, apiVersion: "6.3.289", data: r2, password: l2, disableAutoFetch: P2, rangeChunkSize: c2, docBaseUrl: p2, enableXfa: T3, evaluatorOptions: { maxImageSize: w2, disableFontFace: E2, ignoreErrors: v3, isOffscreenCanvasSupported: A3, isImageDecoderSupported: x2, canvasMaxAreaInBytes: C4, fontExtraProperties: S5, useSystemFonts: U4, useWasm: L4, useWorkerFetch: H3, cMapUrl: g2, cMapPacked: m2, iccUrl: f2, standardFontDataUrl: b3, wasmUrl: y2, hasGPU: false } }, W2 = { ownerDocument: _3, pdfBug: M3, styleElement: null, enableHWA: B3, loadingParams: { disableAutoFetch: P2, enableXfa: T3 } };
   Promise.all([d2.promise, R3]).then(function([, e3]) {
     if (d2.destroyed) throw new Error("Worker was destroyed");
     z4.evaluatorOptions.hasGPU = e3;
@@ -33628,7 +33528,7 @@ function normalizeEdgeBoundary(t3, e2, i3) {
 function percentage(t3) {
   return `${(100 * t3).toFixed(2)}%`;
 }
-var import_meta, t2, e, i2, n, s15, r, a2, o2, l, h2, c, d, u2, p, g, m, f, b2, y, v2, w, A2, x, C3, E, S4, T, _2, k, D2, P, M2, I, F2, O, B2, R2, L3, N, U3, H2, G2, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, FeatureTest, Util, z3, W, makeArr, makeMap, makeObj, makeSet, PageViewport, XfaText, V, $2, XfaLayer, PixelsPerInch, RenderingCancelledException, StatTimer, PDFDateString, OutputScale, j2, ColorScheme, CSSConstants, X2, EditorToolbar, FloatingToolbar, K2, CurrentPointers, IdManager, ImageManager, CommandManager, KeyboardManager, ColorManager, AnnotationEditorUIManager, AltText, Comment, Y2, TouchManager, AnnotationEditor, FakeEditor, q2, Q3, J2, MurmurHash3_64, Z2, AnnotationStorage, PrintAnnotationStorage, tt, et, it, nt2, BBoxReader, ensureDebugMetadata, CanvasBBoxTracker, CanvasDependencyTracker, CanvasNestedDependencyTracker, st2, rt2, at2, ot2, lt3, ht, ct2, CanvasImagesTracker, dt2, FontLoader, FontFaceObject, CSS_FONT_INFO, SYSTEM_FONT_INFO, FONT_INFO, PATTERN_INFO, InfoUtils, CssFontInfo, SystemFontInfo, FontInfo, PatternInfo, FontPathInfo, isRefProxy, ut2, LoopbackPort, pt3, gt2, mt2, ft2, bt2, yt, vt2, wt2, At3, xt2, MessageHandler, BaseBinaryDataFactory, DOMBinaryDataFactory, BaseCanvasFactory, DOMCanvasFactory, BaseFilterFactory, DOMFilterFactory, NodeFilterFactory, NodeCanvasFactory, NodeBinaryDataFactory, Ct2, Et, St2, Tt2, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, _t2, kt3, TilingPattern, Dt2, Pt2, CanvasExtraState, Mt3, It2, Ft, Ot2, CanvasGraphics, BasePDFStream, BasePDFStreamReader, BasePDFStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFNetworkStream, PDFNetworkStreamReader, PDFNetworkStreamRangeReader, PDFNodeStream, PDFNodeStreamReader, PDFNodeStreamRangeReader, GlobalWorkerOptions, Metadata, Bt2, OptionalContentGroup, OptionalContentConfig, PagesMapper, Rt2, dataObj, PDFObjects, TextLayer, PDFDocumentLoadingTask, PDFDataRangeTransport, PDFDocumentProxy, PDFPageProxy, PDFWorker, WorkerTransport, RenderTask, InternalRenderTask, Lt2, Nt2, ColorPicker, BasicColorPicker, ColorConverters, BaseSVGFactory, DOMSVGFactory, Ut2, Ht, AnnotationElementFactory, AnnotationElement, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, MediaAnnotationElement, AnnotationLayer, Gt2, FreeTextEditor, DrawingOptions, DrawingEditor, Outline, FreeDrawOutliner, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightDrawer, FreeHighlightOutline, HighlightDrawingOptions, HighlightEditor, InkDrawOutliner, InkDrawOutline, InkDrawingOptions, InkEditor, ContourDrawOutline, SignatureExtractor, SignatureOptions, DrawnSignatureOptions, SignatureEditor, StampEditor, AnnotationEditorLayer, DrawLayer, TextLayerImages;
+var import_meta, t2, e, i2, n, s15, r, a2, o2, l, h2, c, d, u2, p, g, m, f, b2, y, v2, w, A2, x, C3, E, S4, T2, _2, k, D2, P, M2, I, F2, O, B2, R2, L3, N, U3, H2, G2, PasswordException, UnknownErrorException, InvalidPDFException, ResponseException, FormatError, AbortException, FeatureTest, Util, z3, W, makeArr, makeMap, makeObj, makeSet, PageViewport, XfaText, V, $2, XfaLayer, PixelsPerInch, RenderingCancelledException, StatTimer, PDFDateString, OutputScale, j2, ColorScheme, CSSConstants, X2, EditorToolbar, FloatingToolbar, K2, CurrentPointers, IdManager, ImageManager, CommandManager, KeyboardManager, ColorManager, AnnotationEditorUIManager, AltText, Comment, Y2, TouchManager, AnnotationEditor, FakeEditor, q2, Q3, J2, MurmurHash3_64, Z2, AnnotationStorage, PrintAnnotationStorage, tt, et, it, nt2, BBoxReader, ensureDebugMetadata, CanvasBBoxTracker, CanvasDependencyTracker, CanvasNestedDependencyTracker, st2, rt2, at2, ot2, lt3, ht, ct2, CanvasImagesTracker, dt2, FontLoader, FontFaceObject, CSS_FONT_INFO, SYSTEM_FONT_INFO, FONT_INFO, PATTERN_INFO, InfoUtils, CssFontInfo, SystemFontInfo, FontInfo, PatternInfo, FontPathInfo, isRefProxy, ut2, LoopbackPort, pt3, gt2, mt2, ft2, bt2, yt, vt2, wt2, At3, xt2, MessageHandler, BaseBinaryDataFactory, DOMBinaryDataFactory, BaseCanvasFactory, DOMCanvasFactory, BaseFilterFactory, DOMFilterFactory, NodeFilterFactory, NodeCanvasFactory, NodeBinaryDataFactory, Ct2, Et, St2, Tt2, BaseShadingPattern, RadialAxialShadingPattern, MeshShadingPattern, DummyShadingPattern, _t2, kt3, TilingPattern, Dt2, Pt2, CanvasExtraState, Mt3, It2, Ft, Ot2, CanvasGraphics, BasePDFStream, BasePDFStreamReader, BasePDFStreamRangeReader, PDFFetchStream, PDFFetchStreamReader, PDFFetchStreamRangeReader, PDFDataTransportStream, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader, PDFNetworkStream, PDFNetworkStreamReader, PDFNetworkStreamRangeReader, PDFNodeStream, PDFNodeStreamReader, PDFNodeStreamRangeReader, GlobalWorkerOptions, Metadata, Bt2, OptionalContentGroup, OptionalContentConfig, PagesMapper, Rt2, dataObj, PDFObjects, TextLayer, PDFDocumentLoadingTask, PDFDataRangeTransport, PDFDocumentProxy, PDFPageProxy, PDFWorker, WorkerTransport, RenderTask, InternalRenderTask, Lt2, Nt2, ColorPicker, BasicColorPicker, ColorConverters, BaseSVGFactory, DOMSVGFactory, Ut2, Ht, AnnotationElementFactory, AnnotationElement, EditorAnnotationElement, LinkAnnotationElement, TextAnnotationElement, WidgetAnnotationElement, TextWidgetAnnotationElement, SignatureWidgetAnnotationElement, CheckboxWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, PushButtonWidgetAnnotationElement, ChoiceWidgetAnnotationElement, PopupAnnotationElement, PopupElement, FreeTextAnnotationElement, LineAnnotationElement, SquareAnnotationElement, CircleAnnotationElement, PolylineAnnotationElement, PolygonAnnotationElement, CaretAnnotationElement, InkAnnotationElement, HighlightAnnotationElement, UnderlineAnnotationElement, SquigglyAnnotationElement, StrikeOutAnnotationElement, StampAnnotationElement, FileAttachmentAnnotationElement, MediaAnnotationElement, AnnotationLayer, Gt2, FreeTextEditor, DrawingOptions, DrawingEditor, Outline, FreeDrawOutliner, FreeDrawOutline, HighlightOutliner, HighlightOutline, FreeHighlightOutliner, FreeHighlightDrawer, FreeHighlightOutline, HighlightDrawingOptions, HighlightEditor, InkDrawOutliner, InkDrawOutline, InkDrawingOptions, InkEditor, ContourDrawOutline, SignatureExtractor, SignatureOptions, DrawnSignatureOptions, SignatureEditor, StampEditor, AnnotationEditorLayer, DrawLayer, TextLayerImages;
 var init_pdf_min = __esm({
   "../../node_modules/pdfjs-dist/build/pdf.min.mjs"() {
     import_meta = {};
@@ -33658,7 +33558,7 @@ var init_pdf_min = __esm({
     C3 = 3;
     E = 4;
     S4 = { GRAYSCALE_1BPP: 1, RGB_24BPP: 2, RGBA_32BPP: 3 };
-    T = { TEXT: 1, LINK: 2, FREETEXT: 3, LINE: 4, SQUARE: 5, CIRCLE: 6, POLYGON: 7, POLYLINE: 8, HIGHLIGHT: 9, UNDERLINE: 10, SQUIGGLY: 11, STRIKEOUT: 12, STAMP: 13, CARET: 14, INK: 15, POPUP: 16, FILEATTACHMENT: 17, SOUND: 18, MOVIE: 19, WIDGET: 20, SCREEN: 21, PRINTERMARK: 22, TRAPNET: 23, WATERMARK: 24, THREED: 25, REDACT: 26, RICHMEDIA: 27 };
+    T2 = { TEXT: 1, LINK: 2, FREETEXT: 3, LINE: 4, SQUARE: 5, CIRCLE: 6, POLYGON: 7, POLYLINE: 8, HIGHLIGHT: 9, UNDERLINE: 10, SQUIGGLY: 11, STRIKEOUT: 12, STAMP: 13, CARET: 14, INK: 15, POPUP: 16, FILEATTACHMENT: 17, SOUND: 18, MOVIE: 19, WIDGET: 20, SCREEN: 21, PRINTERMARK: 22, TRAPNET: 23, WATERMARK: 24, THREED: 25, REDACT: 26, RICHMEDIA: 27 };
     _2 = 1;
     k = 2;
     D2 = 3;
@@ -36355,10 +36255,10 @@ var init_pdf_min = __esm({
         const [n2, s16] = e2, { screenX: r2, screenY: a3 } = n2, { screenX: o3, screenY: l2 } = s16, h3 = this.#Oe, { touch0X: c2, touch0Y: d2, touch1X: u3, touch1Y: p2, panX: g2, panY: m2 } = h3, f2 = u3 - c2, b3 = p2 - d2, y2 = o3 - r2, v3 = l2 - a3, w2 = (n2.clientX + s16.clientX) / 2, A3 = (n2.clientY + s16.clientY) / 2;
         h3.panX = w2;
         h3.panY = A3;
-        const x2 = w2 - g2, C4 = A3 - m2, E2 = (r2 + o3) / 2, S5 = (a3 + l2) / 2, T2 = Math.hypot(E2 - h3.screenPanX, S5 - h3.screenPanY);
+        const x2 = w2 - g2, C4 = A3 - m2, E2 = (r2 + o3) / 2, S5 = (a3 + l2) / 2, T3 = Math.hypot(E2 - h3.screenPanX, S5 - h3.screenPanY);
         h3.screenPanX = E2;
         h3.screenPanY = S5;
-        const _3 = Math.hypot(y2, v3), k2 = Math.hypot(f2, b3), D3 = this.#Ce ? this.MIN_TOUCH_DISTANCE_TO_SCALE : this.MIN_TOUCH_DISTANCE_TO_PINCH + 2 * T2;
+        const _3 = Math.hypot(y2, v3), k2 = Math.hypot(f2, b3), D3 = this.#Ce ? this.MIN_TOUCH_DISTANCE_TO_SCALE : this.MIN_TOUCH_DISTANCE_TO_PINCH + 2 * T3;
         if (_3 < Y2 || k2 < Y2 || Math.abs(k2 - _3) <= D3) {
           (x2 || C4) && this.#De?.(x2, C4);
           return;
@@ -36372,7 +36272,7 @@ var init_pdf_min = __esm({
           if (this.#Le) {
             const t4 = this.#Le;
             this.#Le = 0;
-            if (P2 !== t4 && Math.abs(_3 - k2) <= 2 * T2) {
+            if (P2 !== t4 && Math.abs(_3 - k2) <= 2 * T3) {
               this.#Ce = false;
               (x2 || C4) && this.#De?.(x2, C4);
               return;
@@ -36894,8 +36794,8 @@ var init_pdf_min = __esm({
           this.#Je[0] = t4;
           this.#Je[1] = i4;
         }
-        [A3, x2] = (S5 = A3 / i3, T2 = x2 / n2, [d2[0] * S5 + d2[2] * T2, d2[1] * S5 + d2[3] * T2]);
-        var S5, T2;
+        [A3, x2] = (S5 = A3 / i3, T3 = x2 / n2, [d2[0] * S5 + d2[2] * T3, d2[1] * S5 + d2[3] * T3]);
+        var S5, T3;
         if (g2) {
           const t4 = Math.hypot(a3, o3);
           C4 = E2 = Math.max(Math.min(Math.hypot(b3[0] - f2[0] - A3, b3[1] - f2[1] - x2) / t4, 1 / a3, 1 / o3), l2 / a3, h3 / o3);
@@ -40383,8 +40283,8 @@ var init_pdf_min = __esm({
         S5 && this.canvasFactory.destroy(S5);
         u3 && this.canvasFactory.destroy(u3);
         x2.globalCompositeOperation = "source-in";
-        const T2 = Util.transform(getCurrentTransformInverse(x2), [1, 0, 0, 1, -C4, -E2]);
-        x2.fillStyle = o3 ? a3.getPattern(n2, this, T2, Et, t3) : a3;
+        const T3 = Util.transform(getCurrentTransformInverse(x2), [1, 0, 0, 1, -C4, -E2]);
+        x2.fillStyle = o3 ? a3.getPattern(n2, this, T3, Et, t3) : a3;
         x2.fillRect(0, 0, s16, r2);
         h3 && !o3 && h3.set(c2, A3.canvas);
         this.dependencyTracker?.recordDependencies(t3, ct2);
@@ -41080,7 +40980,7 @@ var init_pdf_min = __esm({
         a3.translate(i3.x, i3.y + i3.textRise);
         c2 > 0 ? a3.scale(d2, -1) : a3.scale(d2, 1);
         let y2, x2;
-        const S5 = i3.textRenderingMode & C3, T2 = S5 === v2 || S5 === A2, _3 = S5 === w || S5 === A2;
+        const S5 = i3.textRenderingMode & C3, T3 = S5 === v2 || S5 === A2, _3 = S5 === w || S5 === A2;
         let k2 = i3.lineWidth;
         const D3 = i3.textMatrixScale;
         0 === D3 || 0 === k2 ? _3 && (k2 = this.getSinglePixelWidth()) : k2 /= D3;
@@ -41089,7 +40989,7 @@ var init_pdf_min = __esm({
           k2 /= o3;
         }
         a3.lineWidth = k2;
-        if (T2 && i3.patternFill) {
+        if (T3 && i3.patternFill) {
           a3.save();
           const e3 = i3.fillColor.getPattern(a3, this, getCurrentTransformInverse(a3), Et, t3);
           y2 = getCurrentTransform(a3);
@@ -43339,10 +43239,10 @@ var init_pdf_min = __esm({
             globalThis.Stats?.enabled && globalThis.Stats.add(this.pageNumber, this._stats);
           }
         };
-        let S5 = null, T2 = null;
-        (C4 || E2) && (T2 = new CanvasBBoxTracker(e2, w2.operatorList.length));
-        C4 && (S5 = new CanvasDependencyTracker(T2, x2));
-        const _3 = new InternalRenderTask({ callback: complete, params: { canvas: e2, canvasContext: t3, dependencyTracker: S5 ?? T2, imagesTracker: E2 ? new CanvasImagesTracker(e2) : null, viewport: i3, transform: r2, background: a3 }, objs: this.objs, commonObjs: this.commonObjs, annotationCanvasMap: h3, operatorList: w2.operatorList, pageIndex: this._pageIndex, canvasFactory: this._transport.canvasFactory, filterFactory: this._transport.filterFactory, useRequestAnimationFrame: !A3, pdfBug: this._pdfBug, pageColors: c2, enableHWA: this._transport.enableHWA, operationsFilter: f2 });
+        let S5 = null, T3 = null;
+        (C4 || E2) && (T3 = new CanvasBBoxTracker(e2, w2.operatorList.length));
+        C4 && (S5 = new CanvasDependencyTracker(T3, x2));
+        const _3 = new InternalRenderTask({ callback: complete, params: { canvas: e2, canvasContext: t3, dependencyTracker: S5 ?? T3, imagesTracker: E2 ? new CanvasImagesTracker(e2) : null, viewport: i3, transform: r2, background: a3 }, objs: this.objs, commonObjs: this.commonObjs, annotationCanvasMap: h3, operatorList: w2.operatorList, pageIndex: this._pageIndex, canvasFactory: this._transport.canvasFactory, filterFactory: this._transport.filterFactory, useRequestAnimationFrame: !A3, pdfBug: this._pdfBug, pageColors: c2, enableHWA: this._transport.enableHWA, operationsFilter: f2 });
         (w2.renderTasks ||= /* @__PURE__ */ new Set()).add(_3);
         const k2 = _3.task;
         Promise.all([w2.displayReadyCapability.promise, l2]).then(([t4, e3]) => {
@@ -44481,11 +44381,11 @@ var init_pdf_min = __esm({
     AnnotationElementFactory = class {
       static create(t3) {
         switch (t3.data.annotationType) {
-          case T.LINK:
+          case T2.LINK:
             return new LinkAnnotationElement(t3);
-          case T.TEXT:
+          case T2.TEXT:
             return new TextAnnotationElement(t3);
-          case T.WIDGET:
+          case T2.WIDGET:
             switch (t3.data.fieldType) {
               case "Tx":
                 return new TextWidgetAnnotationElement(t3);
@@ -44497,39 +44397,39 @@ var init_pdf_min = __esm({
                 return new SignatureWidgetAnnotationElement(t3);
             }
             return new WidgetAnnotationElement(t3);
-          case T.POPUP:
+          case T2.POPUP:
             return new PopupAnnotationElement(t3);
-          case T.FREETEXT:
+          case T2.FREETEXT:
             return new FreeTextAnnotationElement(t3);
-          case T.LINE:
+          case T2.LINE:
             return new LineAnnotationElement(t3);
-          case T.SQUARE:
+          case T2.SQUARE:
             return new SquareAnnotationElement(t3);
-          case T.CIRCLE:
+          case T2.CIRCLE:
             return new CircleAnnotationElement(t3);
-          case T.POLYLINE:
+          case T2.POLYLINE:
             return new PolylineAnnotationElement(t3);
-          case T.CARET:
+          case T2.CARET:
             return new CaretAnnotationElement(t3);
-          case T.INK:
+          case T2.INK:
             return new InkAnnotationElement(t3);
-          case T.POLYGON:
+          case T2.POLYGON:
             return new PolygonAnnotationElement(t3);
-          case T.HIGHLIGHT:
+          case T2.HIGHLIGHT:
             return new HighlightAnnotationElement(t3);
-          case T.UNDERLINE:
+          case T2.UNDERLINE:
             return new UnderlineAnnotationElement(t3);
-          case T.SQUIGGLY:
+          case T2.SQUIGGLY:
             return new SquigglyAnnotationElement(t3);
-          case T.STRIKEOUT:
+          case T2.STRIKEOUT:
             return new StrikeOutAnnotationElement(t3);
-          case T.STAMP:
+          case T2.STAMP:
             return new StampAnnotationElement(t3);
-          case T.FILEATTACHMENT:
+          case T2.FILEATTACHMENT:
             return new FileAttachmentAnnotationElement(t3);
-          case T.RICHMEDIA:
-          case T.SCREEN:
-          case T.SOUND:
+          case T2.RICHMEDIA:
+          case T2.SCREEN:
+          case T2.SOUND:
             return new MediaAnnotationElement(t3);
           default:
             return new AnnotationElement(t3);
@@ -46472,7 +46372,7 @@ var init_pdf_min = __esm({
         const s16 = /* @__PURE__ */ new Map(), r2 = [], a3 = { data: null, layer: n2, linkService: this.#Co, downloadManager: t3.downloadManager, imageResourcesPath: t3.imageResourcesPath || "", renderForms: false !== t3.renderForms, svgFactory: new DOMSVGFactory(), annotationStorage: this.#$, enableComment: true === t3.enableComment, enableScripting: true === t3.enableScripting, hasJSActions: t3.hasJSActions, fieldObjects: t3.fieldObjects, parent: this, elements: null };
         for (const t4 of e2) {
           if (t4.noHTML) continue;
-          const e3 = t4.annotationType === T.POPUP;
+          const e3 = t4.annotationType === T2.POPUP;
           if (e3) {
             const e4 = s16.get(t4.id);
             if (!e4) continue;
@@ -51046,7 +50946,7 @@ var init_pdf_min = __esm({
       }
     };
     globalThis._pdfjsTestingUtils = { HighlightOutliner };
-    globalThis.pdfjsLib = { AbortException, AnnotationEditorLayer, AnnotationEditorParamsType: b2, AnnotationEditorType: f, AnnotationEditorUIManager, AnnotationLayer, AnnotationMode: p, AnnotationType: T, applyOpacity, build: Nt2, ColorPicker, createValidAbsoluteUrl, CSSConstants, DOMSVGFactory, DrawLayer, FeatureTest, fetchData, findContrastColor, getDocument, getFilenameFromUrl, getPdfFilenameFromUrl, getRGB, getRGBA, getUuid, GlobalWorkerOptions, ImageKind: S4, InvalidPDFException, isDataScheme, isPdfFile, isValidExplicitDest: ut2, makeArr, makeMap, makeObj, makeSet, MathClamp, noContextMenu, normalizeUnicode, OPS: F2, OutputScale, PasswordException, PasswordResponses: U3, PDFDataRangeTransport, PDFDateString, PDFWorker, PermissionFlag: y, PixelsPerInch, RenderingCancelledException, renderRichText, ResponseException, setLayerDimensions, shadow, SignatureExtractor, stopEvent, SupportedImageMimeTypes: j2, TextLayer, TextLayerImages, TouchManager, updateUrlHash, Util, VerbosityLevel: I, version: Lt2, XfaLayer };
+    globalThis.pdfjsLib = { AbortException, AnnotationEditorLayer, AnnotationEditorParamsType: b2, AnnotationEditorType: f, AnnotationEditorUIManager, AnnotationLayer, AnnotationMode: p, AnnotationType: T2, applyOpacity, build: Nt2, ColorPicker, createValidAbsoluteUrl, CSSConstants, DOMSVGFactory, DrawLayer, FeatureTest, fetchData, findContrastColor, getDocument, getFilenameFromUrl, getPdfFilenameFromUrl, getRGB, getRGBA, getUuid, GlobalWorkerOptions, ImageKind: S4, InvalidPDFException, isDataScheme, isPdfFile, isValidExplicitDest: ut2, makeArr, makeMap, makeObj, makeSet, MathClamp, noContextMenu, normalizeUnicode, OPS: F2, OutputScale, PasswordException, PasswordResponses: U3, PDFDataRangeTransport, PDFDateString, PDFWorker, PermissionFlag: y, PixelsPerInch, RenderingCancelledException, renderRichText, ResponseException, setLayerDimensions, shadow, SignatureExtractor, stopEvent, SupportedImageMimeTypes: j2, TextLayer, TextLayerImages, TouchManager, updateUrlHash, Util, VerbosityLevel: I, version: Lt2, XfaLayer };
   }
 });
 
@@ -51119,8 +51019,8 @@ self.postMessage({ type: ${JSON.stringify(WORKER_READY)} });
   })();
   return { worker, bridge, url };
 }
-async function openPdf(data2, options = {}) {
-  const bytes = decodePdfBase64(data2);
+async function openPdf(bytes, options = {}) {
+  if (!(bytes instanceof Uint8Array)) throw new Error("the PDF payload is not a byte array");
   const { worker, bridge, url } = await startWorker();
   let loadingTask;
   try {
@@ -51184,7 +51084,6 @@ var init_pdf_engine = __esm({
   "src/client/pdf-engine.js"() {
     init_pdf_min();
     init_worker();
-    init_pdf_view();
     WORKER_START_TIMEOUT_MS = 15e3;
     WORKER_READY = "iwb-pdf-worker-ready";
   }
@@ -51503,6 +51402,33 @@ var en = {
   "chat.sent": "Sent to chat",
   "chat.unavailable": "The chat input is not available right now",
   "settings.reset": "Reset to defaults",
+  // The categories of the page, the filter and the honest states of a row.
+  "settings.categoryAll": "All",
+  "settings.categoryGeneral": "General",
+  "settings.categoryDeletion": "Deletion",
+  "settings.categoriesLabel": "Setting categories",
+  "settings.filterLabel": "Search settings",
+  "settings.filterPlaceholder": "Search settings by name, description or key",
+  "settings.countAll": "settings",
+  "settings.countMatches": "matches",
+  "settings.emptyTitle": "No setting matches",
+  "settings.emptyHint": "Try a shorter word, or clear the filter and pick a category.",
+  "settings.emptyClear": "Clear the filter",
+  "settings.changedBadge": "Changed",
+  "settings.deferredBadge": "New sessions only",
+  "settings.externalBadge": "Changed elsewhere",
+  "settings.failedBadge": "Not saved",
+  "settings.dangerBadge": "Permanent delete",
+  "settings.resetOne": "Restore the default",
+  "settings.saveFailed": "Saving failed",
+  "settings.resetConfirm": "Reset every setting?",
+  "settings.resetConfirmYes": "Reset",
+  "settings.resetTitle": "Put every setting of the workbench back to its default",
+  "settings.resetDone": "The defaults are back",
+  "settings.density": "Density",
+  "settings.densityHint": "How much room every row of the page takes",
+  "settings.densityComfortable": "Comfortable",
+  "settings.densityCompact": "Compact",
   "settings.shortcuts": "Shortcuts",
   "settings.shortcutsGroupHint": "Click a shortcut, then press the new key combination. Esc cancels.",
   "settings.pressKeys": "Press keys\u2026",
@@ -51525,6 +51451,22 @@ var en = {
   "settings.findInFilesShortcutHint": "Search the whole project",
   "settings.findInFilesAltShortcut": "Find in Files (fallback)",
   "settings.findInFilesAltShortcutHint": "Used when the shell reserves Ctrl+Shift+R (in a browser Ctrl+Shift+R is a hard reload)",
+  "settings.openCommitDetailShortcut": "Open commit detail",
+  "settings.openCommitDetailShortcutHint": "Open the selected commit in the Git window",
+  "settings.renameShortcut": "Rename",
+  "settings.renameShortcutHint": "Rename the entry selected in the file tree",
+  "settings.deleteShortcut": "Delete",
+  "settings.deleteShortcutHint": "Delete the entry selected in the file tree",
+  "settings.duplicateShortcut": "Duplicate",
+  "settings.duplicateShortcutHint": "Copy the entry selected in the file tree",
+  "settings.moveShortcut": "Move",
+  "settings.moveShortcutHint": "Move the entry selected in the file tree",
+  "settings.synchronizeShortcut": "Synchronize with disk",
+  "settings.synchronizeShortcutHint": "Read the file tree from the disk again",
+  "settings.jumpToSourceShortcut": "Jump to source",
+  "settings.jumpToSourceShortcutHint": "Open the source of the selected file",
+  "settings.hideAllShortcut": "Hide all tool windows",
+  "settings.hideAllShortcutHint": "Hide the four tool windows of the workbench",
   "settings.terminalGroup": "Terminal",
   "settings.defaultShell": "Default shell profile",
   "settings.defaultShellHint": "New sessions use this shell",
@@ -51532,6 +51474,8 @@ var en = {
   "settings.copyOnSelect": "Copy on select",
   "settings.fontSize": "Font size",
   "settings.terminalFontSize": "Terminal font size",
+  "settings.terminalOutputLimit": "Output limit (MiB)",
+  "settings.terminalOutputLimitHint": "The output of one terminal session stops here. The shell keeps running.",
   "settings.editorFontSize": "Editor font size",
   "settings.filesGroup": "File tree",
   "settings.showHidden": "Show hidden files",
@@ -51650,6 +51594,11 @@ var en = {
   "project.refreshProjects": "Refresh folders",
   "project.newFile": "New File\u2026",
   "project.newDir": "New Directory\u2026",
+  // The kind switch of the new-entry dialog (PRD-v8 NEW-01). The labels are
+  // the nouns, not the actions: the switch says WHICH KIND is created.
+  "project.kindFile": "File",
+  "project.kindDir": "Directory",
+  "project.kindLabel": "What to create",
   "project.nameLabel": "Name",
   "project.pathLabel": "Full path",
   "project.pathHint": "Relative to the project root. Leave it unchanged to create in the current folder.",
@@ -51662,6 +51611,14 @@ var en = {
   "project.cut": "Cut",
   "project.copy": "Copy",
   "project.paste": "Paste",
+  "project.pasteInto": "Paste into {folder}",
+  "project.pasting": "Copying\u2026",
+  "project.pasteRefused": "The paste was refused",
+  "project.pasteIntoItself": "A folder cannot be pasted into itself.",
+  "project.pasteIntoSubfolder": "A folder cannot be pasted into one of its own subfolders.",
+  "project.pastePartial": "The copy did not finish",
+  "project.pasteMissing": "{count} entries were not copied.",
+  "project.pasteBudget": "The copy stopped at the limit of this paste.",
   "project.duplicate": "Duplicate",
   "project.delete": "Delete",
   "project.rename": "Rename",
@@ -51802,6 +51759,12 @@ var en = {
   "git.authorFilter": "Author",
   "git.queryFilter": "Message contains",
   "git.allBranches": "All branches",
+  "git.scopeLabel": "Branch scope",
+  "git.scopeCurrent": "Current branch",
+  "git.scopeAll": "All branches",
+  "git.filterLabel": "Filter",
+  "git.clearFilters": "Clear filters",
+  "git.noMatches": "No commit matches the current filters",
   "git.currentBranchOnly": "Current branch only",
   "git.noCommits": "No commits",
   "git.loadMore": "Load more",
@@ -52006,6 +51969,33 @@ var zh = {
   "chat.sent": "\u5DF2\u53D1\u9001\u5230\u804A\u5929\u6846",
   "chat.unavailable": "\u6682\u65F6\u65E0\u6CD5\u5199\u5165\u804A\u5929\u8F93\u5165\u6846",
   "settings.reset": "\u6062\u590D\u9ED8\u8BA4\u8BBE\u7F6E",
+  // 分类、筛选与一行的“诚实状态”
+  "settings.categoryAll": "\u5168\u90E8",
+  "settings.categoryGeneral": "\u901A\u7528",
+  "settings.categoryDeletion": "\u5220\u9664",
+  "settings.categoriesLabel": "\u8BBE\u7F6E\u5206\u7C7B",
+  "settings.filterLabel": "\u641C\u7D22\u8BBE\u7F6E",
+  "settings.filterPlaceholder": "\u6309\u540D\u79F0\u3001\u8BF4\u660E\u6216\u952E\u540D\u641C\u7D22\u8BBE\u7F6E",
+  "settings.countAll": "\u9879\u8BBE\u7F6E",
+  "settings.countMatches": "\u9879\u5339\u914D",
+  "settings.emptyTitle": "\u6CA1\u6709\u5339\u914D\u7684\u8BBE\u7F6E",
+  "settings.emptyHint": "\u6362\u4E00\u4E2A\u66F4\u77ED\u7684\u5173\u952E\u8BCD\uFF0C\u6216\u6E05\u9664\u7B5B\u9009\u540E\u6309\u5206\u7C7B\u6D4F\u89C8\u3002",
+  "settings.emptyClear": "\u6E05\u9664\u7B5B\u9009",
+  "settings.changedBadge": "\u5DF2\u4FEE\u6539",
+  "settings.deferredBadge": "\u4EC5\u5BF9\u65B0\u4F1A\u8BDD\u751F\u6548",
+  "settings.externalBadge": "\u5DF2\u5728\u522B\u5904\u66F4\u6539",
+  "settings.failedBadge": "\u672A\u80FD\u4FDD\u5B58",
+  "settings.dangerBadge": "\u6C38\u4E45\u5220\u9664",
+  "settings.resetOne": "\u6062\u590D\u9ED8\u8BA4\u503C",
+  "settings.saveFailed": "\u4FDD\u5B58\u5931\u8D25",
+  "settings.resetConfirm": "\u628A\u5168\u90E8\u8BBE\u7F6E\u6062\u590D\u4E3A\u9ED8\u8BA4\u503C\uFF1F",
+  "settings.resetConfirmYes": "\u786E\u8BA4\u91CD\u7F6E",
+  "settings.resetTitle": "\u628A\u5DE5\u4F5C\u53F0\u7684\u5168\u90E8\u8BBE\u7F6E\u6062\u590D\u4E3A\u9ED8\u8BA4\u503C",
+  "settings.resetDone": "\u5DF2\u6062\u590D\u9ED8\u8BA4\u8BBE\u7F6E",
+  "settings.density": "\u4FE1\u606F\u5BC6\u5EA6",
+  "settings.densityHint": "\u6BCF\u4E00\u884C\u5360\u7528\u7684\u7A7A\u95F4",
+  "settings.densityComfortable": "\u8212\u9002",
+  "settings.densityCompact": "\u7D27\u51D1",
   "settings.shortcuts": "\u5FEB\u6377\u952E",
   "settings.shortcutsGroupHint": "\u70B9\u51FB\u5FEB\u6377\u952E\u540E\u6309\u4E0B\u65B0\u7684\u7EC4\u5408\u952E\uFF1B\u6309 Esc \u53D6\u6D88\u3002",
   "settings.pressKeys": "\u6309\u4E0B\u7EC4\u5408\u952E\u2026",
@@ -52028,6 +52018,22 @@ var zh = {
   "settings.findInFilesShortcutHint": "\u641C\u7D22\u6574\u4E2A\u9879\u76EE",
   "settings.findInFilesAltShortcut": "\u5168\u9879\u76EE\u67E5\u627E\uFF08\u5907\u7528\uFF09",
   "settings.findInFilesAltShortcutHint": "\u5F53\u5916\u58F3\u5360\u7528 Ctrl+Shift+R \u65F6\u4F7F\u7528\uFF08\u6D4F\u89C8\u5668\u5F62\u6001\u4E0B Ctrl+Shift+R \u662F\u786C\u5237\u65B0\uFF09",
+  "settings.openCommitDetailShortcut": "\u6253\u5F00\u63D0\u4EA4\u8BE6\u60C5",
+  "settings.openCommitDetailShortcutHint": "\u5728 Git \u7A97\u53E3\u4E2D\u6253\u5F00\u9009\u4E2D\u7684\u63D0\u4EA4",
+  "settings.renameShortcut": "\u91CD\u547D\u540D",
+  "settings.renameShortcutHint": "\u91CD\u547D\u540D\u6587\u4EF6\u6811\u4E2D\u9009\u4E2D\u7684\u6761\u76EE",
+  "settings.deleteShortcut": "\u5220\u9664",
+  "settings.deleteShortcutHint": "\u5220\u9664\u6587\u4EF6\u6811\u4E2D\u9009\u4E2D\u7684\u6761\u76EE",
+  "settings.duplicateShortcut": "\u590D\u5236",
+  "settings.duplicateShortcutHint": "\u590D\u5236\u6587\u4EF6\u6811\u4E2D\u9009\u4E2D\u7684\u6761\u76EE",
+  "settings.moveShortcut": "\u79FB\u52A8",
+  "settings.moveShortcutHint": "\u79FB\u52A8\u6587\u4EF6\u6811\u4E2D\u9009\u4E2D\u7684\u6761\u76EE",
+  "settings.synchronizeShortcut": "\u4E0E\u78C1\u76D8\u540C\u6B65",
+  "settings.synchronizeShortcutHint": "\u91CD\u65B0\u8BFB\u53D6\u78C1\u76D8\u4E0A\u7684\u6587\u4EF6\u6811",
+  "settings.jumpToSourceShortcut": "\u8DF3\u8F6C\u5230\u6E90\u7801",
+  "settings.jumpToSourceShortcutHint": "\u6253\u5F00\u9009\u4E2D\u6587\u4EF6\u7684\u6E90\u7801",
+  "settings.hideAllShortcut": "\u6536\u8D77\u5168\u90E8\u5DE5\u5177\u7A97",
+  "settings.hideAllShortcutHint": "\u9690\u85CF\u5DE5\u4F5C\u53F0\u7684\u56DB\u4E2A\u5DE5\u5177\u7A97",
   "settings.terminalGroup": "\u7EC8\u7AEF",
   "settings.defaultShell": "\u9ED8\u8BA4 Shell \u914D\u7F6E",
   "settings.defaultShellHint": "\u65B0\u4F1A\u8BDD\u4F7F\u7528\u8BE5 Shell",
@@ -52035,6 +52041,8 @@ var zh = {
   "settings.copyOnSelect": "\u9009\u4E2D\u5373\u590D\u5236",
   "settings.fontSize": "\u5B57\u53F7",
   "settings.terminalFontSize": "\u7EC8\u7AEF\u5B57\u53F7",
+  "settings.terminalOutputLimit": "\u8F93\u51FA\u4E0A\u9650\uFF08MiB\uFF09",
+  "settings.terminalOutputLimitHint": "\u5355\u4E2A\u7EC8\u7AEF\u4F1A\u8BDD\u7684\u8F93\u51FA\u5230\u6B64\u4E3A\u6B62\uFF0CShell \u4ECD\u4F1A\u7EE7\u7EED\u8FD0\u884C\u3002",
   "settings.editorFontSize": "\u7F16\u8F91\u5668\u5B57\u53F7",
   "settings.filesGroup": "\u6587\u4EF6\u6811",
   "settings.showHidden": "\u663E\u793A\u9690\u85CF\u6587\u4EF6",
@@ -52153,6 +52161,10 @@ var zh = {
   "project.refreshProjects": "\u5237\u65B0\u76EE\u5F55",
   "project.newFile": "\u65B0\u5EFA\u6587\u4EF6\u2026",
   "project.newDir": "\u65B0\u5EFA\u76EE\u5F55\u2026",
+  // 新建对话框的「类型」切换（PRD-v8 NEW-01）。
+  "project.kindFile": "\u6587\u4EF6",
+  "project.kindDir": "\u76EE\u5F55",
+  "project.kindLabel": "\u521B\u5EFA\u7C7B\u578B",
   "project.nameLabel": "\u540D\u79F0",
   "project.pathLabel": "\u5B8C\u6574\u8DEF\u5F84",
   "project.pathHint": "\u76F8\u5BF9\u4E8E\u9879\u76EE\u6839\u76EE\u5F55\uFF1B\u4E0D\u4FEE\u6539\u5219\u5728\u5F53\u524D\u76EE\u5F55\u521B\u5EFA\u3002",
@@ -52165,6 +52177,14 @@ var zh = {
   "project.cut": "\u526A\u5207",
   "project.copy": "\u590D\u5236",
   "project.paste": "\u7C98\u8D34",
+  "project.pasteInto": "\u7C98\u8D34\u5230 {folder}",
+  "project.pasting": "\u6B63\u5728\u590D\u5236\u2026",
+  "project.pasteRefused": "\u7C98\u8D34\u88AB\u62D2\u7EDD",
+  "project.pasteIntoItself": "\u6587\u4EF6\u5939\u4E0D\u80FD\u7C98\u8D34\u5230\u5B83\u81EA\u5DF1\u91CC\u9762\u3002",
+  "project.pasteIntoSubfolder": "\u6587\u4EF6\u5939\u4E0D\u80FD\u7C98\u8D34\u5230\u5B83\u81EA\u5DF1\u7684\u5B50\u6587\u4EF6\u5939\u91CC\u9762\u3002",
+  "project.pastePartial": "\u590D\u5236\u6CA1\u6709\u5B8C\u6210",
+  "project.pasteMissing": "\u6709 {count} \u4E2A\u6761\u76EE\u6CA1\u6709\u590D\u5236\u3002",
+  "project.pasteBudget": "\u590D\u5236\u5728\u672C\u6B21\u7C98\u8D34\u7684\u4E0A\u9650\u5904\u505C\u4E0B\u4E86\u3002",
   "project.duplicate": "\u521B\u5EFA\u526F\u672C",
   "project.delete": "\u5220\u9664",
   "project.rename": "\u91CD\u547D\u540D",
@@ -52305,6 +52325,12 @@ var zh = {
   "git.authorFilter": "\u4F5C\u8005",
   "git.queryFilter": "\u6D88\u606F\u5305\u542B",
   "git.allBranches": "\u6240\u6709\u5206\u652F",
+  "git.scopeLabel": "\u5206\u652F\u8303\u56F4",
+  "git.scopeCurrent": "\u5F53\u524D\u5206\u652F",
+  "git.scopeAll": "\u6240\u6709\u5206\u652F",
+  "git.filterLabel": "\u7B5B\u9009",
+  "git.clearFilters": "\u6E05\u9664\u7B5B\u9009",
+  "git.noMatches": "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u63D0\u4EA4",
   "git.currentBranchOnly": "\u4EC5\u5F53\u524D\u5206\u652F",
   "git.noCommits": "\u6CA1\u6709\u63D0\u4EA4",
   "git.loadMore": "\u52A0\u8F7D\u66F4\u591A",
@@ -52521,6 +52547,12 @@ function wsUrl(path2) {
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url;
 }
+function rawUrl(root, path2) {
+  const url = httpUrl("ide-workbench/raw");
+  url.searchParams.set("root", String(root ?? ""));
+  url.searchParams.set("path", String(path2 ?? ""));
+  return url;
+}
 var ApiError = class extends Error {
   constructor(code2, message) {
     super(message);
@@ -52538,7 +52570,7 @@ async function call(method, payload = {}, signal) {
       signal
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if (error !== null && error !== void 0 && error.name === "AbortError") throw error;
     throw new ApiError("network", error instanceof Error ? error.message : String(error));
   }
   let parsed = null;
@@ -53196,6 +53228,65 @@ function shouldContinueIde(ctx, previous, next, visibleSession) {
   if (previous === "" || next === "" || previous === next) return false;
   if (visibleSession !== previous) return false;
   return sameWorkspace(ctx, previous, next);
+}
+
+// src/client/tree-clipboard.js
+function parentOf(path2) {
+  if (typeof path2 !== "string" || path2 === "") return "";
+  const index = Math.max(path2.lastIndexOf("/"), path2.lastIndexOf("\\"));
+  return index <= 0 ? path2 : path2.slice(0, index);
+}
+function isUnder(parent, child) {
+  if (typeof parent !== "string" || parent === "") return false;
+  if (typeof child !== "string" || child === "") return false;
+  if (child === parent) return true;
+  const separator = parent.includes("\\") ? "\\" : "/";
+  return child.startsWith(`${parent}${separator}`);
+}
+function commonParentOf(paths) {
+  const list = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
+  if (list.length === 0) return "";
+  let candidate = parentOf(list[0]);
+  for (const path2 of list.slice(1)) {
+    while (candidate !== "" && !isUnder(candidate, path2)) {
+      const next = parentOf(candidate);
+      if (next === candidate) break;
+      candidate = next;
+    }
+  }
+  return candidate;
+}
+function pasteTargetOf(root, selected, menuEntry, focusedEntry) {
+  const entries = (Array.isArray(selected) ? selected : []).filter((entry) => entry !== null && entry !== void 0);
+  if (entries.length === 1) {
+    const entry = entries[0];
+    if (entry.isDir === true) return entry.path;
+    return parentOf(entry.path);
+  }
+  if (entries.length > 1) {
+    const common = commonParentOf(entries.map((entry) => entry.path));
+    if (common !== "") return common;
+  }
+  if (menuEntry !== null && menuEntry !== void 0) {
+    if (menuEntry.isDir === true) return menuEntry.path;
+    return parentOf(menuEntry.path);
+  }
+  if (focusedEntry !== null && focusedEntry !== void 0) {
+    if (focusedEntry.isDir === true) return focusedEntry.path;
+    return parentOf(focusedEntry.path);
+  }
+  return typeof root === "string" ? root : "";
+}
+function pasteRefusal(entries, target) {
+  if (typeof target !== "string" || target === "") return "no-target";
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (entry === null || entry === void 0) continue;
+    const path2 = entry.path;
+    if (typeof path2 !== "string" || path2 === "") continue;
+    if (path2 === target) return "self";
+    if (entry.isDir === true && isUnder(path2, target)) return "inside";
+  }
+  return null;
 }
 
 // src/client/languages.js
@@ -57073,6 +57164,7 @@ function createEditorSeamForStore(store) {
 // src/client/store.js
 var sequence = 0;
 var RESTORED_TREE_DELAY_MS = 200;
+var EXPAND_CONCURRENCY = 8;
 if (false) {
   window.__iwbPerf = perfCounters;
 }
@@ -57100,6 +57192,13 @@ function joinPath(root, rel) {
 }
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
+}
+function isAborted(error) {
+  if (error === null || error === void 0) return false;
+  const name2 = error.name;
+  if (name2 === "AbortError") return true;
+  const code2 = error.code;
+  return code2 === "cancelled" || code2 === "ABORT_ERR";
 }
 function sameGitStatus(previous, next) {
   if (previous === null || typeof previous !== "object") return false;
@@ -57226,6 +57325,8 @@ function initialState() {
     selectedPaths: /* @__PURE__ */ new Set(),
     anchorPath: "",
     clipboard: null,
+    /** True while a paste is copying in the host - the tree says so. */
+    pasteBusy: false,
     filter: "",
     /** 'files' = whole-project quick locate; 'tree' = expanded-tree filter. */
     filterMode: "tree",
@@ -57339,6 +57440,8 @@ var WorkbenchStore = class {
     this.pollTimer = null;
     this.restoredTimer = null;
     this.polling = false;
+    this.pasteController = null;
+    this.statusRevision = 0;
     this.persist = debounce(() => {
       void this.#persist();
     }, 700);
@@ -57380,7 +57483,7 @@ var WorkbenchStore = class {
    */
   #onVisibilityChange = () => {
     if (typeof document === "undefined" || document.visibilityState !== "visible") return;
-    void this.pollStatus();
+    void this.pollStatus({ fresh: true });
   };
   getSnapshot = () => this.state;
   /**
@@ -58199,10 +58302,10 @@ var WorkbenchStore = class {
     this.visibilityBound = false;
     this.deactivate();
   }
-  async pollStatus() {
+  async pollStatus(options = {}) {
     if (!this.state.active || this.state.root === "" || this.polling) return;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-    await this.refreshStatus({ silent: true });
+    await this.refreshStatus({ silent: true, ...options });
     await this.#checkActiveFileOnDisk();
   }
   /**
@@ -58253,11 +58356,21 @@ var WorkbenchStore = class {
     if (this.polling && options.silent !== false && options.force !== true) return;
     this.polling = true;
     const root = this.gitRoot;
+    const background = options.silent === true && options.force !== true && options.fresh !== true;
     try {
-      const status = await call2("git.status", { root, numstat: this.#wantsNumstat() });
+      const status = await call2("git.status", {
+        root,
+        numstat: this.#wantsNumstat(),
+        ...background ? { since: this.statusRevision } : {}
+      });
       if (this.gitRoot !== root) return;
+      if (status !== null && typeof status === "object" && status.unchanged === true) {
+        if (typeof status.revision === "number") this.statusRevision = status.revision;
+        return;
+      }
       const previous = this.state.status;
       const changed = !sameGitStatus(previous, status);
+      if (typeof status.revision === "number") this.statusRevision = status.revision;
       this.set({
         status: changed ? status : previous,
         statusError: null,
@@ -58460,7 +58573,13 @@ var WorkbenchStore = class {
    * The tree search has to show the whole chain of a target file, from the
    * project root down to the folder of the file. The `expanded` set is
    * committed once - so the panel re-renders one time and not once per level -
-   * and the folders themselves are then loaded in parallel.
+   * and the folders themselves are then loaded with a BOUNDED number of
+   * requests at a time.
+   *
+   * The bound matters: a common prefix can match hundreds of files, and every
+   * match may live in its own folder - hundreds of parallel directory
+   * listings would drown the host (and the tree) on every keystroke
+   * (PRD-v8 FIND-05). No folder is dropped: they are loaded in batches.
    * @param {string[]} dirs the absolute paths of the folders
    * @returns {Promise<void>}
    */
@@ -58478,7 +58597,34 @@ var WorkbenchStore = class {
     if (pending.length === 0) return;
     this.set({ expanded });
     this.persist();
-    await Promise.all(pending.map((path2) => this.loadDir(path2)));
+    await this.#loadDirs(pending);
+  }
+  /**
+   * Load a few directories at a time.
+   *
+   * The tree search may hand over hundreds of folders; the host may only be
+   * asked for a few of them at the same time.
+   * @param {string[]} paths the absolute paths of the folders
+   * @returns {Promise<void>}
+   */
+  async #loadDirs(paths) {
+    const limit = EXPAND_CONCURRENCY;
+    let cursor = 0;
+    const workers = [];
+    const size = Math.max(1, Math.min(limit, paths.length));
+    for (let worker = 0; worker < size; worker += 1) {
+      workers.push((async () => {
+        while (cursor < paths.length) {
+          const index = cursor;
+          cursor += 1;
+          try {
+            await this.loadDir(paths[index]);
+          } catch {
+          }
+        }
+      })());
+    }
+    await Promise.all(workers);
   }
   setFilterMode(mode) {
     const value = mode === "tree" ? "tree" : "files";
@@ -58699,18 +58845,84 @@ var WorkbenchStore = class {
     if (base2 === "" || wide === base2) return "";
     return wide.startsWith(`${base2}/`) ? wide.slice(base2.length + 1) : wide;
   }
+  /**
+   * The URL of the raw bytes of one file of the project.
+   *
+   * The path travels RELATIVE to the root: the host resolves the root
+   * itself, and a root that the host canonicalised (a symbolic link, a
+   * different case on Windows) would refuse an absolute path.
+   *
+   * The bytes themselves never reach the store: they live in the renderer
+   * while the document is open, and they are gone when the tab closes
+   * (PRD-v8 PDF-05).
+   *
+   * @param {string} path the absolute path of the file
+   * @returns {string} the absolute URL, '' when there is no project
+   */
+  rawUrl(path2) {
+    const root = this.state.root;
+    if (typeof root !== "string" || root === "") return "";
+    const rel = this.relOf(path2);
+    if (rel === "") return "";
+    return rawUrl(root, rel).href;
+  }
   // ── file operations (JetBrains tree) ──────────────────────────────────
   setFileClipboard(paths, cut) {
     const list = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
     this.set({ clipboard: list.length === 0 ? null : { paths: list, cut: cut === true } });
     if (list.length > 0) this.toast("success", this.t(cut === true ? "project.cut" : "project.copy"), `${list.length}`);
   }
-  async pasteEntries(target) {
+  /**
+   * Paste the clipboard into a folder.
+   *
+   * The destination is decided by the panel (see `tree-clipboard.js`): the
+   * folder the user selected, the folder the menu was opened on, the project
+   * root. This method only carries it out - and it refuses the two pastes
+   * that cannot work: a folder into itself, and a folder into one of its
+   * own subfolders. The user learns it at once, before anything is written.
+   *
+   * The copy of a big folder runs in the host and may be long, so the store
+   * says that it is busy (`pasteBusy`) and can stop the copy
+   * (`cancelPaste`): the tree has to stay alive, and the user has to be able
+   * to say "no".
+   *
+   * @param {string} target the absolute path of the folder
+   * @param {{ signal?: AbortSignal, entries?: Array<{ path: string, isDir?: boolean }> }} [options]
+   * @returns {Promise<boolean>} true when the entries were pasted
+   */
+  async pasteEntries(target, options = {}) {
     const clipboard = this.state.clipboard;
-    if (clipboard === null || clipboard === void 0) return;
+    if (clipboard === null || clipboard === void 0) return false;
+    const list = Array.isArray(clipboard.paths) ? clipboard.paths : [];
+    if (list.length === 0) return false;
+    const entries = Array.isArray(options.entries) && options.entries.length > 0 ? options.entries : list.map((path2) => ({ path: path2, isDir: this.state.dirs.has(path2) }));
+    const refusal = pasteRefusal(entries, target);
+    if (refusal !== null) {
+      this.toast("error", this.t("project.pasteRefused"), this.t(
+        refusal === "inside" ? "project.pasteIntoSubfolder" : "project.pasteIntoItself"
+      ));
+      return false;
+    }
     const moved = clipboard.cut === true;
-    await this.moveEntries(clipboard.paths, target, !moved);
-    if (moved) this.set({ clipboard: null });
+    const controller = new AbortController();
+    if (options.signal !== void 0 && options.signal !== null) {
+      if (options.signal.aborted === true) controller.abort();
+      else options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+    this.pasteController = controller;
+    this.set({ pasteBusy: true });
+    try {
+      const done = await this.moveEntries(list, target, !moved, { signal: controller.signal });
+      if (moved && done === true) this.set({ clipboard: null });
+      return done;
+    } finally {
+      this.pasteController = null;
+      this.set({ pasteBusy: false });
+    }
+  }
+  /** Stop the paste that is running. */
+  cancelPaste() {
+    this.pasteController?.abort();
   }
   /**
    * Create one file or directory in the project tree.
@@ -58828,10 +59040,21 @@ var WorkbenchStore = class {
   /**
    * Move or copy entries into a directory. Name conflicts auto-rename
    * (`name-copy`), matching JetBrains' duplicate behaviour.
+   *
+   * The copy of a big folder runs in the host and may be long: the panel
+   * shows what is going on and can stop it, and the answer reports what
+   * the copy did NOT do (a budget that ran out, an entry that could not be
+   * read) - a truncated copy is reported, never presented as a whole one.
+   *
+   * @param {string[]} paths the absolute paths of the entries
+   * @param {string} target the absolute path of the target folder
+   * @param {boolean} [copy] true to copy instead of move
+   * @param {{ signal?: AbortSignal }} [options]
+   * @returns {Promise<boolean>} true when at least one entry was moved
    */
-  async moveEntries(paths, target, copy = false) {
+  async moveEntries(paths, target, copy = false, options = {}) {
     const list = Array.isArray(paths) ? paths.filter((path2) => typeof path2 === "string") : [];
-    if (list.length === 0 || typeof target !== "string" || target === "") return;
+    if (list.length === 0 || typeof target !== "string" || target === "") return false;
     try {
       const result = await call2("fs.move", {
         root: this.state.root,
@@ -58839,7 +59062,7 @@ var WorkbenchStore = class {
         target,
         copy,
         conflict: "rename"
-      });
+      }, options.signal);
       const done = result.results.filter((item) => item.ok === true);
       const failed = result.results.filter((item) => item.ok !== true && item.skipped !== true);
       if (done.length > 0) {
@@ -58854,16 +59077,30 @@ var WorkbenchStore = class {
         }
         const first = this.#absoluteOf(done[0].target);
         this.setSelectedPath(first);
+        this.set({ fileIndexRoot: "" });
         await this.refreshStatus();
+      }
+      const broken = done.flatMap((item) => Array.isArray(item.failures) ? item.failures : []);
+      if (broken.length > 0) {
+        const count2 = this.t("project.pasteMissing").replace("{count}", String(broken.length));
+        this.toast("error", this.t("project.pastePartial"), [
+          count2,
+          ...broken.slice(0, 5).map((item) => `${item.path}: ${item.message ?? ""}`)
+        ].join("\n"));
+      } else if (result.truncated === true) {
+        this.toast("error", this.t("project.pastePartial"), this.t("project.pasteBudget"));
       }
       if (failed.length > 0) {
         this.toast("error", this.t("common.error"), failed.map((item) => `${item.path}: ${item.message ?? item.code}`).join("\n"));
-      } else {
+      } else if (broken.length === 0 && result.truncated !== true) {
         this.toast("success", this.t("common.success"), `${done.length}`);
       }
       this.persist();
+      return done.length > 0;
     } catch (error) {
+      if (isAborted(error)) return false;
       this.toast("error", this.t("common.error"), errorMessage(error));
+      return false;
     }
   }
   /** Confirmation then deletion (recycle bin when enabled). */
@@ -59949,15 +60186,30 @@ ${outcome.output ?? ""}`.trim();
     return `git push --set-upstream origin ${name2}`;
   }
   // ── git window ────────────────────────────────────────────────────────
+  /**
+   * Change the filters of the Git window.
+   *
+   * The branch scope, the author, the message and the date are applied on the
+   * client (see `git-layout.js`): the rows that are already loaded carry the
+   * refs, the author and the date of every commit, so answering them needs
+   * no subprocess. Only the path filter reaches git, because only git can
+   * limit the history of a path - and it is the only filter that reloads the
+   * log. (Reloading on every filter change was the "switching the branch
+   * lags" defect: a `git log` over the whole repository per keystroke.)
+   * @param {{ branch?: string, author?: string, query?: string, since?: string, path?: string }} patch
+   */
   setGitFilters(patch) {
+    const previous = this.state.git.filters;
+    const next = { ...previous, ...patch };
+    const pathChanged = (next.path ?? "") !== (previous.path ?? "");
     this.patch("git", {
-      filters: { ...this.state.git.filters, ...patch },
-      selectedHash: null,
-      detail: null,
-      detailHash: null,
-      detailLoading: false
+      filters: next,
+      // A reload replaces the rows, so the selection and the Drawer would
+      // point at a commit that may not be in the new page. A client-side
+      // filter keeps them: the Drawer stays open on the commit it shows.
+      ...pathChanged ? { selectedHash: null, detail: null, detailHash: null, detailLoading: false } : {}
     });
-    void this.loadLog(true);
+    if (pathChanged) void this.loadLog(true);
   }
   /** Project → Git | Show History: scope the log to one file or folder. */
   showHistory(rel) {
@@ -59997,14 +60249,22 @@ ${outcome.output ?? ""}`.trim();
         root: this.gitRoot,
         skip,
         count: pageSize,
-        ...this.state.git.filters
+        // Only the path filter is a server-side one - git alone can limit the
+        // history of a path. The other filters (branch scope, author, message,
+        // date) are answered from the loaded rows on the client, so the log
+        // is fetched once and filtered many times.
+        path: this.state.git.filters.path ?? ""
       });
       if (token !== this.gitRequestToken) return;
-      const commits = reset ? result.commits : [...this.state.git.commits, ...result.commits];
+      const known = new Set(this.state.git.commits.map((commit) => commit.hash));
+      const fresh = result.commits.filter((commit) => !known.has(commit.hash));
+      const commits = reset ? result.commits : [...this.state.git.commits, ...fresh];
       const selectedStillVisible = this.state.git.selectedHash === null || commits.some((commit) => commit.hash === this.state.git.selectedHash);
       this.patch("git", {
         commits,
-        skip: skip + result.commits.length,
+        // The host skips a page per window, so the cursor advances by the page
+        // size and not by the number of rows the page happened to hold.
+        skip: skip + pageSize,
         hasMore: result.commits.length >= pageSize,
         loading: false,
         error: null,
@@ -60308,9 +60568,9 @@ ${outcome.output ?? ""}`.trim();
       }
     }
   }
-  toggleTool(tool) {
-    if (tool === "project" || tool === "commit") {
-      const next = this.state.layout.left === tool ? null : tool;
+  toggleTool(tool2) {
+    if (tool2 === "project" || tool2 === "commit") {
+      const next = this.state.layout.left === tool2 ? null : tool2;
       const layout = {
         ...this.state.layout,
         left: next,
@@ -60321,7 +60581,7 @@ ${outcome.output ?? ""}`.trim();
       if (layout.left === "commit") this.#focusCommitLater();
       if (layout.left === "project") this.set({ treeFocusTick: (this.state.treeFocusTick ?? 0) + 1 });
     } else {
-      const next = this.state.layout.bottom === tool ? null : tool;
+      const next = this.state.layout.bottom === tool2 ? null : tool2;
       if (next === "terminal" && this.state.terminal.sessions.length === 0) {
         this.addTerminal();
         return;
@@ -60337,26 +60597,26 @@ ${outcome.output ?? ""}`.trim();
     }
     this.persist();
   }
-  showTool(tool) {
-    if (tool === "project" || tool === "commit") {
+  showTool(tool2) {
+    if (tool2 === "project" || tool2 === "commit") {
       this.set({
         layout: {
           ...this.state.layout,
-          left: tool,
+          left: tool2,
           ...this.state.stacked === true ? { bottom: null } : {}
         }
       });
       this.lastToolGroup = "left";
-      if (tool === "commit") this.#focusCommitLater();
-      if (tool === "project") this.set({ treeFocusTick: (this.state.treeFocusTick ?? 0) + 1 });
+      if (tool2 === "commit") this.#focusCommitLater();
+      if (tool2 === "project") this.set({ treeFocusTick: (this.state.treeFocusTick ?? 0) + 1 });
       this.persist();
-    } else if (tool === "terminal" && this.state.terminal.sessions.length === 0) {
+    } else if (tool2 === "terminal" && this.state.terminal.sessions.length === 0) {
       this.addTerminal();
     } else {
       this.set({
         layout: {
           ...this.state.layout,
-          bottom: tool,
+          bottom: tool2,
           ...this.state.stacked === true ? { left: null } : {}
         }
       });
@@ -60627,44 +60887,124 @@ function useHostPrimitives() {
 
 // src/client/icons.jsx
 var S = { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 16 16", width: 16, height: 16, "aria-hidden": true };
+var T = { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 20 20", width: 20, height: 20, "aria-hidden": true };
 function svg2(children, props = {}) {
   return import_react3.default.createElement("svg", { ...S, ...props }, children);
+}
+function tool(children, props = {}) {
+  return import_react3.default.createElement("svg", { ...T, ...props }, children);
 }
 function path(d2, extra = {}) {
   return import_react3.default.createElement("path", { key: extra.key ?? "p", d: d2, fill: "none", stroke: "currentColor", strokeWidth: 1.35, strokeLinecap: "round", strokeLinejoin: "round", ...extra });
 }
+function toolPath(d2, extra = {}) {
+  return import_react3.default.createElement("path", {
+    key: extra.key ?? "p",
+    d: d2,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.55,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    ...extra
+  });
+}
+function toolDot(cx, cy, r2, key) {
+  return import_react3.default.createElement("circle", { key, cx, cy, r: r2, fill: "currentColor", stroke: "none" });
+}
 function IconProject(props = {}) {
-  return svg2([
-    import_react3.default.createElement("path", { key: "a", d: "M1.8 4.2h4l1.3 1.6h7.1v6.9H1.8z", fill: "none", stroke: "currentColor", strokeWidth: 1.35, strokeLinejoin: "round" }),
-    path("M1.8 7.2h12.4", { key: "b" }),
-    path("M4.4 10h2.2", { key: "c" })
+  return tool([
+    toolPath("M5 5.2v9.2", { key: "spine" }),
+    toolPath("M5 8.4h3.9", { key: "arm1" }),
+    toolPath("M5 13.2h3.9", { key: "arm2" }),
+    toolDot(11.5, 8.4, 2.3, "leaf1"),
+    toolDot(11.5, 13.2, 2.3, "leaf2")
   ], props);
 }
 function IconCommit(props = {}) {
-  return svg2([
-    import_react3.default.createElement("circle", { key: "a", cx: 4, cy: 8, r: 1.8, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M5.8 8h7.6", { key: "b" }),
-    import_react3.default.createElement("circle", { key: "c", cx: 11.4, cy: 8, r: 1.8, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M8.8 6.6l1.1 1.1 2-2.2", { key: "d" })
+  return tool([
+    import_react3.default.createElement("rect", {
+      key: "sheet",
+      x: 2.8,
+      y: 3.6,
+      width: 14.4,
+      height: 12.8,
+      rx: 3,
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: 1.55
+    }),
+    toolPath("M10 3.6v12.8", { key: "split" }),
+    // The mark of the change: SOLID, because an outline of three pixels is
+    // invisible.
+    import_react3.default.createElement("rect", {
+      key: "mark",
+      x: 5.1,
+      y: 7.5,
+      width: 3.6,
+      height: 2.2,
+      rx: 1.1,
+      fill: "currentColor",
+      stroke: "none"
+    })
   ], props);
 }
 function IconGit(props = {}) {
-  return svg2([
-    import_react3.default.createElement("circle", { key: "a", cx: 8, cy: 3.2, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M8 4.9v3", { key: "b" }),
-    import_react3.default.createElement("circle", { key: "c", cx: 3.6, cy: 11.3, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    import_react3.default.createElement("circle", { key: "d", cx: 12.4, cy: 11.3, r: 1.7, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M8 7.9L4.2 9.8", { key: "e" }),
-    path("M8 7.9l3.8 1.9", { key: "f" }),
-    path("M8 7.9v0", { key: "g" })
+  return tool([
+    toolPath("M5.8 6.8v6.4", { key: "spine" }),
+    toolPath("M5.8 12.2c0-3 2.2-4.6 4.6-4.6h1.6", { key: "branch" }),
+    toolDot(5.8, 4.6, 2.2, "head"),
+    toolDot(5.8, 15.4, 2.2, "tail"),
+    toolDot(14.2, 7.6, 2.2, "side")
   ], props);
 }
 function IconTerminal(props = {}) {
-  return svg2([
-    import_react3.default.createElement("rect", { key: "a", x: 1.6, y: 2.4, width: 12.8, height: 11.2, rx: 1.6, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
-    path("M4.4 6.2L6.6 8l-2.2 1.8", { key: "b" }),
-    path("M8.7 10h2.9", { key: "c" })
+  return tool([
+    import_react3.default.createElement("rect", {
+      key: "screen",
+      x: 2.4,
+      y: 3.4,
+      width: 15.2,
+      height: 13.2,
+      rx: 3.2,
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: 1.55
+    }),
+    toolPath("M5.8 8l3.2 3.2-3.2 3.2", { key: "prompt" }),
+    toolPath("M11.6 13.6h4.4", { key: "cursor" })
   ], props);
+}
+function WorkbenchMark(props = {}) {
+  const size = props.size ?? 56;
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    "aria-hidden": true,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.3,
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  };
+  return import_react3.default.createElement(
+    "svg",
+    { ...common, ...props, width: props.width ?? size, height: props.height ?? size },
+    import_react3.default.createElement("rect", { key: "frame", x: 2.6, y: 2.6, width: 18.8, height: 18.8, rx: 5 }),
+    import_react3.default.createElement("path", { key: "v", d: "M12 2.6v18.8" }),
+    import_react3.default.createElement("path", { key: "h", d: "M2.6 12h18.8" }),
+    import_react3.default.createElement("rect", {
+      key: "lit",
+      x: 4.8,
+      y: 4.8,
+      width: 5.4,
+      height: 5.4,
+      rx: 1.8,
+      fill: "currentColor",
+      stroke: "none"
+    })
+  );
 }
 function IconChat(props = {}) {
   return svg2([
@@ -60688,6 +61028,30 @@ function IconRefresh(props = {}) {
 }
 function IconClose(props = {}) {
   return svg2([path("M3.6 3.6l8.8 8.8M12.4 3.6l-8.8 8.8", props)]);
+}
+function IconLocate(props = {}) {
+  return svg2([
+    import_react3.default.createElement("circle", { key: "a", cx: 8, cy: 8, r: 3.1, fill: "none", stroke: "currentColor", strokeWidth: 1.35 }),
+    path("M8 1.5v2.4", { key: "b" }),
+    path("M8 12.1v2.4", { key: "c" }),
+    path("M1.5 8h2.4", { key: "d" }),
+    path("M12.1 8h2.4", { key: "e" })
+  ], props);
+}
+function IconFile(props = {}) {
+  return svg2([
+    path("M4 2.4h5l3 3v8.2H4z", { key: "a" }),
+    path("M9 2.4v3h3", { key: "b" })
+  ], props);
+}
+function IconFolder(props = {}) {
+  return svg2([path("M1.7 4.1h4.2l1.3 1.6h7.1v6.9H1.7z", { key: "a" })], props);
+}
+function IconCollapseTree(props = {}) {
+  return svg2([
+    path("M1.9 12.4V4.2h4.2l1.3 1.8h6.7v6.4z", { key: "a" }),
+    path("M5.6 10.6L8 8.2l2.4 2.4", { key: "b" })
+  ], props);
 }
 function IconPlus(props = {}) {
   return svg2([path("M8 3v10M3 8h10", props)]);
@@ -60735,6 +61099,9 @@ function IconWarning(props = {}) {
     path("M8 6.4v3.1", { key: "b" }),
     import_react3.default.createElement("circle", { key: "c", cx: 8, cy: 11.6, r: 0.7, fill: "currentColor", stroke: "none" })
   ], props);
+}
+function IconCheck(props = {}) {
+  return svg2([path("M2.8 8.4l3.2 3.2 7.2-7.4", props)]);
 }
 function IconMore(props = {}) {
   return svg2([
@@ -60969,11 +61336,19 @@ function ContextMenu({ x: x2, y: y2, items, onClose, depth: depth2 = 0, extra = 
           }
         }
       },
-      import_react4.default.createElement("span", { className: "iwb-menu-check" }, item.checked === true ? "\u2713" : ""),
+      import_react4.default.createElement(
+        "span",
+        { className: "iwb-menu-check" },
+        item.checked === true ? import_react4.default.createElement(IconCheck, { width: 12, height: 12 }) : ""
+      ),
       import_react4.default.createElement("span", { className: "iwb-menu-icon" }, item.icon ?? null),
       import_react4.default.createElement("span", { className: "iwb-menu-text" }, item.text),
       import_react4.default.createElement("span", { className: "iwb-menu-shortcut" }, item.shortcut ?? ""),
-      import_react4.default.createElement("span", { className: "iwb-menu-arrow" }, hasSubmenu ? "\u25B8" : "")
+      import_react4.default.createElement(
+        "span",
+        { className: "iwb-menu-arrow" },
+        hasSubmenu ? import_react4.default.createElement(ChevronRight, { size: 10 }) : ""
+      )
     );
     if (!hasSubmenu || !open || subAnchor === null) return row;
     return import_react4.default.createElement(
@@ -61121,6 +61496,8 @@ function ShortcutCapture({
   (0, import_react4.useEffect)(() => {
     if (active === false) setArmed(false);
   }, [active]);
+  const shown = armed ? pressText : value;
+  const name2 = armed ? pressText : typeof value === "string" && value !== "" ? `${value} \xB7 ${hint}` : hint;
   return import_react4.default.createElement("button", {
     type: "button",
     className: `iwb-settings-shortcut ${armed ? "iwb-capturing" : ""}`,
@@ -61129,8 +61506,8 @@ function ShortcutCapture({
       onActivate?.(true);
     },
     title: hint,
-    "aria-label": hint
-  }, armed ? pressText : value);
+    "aria-label": name2
+  }, shown);
 }
 function Kbd({ children }) {
   return import_react4.default.createElement("span", { className: "iwb-kbd" }, children);
@@ -61522,12 +61899,17 @@ var SHORTCUT_FALLBACK = {
   duplicate: "F5",
   move: "F6",
   synchronize: "Ctrl+Alt+Y",
-  compare: "Ctrl+D",
   findInFiles: "Ctrl+Shift+R",
-  quickOpen: "Ctrl+Shift+N",
-  openEntry: "Enter"
+  quickOpen: "Ctrl+Shift+N"
 };
-function parentOf(path2) {
+function interpolate(text, values2) {
+  let out = typeof text === "string" ? text : "";
+  for (const [name2, value] of Object.entries(values2)) {
+    out = out.replaceAll(`{${name2}}`, String(value));
+  }
+  return out;
+}
+function parentOf2(path2) {
   const index = Math.max(path2.lastIndexOf("/"), path2.lastIndexOf("\\"));
   return index <= 0 ? path2 : path2.slice(0, index);
 }
@@ -61649,10 +62031,10 @@ function flatten2(state, showIgnored, ignored) {
 function visibleAncestorOf(path2, paths, root) {
   if (typeof path2 !== "string" || path2 === "") return null;
   const known = paths instanceof Set ? paths : new Set(Array.isArray(paths) ? paths : []);
-  let current = parentOf(path2);
-  while (current !== "" && current !== root && current !== parentOf(current)) {
+  let current = parentOf2(path2);
+  while (current !== "" && current !== root && current !== parentOf2(current)) {
     if (known.has(current)) return current;
-    current = parentOf(current);
+    current = parentOf2(current);
   }
   return null;
 }
@@ -61713,6 +62095,10 @@ function resolveEntryPath(value) {
     if (part === "." || part === "..") return { ok: false, detail: "the path leaves the project root" };
   }
   return { ok: true, path: parts.join("/"), name: parts[parts.length - 1] };
+}
+function newEntryKindFor(event, lastKind) {
+  if (event !== null && event !== void 0 && event.shiftKey === true) return true;
+  return lastKind === true;
 }
 function newEntryDialogState(parent, isDir, root) {
   const rel = relativePathWithin(root, parent);
@@ -61938,6 +62324,7 @@ function NewEntryDialog({
   onPathChange,
   onPathFocus,
   onTemplateChange,
+  onKindChange,
   onSubmit,
   onCancel
 }) {
@@ -61956,6 +62343,37 @@ function NewEntryDialog({
         "h2",
         { className: "iwb-new-entry-title" },
         dialog.isDir ? t3("project.newDir") : t3("project.newFile")
+      ),
+      // PRD-v8 NEW-01: the kind of the entry is a SWITCH, not a guess.
+      //
+      // The shortcut opened a dialog that could only create a file, so
+      // "I wanted a directory" ended up as a file with a directory's name -
+      // and the context menu offered two entries that both claimed the same
+      // shortcut. The kind is now the first thing the dialog says, and it can
+      // be changed without leaving the dialog.
+      import_react5.default.createElement(
+        "div",
+        {
+          className: "iwb-new-entry-kind",
+          role: "radiogroup",
+          "aria-label": t3("project.kindLabel")
+        },
+        import_react5.default.createElement("button", {
+          type: "button",
+          role: "radio",
+          "aria-checked": dialog.isDir ? "false" : "true",
+          className: dialog.isDir ? "" : "iwb-on",
+          title: t3("project.newFile"),
+          onClick: () => onKindChange(false)
+        }, import_react5.default.createElement(IconFile, { width: 14, height: 14 }), t3("project.kindFile")),
+        import_react5.default.createElement("button", {
+          type: "button",
+          role: "radio",
+          "aria-checked": dialog.isDir ? "true" : "false",
+          className: dialog.isDir ? "iwb-on" : "",
+          title: t3("project.newDir"),
+          onClick: () => onKindChange(true)
+        }, import_react5.default.createElement(IconFolder, { width: 14, height: 14 }), t3("project.kindDir"))
       ),
       // The frame of the target folder: it comes before the fields, because
       // it says WHERE the entry lands.
@@ -62083,6 +62501,9 @@ function projectSlice(state) {
     activeId: state.activeId,
     treeFocusTick: state.treeFocusTick,
     clipboard: state.clipboard,
+    // True while a paste is copying in the host: the tree has to say that
+    // it is busy, and to offer the cancel.
+    pasteBusy: state.pasteBusy === true,
     // The repository the git status belongs to (GIT-01): its keys are
     // repository-relative, the tree rows are project-relative.
     gitRepoRoot: state.gitRepoRoot
@@ -62287,9 +62708,14 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     }
     setRenaming({ path: entry.path, value: entry.name });
   };
+  const lastKindRef = (0, import_react5.useRef)(false);
   const beginNew = (parentPath2, isDir) => {
+    lastKindRef.current = isDir === true;
     setDialog(newEntryDialogState(parentPath2, isDir, slice.root));
   };
+  const onDialogKindChange = (0, import_react5.useCallback)((isDir) => {
+    setDialog((current) => current === null || current.kind !== "new" ? current : { ...current, isDir: isDir === true });
+  }, []);
   const onDialogNameChange = (0, import_react5.useCallback)((value) => {
     setDialog((current) => withDialogName(current, value));
   }, []);
@@ -62310,6 +62736,28 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const currentRel = currentEntry?.rel ?? "";
   const currentPaths = (0, import_react5.useMemo)(() => currentEntries.map((entry) => entry.path), [currentEntries]);
   const currentRels = (0, import_react5.useMemo)(() => currentEntries.map((entry) => entry.rel), [currentEntries]);
+  const focusedEntry = (0, import_react5.useMemo)(() => {
+    const path2 = slice.selectedPath;
+    if (typeof path2 !== "string" || path2 === "") return void 0;
+    const known = currentEntries.find((entry) => entry.path === path2);
+    if (known !== void 0) return known;
+    return { path: path2, isDir: slice.dirs.has(path2), name: baseName(path2), rel: path2 };
+  }, [currentEntries, slice.selectedPath, slice.dirs]);
+  const pasteTarget = (0, import_react5.useMemo)(
+    () => pasteTargetOf(slice.root, currentEntries, menu?.entry, focusedEntry),
+    [slice.root, currentEntries, menu?.entry, focusedEntry]
+  );
+  const clipboardEntries = (0, import_react5.useMemo)(() => {
+    const paths = Array.isArray(slice.clipboard?.paths) ? slice.clipboard.paths : [];
+    return paths.map((path2) => ({ path: path2, isDir: slice.dirs.has(path2) }));
+  }, [slice.clipboard, slice.dirs]);
+  const runPaste = (0, import_react5.useCallback)((target) => {
+    if (slice.clipboard === null || slice.clipboard === void 0) return;
+    void store.pasteEntries(target, { entries: clipboardEntries });
+  }, [store, slice.clipboard, clipboardEntries]);
+  const cancelPaste = (0, import_react5.useCallback)(() => {
+    store.cancelPaste();
+  }, [store]);
   (0, import_react5.useEffect)(() => {
     rowPathsRef.current = rowPaths;
     selectionRef.current = selection;
@@ -62319,8 +62767,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     if (menu === null) return [];
     const entry = menu.entry;
     const isDir = entry?.isDir === true;
-    const parentDir = entry === void 0 ? slice.root : isDir ? entry.path : parentOf(entry.path);
-    const pasteTarget = isDir ? entry.path : entry === void 0 ? slice.root : parentOf(entry.path);
+    const parentDir = entry === void 0 ? slice.root : isDir ? entry.path : parentOf2(entry.path);
     const shortcut = shortcutFor;
     const items = [
       { key: "quick-open", text: t3("quickOpen.title"), shortcut: shortcut("quickOpen"), action: () => store.openQuickOpen() },
@@ -62335,12 +62782,21 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
         }
       },
       null,
-      { key: "new-file", text: t3("project.newFile"), shortcut: "Alt+Insert", action: () => beginNew(parentDir, false) },
-      { key: "new-dir", text: t3("project.newDir"), shortcut: "Alt+Insert", action: () => beginNew(parentDir, true) },
+      { key: "new-file", text: t3("project.newFile"), shortcut: "Alt+Insert", icon: import_react5.default.createElement(IconFile, { width: 13, height: 13 }), action: () => beginNew(parentDir, false) },
+      { key: "new-dir", text: t3("project.newDir"), shortcut: "Alt+Shift+Insert", icon: import_react5.default.createElement(IconFolder, { width: 13, height: 13 }), action: () => beginNew(parentDir, true) },
       null,
       { key: "cut", text: t3("project.cut"), shortcut: shortcut("cut") || "Ctrl+X", disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, true) },
       { key: "copy", text: t3("project.copy"), shortcut: shortcut("copy") || "Ctrl+C", disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, false) },
-      { key: "paste", text: t3("project.paste"), shortcut: shortcut("paste") || "Ctrl+V", disabled: slice.clipboard === null, action: () => store.pasteEntries(pasteTarget) },
+      {
+        key: "paste",
+        text: t3("project.paste"),
+        shortcut: shortcut("paste") || "Ctrl+V",
+        disabled: slice.clipboard === null,
+        // The menu NAMES the folder the paste lands in: the user has to know
+        // where the entry will appear before it does.
+        title: interpolate(t3("project.pasteInto"), { folder: baseName(pasteTarget) || pasteTarget }),
+        action: () => runPaste(pasteTarget)
+      },
       null,
       { key: "duplicate", text: t3("project.duplicate"), shortcut: shortcut("duplicate"), disabled: currentPaths.length === 0, action: () => {
         void store.duplicateEntries(currentPaths);
@@ -62407,7 +62863,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       });
     }
     return items;
-  }, [menu, currentPaths.join("|"), currentRels.join("|"), shortcuts, slice.root, slice.gitRepoRoot, slice.status.isRepo, slice.clipboard]);
+  }, [menu, currentPaths.join("|"), currentRels.join("|"), shortcuts, slice.root, slice.gitRepoRoot, slice.status.isRepo, slice.clipboard, pasteTarget, runPaste]);
   const onRowClick = (0, import_react5.useCallback)((event, entry, quick) => {
     if (entry === void 0) return;
     scrollRef.current?.focus();
@@ -62473,8 +62929,8 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     if (event.altKey && key === "Insert") {
       event.preventDefault();
       const row = rows.find((item) => item.entry?.path === slice.selectedPath);
-      const parent = row === void 0 ? slice.root : row.entry.isDir ? row.entry.path : parentOf(row.entry.path);
-      beginNew(parent, false);
+      const parent = row === void 0 ? slice.root : row.entry.isDir ? row.entry.path : parentOf2(row.entry.path);
+      beginNew(parent, newEntryKindFor(event, lastKindRef.current));
       return;
     }
     if (event.ctrlKey && event.altKey && event.shiftKey && (key === "c" || key === "C")) {
@@ -62525,13 +62981,12 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       store.clearSelection();
       return;
     }
-    if ((event.ctrlKey || event.metaKey) && (key === "c" || key === "x" || key === "v")) {
+    if ((event.ctrlKey || event.metaKey) && (key === "c" || key === "C" || key === "x" || key === "X" || key === "v" || key === "V")) {
       event.preventDefault();
-      if (key === "v") {
-        const pasteTarget = currentEntry?.isDir === true ? currentEntry.path : slice.selectedPath === "" ? slice.root : parentOf(slice.selectedPath);
-        void store.pasteEntries(pasteTarget);
+      if (key === "v" || key === "V") {
+        runPaste(pasteTarget);
       } else {
-        store.setFileClipboard(currentPaths, key === "x");
+        store.setFileClipboard(currentPaths, key === "x" || key === "X");
       }
     }
   };
@@ -62742,21 +63197,34 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
         "aria-label": t3("project.locateFile"),
         disabled: !canLocate,
         onClick: onLocateFile
-      }, import_react5.default.createElement("span", { style: { fontSize: 15, lineHeight: 1 } }, "\u2316")),
-      import_react5.default.createElement("button", {
-        type: "button",
-        className: "iwb-iconbtn",
-        title: t3("project.newFile"),
-        onClick: () => beginNew(slice.root, false)
-      }, "+"),
+      }, import_react5.default.createElement(IconLocate, { width: 14, height: 14 })),
+      // PRD-v8 §4.1: the "new file" button is gone. It could only create ONE
+      // file, and only at the root of the project - a function the context
+      // menu (and Alt+Insert) covers better. A button that does one narrow
+      // thing does not earn a slot next to the ones that do everything.
       import_react5.default.createElement("button", {
         type: "button",
         className: "iwb-iconbtn",
         title: t3("common.refresh"),
+        "aria-label": t3("common.refresh"),
         onClick: () => {
           void store.sync();
         }
-      }, import_react5.default.createElement(IconRefresh, { width: 14, height: 14 }))
+      }, import_react5.default.createElement(IconRefresh, { width: 14, height: 14 })),
+      // Fold every folder of the tree (the IDE gesture of the Project
+      // window). The tree is one level deep afterwards, so the viewport
+      // goes back to the top - otherwise the reader looks at an empty box.
+      import_react5.default.createElement("button", {
+        type: "button",
+        className: "iwb-iconbtn",
+        title: t3("project.collapseAll"),
+        "aria-label": t3("project.collapseAll"),
+        onClick: () => {
+          store.collapseAll();
+          if (scrollRef.current !== null) scrollRef.current.scrollTop = 0;
+          setScrollTop(0);
+        }
+      }, import_react5.default.createElement(IconCollapseTree, { width: 14, height: 14 }))
     ),
     filterOpen || slice.filter !== "" || query !== "" ? import_react5.default.createElement(
       "div",
@@ -62800,6 +63268,18 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     filterMode === "tree" && searchActive && slice.fileIndexLoading !== true && slice.fileIndexError === null ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t3("project.filterTreeHint")) : null,
     searchActive && slice.fileIndexLoading === true ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t3("project.filterIndexing")) : null,
     searchActive && slice.fileIndexError !== null ? import_react5.default.createElement("div", { className: "iwb-filter-hint iwb-error-text" }, t3("project.filterError")) : null,
+    // The paste that is running: the copy of a big folder takes a while, and
+    // the user has to see that the tree is busy - and to be able to stop it.
+    slice.pasteBusy ? import_react5.default.createElement(
+      "div",
+      { className: "iwb-tree-busy" },
+      import_react5.default.createElement("span", { className: "iwb-tree-busy-label" }, t3("project.pasting")),
+      import_react5.default.createElement("button", {
+        type: "button",
+        className: "iwb-textbtn iwb-small",
+        onClick: cancelPaste
+      }, t3("common.cancel"))
+    ) : null,
     import_react5.default.createElement("div", {
       className: "iwb-panel-body iwb-tree",
       ref: scrollRef,
@@ -62820,6 +63300,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       onPathChange: onDialogPathChange,
       onPathFocus: onDialogPathFocus,
       onTemplateChange: (template) => setDialog((current) => current === null ? current : { ...current, template }),
+      onKindChange: onDialogKindChange,
       onSubmit: submitDialog,
       onCancel: () => setDialog(null)
     }) : null,
@@ -62863,7 +63344,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
 
 // src/client/CommitPanel.jsx
 var import_react6 = __toESM(require("react"), 1);
-function interpolate(text, values2) {
+function interpolate2(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -63245,7 +63726,7 @@ ${entries.length}`,
         className: "iwb-textbtn iwb-small",
         title: t3("commit.newChangelist"),
         onClick: () => setDialog({ kind: "changelist", name: "", paths: [] })
-      }, "+"),
+      }, import_react6.default.createElement(IconPlus, { width: 12, height: 12 })),
       activeList !== DEFAULT_CHANGELIST ? import_react6.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small iwb-danger",
@@ -63266,7 +63747,7 @@ ${entries.length}`,
             }
           ]
         )
-      }, "\xD7") : null,
+      }, import_react6.default.createElement(IconClose, { width: 12, height: 12 })) : null,
       import_react6.default.createElement("span", { className: "iwb-spacer" }),
       import_react6.default.createElement("button", {
         type: "button",
@@ -63298,7 +63779,7 @@ ${entries.length}`,
     slice.statusTruncated ? import_react6.default.createElement(
       "div",
       { className: "iwb-commit-hint" },
-      interpolate(t3("commit.statusTruncated"), { count: slice.statusLimit ?? 0 })
+      interpolate2(t3("commit.statusTruncated"), { count: slice.statusLimit ?? 0 })
     ) : null,
     menu !== null ? import_react6.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
     dialog !== null ? import_react6.default.createElement(
@@ -63470,6 +63951,77 @@ function gitLayout({ mainWidth = 0, configuredWidth = DRAWER_DEFAULT, drawerOpen
     tableWidth,
     tableNarrow: tableWidth > 0 && tableWidth < COLUMNS_BELOW
   };
+}
+var DAY_MS = 864e5;
+function gitDateMs(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\s*([+-])(\d{2}):?(\d{2}))?/.exec(String(value ?? "").trim());
+  if (match === null) return null;
+  const [, year, month, day, hour, minute, second, sign, offsetHour, offsetMinute] = match;
+  const offset = sign === void 0 ? 0 : (Number(offsetHour) * 60 + Number(offsetMinute)) * 6e4;
+  const utc = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+  return sign === "-" ? utc + offset : utc - offset;
+}
+function sinceCutoffMs(since, now) {
+  const match = /^(\d+)\s+days?\s+ago$/i.exec(String(since ?? "").trim());
+  if (match === null) return null;
+  return now - Number(match[1]) * DAY_MS;
+}
+function refNamesBranch(ref, branch) {
+  if (typeof ref !== "string" || ref === "" || branch === "") return false;
+  return ref === branch || ref === `HEAD -> ${branch}` || ref === `refs/heads/${branch}`;
+}
+function branchCommitHashes(commits, branch) {
+  const members = /* @__PURE__ */ new Set();
+  if (typeof branch !== "string" || branch === "") return members;
+  const byHash = /* @__PURE__ */ new Map();
+  let tip = null;
+  for (const commit of commits) {
+    byHash.set(commit.hash, commit);
+    if (tip === null && (commit.refs ?? []).some((ref) => refNamesBranch(ref, branch))) tip = commit;
+  }
+  if (tip === null) return members;
+  const pending = [tip.hash];
+  members.add(tip.hash);
+  while (pending.length > 0) {
+    const commit = byHash.get(pending.pop());
+    for (const parent of commit?.parents ?? []) {
+      if (members.has(parent) || !byHash.has(parent)) continue;
+      members.add(parent);
+      pending.push(parent);
+    }
+  }
+  return members;
+}
+function hasActiveFilters(filters = {}) {
+  return ["since", "author", "query", "path"].some((key) => {
+    const value = filters[key];
+    return typeof value === "string" && value.trim() !== "";
+  });
+}
+function filterGitLog(commits, filters = {}, options = {}) {
+  const list = Array.isArray(commits) ? commits : [];
+  const branch = typeof filters.branch === "string" ? filters.branch.trim() : "";
+  const author = typeof filters.author === "string" ? filters.author.trim().toLowerCase() : "";
+  const query = typeof filters.query === "string" ? filters.query.trim().toLowerCase() : "";
+  const cutoff = sinceCutoffMs(filters.since, options.now ?? Date.now());
+  if (branch === "" && author === "" && query === "" && cutoff === null) return list;
+  const members = branch === "" ? null : branchCommitHashes(list, branch);
+  const result = [];
+  for (const commit of list) {
+    if (members !== null && !members.has(commit.hash)) continue;
+    if (author !== "") {
+      const name2 = String(commit.author ?? "").toLowerCase();
+      const email = String(commit.email ?? "").toLowerCase();
+      if (!name2.includes(author) && !email.includes(author)) continue;
+    }
+    if (query !== "" && !String(commit.subject ?? "").toLowerCase().includes(query)) continue;
+    if (cutoff !== null) {
+      const date = gitDateMs(commit.date);
+      if (date !== null && date < cutoff) continue;
+    }
+    result.push(commit);
+  }
+  return result;
 }
 
 // src/client/GitPanel.jsx
@@ -63844,7 +64396,11 @@ function renderTreeRows(node, options) {
           },
           onDoubleClick: merged ? () => options.onExpandOriginal?.(dir.path) : void 0
         },
-        import_react7.default.createElement("span", { className: "iwb-git-tree-caret" }, expanded ? "\u25BE" : "\u25B8"),
+        import_react7.default.createElement(
+          "span",
+          { className: "iwb-git-tree-caret" },
+          expanded ? import_react7.default.createElement(ChevronDown, { size: 10 }) : import_react7.default.createElement(ChevronRight, { size: 10 })
+        ),
         import_react7.default.createElement("span", { className: "iwb-git-tree-dir-name" }, dirLabel(dir, merged, options))
       ));
       if (expanded) rows.push(...renderTreeRows(dir, { ...options, depth: options.depth + 1 }));
@@ -63921,6 +64477,25 @@ function ChangedFileTree({ store, hash: hash3, files, width }) {
     })
   );
 }
+function branchRows(names, options) {
+  return names.map((name2, position) => import_react7.default.createElement(
+    "button",
+    {
+      key: name2,
+      type: "button",
+      className: `iwb-branch-row ${position === options.index ? "iwb-selected" : ""}`,
+      title: name2,
+      onMouseEnter: () => options.onHover?.(position),
+      onClick: () => options.onChoose(name2)
+    },
+    import_react7.default.createElement(
+      "span",
+      { className: "iwb-branch-check" },
+      name2 === options.current ? import_react7.default.createElement(IconCheck, { width: 12, height: 12 }) : ""
+    ),
+    import_react7.default.createElement("span", { className: "iwb-branch-name" }, name2)
+  ));
+}
 function BranchPopover({ store, branches, currentBranch, x: x2, y: y2, onClose }) {
   const t3 = store.t;
   const [query, setQuery] = (0, import_react7.useState)("");
@@ -63973,18 +64548,7 @@ function BranchPopover({ store, branches, currentBranch, x: x2, y: y2, onClose }
     import_react7.default.createElement(
       "div",
       { className: "iwb-branch-list" },
-      names.length === 0 ? import_react7.default.createElement("div", { className: "iwb-quick-empty" }, t3("quickOpen.empty")) : names.map((name2, position) => import_react7.default.createElement(
-        "button",
-        {
-          key: name2,
-          type: "button",
-          className: `iwb-branch-row ${position === index ? "iwb-selected" : ""}`,
-          onMouseEnter: () => setIndex(position),
-          onClick: () => choose(name2)
-        },
-        import_react7.default.createElement("span", { className: "iwb-branch-check" }, name2 === currentBranch ? "\u2713" : ""),
-        import_react7.default.createElement("span", { className: "iwb-branch-name" }, name2)
-      ))
+      names.length === 0 ? import_react7.default.createElement("div", { className: "iwb-quick-empty" }, t3("quickOpen.empty")) : branchRows(names, { current: currentBranch, index, onHover: setIndex, onChoose: choose })
     )
   );
 }
@@ -63999,7 +64563,11 @@ function repoRows(repos, options) {
       onMouseEnter: () => options.onHover?.(position),
       onClick: () => options.onChoose(repo.path)
     },
-    import_react7.default.createElement("span", { className: "iwb-branch-check" }, repo.path === options.current ? "\u2713" : ""),
+    import_react7.default.createElement(
+      "span",
+      { className: "iwb-branch-check" },
+      repo.path === options.current ? import_react7.default.createElement(IconCheck, { width: 12, height: 12 }) : ""
+    ),
     import_react7.default.createElement("span", { className: "iwb-branch-name" }, repo.name)
   ));
 }
@@ -64159,14 +64727,6 @@ function GitPanel({ store, state }) {
   const [mainWidth, setMainWidth] = (0, import_react7.useState)(0);
   const [branchMenu, setBranchMenu] = (0, import_react7.useState)(null);
   const [repoMenu, setRepoMenu] = (0, import_react7.useState)(null);
-  const repoRoot = slice.gitRepoRoot ?? "";
-  const repoName = (0, import_react7.useMemo)(() => {
-    const match = gitRepoCandidates(slice).find((repo) => repo.path === repoRoot);
-    if (match !== void 0) return match.name;
-    if (repoRoot === "") return "";
-    const parts = repoRoot.split(/[\\/]/);
-    return parts[parts.length - 1] ?? repoRoot;
-  }, [slice, repoRoot]);
   const scrollRef = (0, import_react7.useRef)(null);
   const mainRef = (0, import_react7.useRef)(null);
   const queryTimer = (0, import_react7.useRef)(null);
@@ -64191,7 +64751,8 @@ function GitPanel({ store, state }) {
     void store.loadLog(true);
     void store.loadBranches();
   }, []);
-  const layout = (0, import_react7.useMemo)(() => layoutGraph(git.commits), [git.commits]);
+  const visible = (0, import_react7.useMemo)(() => filterGitLog(git.commits, git.filters), [git.commits, git.filters]);
+  const layout = (0, import_react7.useMemo)(() => layoutGraph(visible), [visible]);
   const graphWidth = Math.max(40, Math.min(GRAPH_MAX, layout.maxLanes) * CELL + 16);
   const rows = layout.rows;
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT2) - 6);
@@ -64234,7 +64795,7 @@ function GitPanel({ store, state }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [drawerOpen, git.detail?.hash, git.detailHash]);
   const moveSelection = (delta) => {
-    const list = git.commits;
+    const list = visible;
     const index = list.findIndex((commit2) => commit2.hash === git.selectedHash);
     const next = Math.max(0, Math.min(list.length - 1, index < 0 ? 0 : index + delta));
     const commit = list[next];
@@ -64299,40 +64860,127 @@ function GitPanel({ store, state }) {
     ["30 days ago", "git.last30"],
     ["90 days ago", "git.last90"]
   ];
+  const currentBranch = slice.detached === true ? "" : slice.branch ?? "";
+  const scopeIsCurrent = (git.filters.branch ?? "") !== "";
+  const filtersActive = hasActiveFilters(git.filters);
+  const filteredOut = (git.commits?.length ?? 0) > 0 && rows.length === 0;
+  const clearFilters = () => store.setGitFilters({ since: "", author: "", query: "", path: "" });
   return import_react7.default.createElement(
     "div",
     { className: "iwb-git" },
     import_react7.default.createElement(
       "div",
       { className: "iwb-git-filters" },
+      // ── the scope: WHICH history ──────────────────────────────────────
       import_react7.default.createElement(
-        "button",
-        {
-          type: "button",
-          className: "iwb-branch-switch iwb-repo-switch",
-          title: repoRoot === "" ? label(t3, "git.pickRepoHint", "Choose a repository in the Terminal/Git header.") : repoRoot,
-          onClick: (event) => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            setRepoMenu({ x: rect.left, y: rect.bottom + 4 });
-          }
-        },
-        import_react7.default.createElement("span", { className: "iwb-repo-name" }, repoName === "" ? label(t3, "git.pickRepo", "Choose repository") : repoName),
-        import_react7.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
+        "div",
+        { className: "iwb-git-scope" },
+        // PRD-v8 §6.4: the repository is chosen in the header of the DOCK -
+        // one place, not two. The filter row used to offer a second switcher
+        // for the same thing, and the branch that matters more had to share
+        // the row with it.
+        import_react7.default.createElement(
+          "button",
+          {
+            type: "button",
+            className: "iwb-branch-switch iwb-branch-pick",
+            title: t3("git.switchBranchTitle"),
+            onClick: (event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              setBranchMenu({ x: rect.left, y: rect.bottom + 4 });
+            }
+          },
+          import_react7.default.createElement(IconBranch, { width: 13, height: 13 }),
+          import_react7.default.createElement("span", { className: "iwb-branch-pick-name" }, slice.detached === true ? t3("git.detached") : slice.branch ?? "\u2014"),
+          import_react7.default.createElement("span", { className: "iwb-branch-caret" }, import_react7.default.createElement(ChevronDown, { size: 11 }))
+        ),
+        // The scope is a segmented control: it names BOTH options and marks
+        // the chosen one. A button whose label WAS its own state read like a
+        // static label - the user could not tell it from a heading.
+        import_react7.default.createElement(
+          "div",
+          {
+            className: "iwb-seg",
+            role: "radiogroup",
+            "aria-label": t3("git.scopeLabel")
+          },
+          import_react7.default.createElement("button", {
+            type: "button",
+            role: "radio",
+            "aria-checked": scopeIsCurrent ? "true" : "false",
+            className: scopeIsCurrent ? "iwb-on" : "",
+            disabled: currentBranch === "",
+            title: t3("git.scopeCurrent"),
+            onClick: () => store.setGitFilters({ branch: currentBranch })
+          }, t3("git.scopeCurrent")),
+          import_react7.default.createElement("button", {
+            type: "button",
+            role: "radio",
+            "aria-checked": scopeIsCurrent ? "false" : "true",
+            className: scopeIsCurrent ? "" : "iwb-on",
+            title: t3("git.scopeAll"),
+            onClick: () => store.setGitFilters({ branch: "" })
+          }, t3("git.scopeAll"))
+        )
       ),
+      // ── the filters: WHAT the rows must match ─────────────────────────
       import_react7.default.createElement(
-        "button",
+        "div",
         {
-          type: "button",
-          className: "iwb-branch-switch",
-          title: t3("git.switchBranchTitle"),
-          onClick: (event) => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            setBranchMenu({ x: rect.left, y: rect.bottom + 4 });
-          }
+          className: "iwb-git-filter-fields",
+          role: "group",
+          "aria-label": t3("git.filterLabel")
         },
-        import_react7.default.createElement(IconBranch, { width: 13, height: 13 }),
-        import_react7.default.createElement("span", null, slice.detached === true ? t3("git.detached") : slice.branch ?? "\u2014"),
-        import_react7.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
+        import_react7.default.createElement(
+          "select",
+          {
+            className: "iwb-select",
+            title: t3("git.dateFilter"),
+            value: git.filters.since ?? "",
+            onChange: (event) => store.setGitFilters({ since: event.target.value })
+          },
+          dateOptions.map(([value, key]) => import_react7.default.createElement("option", { key: value, value }, t3(key)))
+        ),
+        import_react7.default.createElement("input", {
+          className: "iwb-input",
+          style: { width: 100 },
+          placeholder: t3("git.authorFilter"),
+          value: git.filters.author,
+          onChange: (event) => {
+            const value = event.target.value;
+            if (queryTimer.current !== null) clearTimeout(queryTimer.current);
+            queryTimer.current = setTimeout(() => store.setGitFilters({ author: value }), 350);
+          }
+        }),
+        import_react7.default.createElement("input", {
+          className: "iwb-input",
+          style: { flex: 1, minWidth: 100, width: "auto" },
+          placeholder: t3("git.queryFilter"),
+          value: git.filters.query,
+          onChange: (event) => {
+            const value = event.target.value;
+            if (queryTimer.current !== null) clearTimeout(queryTimer.current);
+            queryTimer.current = setTimeout(() => store.setGitFilters({ query: value }), 350);
+          }
+        }),
+        git.filters.path !== void 0 && git.filters.path !== "" ? import_react7.default.createElement(
+          "span",
+          { className: "iwb-path-chip", title: git.filters.path },
+          import_react7.default.createElement("span", { className: "iwb-path-chip-text" }, git.filters.path),
+          import_react7.default.createElement("button", {
+            type: "button",
+            className: "iwb-path-chip-clear",
+            title: t3("git.clearPath"),
+            onClick: () => store.setGitFilters({ path: "" })
+          }, import_react7.default.createElement(IconClose, { width: 11, height: 11 }))
+        ) : null,
+        // The affordance appears only when a filter is doing something.
+        filtersActive ? import_react7.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-small",
+          title: t3("git.clearFilters"),
+          onClick: clearFilters
+        }, t3("git.clearFilters")) : null
       ),
       (git.compare ?? []).length > 0 ? import_react7.default.createElement(
         "span",
@@ -64343,62 +64991,13 @@ function GitPanel({ store, state }) {
           className: "iwb-path-chip-clear",
           title: t3("git.clearCompare"),
           onClick: () => store.patch("git", { compare: [] })
-        }, "\xD7")
+        }, import_react7.default.createElement(IconClose, { width: 11, height: 11 }))
       ) : null,
       (git.compare ?? []).length === 2 ? import_react7.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small iwb-primary",
         onClick: () => store.compareSelected()
       }, t3("git.compare")) : null,
-      import_react7.default.createElement("button", {
-        type: "button",
-        className: `iwb-textbtn iwb-small ${git.filters.branch === "" ? "iwb-primary" : ""}`,
-        title: t3("git.branchFilter"),
-        onClick: () => store.setGitFilters({ branch: git.filters.branch === "" ? slice.branch ?? "" : "" })
-      }, git.filters.branch === "" ? t3("git.allBranches") : t3("git.currentBranchOnly")),
-      import_react7.default.createElement(
-        "select",
-        {
-          className: "iwb-select",
-          title: t3("git.dateFilter"),
-          value: git.filters.since ?? "",
-          onChange: (event) => store.setGitFilters({ since: event.target.value })
-        },
-        dateOptions.map(([value, key]) => import_react7.default.createElement("option", { key: value, value }, t3(key)))
-      ),
-      import_react7.default.createElement("input", {
-        className: "iwb-input",
-        style: { width: 100 },
-        placeholder: t3("git.authorFilter"),
-        value: git.filters.author,
-        onChange: (event) => {
-          const value = event.target.value;
-          if (queryTimer.current !== null) clearTimeout(queryTimer.current);
-          queryTimer.current = setTimeout(() => store.setGitFilters({ author: value }), 350);
-        }
-      }),
-      import_react7.default.createElement("input", {
-        className: "iwb-input",
-        style: { flex: 1, minWidth: 100, width: "auto" },
-        placeholder: t3("git.queryFilter"),
-        value: git.filters.query,
-        onChange: (event) => {
-          const value = event.target.value;
-          if (queryTimer.current !== null) clearTimeout(queryTimer.current);
-          queryTimer.current = setTimeout(() => store.setGitFilters({ query: value }), 350);
-        }
-      }),
-      git.filters.path !== void 0 && git.filters.path !== "" ? import_react7.default.createElement(
-        "span",
-        { className: "iwb-path-chip", title: git.filters.path },
-        import_react7.default.createElement("span", { className: "iwb-path-chip-text" }, git.filters.path),
-        import_react7.default.createElement("button", {
-          type: "button",
-          className: "iwb-path-chip-clear",
-          title: t3("git.clearPath"),
-          onClick: () => store.setGitFilters({ path: "" })
-        }, "\xD7")
-      ) : null,
       git.selectedHash !== null && git.selectedHash !== void 0 && !drawerOpen ? import_react7.default.createElement("button", {
         type: "button",
         className: "iwb-textbtn iwb-small",
@@ -64442,8 +65041,16 @@ function GitPanel({ store, state }) {
             import_react7.default.createElement(
               "div",
               null,
-              slice.isRepo === true ? git.error ?? t3("git.noCommits") : t3("project.noRepoHint")
+              slice.isRepo === true ? filteredOut ? label(t3, "git.noMatches", "No commit matches the current filters") : git.error ?? t3("git.noCommits") : t3("project.noRepoHint")
             ),
+            // The rows are there, the filters hide them: the way out is
+            // the filters, and the panel says so.
+            filteredOut ? import_react7.default.createElement("button", {
+              type: "button",
+              className: "iwb-textbtn iwb-small",
+              style: { marginTop: 10 },
+              onClick: clearFilters
+            }, t3("git.clearFilters")) : null,
             slice.isRepo !== true ? import_react7.default.createElement(
               "div",
               { className: "iwb-git-no-repo" },
@@ -64536,6 +65143,9 @@ function GitPanel({ store, state }) {
       y: branchMenu.y,
       onClose: () => setBranchMenu(null)
     }) : null,
+    // The repository is chosen in the header of the DOCK. The popover is still
+    // here for the one case the header cannot cover: there is NO repository
+    // yet, and the window has to offer a way to pick one.
     repoMenu !== null ? import_react7.default.createElement(RepoPopover, {
       store,
       x: repoMenu.x,
@@ -65678,38 +66288,38 @@ var $;
   Qe.None = () => D.None;
   function t3(y2) {
     if ($l) {
-      let { onDidAddListener: T2 } = y2, g2 = gi.create(), w2 = 0;
+      let { onDidAddListener: T3 } = y2, g2 = gi.create(), w2 = 0;
       y2.onDidAddListener = () => {
-        ++w2 === 2 && (console.warn("snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here"), g2.print()), T2?.();
+        ++w2 === 2 && (console.warn("snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here"), g2.print()), T3?.();
       };
     }
   }
-  function e2(y2, T2) {
+  function e2(y2, T3) {
     return d2(y2, () => {
-    }, 0, void 0, true, void 0, T2);
+    }, 0, void 0, true, void 0, T3);
   }
   Qe.defer = e2;
   function i3(y2) {
-    return (T2, g2 = null, w2) => {
+    return (T3, g2 = null, w2) => {
       let E2 = false, x2;
       return x2 = y2((N2) => {
-        if (!E2) return x2 ? x2.dispose() : E2 = true, T2.call(g2, N2);
+        if (!E2) return x2 ? x2.dispose() : E2 = true, T3.call(g2, N2);
       }, null, w2), E2 && x2.dispose(), x2;
     };
   }
   Qe.once = i3;
-  function r2(y2, T2, g2) {
-    return h3((w2, E2 = null, x2) => y2((N2) => w2.call(E2, T2(N2)), null, x2), g2);
+  function r2(y2, T3, g2) {
+    return h3((w2, E2 = null, x2) => y2((N2) => w2.call(E2, T3(N2)), null, x2), g2);
   }
   Qe.map = r2;
-  function n2(y2, T2, g2) {
+  function n2(y2, T3, g2) {
     return h3((w2, E2 = null, x2) => y2((N2) => {
-      T2(N2), w2.call(E2, N2);
+      T3(N2), w2.call(E2, N2);
     }, null, x2), g2);
   }
   Qe.forEach = n2;
-  function o3(y2, T2, g2) {
-    return h3((w2, E2 = null, x2) => y2((N2) => T2(N2) && w2.call(E2, N2), null, x2), g2);
+  function o3(y2, T3, g2) {
+    return h3((w2, E2 = null, x2) => y2((N2) => T3(N2) && w2.call(E2, N2), null, x2), g2);
   }
   Qe.filter = o3;
   function l2(y2) {
@@ -65717,34 +66327,34 @@ var $;
   }
   Qe.signal = l2;
   function a3(...y2) {
-    return (T2, g2 = null, w2) => {
-      let E2 = ho(...y2.map((x2) => x2((N2) => T2.call(g2, N2))));
+    return (T3, g2 = null, w2) => {
+      let E2 = ho(...y2.map((x2) => x2((N2) => T3.call(g2, N2))));
       return c2(E2, w2);
     };
   }
   Qe.any = a3;
-  function u3(y2, T2, g2, w2) {
+  function u3(y2, T3, g2, w2) {
     let E2 = g2;
-    return r2(y2, (x2) => (E2 = T2(E2, x2), E2), w2);
+    return r2(y2, (x2) => (E2 = T3(E2, x2), E2), w2);
   }
   Qe.reduce = u3;
-  function h3(y2, T2) {
+  function h3(y2, T3) {
     let g2, w2 = { onWillAddFirstListener() {
       g2 = y2(E2.fire, E2);
     }, onDidRemoveLastListener() {
       g2?.dispose();
     } };
-    T2 || t3(w2);
+    T3 || t3(w2);
     let E2 = new v(w2);
-    return T2?.add(E2), E2.event;
+    return T3?.add(E2), E2.event;
   }
-  function c2(y2, T2) {
-    return T2 instanceof Array ? T2.push(y2) : T2 && T2.add(y2), y2;
+  function c2(y2, T3) {
+    return T3 instanceof Array ? T3.push(y2) : T3 && T3.add(y2), y2;
   }
-  function d2(y2, T2, g2 = 100, w2 = false, E2 = false, x2, N2) {
+  function d2(y2, T3, g2 = 100, w2 = false, E2 = false, x2, N2) {
     let Z3, te, Oe, ze = 0, le, et2 = { leakWarningThreshold: x2, onWillAddFirstListener() {
       Z3 = y2((ht2) => {
-        ze++, te = T2(te, ht2), w2 && !Oe && (me.fire(te), te = void 0), le = () => {
+        ze++, te = T3(te, ht2), w2 && !Oe && (me.fire(te), te = void 0), le = () => {
           let fi = te;
           te = void 0, Oe = void 0, (!w2 || ze > 1) && me.fire(fi), ze = 0;
         }, typeof g2 == "number" ? (clearTimeout(Oe), Oe = setTimeout(le, g2)) : Oe === void 0 && (Oe = 0, queueMicrotask(le));
@@ -65759,23 +66369,23 @@ var $;
     return N2?.add(me), me.event;
   }
   Qe.debounce = d2;
-  function _3(y2, T2 = 0, g2) {
-    return Qe.debounce(y2, (w2, E2) => w2 ? (w2.push(E2), w2) : [E2], T2, void 0, true, void 0, g2);
+  function _3(y2, T3 = 0, g2) {
+    return Qe.debounce(y2, (w2, E2) => w2 ? (w2.push(E2), w2) : [E2], T3, void 0, true, void 0, g2);
   }
   Qe.accumulate = _3;
-  function p2(y2, T2 = (w2, E2) => w2 === E2, g2) {
+  function p2(y2, T3 = (w2, E2) => w2 === E2, g2) {
     let w2 = true, E2;
     return o3(y2, (x2) => {
-      let N2 = w2 || !T2(x2, E2);
+      let N2 = w2 || !T3(x2, E2);
       return w2 = false, E2 = x2, N2;
     }, g2);
   }
   Qe.latch = p2;
-  function m2(y2, T2, g2) {
-    return [Qe.filter(y2, T2, g2), Qe.filter(y2, (w2) => !T2(w2), g2)];
+  function m2(y2, T3, g2) {
+    return [Qe.filter(y2, T3, g2), Qe.filter(y2, (w2) => !T3(w2), g2)];
   }
   Qe.split = m2;
-  function f2(y2, T2 = false, g2 = [], w2) {
+  function f2(y2, T3 = false, g2 = [], w2) {
     let E2 = g2.slice(), x2 = y2((te) => {
       E2 ? E2.push(te) : Z3.fire(te);
     });
@@ -65785,16 +66395,16 @@ var $;
     }, Z3 = new v({ onWillAddFirstListener() {
       x2 || (x2 = y2((te) => Z3.fire(te)), w2 && w2.add(x2));
     }, onDidAddFirstListener() {
-      E2 && (T2 ? setTimeout(N2) : N2());
+      E2 && (T3 ? setTimeout(N2) : N2());
     }, onDidRemoveLastListener() {
       x2 && x2.dispose(), x2 = null;
     } });
     return w2 && w2.add(Z3), Z3.event;
   }
   Qe.buffer = f2;
-  function A3(y2, T2) {
+  function A3(y2, T3) {
     return (w2, E2, x2) => {
-      let N2 = T2(new O2());
+      let N2 = T3(new O2());
       return y2(function(Z3) {
         let te = N2.evaluate(Z3);
         te !== R3 && w2.call(E2, te);
@@ -65807,98 +66417,98 @@ var $;
     constructor() {
       this.steps = [];
     }
-    map(T2) {
-      return this.steps.push(T2), this;
+    map(T3) {
+      return this.steps.push(T3), this;
     }
-    forEach(T2) {
-      return this.steps.push((g2) => (T2(g2), g2)), this;
+    forEach(T3) {
+      return this.steps.push((g2) => (T3(g2), g2)), this;
     }
-    filter(T2) {
-      return this.steps.push((g2) => T2(g2) ? g2 : R3), this;
+    filter(T3) {
+      return this.steps.push((g2) => T3(g2) ? g2 : R3), this;
     }
-    reduce(T2, g2) {
+    reduce(T3, g2) {
       let w2 = g2;
-      return this.steps.push((E2) => (w2 = T2(w2, E2), w2)), this;
+      return this.steps.push((E2) => (w2 = T3(w2, E2), w2)), this;
     }
-    latch(T2 = (g2, w2) => g2 === w2) {
+    latch(T3 = (g2, w2) => g2 === w2) {
       let g2 = true, w2;
       return this.steps.push((E2) => {
-        let x2 = g2 || !T2(E2, w2);
+        let x2 = g2 || !T3(E2, w2);
         return g2 = false, w2 = E2, x2 ? E2 : R3;
       }), this;
     }
-    evaluate(T2) {
-      for (let g2 of this.steps) if (T2 = g2(T2), T2 === R3) break;
-      return T2;
+    evaluate(T3) {
+      for (let g2 of this.steps) if (T3 = g2(T3), T3 === R3) break;
+      return T3;
     }
   }
-  function I2(y2, T2, g2 = (w2) => w2) {
-    let w2 = (...Z3) => N2.fire(g2(...Z3)), E2 = () => y2.on(T2, w2), x2 = () => y2.removeListener(T2, w2), N2 = new v({ onWillAddFirstListener: E2, onDidRemoveLastListener: x2 });
+  function I2(y2, T3, g2 = (w2) => w2) {
+    let w2 = (...Z3) => N2.fire(g2(...Z3)), E2 = () => y2.on(T3, w2), x2 = () => y2.removeListener(T3, w2), N2 = new v({ onWillAddFirstListener: E2, onDidRemoveLastListener: x2 });
     return N2.event;
   }
   Qe.fromNodeEventEmitter = I2;
-  function k2(y2, T2, g2 = (w2) => w2) {
-    let w2 = (...Z3) => N2.fire(g2(...Z3)), E2 = () => y2.addEventListener(T2, w2), x2 = () => y2.removeEventListener(T2, w2), N2 = new v({ onWillAddFirstListener: E2, onDidRemoveLastListener: x2 });
+  function k2(y2, T3, g2 = (w2) => w2) {
+    let w2 = (...Z3) => N2.fire(g2(...Z3)), E2 = () => y2.addEventListener(T3, w2), x2 = () => y2.removeEventListener(T3, w2), N2 = new v({ onWillAddFirstListener: E2, onDidRemoveLastListener: x2 });
     return N2.event;
   }
   Qe.fromDOMEventEmitter = k2;
   function P2(y2) {
-    return new Promise((T2) => i3(y2)(T2));
+    return new Promise((T3) => i3(y2)(T3));
   }
   Qe.toPromise = P2;
   function oe(y2) {
-    let T2 = new v();
+    let T3 = new v();
     return y2.then((g2) => {
-      T2.fire(g2);
+      T3.fire(g2);
     }, () => {
-      T2.fire(void 0);
+      T3.fire(void 0);
     }).finally(() => {
-      T2.dispose();
-    }), T2.event;
+      T3.dispose();
+    }), T3.event;
   }
   Qe.fromPromise = oe;
-  function Me(y2, T2) {
-    return y2((g2) => T2.fire(g2));
+  function Me(y2, T3) {
+    return y2((g2) => T3.fire(g2));
   }
   Qe.forward = Me;
-  function Pe(y2, T2, g2) {
-    return T2(g2), y2((w2) => T2(w2));
+  function Pe(y2, T3, g2) {
+    return T3(g2), y2((w2) => T3(w2));
   }
   Qe.runAndSubscribe = Pe;
   class Ke {
-    constructor(T2, g2) {
-      this._observable = T2;
+    constructor(T3, g2) {
+      this._observable = T3;
       this._counter = 0;
       this._hasChanged = false;
       let w2 = { onWillAddFirstListener: () => {
-        T2.addObserver(this);
+        T3.addObserver(this);
       }, onDidRemoveLastListener: () => {
-        T2.removeObserver(this);
+        T3.removeObserver(this);
       } };
       g2 || t3(w2), this.emitter = new v(w2), g2 && g2.add(this.emitter);
     }
-    beginUpdate(T2) {
+    beginUpdate(T3) {
       this._counter++;
     }
-    handlePossibleChange(T2) {
+    handlePossibleChange(T3) {
     }
-    handleChange(T2, g2) {
+    handleChange(T3, g2) {
       this._hasChanged = true;
     }
-    endUpdate(T2) {
+    endUpdate(T3) {
       this._counter--, this._counter === 0 && (this._observable.reportChanges(), this._hasChanged && (this._hasChanged = false, this.emitter.fire(this._observable.get())));
     }
   }
-  function di(y2, T2) {
-    return new Ke(y2, T2).emitter.event;
+  function di(y2, T3) {
+    return new Ke(y2, T3).emitter.event;
   }
   Qe.fromObservable = di;
   function V2(y2) {
-    return (T2, g2, w2) => {
+    return (T3, g2, w2) => {
       let E2 = 0, x2 = false, N2 = { beginUpdate() {
         E2++;
       }, endUpdate() {
-        E2--, E2 === 0 && (y2.reportChanges(), x2 && (x2 = false, T2.call(g2)));
+        E2--, E2 === 0 && (y2.reportChanges(), x2 && (x2 = false, T3.call(g2)));
       }, handlePossibleChange() {
       }, handleChange() {
         x2 = true;
@@ -68533,20 +69143,20 @@ var Vt = class {
     let f2, A3 = 0, R3 = "", O2 = 0, I2 = 0, k2 = 0, P2 = 0, oe = false, Me = 0, Pe = false, Ke = 0, di = 0, V2 = [], Qe = h3 !== -1 && c2 !== -1;
     for (let y2 = 0; y2 < m2; y2++) {
       t3.loadCell(y2, this._workCell);
-      let T2 = this._workCell.getWidth();
-      if (T2 === 0) continue;
+      let T3 = this._workCell.getWidth();
+      if (T3 === 0) continue;
       let g2 = false, w2 = y2 >= di, E2 = y2, x2 = this._workCell;
       if (_3.length > 0 && y2 === _3[0][0] && w2) {
         let W2 = _3.shift(), An = this._isCellInSelection(W2[0], e2);
         for (O2 = W2[0] + 1; O2 < W2[1]; O2++) w2 &&= An === this._isCellInSelection(O2, e2);
-        w2 &&= !i3 || o3 < W2[0] || o3 >= W2[1], w2 ? (g2 = true, x2 = new Vr(this._workCell, t3.translateToString(true, W2[0], W2[1]), W2[1] - W2[0]), E2 = W2[1] - 1, T2 = x2.getWidth()) : di = W2[1];
+        w2 &&= !i3 || o3 < W2[0] || o3 >= W2[1], w2 ? (g2 = true, x2 = new Vr(this._workCell, t3.translateToString(true, W2[0], W2[1]), W2[1] - W2[0]), E2 = W2[1] - 1, T3 = x2.getWidth()) : di = W2[1];
       }
       let N2 = this._isCellInSelection(y2, e2), Z3 = i3 && y2 === o3, te = Qe && y2 >= h3 && y2 <= c2, Oe = false;
       this._decorationService.forEachDecorationAtCell(y2, e2, void 0, (W2) => {
         Oe = true;
       });
       let ze = x2.getChars() || we;
-      if (ze === " " && (x2.isUnderline() || x2.isOverline()) && (ze = "\xA0"), Ke = T2 * a3 - u3.get(ze, x2.isBold(), x2.isItalic()), !f2) f2 = this._document.createElement("span");
+      if (ze === " " && (x2.isUnderline() || x2.isOverline()) && (ze = "\xA0"), Ke = T3 * a3 - u3.get(ze, x2.isBold(), x2.isItalic()), !f2) f2 = this._document.createElement("span");
       else if (A3 && (N2 && Pe || !N2 && !Pe && x2.bg === I2) && (N2 && Pe && p2.selectionForeground || x2.fg === k2) && x2.extended.ext === P2 && te === oe && Ke === Me && !Z3 && !g2 && !Oe && w2) {
         x2.isInvisible() ? R3 += we : R3 += ze, A3++;
         continue;
@@ -73687,6 +74297,22 @@ var o = class {
 };
 
 // src/client/TerminalPanel.jsx
+var TERMINAL_SCROLLBACK = 5e3;
+function truncatedNotice(frame) {
+  const limit = Number(frame?.limit);
+  const size = Number.isFinite(limit) && limit > 0 ? limit >= 1024 * 1024 ? `${Math.round(limit / (1024 * 1024))} MiB` : `${Math.trunc(limit)} B` : "the cap";
+  return `\r
+\x1B[93m[output truncated after ${size}]\x1B[0m\r
+`;
+}
+function createTruncationNotice() {
+  let printed = false;
+  return (frame) => {
+    if (printed) return null;
+    printed = true;
+    return truncatedNotice(frame);
+  };
+}
 function terminalSlice(state) {
   return { terminal: state.terminal };
 }
@@ -74001,6 +74627,9 @@ function TerminalView({ store, session, active, visible }) {
       fontSize: store.state.settings?.terminal?.fontSize ?? 13,
       fontFamily: '"JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, monospace',
       allowProposedApi: true,
+      // The scrollback is bounded: a session that prints a lot must not grow
+      // the buffer of the renderer without an end (PRD-v8 TERM-04).
+      scrollback: TERMINAL_SCROLLBACK,
       theme: { ...TERMINAL_PALETTES[theme2] }
     });
     const fit = new o();
@@ -74013,6 +74642,7 @@ function TerminalView({ store, session, active, visible }) {
       const socket = socketRef.current;
       if (socket !== null && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame));
     };
+    const noticeOf = createTruncationNotice();
     const stopThemeWatch = watchHostTheme((next) => {
       applyTerminalTheme(terminal, next, terminal.element);
     });
@@ -74090,6 +74720,9 @@ function TerminalView({ store, session, active, visible }) {
           setError(null);
         } else if (frame.type === "data") {
           terminal.write(typeof frame.data === "string" ? frame.data : "");
+        } else if (frame.type === "truncated") {
+          const notice = noticeOf(frame);
+          if (notice !== null) terminal.write(notice);
         } else if (frame.type === "exit") {
           store.patchTerminal(session.key, { status: "exited", exitCode: frame.exitCode });
           terminal.write(`\r
@@ -74259,7 +74892,7 @@ function TerminalPanel({ store, state, visible = true }) {
             event.stopPropagation();
             void store.closeTerminal(session.key);
           }
-        }, import_react8.default.createElement("span", { style: { fontSize: 13, lineHeight: 1 } }, "\xD7"))
+        }, import_react8.default.createElement(IconClose, { width: 11, height: 11 }))
       )),
       import_react8.default.createElement("button", {
         type: "button",
@@ -75247,10 +75880,43 @@ function clampPan(pan, imageSize, viewportSize) {
     y: clamp(Number(point.y), -maxY, maxY)
   };
 }
+function beginDrag(view, pointer) {
+  const zoom = Number(view?.zoom);
+  const pan = view?.pan ?? { x: 0, y: 0 };
+  return {
+    x: Number(pointer?.x) || 0,
+    y: Number(pointer?.y) || 0,
+    origin: { x: Number(pan.x) || 0, y: Number(pan.y) || 0 },
+    zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1
+  };
+}
+function dragPan(drag, pointer, imageSize, viewportSize) {
+  if (drag === null || drag === void 0) return { x: 0, y: 0 };
+  return panFromDrag(
+    { x: drag.x, y: drag.y, pan: drag.origin },
+    pointer,
+    drag.zoom,
+    imageSize,
+    viewportSize
+  );
+}
 function zoomPercent(zoom) {
   const value = Number(zoom);
   if (!Number.isFinite(value)) return "100%";
   return `${Math.round(value * 100)}%`;
+}
+function panFromDrag(origin, pointer, zoom, imageSize, viewportSize) {
+  const start = origin === null || origin === void 0 ? null : origin;
+  const base2 = start === null || start.pan === null || start.pan === void 0 ? { x: 0, y: 0 } : start.pan;
+  const at3 = pointer === null || pointer === void 0 ? { x: 0, y: 0 } : pointer;
+  const from = start === null ? { x: 0, y: 0 } : start;
+  const factor = Number.isFinite(Number(zoom)) && Number(zoom) > 0 ? Number(zoom) : 1;
+  const image = imageSize === null || imageSize === void 0 ? { width: 0, height: 0 } : imageSize;
+  return clampPan(
+    { x: base2.x + (at3.x - from.x), y: base2.y + (at3.y - from.y) },
+    { width: image.width * factor, height: image.height * factor },
+    viewportSize
+  );
 }
 
 // src/client/ImageViewer.jsx
@@ -75263,6 +75929,8 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
   const [dragging, setDragging] = (0, import_react10.useState)(false);
   const zoom = view.zoom;
   const pan = view.pan;
+  const viewRef = (0, import_react10.useRef)(view);
+  viewRef.current = view;
   (0, import_react10.useEffect)(() => {
     const surface = surfaceRef.current;
     if (surface === null) return void 0;
@@ -75331,19 +75999,49 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
     const surface = surfaceRef.current;
     if (surface === null) return void 0;
     let drag = null;
+    let frame = 0;
+    let pending = null;
+    const paint = (zoom2, pan2) => {
+      const img = imgRef.current;
+      if (img === null) return;
+      img.style.transform = `translate(${pan2.x}px, ${pan2.y}px) scale(${zoom2})`;
+    };
+    const schedule = (zoom2, pan2) => {
+      pending = { zoom: zoom2, pan: pan2 };
+      if (frame !== 0) return;
+      const commit = () => {
+        frame = 0;
+        const next = pending;
+        pending = null;
+        if (next === null) return;
+        setView((previous) => previous.zoom === next.zoom && previous.pan.x === next.pan.x && previous.pan.y === next.pan.y ? previous : { zoom: next.zoom, pan: next.pan });
+      };
+      if (typeof requestAnimationFrame === "function") frame = requestAnimationFrame(commit);
+      else commit();
+    };
     const onMove = (event) => {
       if (drag === null) return;
-      const dx = event.clientX - drag.x;
-      const dy = event.clientY - drag.y;
-      setView((previous) => ({
-        zoom: previous.zoom,
-        pan: clampFor({ x: previous.pan.x + dx, y: previous.pan.y + dy }, previous.zoom)
-      }));
+      const pan2 = dragPan(
+        drag,
+        { x: event.clientX, y: event.clientY },
+        { width: drag.imageWidth, height: drag.imageHeight },
+        { width: drag.viewportWidth, height: drag.viewportHeight }
+      );
+      drag.pan = pan2;
+      paint(drag.zoom, pan2);
+      schedule(drag.zoom, pan2);
     };
     const onUp = () => {
       if (drag === null) return;
+      const { zoom: zoom2, pan: pan2 } = drag;
       drag = null;
       setDragging(false);
+      if (frame !== 0) {
+        if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      pending = null;
+      setView({ zoom: zoom2, pan: pan2 });
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("mousemove", onMove);
@@ -75353,7 +76051,16 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
       if (drag !== null) return;
       if (typeof event.button === "number" && event.button !== 0) return;
       if (typeof event.preventDefault === "function") event.preventDefault();
-      drag = { x: event.clientX, y: event.clientY };
+      const current = viewRef.current;
+      drag = {
+        ...beginDrag(current, { x: event.clientX, y: event.clientY }),
+        // The pan of the moment, for the commit at the end of the drag.
+        pan: { x: current.pan.x, y: current.pan.y },
+        imageWidth: imageSize.width,
+        imageHeight: imageSize.height,
+        viewportWidth: viewport.width,
+        viewportHeight: viewport.height
+      };
       setDragging(true);
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
@@ -75383,9 +76090,12 @@ function ImageViewer({ src, alt = "", caption = "", t: t3 = (key) => key }) {
       surface.removeEventListener("mousedown", onDown);
       surface.removeEventListener("dblclick", onDouble);
       surface.removeEventListener("dragstart", onDragStart);
+      if (frame !== 0 && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
+      frame = 0;
+      pending = null;
       onUp();
     };
-  }, [clampFor]);
+  }, [clampFor, imageSize.width, imageSize.height, viewport.width, viewport.height]);
   return import_react10.default.createElement(
     "div",
     { className: "iwb-image" },
@@ -75737,12 +76447,33 @@ function MarkdownView({
 }) {
   const MarkdownText = useMarkdownComponent();
   const containerRef = (0, import_react12.useRef)(null);
+  const outlineRef = (0, import_react12.useRef)(null);
   const [activeSlug, setActiveSlug] = (0, import_react12.useState)("");
   const headings = (0, import_react12.useMemo)(() => extractHeadings(text), [text]);
   const headingKey = (0, import_react12.useMemo)(() => headings.map((heading2) => heading2.slug).join("|"), [headings]);
   const openFind = () => {
     onFindRequest?.();
   };
+  (0, import_react12.useEffect)(() => {
+    if (outlineOpen !== true) return void 0;
+    const onPointerDown = (event) => {
+      const target = event.target;
+      if (target instanceof Element) {
+        if (outlineRef.current?.contains(target) === true) return;
+        if (target.closest?.(".iwb-outline-toggle") !== null) return;
+      }
+      onToggleOutline();
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onToggleOutline();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [outlineOpen, onToggleOutline]);
   (0, import_react12.useEffect)(() => {
     const container = containerRef.current;
     if (container === null) return;
@@ -75816,7 +76547,7 @@ function MarkdownView({
     ),
     outlineOpen === true ? import_react12.default.createElement(
       "div",
-      { className: "iwb-outline", role: "navigation", "aria-label": labels.outline ?? "Outline" },
+      { className: "iwb-outline", role: "navigation", "aria-label": labels.outline ?? "Outline", ref: outlineRef },
       import_react12.default.createElement(
         "div",
         { className: "iwb-outline-head" },
@@ -75828,7 +76559,7 @@ function MarkdownView({
           style: { width: 20, height: 20, marginLeft: "auto" },
           onClick: onToggleOutline,
           title: labels.close ?? "Close"
-        }, import_react12.default.createElement("span", { style: { fontSize: 14, lineHeight: 1 } }, "\xD7"))
+        }, import_react12.default.createElement(IconClose, { width: 12, height: 12 }))
       ),
       headings.length === 0 ? import_react12.default.createElement("div", { className: "iwb-outline-empty" }, labels.empty ?? "No headings") : import_react12.default.createElement(
         "div",
@@ -75847,7 +76578,99 @@ function MarkdownView({
 
 // src/client/PdfViewer.jsx
 var import_react13 = __toESM(require("react"), 1);
-init_pdf_view();
+
+// src/client/pdf-view.js
+function isPdfPath(path2) {
+  return typeof path2 === "string" && /\.pdf$/i.test(path2);
+}
+var PDF_MIN_SCALE = 0.25;
+var PDF_MAX_SCALE = 4;
+var PDF_MAX_BYTES = 32 << 20;
+async function fetchPdfBytes(url, options = {}) {
+  const target = String(url ?? "");
+  if (target === "") throw new Error("the document has no source");
+  const request = options.fetch ?? globalThis.fetch;
+  if (typeof request !== "function") throw new Error("fetch is not available");
+  const response = await request(target);
+  if (response === null || response === void 0 || response.ok !== true) {
+    throw new Error(`the document could not be read (HTTP ${response?.status ?? 0})`);
+  }
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > PDF_MAX_BYTES) throw new Error("the document is too large");
+  return new Uint8Array(buffer);
+}
+function clampPdfScale(scale) {
+  const value = Number(scale);
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(Math.max(value, PDF_MIN_SCALE), PDF_MAX_SCALE);
+}
+function pdfFitScale(availableWidth, pageWidth, padding = 32) {
+  if (!Number.isFinite(availableWidth) || !Number.isFinite(pageWidth) || pageWidth <= 0) return 1;
+  const width = Math.max(1, availableWidth - padding);
+  return clampPdfScale(width / pageWidth);
+}
+function pdfZoomStep(scale, direction) {
+  return clampPdfScale(Number(scale) * (direction > 0 ? 1.2 : 1 / 1.2));
+}
+function pdfPercent(scale) {
+  return `${Math.round(Number(scale) * 100)}%`;
+}
+function pdfOutputScale(ratio = 1) {
+  const value = Number(ratio);
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  return Math.min(Math.max(value, 1), 2);
+}
+function pdfPageAtOffset(pages, scrollTop, viewportHeight) {
+  if (!Array.isArray(pages) || pages.length === 0) return 1;
+  const target = Number(scrollTop) + Math.max(0, Number(viewportHeight)) * 0.35;
+  let low = 0;
+  let high = pages.length - 1;
+  let found = 0;
+  while (low <= high) {
+    const middle = low + high >> 1;
+    if (pages[middle].top <= target) {
+      found = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return found + 1;
+}
+function pdfVisibleRange(pages, scrollTop, viewportHeight, margin = 360) {
+  if (!Array.isArray(pages) || pages.length === 0) return { first: 1, last: 1 };
+  const start = Number(scrollTop) - margin;
+  const end = Number(scrollTop) + Number(viewportHeight) + margin;
+  let first = pages.length - 1;
+  let low = 0;
+  let high = pages.length - 1;
+  while (low <= high) {
+    const middle = low + high >> 1;
+    const page = pages[middle];
+    if (page.top + page.height >= start) {
+      first = middle;
+      high = middle - 1;
+    } else {
+      low = middle + 1;
+    }
+  }
+  let last2 = first;
+  low = first;
+  high = pages.length - 1;
+  while (low <= high) {
+    const middle = low + high >> 1;
+    const page = pages[middle];
+    if (page.top <= end) {
+      last2 = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return { first: first + 1, last: last2 + 1 };
+}
+
+// src/client/PdfViewer.jsx
 var PAGE_PADDING = 48;
 var A4 = { width: 595, height: 842 };
 function readPageGeometry(pagesElement) {
@@ -76028,7 +76851,7 @@ function statusOf(error) {
   if (error.name === "InvalidPDFException") return "invalid";
   return "error";
 }
-function PdfViewer({ t: t3, data: data2, size = 0, name: name2 = "", onOpenExternal }) {
+function PdfViewer({ t: t3, url, size = 0, name: name2 = "", onOpenExternal }) {
   const scrollRef = (0, import_react13.useRef)(null);
   const pagesRef = (0, import_react13.useRef)(null);
   const engineRef = (0, import_react13.useRef)(null);
@@ -76049,13 +76872,16 @@ function PdfViewer({ t: t3, data: data2, size = 0, name: name2 = "", onOpenExter
     setCurrentPage(1);
     currentPageRef.current = 1;
     engineRef.current = null;
-    void Promise.resolve().then(() => (init_pdf_engine(), pdf_engine_exports)).then((engine) => engine.openPdf(data2, {
-      onProgress: (progress) => {
-        if (cancelled) return;
-        const ratio = progress.total > 0 ? Math.min(1, progress.loaded / progress.total) : 0;
-        setDoc((previous) => previous.status === "loading" ? { ...previous, progress: ratio } : previous);
-      }
-    })).then((opened) => {
+    void Promise.resolve().then(() => (init_pdf_engine(), pdf_engine_exports)).then(async (engine) => {
+      const bytes = await fetchPdfBytes(url);
+      return engine.openPdf(bytes, {
+        onProgress: (progress) => {
+          if (cancelled) return;
+          const ratio = progress.total > 0 ? Math.min(1, progress.loaded / progress.total) : 0;
+          setDoc((previous) => previous.status === "loading" ? { ...previous, progress: ratio } : previous);
+        }
+      });
+    }).then((opened) => {
       if (cancelled) {
         opened.destroy();
         return;
@@ -76073,7 +76899,7 @@ function PdfViewer({ t: t3, data: data2, size = 0, name: name2 = "", onOpenExter
         engineRef.current = null;
       }
     };
-  }, [data2, retryTick]);
+  }, [url, retryTick]);
   (0, import_react13.useEffect)(() => {
     if (doc2.status !== "ready" || engineRef.current === null) return void 0;
     let cancelled = false;
@@ -76289,9 +77115,6 @@ function PdfViewer({ t: t3, data: data2, size = 0, name: name2 = "", onOpenExter
     )
   );
 }
-
-// src/client/EditorArea.jsx
-init_pdf_view();
 
 // src/client/DiffView.jsx
 var import_react15 = __toESM(require("react"), 1);
@@ -77431,7 +78254,6 @@ function Welcome({ store, slice }) {
   const t3 = store.t;
   const branch = slice.status?.branch;
   const repoProjects = (slice.projects ?? []).filter((project) => project.isRepo === true && project.path !== slice.root);
-  const Shortcut = ({ shortcut, children }) => import_react16.default.createElement(Kbd, null, shortcut);
   const actions = [
     { key: "project", icon: "project", title: t3("welcome.project"), shortcut: slice.shortcuts?.project ?? "Alt+1", onClick: () => store.showTool("project") },
     { key: "commit", icon: "commit", title: t3("welcome.commit"), shortcut: slice.shortcuts?.commit ?? "Alt+0", onClick: () => store.showTool("commit") },
@@ -77444,6 +78266,11 @@ function Welcome({ store, slice }) {
     import_react16.default.createElement(
       "div",
       { className: "iwb-welcome-card" },
+      import_react16.default.createElement(
+        "div",
+        { className: "iwb-welcome-mark" },
+        import_react16.default.createElement(WorkbenchMark, { size: 44 })
+      ),
       import_react16.default.createElement("h1", { className: "iwb-welcome-title" }, t3("welcome.title")),
       import_react16.default.createElement("p", { className: "iwb-welcome-sub" }, t3("welcome.subtitle")),
       import_react16.default.createElement(
@@ -77457,16 +78284,29 @@ function Welcome({ store, slice }) {
             className: "iwb-welcome-action",
             onClick: action.onClick
           },
-          import_react16.default.createElement(StripeIcon, { tool: action.icon, size: 17 }),
-          import_react16.default.createElement("span", null, action.title),
-          import_react16.default.createElement(Shortcut, { shortcut: action.shortcut, children: action.shortcut })
+          import_react16.default.createElement(
+            "span",
+            { className: "iwb-welcome-action-icon" },
+            import_react16.default.createElement(StripeIcon, { tool: action.icon, size: 22 })
+          ),
+          import_react16.default.createElement("span", { className: "iwb-welcome-action-name" }, action.title),
+          import_react16.default.createElement("span", { className: "iwb-welcome-action-key" }, action.shortcut)
         ))
       ),
       import_react16.default.createElement(
         "div",
         { className: "iwb-welcome-meta" },
-        slice.status?.isRepo === true ? import_react16.default.createElement("span", null, `${t3("welcome.branch")}: ${slice.status.detached === true ? t3("git.detached") : branch ?? "HEAD"}`) : import_react16.default.createElement("span", null, t3("welcome.noRepo")),
-        import_react16.default.createElement("span", null, slice.root)
+        slice.status?.isRepo === true ? import_react16.default.createElement(
+          "span",
+          null,
+          import_react16.default.createElement("span", { className: "iwb-welcome-meta-label" }, t3("welcome.branch")),
+          import_react16.default.createElement(
+            "span",
+            { className: "iwb-welcome-meta-value" },
+            slice.status.detached === true ? t3("git.detached") : branch ?? "HEAD"
+          )
+        ) : import_react16.default.createElement("span", { className: "iwb-welcome-meta-label" }, t3("welcome.noRepo")),
+        import_react16.default.createElement("span", { className: "iwb-welcome-meta-path" }, slice.root)
       ),
       slice.status?.isRepo !== true && repoProjects.length > 0 ? import_react16.default.createElement(
         "div",
@@ -77525,7 +78365,9 @@ function FilePreview({ store, slice, tab: tab3, onEditorReady, onFindRequest, on
     return import_react16.default.createElement(PdfViewer, {
       key: `${tab3.id}:${payload.mtimeMs ?? 0}`,
       t: t3,
-      data: payload.data,
+      // The bytes come from the binary route of the host: the read answers
+      // the metadata of the document only (PRD-v8 PDF-01).
+      url: store.rawUrl(tab3.path),
       size: payload.size,
       name: tab3.name,
       onOpenExternal: () => {
@@ -77818,7 +78660,7 @@ function EditorToolbar2({ store, tab: tab3 }) {
             type: "button",
             className: "iwb-textbtn iwb-small",
             onClick: anchor
-          }, t3("commit.showDiffWith"), " \u25BE"),
+          }, t3("commit.showDiffWith"), " ", import_react16.default.createElement(ChevronDown, { size: 10 })),
           import_react16.default.createElement("button", {
             type: "button",
             className: "iwb-textbtn iwb-small",
@@ -77930,7 +78772,7 @@ function EditorToolbar2({ store, tab: tab3 }) {
       ) : null,
       isText2 && markdown2 && !editing && view === "preview" ? import_react16.default.createElement("button", {
         type: "button",
-        className: `iwb-iconbtn ${tab3.outlineOpen === true ? "iwb-on" : ""}`,
+        className: `iwb-iconbtn iwb-outline-toggle ${tab3.outlineOpen === true ? "iwb-on" : ""}`,
         title: t3("editor.outline"),
         onClick: () => store.updateActiveTab({ outlineOpen: tab3.outlineOpen !== true })
       }, import_react16.default.createElement(IconOutline, { width: 14, height: 14 })) : null,
@@ -78310,52 +79152,338 @@ var STACK_WIDTH = 560;
 var LEFT_PANE_RATIO = 42;
 var DEFAULT_ENTRY_SIDE = "right";
 
+// src/client/settings-model.js
+var SETTINGS_CATEGORIES = Object.freeze([
+  { id: "general", labelKey: "settings.categoryGeneral" },
+  { id: "editor", labelKey: "settings.editorGroup" },
+  { id: "files", labelKey: "settings.filesGroup" },
+  { id: "deletion", labelKey: "settings.categoryDeletion" },
+  { id: "terminal", labelKey: "settings.terminalGroup" },
+  { id: "git", labelKey: "settings.gitGroup" },
+  { id: "commit", labelKey: "settings.commitGroup" },
+  { id: "shortcuts", labelKey: "settings.shortcuts" },
+  { id: "ide", labelKey: "settings.ideGroup" },
+  { id: "layout", labelKey: "settings.layoutGroup" }
+]);
+var SHORTCUTS = "shortcuts";
+var SETTING_DESCRIPTORS = Object.freeze([
+  // ── general ────────────────────────────────────────────────────────────
+  {
+    key: "ui.density",
+    category: "general",
+    labelKey: "settings.density",
+    hintKey: "settings.densityHint",
+    control: { type: "select", options: [
+      { value: "comfortable", labelKey: "settings.densityComfortable" },
+      { value: "compact", labelKey: "settings.densityCompact" }
+    ] }
+  },
+  {
+    key: "ui.language",
+    category: "general",
+    labelKey: "settings.language",
+    hintKey: "settings.languageHint",
+    control: { type: "value" }
+  },
+  // ── editor ─────────────────────────────────────────────────────────────
+  {
+    key: "editor.openMode",
+    category: "editor",
+    labelKey: "settings.openMode",
+    hintKey: "settings.openModeHint",
+    control: { type: "select", options: [
+      { value: "auto", labelKey: "settings.openModeAuto" },
+      { value: "editable", labelKey: "settings.openModeEditable" },
+      { value: "readonly", labelKey: "settings.openModeReadonly" }
+    ] }
+  },
+  {
+    key: "editor.editableMaxBytes",
+    category: "editor",
+    labelKey: "settings.editableMaxBytes",
+    hintKey: "settings.editableMaxBytesHint",
+    control: { type: "number", min: 64, max: 16384, step: 64, view: "kb" }
+  },
+  {
+    key: "editor.fontSize",
+    category: "editor",
+    labelKey: "settings.editorFontSize",
+    control: { type: "number", min: 10, max: 20, step: 1 }
+  },
+  {
+    key: "editor.markdownPreview",
+    category: "editor",
+    labelKey: "settings.markdownPreview",
+    hintKey: "settings.markdownPreviewHint",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "editor.highlight",
+    category: "editor",
+    labelKey: "settings.highlight",
+    control: { type: "checkbox" }
+  },
+  // ── file tree ──────────────────────────────────────────────────────────
+  {
+    key: "project.alwaysSelectOpened",
+    category: "files",
+    labelKey: "project.alwaysSelect",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "project.showHidden",
+    category: "files",
+    labelKey: "settings.showHidden",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "project.showIgnored",
+    category: "files",
+    labelKey: "settings.showIgnored",
+    hintKey: "settings.showIgnoredHint",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "project.singleClickOpen",
+    category: "files",
+    labelKey: "settings.singleClickOpen",
+    hintKey: "settings.singleClickOpenHint",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "links.chatFiles",
+    category: "files",
+    labelKey: "settings.chatFileLinks",
+    hintKey: "settings.chatFileLinksHint",
+    control: { type: "select", options: [
+      { value: "ide", labelKey: "settings.chatFileLinksIde" },
+      { value: "sidebar", labelKey: "settings.chatFileLinksSidebar" }
+    ] }
+  },
+  // ── deletion ───────────────────────────────────────────────────────────
+  {
+    key: "delete.useRecycleBin",
+    category: "deletion",
+    labelKey: "settings.useRecycleBin",
+    hintKey: "settings.useRecycleBinHint",
+    control: { type: "checkbox" },
+    danger: true
+  },
+  // ── terminal ───────────────────────────────────────────────────────────
+  {
+    key: "terminal.shell",
+    category: "terminal",
+    labelKey: "settings.defaultShell",
+    hintKey: "settings.defaultShellHint",
+    control: { type: "select", optionsFrom: "shells" },
+    defer: "sessions"
+  },
+  {
+    key: "terminal.copyOnSelect",
+    category: "terminal",
+    labelKey: "settings.copyOnSelect",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "terminal.fontSize",
+    category: "terminal",
+    labelKey: "settings.terminalFontSize",
+    control: { type: "number", min: 10, max: 20, step: 1 }
+  },
+  {
+    key: "terminal.outputLimitBytes",
+    category: "terminal",
+    labelKey: "settings.terminalOutputLimit",
+    hintKey: "settings.terminalOutputLimitHint",
+    control: { type: "number", min: 1, max: 512, step: 1, view: "mib" },
+    defer: "sessions"
+  },
+  // ── git ────────────────────────────────────────────────────────────────
+  {
+    key: "git.path",
+    category: "git",
+    labelKey: "settings.gitPath",
+    hintKey: "settings.gitPathHint",
+    control: { type: "text", placeholder: "git" }
+  },
+  {
+    key: "git.commitTemplate",
+    category: "git",
+    labelKey: "settings.commitTemplate",
+    hintKey: "settings.commitTemplateHint",
+    control: { type: "text" }
+  },
+  {
+    key: "git.colors",
+    category: "git",
+    labelKey: "project.gitColors",
+    control: { type: "checkbox" }
+  },
+  // ── commit ─────────────────────────────────────────────────────────────
+  {
+    key: "commit.groupByDirectory",
+    category: "commit",
+    labelKey: "settings.groupByDirectory",
+    hintKey: "settings.groupByDirectoryHint",
+    control: { type: "checkbox" }
+  },
+  {
+    key: "commit.testCommand",
+    category: "commit",
+    labelKey: "settings.testCommand",
+    hintKey: "settings.testCommandHint",
+    control: { type: "text", placeholder: "npm test" }
+  },
+  {
+    key: "commit.optimizeImportsCommand",
+    category: "commit",
+    labelKey: "settings.optimizeCommand",
+    hintKey: "settings.optimizeCommandHint",
+    control: { type: "text" }
+  },
+  {
+    key: "commit.cleanupCommand",
+    category: "commit",
+    labelKey: "settings.cleanupCommand",
+    hintKey: "settings.cleanupCommandHint",
+    control: { type: "text" }
+  },
+  // ── shortcuts ──────────────────────────────────────────────────────────
+  //
+  // Every shortcut the workbench really reads is here. The ones that were
+  // missing before (the keys of the file tree, the commit detail, the jump
+  // to the source, the hide of the tool windows) were live in the code and
+  // unreachable in the settings page.
+  ...[
+    ["shortcuts.project", "settings.projectShortcut", "settings.projectShortcutHint"],
+    ["shortcuts.commit", "settings.commitShortcut", "settings.commitShortcutHint"],
+    ["shortcuts.git", "settings.gitShortcut", "settings.gitShortcutHint"],
+    ["shortcuts.terminal", "settings.terminalShortcut", "settings.terminalShortcutHint"],
+    ["shortcuts.focusCommit", "settings.focusCommitShortcut", "settings.focusCommitShortcutHint"],
+    ["shortcuts.push", "settings.pushShortcut", "settings.pushShortcutHint"],
+    ["shortcuts.findInFiles", "settings.findInFilesShortcut", "settings.findInFilesShortcutHint"],
+    ["shortcuts.findInFilesAlt", "settings.findInFilesAltShortcut", "settings.findInFilesAltShortcutHint"],
+    ["shortcuts.quickOpen", "settings.quickOpenShortcut", "settings.quickOpenShortcutHint"],
+    ["shortcuts.openCommitDetail", "settings.openCommitDetailShortcut", "settings.openCommitDetailShortcutHint"],
+    ["shortcuts.rename", "settings.renameShortcut", "settings.renameShortcutHint"],
+    ["shortcuts.delete", "settings.deleteShortcut", "settings.deleteShortcutHint"],
+    ["shortcuts.duplicate", "settings.duplicateShortcut", "settings.duplicateShortcutHint"],
+    ["shortcuts.move", "settings.moveShortcut", "settings.moveShortcutHint"],
+    ["shortcuts.synchronize", "settings.synchronizeShortcut", "settings.synchronizeShortcutHint"],
+    ["shortcuts.jumpToSource", "settings.jumpToSourceShortcut", "settings.jumpToSourceShortcutHint"],
+    ["shortcuts.hideAll", "settings.hideAllShortcut", "settings.hideAllShortcutHint"]
+  ].map(([key, labelKey, hintKey]) => ({
+    key,
+    category: SHORTCUTS,
+    labelKey,
+    hintKey,
+    control: { type: "shortcut" }
+  })),
+  // ── external IDEs ──────────────────────────────────────────────────────
+  // The names of the IDEs are brand names: they read the same in every
+  // language, exactly as the menus of the file tree carry them.
+  ...[
+    ["idea.path", "IntelliJ IDEA"],
+    ["webstorm.path", "WebStorm"],
+    ["vscode.path", "Visual Studio Code"]
+  ].map(([key, label3]) => ({
+    key,
+    category: "ide",
+    label: label3,
+    control: { type: "text", placeholderKey: "settings.ideAuto" }
+  })),
+  // ── layout ─────────────────────────────────────────────────────────────
+  {
+    key: "layout.entrySide",
+    category: "layout",
+    labelKey: "settings.toolWindowSide",
+    hintKey: "settings.toolWindowSideHint",
+    control: { type: "select", options: [
+      { value: "left", labelKey: "settings.toolWindowSideLeft" },
+      { value: "right", labelKey: "settings.toolWindowSideRight" }
+    ] },
+    // The side of the tool windows is written through, not debounced: the
+    // root class of the workbench follows the saved settings, so the entries
+    // move as the user picks a side.
+    writeThrough: "entrySide"
+  }
+]);
+function pathOf(key) {
+  return String(key ?? "").split(".");
+}
+function readSetting(document2, key) {
+  let value = document2;
+  for (const part of pathOf(key)) {
+    if (value === null || typeof value !== "object") return void 0;
+    value = value[part];
+  }
+  return value;
+}
+function searchEntry(descriptor, t3, categoryLabels) {
+  const label3 = descriptor.labelKey !== void 0 ? t3(descriptor.labelKey) : descriptor.label ?? "";
+  const hint = descriptor.hintKey === void 0 ? "" : t3(descriptor.hintKey);
+  const category = categoryLabels[descriptor.category] ?? "";
+  const haystack = `${label3} ${hint} ${descriptor.key} ${category}`.toLowerCase();
+  return { key: descriptor.key, category: descriptor.category, label: label3, hint, haystack };
+}
+function buildSearchIndex(t3) {
+  const categoryLabels = {};
+  for (const category of SETTINGS_CATEGORIES) categoryLabels[category.id] = t3(category.labelKey);
+  const entries = SETTING_DESCRIPTORS.map((descriptor) => searchEntry(descriptor, t3, categoryLabels));
+  const byKey = {};
+  for (const descriptor of SETTING_DESCRIPTORS) byKey[descriptor.key] = descriptor;
+  return { entries, byKey };
+}
+function normalizeQuery(query) {
+  return String(query ?? "").trim().toLowerCase();
+}
+function matchesEntry(entry, query) {
+  const text = normalizeQuery(query);
+  if (text === "") return true;
+  const words = text.split(/\s+/).filter((word) => word !== "");
+  return words.every((word) => entry.haystack.includes(word));
+}
+function filterSettings(entries, query) {
+  const text = normalizeQuery(query);
+  if (text === "") return entries;
+  return entries.filter((entry) => matchesEntry(entry, text));
+}
+function countByCategory(entries) {
+  const byCategory = {};
+  for (const category of SETTINGS_CATEGORIES) byCategory[category.id] = 0;
+  for (const entry of entries) byCategory[entry.category] = (byCategory[entry.category] ?? 0) + 1;
+  return { total: entries.length, byCategory };
+}
+function groupByCategory(entries) {
+  const groups = [];
+  for (const category of SETTINGS_CATEGORIES) {
+    const own = entries.filter((entry) => entry.category === category.id);
+    if (own.length === 0) continue;
+    groups.push({ category, entries: own });
+  }
+  return groups;
+}
+
 // src/client/SettingsPanel.jsx
-var SHORTCUT_FIELDS = [
-  ["project", "projectShortcut"],
-  ["commit", "commitShortcut"],
-  ["git", "gitShortcut"],
-  ["terminal", "terminalShortcut"],
-  ["focusCommit", "focusCommitShortcut"],
-  ["push", "pushShortcut"],
-  ["findInFiles", "findInFilesShortcut"],
-  ["findInFilesAlt", "findInFilesAltShortcut"],
-  ["quickOpen", "quickOpenShortcut"]
-];
-function Group({ title, description, children }) {
-  return import_react17.default.createElement(
-    "section",
-    { className: "iwb-settings-group" },
-    import_react17.default.createElement("h3", { className: "iwb-settings-group-title" }, title),
-    description !== void 0 ? import_react17.default.createElement("p", { className: "iwb-settings-group-desc" }, description) : null,
-    import_react17.default.createElement("div", { className: "iwb-settings-rows" }, children)
-  );
+var ALL = "all";
+function controlId(key) {
+  return `iwb-settings-${String(key).replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }
-function Row({ label: label3, hint, title, children }) {
-  return import_react17.default.createElement(
-    "div",
-    { className: "iwb-settings-row", title },
-    import_react17.default.createElement(
-      "div",
-      { className: "iwb-settings-label" },
-      import_react17.default.createElement("div", { className: "iwb-settings-title" }, label3),
-      hint !== void 0 ? import_react17.default.createElement("div", { className: "iwb-settings-hint" }, hint) : null
-    ),
-    import_react17.default.createElement("div", { className: "iwb-settings-control" }, children)
-  );
-}
+var DEFAULT_TERMINAL_OUTPUT_LIMIT = 8 * 1024 * 1024;
 function resetPatch() {
   return {
     git: { path: "", colors: true, commitTemplate: "" },
     idea: { path: "" },
     webstorm: { path: "" },
     vscode: { path: "" },
-    terminal: { shell: "auto", copyOnSelect: false, fontSize: 13 },
+    terminal: { shell: "auto", copyOnSelect: false, fontSize: 13, outputLimitBytes: DEFAULT_TERMINAL_OUTPUT_LIMIT },
     project: { alwaysSelectOpened: true, showHidden: true, showIgnored: false, singleClickOpen: false },
     commit: { groupByDirectory: false },
     delete: { useRecycleBin: true },
     editor: { fontSize: 13, highlight: true, openMode: "auto", editableMaxBytes: 1 << 20, markdownPreview: true },
     links: { chatFiles: "ide" },
+    layout: { entrySide: "right" },
+    ui: { density: "comfortable" },
     shortcuts: {
       project: "Alt+1",
       commit: "Alt+0",
@@ -78366,23 +79494,136 @@ function resetPatch() {
       findInFiles: "Ctrl+Shift+R",
       findInFilesAlt: "Ctrl+Alt+F",
       openCommitDetail: "Ctrl+Alt+D",
-      quickOpen: "Ctrl+Shift+N"
+      quickOpen: "Ctrl+Shift+N",
+      rename: "F2",
+      delete: "Delete",
+      duplicate: "F5",
+      move: "F6",
+      synchronize: "Ctrl+Alt+Y",
+      jumpToSource: "F4",
+      hideAll: "Ctrl+Shift+F12"
     }
   };
 }
-function SettingsForm({ store, state, compact, contract = null, renderSlot = null, onStatusChange }) {
+function defaultsByKey() {
+  const map = {};
+  for (const [section, value] of Object.entries(resetPatch())) {
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      for (const [key, inner] of Object.entries(value)) map[`${section}.${key}`] = inner;
+    } else {
+      map[section] = value;
+    }
+  }
+  return map;
+}
+var SETTING_DEFAULTS = defaultsByKey();
+function leafPaths(patch, prefix = "") {
+  const paths = [];
+  if (patch === null || typeof patch !== "object" || Array.isArray(patch)) return paths;
+  for (const [key, value] of Object.entries(patch)) {
+    const path2 = prefix === "" ? key : `${prefix}.${key}`;
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) paths.push(...leafPaths(value, path2));
+    else paths.push(path2);
+  }
+  return paths;
+}
+function Group({ id: id2, title, description, children }) {
+  return import_react17.default.createElement(
+    "section",
+    {
+      className: "iwb-settings-group",
+      id: `iwb-settings-group-${id2}`,
+      "aria-labelledby": `iwb-settings-group-title-${id2}`
+    },
+    import_react17.default.createElement("h3", { className: "iwb-settings-group-title", id: `iwb-settings-group-title-${id2}` }, title),
+    description !== void 0 ? import_react17.default.createElement("p", { className: "iwb-settings-group-desc" }, description) : null,
+    import_react17.default.createElement("div", { className: "iwb-settings-rows" }, children)
+  );
+}
+var Row = import_react17.default.memo(function Row2({
+  descriptor,
+  label: label3,
+  hint,
+  changed,
+  deferred,
+  failed,
+  external,
+  danger,
+  control,
+  onReset
+}) {
+  const id2 = controlId(descriptor.key);
+  const hintId = `${id2}-hint`;
+  return import_react17.default.createElement(
+    "div",
+    {
+      className: `iwb-settings-row${failed === true ? " iwb-settings-row-failed" : ""}`,
+      "data-setting": descriptor.key
+    },
+    import_react17.default.createElement(
+      "div",
+      { className: "iwb-settings-label" },
+      control.labelable === true ? import_react17.default.createElement("label", { className: "iwb-settings-title", htmlFor: id2 }, label3) : import_react17.default.createElement("span", { className: "iwb-settings-title", id: `${id2}-label` }, label3),
+      hint !== "" ? import_react17.default.createElement("div", { className: "iwb-settings-hint", id: hintId }, hint) : null,
+      import_react17.default.createElement(
+        "div",
+        { className: "iwb-settings-badges" },
+        changed === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-changed" }, descriptor.changedLabel) : null,
+        deferred === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-deferred" }, descriptor.deferredLabel) : null,
+        danger === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-danger" }, descriptor.dangerLabel) : null,
+        external === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-external" }, descriptor.externalLabel) : null,
+        failed === true ? import_react17.default.createElement("span", { className: "iwb-settings-badge iwb-settings-badge-failed" }, descriptor.failedLabel) : null,
+        changed === true ? import_react17.default.createElement("button", {
+          type: "button",
+          className: "iwb-settings-reset-row",
+          title: descriptor.resetLabel,
+          "aria-label": descriptor.resetLabel,
+          onClick: () => onReset(descriptor.key)
+        }, descriptor.resetLabel) : null
+      )
+    ),
+    import_react17.default.createElement("div", {
+      className: "iwb-settings-control",
+      role: control.labelable === true ? void 0 : "group",
+      "aria-labelledby": control.labelable === true ? void 0 : `${id2}-label`
+    }, control.element)
+  );
+});
+var SettingsForm = import_react17.default.memo(function SettingsForm2({
+  store,
+  state,
+  settings: settingsProp,
+  shells: shellsProp,
+  localeTick,
+  compact,
+  contract = null,
+  renderSlot = null,
+  onStatusChange
+}) {
   const t3 = store.t;
-  const settings = state.settings ?? {};
-  const entrySide = state.settings?.layout?.entrySide === "left" ? "left" : DEFAULT_ENTRY_SIDE;
+  const settings = settingsProp ?? state?.settings ?? {};
+  const shells = shellsProp ?? state?.terminal?.shells ?? [];
+  const entrySide = settings.layout?.entrySide === "left" ? "left" : DEFAULT_ENTRY_SIDE;
   const [draft, setDraft] = (0, import_react17.useState)(settings);
   const [saved, setSaved] = (0, import_react17.useState)(false);
   const [saving, setSaving] = (0, import_react17.useState)(false);
-  const [capturing, setCapturing] = (0, import_react17.useState)(false);
+  const [failedSave, setFailedSave] = (0, import_react17.useState)(false);
+  const [capturing, setCapturing] = (0, import_react17.useState)(null);
+  const [filter, setFilter] = (0, import_react17.useState)("");
+  const [category, setCategory] = (0, import_react17.useState)(ALL);
+  const [resetArmed, setResetArmed] = (0, import_react17.useState)(false);
+  const [failedKeys, setFailedKeys] = (0, import_react17.useState)(() => /* @__PURE__ */ new Set());
+  const [externalKeys, setExternalKeys] = (0, import_react17.useState)(() => /* @__PURE__ */ new Set());
   const timer = (0, import_react17.useRef)(null);
   const savedTimer = (0, import_react17.useRef)(null);
+  const resetTimer = (0, import_react17.useRef)(null);
   const rootRef = (0, import_react17.useRef)(null);
+  const filterRef = (0, import_react17.useRef)(null);
+  const tabRefs = (0, import_react17.useRef)(/* @__PURE__ */ new Map());
   const scrollRef = (0, import_react17.useRef)({ parent: null, top: 0 });
   const pendingPatch = (0, import_react17.useRef)({});
+  const draftRef = (0, import_react17.useRef)(draft);
+  draftRef.current = draft;
   const alive = (0, import_react17.useRef)(true);
   const captureScroll = () => {
     let node = rootRef.current?.parentElement ?? null;
@@ -78407,11 +79648,23 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
   };
   (0, import_react17.useEffect)(() => {
     if (Object.keys(pendingPatch.current).length > 0) return;
+    const touched = /* @__PURE__ */ new Set();
+    for (const key of Object.keys(SETTING_DEFAULTS)) {
+      if (readSetting(settings, key) === void 0) continue;
+      if (readSetting(draftRef.current, key) !== readSetting(settings, key)) touched.add(key);
+    }
     setDraft(settings);
+    if (touched.size > 0) {
+      setExternalKeys(touched);
+      if (savedTimer.current !== null) clearTimeout(savedTimer.current);
+      savedTimer.current = setTimeout(() => {
+        if (alive.current) setExternalKeys(/* @__PURE__ */ new Set());
+      }, 4e3);
+    }
   }, [settings]);
   (0, import_react17.useEffect)(() => {
-    onStatusChange?.({ saving, saved });
-  }, [saving, saved]);
+    onStatusChange?.({ saving, saved, failed: failedSave });
+  }, [saving, saved, failedSave]);
   const mergePatch = (base2, patch) => {
     const output = { ...base2 };
     for (const [key, value] of Object.entries(patch)) {
@@ -78432,11 +79685,24 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
     return store.updateSettings(patch).finally(() => {
       if (!alive.current) return;
       setSaving(false);
-      setSaved(true);
-      if (savedTimer.current !== null) clearTimeout(savedTimer.current);
-      savedTimer.current = setTimeout(() => {
-        if (alive.current) setSaved(false);
-      }, 1800);
+      const published = typeof store.getSnapshot === "function" ? store.getSnapshot().settings : null;
+      const broken = [];
+      if (published !== null && published !== void 0) {
+        for (const path2 of leafPaths(patch)) {
+          if (readSetting(published, path2) !== readSetting(patch, path2)) broken.push(path2);
+        }
+      }
+      if (broken.length > 0) {
+        setFailedKeys((previous) => /* @__PURE__ */ new Set([...previous, ...broken]));
+        setFailedSave(true);
+      } else {
+        setFailedSave(false);
+        setSaved(true);
+        if (savedTimer.current !== null) clearTimeout(savedTimer.current);
+        savedTimer.current = setTimeout(() => {
+          if (alive.current) setSaved(false);
+        }, 1800);
+      }
     });
   };
   (0, import_react17.useEffect)(() => {
@@ -78446,6 +79712,7 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
       if (Object.keys(pendingPatch.current).length > 0) void flush();
       if (timer.current !== null) clearTimeout(timer.current);
       if (savedTimer.current !== null) clearTimeout(savedTimer.current);
+      if (resetTimer.current !== null) clearTimeout(resetTimer.current);
     };
   }, []);
   const commit = (patch) => {
@@ -78474,341 +79741,379 @@ function SettingsForm({ store, state, compact, contract = null, renderSlot = nul
       layout: { ...draft.layout, ...patch.layout ?? {} },
       editor: { ...draft.editor, ...patch.editor ?? {} },
       links: { ...draft.links, ...patch.links ?? {} },
+      ui: { ...draft.ui, ...patch.ui ?? {} },
       shortcuts: { ...draft.shortcuts, ...patch.shortcuts ?? {} }
     };
     setDraft(next);
     commit(patch);
   };
+  const change = (0, import_react17.useCallback)((key, value) => {
+    const path2 = pathOf(key);
+    const section = path2[0];
+    const leaf = path2.slice(1);
+    update(leaf.length === 1 ? { [section]: { [leaf[0]]: value } } : { [section]: value });
+    setExternalKeys((previous) => {
+      if (!previous.has(key)) return previous;
+      const next = new Set(previous);
+      next.delete(key);
+      return next;
+    });
+    setFailedKeys((previous) => {
+      if (!previous.has(key)) return previous;
+      const next = new Set(previous);
+      next.delete(key);
+      return next;
+    });
+  }, [store]);
+  const resetOne = (0, import_react17.useCallback)((key) => {
+    const fallback2 = SETTING_DEFAULTS[key];
+    if (fallback2 === void 0) return;
+    change(key, fallback2);
+  }, [change]);
+  const index = (0, import_react17.useMemo)(() => buildSearchIndex(t3), [t3, localeTick]);
+  const entries = (0, import_react17.useMemo)(() => filterSettings(index.entries, filter), [index, filter]);
+  const counts = (0, import_react17.useMemo)(() => countByCategory(entries), [entries]);
+  const visible = (0, import_react17.useMemo)(
+    () => category === ALL ? entries : entries.filter((entry) => entry.category === category),
+    [entries, category]
+  );
+  const groups = (0, import_react17.useMemo)(() => groupByCategory(visible), [visible]);
+  const tabs = (0, import_react17.useMemo)(() => {
+    const list = [{ id: ALL, label: t3("settings.categoryAll"), count: counts.total }];
+    for (const item of SETTINGS_CATEGORIES) {
+      const count2 = counts.byCategory[item.id] ?? 0;
+      if (filter !== "" && count2 === 0) continue;
+      list.push({ id: item.id, label: t3(item.labelKey), count: count2 });
+    }
+    return list;
+  }, [counts, filter, t3]);
+  const selectTab = (0, import_react17.useCallback)((id2, focus = false) => {
+    setCategory(id2);
+    const node = tabRefs.current.get(id2);
+    if (node === void 0 || node === null) return;
+    if (typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+    if (focus) node.focus();
+  }, []);
+  const onTabKeyDown = (0, import_react17.useCallback)((event) => {
+    const keys2 = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+    if (!keys2.includes(event.key)) return;
+    event.preventDefault();
+    const current = tabs.findIndex((tab3) => tab3.id === category);
+    let next = current;
+    if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = tabs.length - 1;
+    else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (current - 1 + tabs.length) % tabs.length;
+    else next = (current + 1) % tabs.length;
+    selectTab(tabs[next].id, true);
+  }, [tabs, category, selectTab]);
+  const onFilterKeyDown = (0, import_react17.useCallback)((event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (filter !== "") {
+      setFilter("");
+      return;
+    }
+    if (typeof event.currentTarget?.blur === "function") event.currentTarget.blur();
+  }, [filter]);
+  const onRootKeyDown = (0, import_react17.useCallback)((event) => {
+    if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    const tag = target instanceof Element ? target.tagName : "";
+    if (tag === "TEXTAREA") return;
+    if (tag === "INPUT") {
+      const type = (target.getAttribute("type") ?? "text").toLowerCase();
+      if (!["checkbox", "radio", "button", "submit", "reset"].includes(type)) return;
+    }
+    if (target instanceof Element && target.isContentEditable === true) return;
+    event.preventDefault();
+    filterRef.current?.focus();
+    filterRef.current?.select?.();
+  }, []);
+  const controlOf = (0, import_react17.useCallback)((descriptor, value) => {
+    const spec = descriptor.control;
+    const id2 = controlId(descriptor.key);
+    const hintId = `${id2}-hint`;
+    const labelable = spec.type !== "shortcut" && spec.type !== "value";
+    const described = descriptor.hintKey === void 0 ? void 0 : hintId;
+    switch (spec.type) {
+      case "checkbox":
+        return {
+          labelable,
+          element: import_react17.default.createElement("input", {
+            type: "checkbox",
+            id: id2,
+            checked: value === true,
+            "aria-describedby": described,
+            onChange: (event) => change(descriptor.key, event.target.checked)
+          })
+        };
+      case "text":
+        return {
+          labelable,
+          element: import_react17.default.createElement("input", {
+            type: "text",
+            id: id2,
+            className: "iwb-input",
+            value: typeof value === "string" ? value : "",
+            placeholder: spec.placeholder ?? (spec.placeholderKey === void 0 ? "" : t3(spec.placeholderKey)),
+            "aria-describedby": described,
+            onChange: (event) => change(descriptor.key, event.target.value)
+          })
+        };
+      case "number": {
+        const factor = spec.view === "mib" ? 1024 * 1024 : spec.view === "kb" ? 1024 : 1;
+        const shown = typeof value === "number" && Number.isFinite(value) ? Math.round(value / factor) : "";
+        return {
+          labelable,
+          element: import_react17.default.createElement("input", {
+            type: "number",
+            id: id2,
+            min: spec.min,
+            max: spec.max,
+            step: spec.step ?? 1,
+            value: shown,
+            "aria-describedby": described,
+            onChange: (event) => {
+              const number2 = Number(event.target.value);
+              change(descriptor.key, Number.isFinite(number2) ? number2 * factor : 0);
+            }
+          })
+        };
+      }
+      case "select": {
+        const options = spec.optionsFrom === "shells" ? [{ value: "auto", labelKey: "settings.auto" }, ...shells.map((shell) => ({ value: shell.id, label: shell.label }))] : spec.options;
+        const live = descriptor.writeThrough === "entrySide";
+        const write = (event) => {
+          if (live) {
+            void store.updateSettings({ layout: { entrySide: event.target.value === "left" ? "left" : "right" } });
+            return;
+          }
+          change(descriptor.key, event.target.value);
+        };
+        const control = live ? { id: id2, className: "iwb-input", value: entrySide, "aria-describedby": described, onChange: write } : {
+          id: id2,
+          className: "iwb-input",
+          value: typeof value === "string" ? value : "",
+          "aria-describedby": described,
+          onChange: write
+        };
+        return {
+          labelable,
+          element: import_react17.default.createElement("select", control, options.map((option) => import_react17.default.createElement("option", {
+            key: option.value,
+            value: option.value
+          }, option.label !== void 0 ? option.label : t3(option.labelKey))))
+        };
+      }
+      case "shortcut":
+        return {
+          labelable,
+          element: import_react17.default.createElement(ShortcutCapture, {
+            value: typeof value === "string" ? value : "",
+            active: capturing === descriptor.key,
+            onActivate: (active) => setCapturing(active ? descriptor.key : null),
+            onCapture: (next) => change(descriptor.key, next),
+            pressText: t3("settings.pressKeys"),
+            hint: t3("settings.recordShortcutHint")
+          })
+        };
+      default:
+        return {
+          labelable,
+          element: import_react17.default.createElement("span", { className: "iwb-settings-value" }, t3("settings.followDsh"))
+        };
+    }
+  }, [change, capturing, entrySide, shells, store, t3]);
+  const rowOf = (0, import_react17.useCallback)((entry) => {
+    const descriptor = index.byKey[entry.key];
+    const value = readSetting(draft, entry.key);
+    const fallback2 = SETTING_DEFAULTS[entry.key];
+    const changed = fallback2 !== void 0 && value !== void 0 && value !== fallback2;
+    return import_react17.default.createElement(Row, {
+      key: entry.key,
+      descriptor: {
+        ...descriptor,
+        changedLabel: t3("settings.changedBadge"),
+        deferredLabel: t3("settings.deferredBadge"),
+        externalLabel: t3("settings.externalBadge"),
+        failedLabel: t3("settings.failedBadge"),
+        dangerLabel: t3("settings.dangerBadge"),
+        resetLabel: t3("settings.resetOne")
+      },
+      label: entry.label,
+      hint: entry.hint,
+      changed,
+      deferred: descriptor.defer === "sessions",
+      failed: failedKeys.has(entry.key),
+      external: externalKeys.has(entry.key),
+      danger: descriptor.danger === true && value === false,
+      control: controlOf(descriptor, value),
+      onReset: resetOne
+    });
+  }, [index, draft, failedKeys, externalKeys, controlOf, resetOne, t3]);
+  const blocks = (0, import_react17.useMemo)(() => groups.map((group) => {
+    const description = group.category.id === "shortcuts" ? t3("settings.shortcutsGroupHint") : group.category.id === "ide" ? t3("settings.idePathHint") : void 0;
+    return import_react17.default.createElement(Group, {
+      key: group.category.id,
+      id: group.category.id,
+      title: t3(group.category.labelKey),
+      description
+    }, group.entries.map((entry) => rowOf(entry)));
+  }), [groups, rowOf, t3]);
+  const density = draft.ui?.density === "compact" ? "compact" : "comfortable";
+  const armReset = (0, import_react17.useCallback)(() => {
+    setResetArmed(true);
+    if (resetTimer.current !== null) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => {
+      if (alive.current) setResetArmed(false);
+    }, 8e3);
+  }, []);
+  const doReset = (0, import_react17.useCallback)(() => {
+    const reset = resetPatch();
+    setDraft({ ...draftRef.current, ...reset });
+    commit(reset);
+    setResetArmed(false);
+    if (resetTimer.current !== null) clearTimeout(resetTimer.current);
+    store.toast?.("success", t3("settings.resetDone"), "");
+  }, [store, t3]);
   return import_react17.default.createElement(
     "div",
-    { className: "iwb-settings", ref: rootRef },
+    {
+      className: `iwb-settings iwb-settings-${density}`,
+      ref: rootRef,
+      onKeyDown: onRootKeyDown
+    },
+    // ── the header: the filter, the categories and the reset ─────────────
     import_react17.default.createElement(
-      Group,
-      {
-        title: t3("settings.shortcuts"),
-        description: t3("settings.shortcutsGroupHint")
-      },
-      SHORTCUT_FIELDS.map(([field, labelKey]) => import_react17.default.createElement(
-        Row,
-        {
-          key: field,
-          label: t3(`settings.${labelKey}`),
-          hint: t3(`settings.${labelKey}Hint`)
-        },
-        import_react17.default.createElement(ShortcutCapture, {
-          value: draft.shortcuts?.[field] ?? "",
-          active: capturing,
-          onActivate: setCapturing,
-          onCapture: (value) => update({ shortcuts: { [field]: value } }),
-          pressText: t3("settings.pressKeys"),
-          hint: t3("settings.recordShortcutHint")
-        })
-      ))
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.terminalGroup") },
+      "div",
+      { className: "iwb-settings-header" },
       import_react17.default.createElement(
-        Row,
-        { label: t3("settings.defaultShell"), hint: t3("settings.defaultShellHint") },
+        "div",
+        { className: "iwb-settings-header-row" },
         import_react17.default.createElement(
-          "select",
-          {
-            className: "iwb-select",
-            value: draft.terminal?.shell ?? "auto",
-            onChange: (event) => update({ terminal: { shell: event.target.value } })
-          },
-          import_react17.default.createElement("option", { value: "auto" }, t3("settings.auto")),
-          state.terminal.shells.map((shell) => import_react17.default.createElement("option", { key: shell.id, value: shell.id }, shell.label))
-        )
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.copyOnSelect") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.terminal?.copyOnSelect === true,
-          onChange: (event) => update({ terminal: { copyOnSelect: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.terminalFontSize") },
-        import_react17.default.createElement("input", {
-          type: "number",
-          min: 10,
-          max: 20,
-          value: draft.terminal?.fontSize ?? 13,
-          onChange: (event) => update({ terminal: { fontSize: Number(event.target.value) || 13 } })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.filesGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("project.alwaysSelect") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.project?.alwaysSelectOpened !== false,
-          onChange: (event) => update({ project: { alwaysSelectOpened: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("project.gitColors") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.git?.colors !== false,
-          onChange: (event) => update({ git: { colors: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.showHidden") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.project?.showHidden !== false,
-          onChange: (event) => update({ project: { showHidden: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.singleClickOpen"), hint: t3("settings.singleClickOpenHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.project?.singleClickOpen === true,
-          onChange: (event) => update({ project: { singleClickOpen: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.chatFileLinks"), hint: t3("settings.chatFileLinksHint") },
-        import_react17.default.createElement(
-          "select",
-          {
-            className: "iwb-select",
-            value: draft.links?.chatFiles === "sidebar" ? "sidebar" : "ide",
-            onChange: (event) => update({ links: { chatFiles: event.target.value } })
-          },
-          import_react17.default.createElement("option", { value: "ide" }, t3("settings.chatFileLinksIde")),
-          import_react17.default.createElement("option", { value: "sidebar" }, t3("settings.chatFileLinksSidebar"))
-        )
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.showIgnored"), hint: t3("settings.showIgnoredHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.project?.showIgnored === true,
-          onChange: (event) => update({ project: { showIgnored: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.groupByDirectory"), hint: t3("settings.groupByDirectoryHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.commit?.groupByDirectory === true,
-          onChange: (event) => update({ commit: { groupByDirectory: event.target.checked } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.useRecycleBin"), hint: t3("settings.useRecycleBinHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.delete?.useRecycleBin !== false,
-          onChange: (event) => update({ delete: { useRecycleBin: event.target.checked } })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.ideGroup"), description: t3("settings.idePathHint") },
-      IDE_OPTIONS.map((ide) => import_react17.default.createElement(
-        Row,
-        { key: ide.id, label: ide.title },
-        import_react17.default.createElement("input", {
-          type: "text",
-          className: "iwb-input",
-          "aria-label": ide.title,
-          value: draft[ide.id]?.path ?? "",
-          placeholder: t3("settings.ideAuto"),
-          onChange: (event) => update({ [ide.id]: { path: event.target.value } })
-        })
-      ))
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.editorGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.openMode"), hint: t3("settings.openModeHint") },
-        import_react17.default.createElement(
-          "select",
-          {
-            value: draft.editor?.openMode ?? "auto",
-            onChange: (event) => update({ editor: { openMode: event.target.value } })
-          },
-          import_react17.default.createElement("option", { value: "auto" }, t3("settings.openModeAuto")),
-          import_react17.default.createElement("option", { value: "editable" }, t3("settings.openModeEditable")),
-          import_react17.default.createElement("option", { value: "readonly" }, t3("settings.openModeReadonly"))
-        )
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.editableMaxBytes"), hint: t3("settings.editableMaxBytesHint") },
-        import_react17.default.createElement("input", {
-          type: "number",
-          min: 64,
-          max: 16384,
-          step: 64,
-          value: Math.round((draft.editor?.editableMaxBytes ?? 1 << 20) / 1024),
-          onChange: (event) => update({ editor: { editableMaxBytes: (Number(event.target.value) || 1024) * 1024 } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.editorFontSize") },
-        import_react17.default.createElement("input", {
-          type: "number",
-          min: 10,
-          max: 20,
-          value: draft.editor?.fontSize ?? 13,
-          onChange: (event) => update({ editor: { fontSize: Number(event.target.value) || 13 } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.markdownPreview"), hint: t3("settings.markdownPreviewHint") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.editor?.markdownPreview !== false,
-          onChange: (event) => update({ editor: { markdownPreview: event.target.checked } })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.gitGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.gitPath"), hint: t3("settings.gitPathHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          placeholder: "git",
-          value: draft.git?.path ?? "",
-          onChange: (event) => update({ git: { path: event.target.value } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.commitTemplate"), hint: t3("settings.commitTemplateHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          value: draft.git?.commitTemplate ?? "",
-          onChange: (event) => update({ git: { commitTemplate: event.target.value } })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.commitGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.testCommand"), hint: t3("settings.testCommandHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          placeholder: "npm test",
-          value: draft.commit?.testCommand ?? "",
-          onChange: (event) => update({ commit: { testCommand: event.target.value } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.optimizeCommand"), hint: t3("settings.optimizeCommandHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          value: draft.commit?.optimizeImportsCommand ?? "",
-          onChange: (event) => update({ commit: { optimizeImportsCommand: event.target.value } })
-        })
-      ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.cleanupCommand"), hint: t3("settings.cleanupCommandHint") },
-        import_react17.default.createElement("input", {
-          type: "text",
-          value: draft.commit?.cleanupCommand ?? "",
-          onChange: (event) => update({ commit: { cleanupCommand: event.target.value } })
-        })
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.layoutGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.toolWindowSide"), hint: t3("settings.toolWindowSideHint") },
-        import_react17.default.createElement(
-          "select",
-          {
-            className: "iwb-input",
-            value: entrySide,
-            onChange: (event) => {
-              void store.updateSettings({ layout: { entrySide: event.target.value === "left" ? "left" : "right" } });
+          "div",
+          { className: "iwb-settings-search", role: "search" },
+          import_react17.default.createElement("input", {
+            ref: filterRef,
+            type: "search",
+            id: "iwb-settings-filter",
+            className: "iwb-settings-filter",
+            placeholder: t3("settings.filterPlaceholder"),
+            "aria-label": t3("settings.filterLabel"),
+            "aria-controls": "iwb-settings-panel",
+            value: filter,
+            onChange: (event) => setFilter(event.target.value),
+            onKeyDown: onFilterKeyDown
+          }),
+          import_react17.default.createElement("span", {
+            className: "iwb-settings-count",
+            role: "status",
+            "aria-live": "polite"
+          }, `${counts.total} ${filter === "" ? t3("settings.countAll") : t3("settings.countMatches")}`)
+        ),
+        resetArmed === true ? import_react17.default.createElement(
+          "div",
+          { className: "iwb-settings-reset-confirm" },
+          import_react17.default.createElement("span", null, t3("settings.resetConfirm")),
+          import_react17.default.createElement("button", {
+            type: "button",
+            className: "iwb-textbtn iwb-small iwb-danger-solid",
+            onClick: doReset
+          }, t3("settings.resetConfirmYes")),
+          import_react17.default.createElement("button", {
+            type: "button",
+            className: "iwb-textbtn iwb-small",
+            onClick: () => {
+              setResetArmed(false);
+              if (resetTimer.current !== null) clearTimeout(resetTimer.current);
             }
-          },
-          import_react17.default.createElement("option", { value: "left" }, t3("settings.toolWindowSideLeft")),
-          import_react17.default.createElement("option", { value: "right" }, t3("settings.toolWindowSideRight"))
-        )
-      )
-    ),
-    import_react17.default.createElement(
-      Group,
-      { title: t3("settings.appearanceGroup") },
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.highlight") },
-        import_react17.default.createElement("input", {
-          type: "checkbox",
-          checked: draft.editor?.highlight !== false,
-          onChange: (event) => update({ editor: { highlight: event.target.checked } })
-        })
+          }, t3("common.cancel"))
+        ) : import_react17.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-small iwb-settings-reset",
+          title: t3("settings.resetTitle"),
+          "aria-label": t3("settings.resetTitle"),
+          onClick: armReset
+        }, t3("settings.reset"))
       ),
-      import_react17.default.createElement(
-        Row,
-        { label: t3("settings.language"), hint: t3("settings.languageHint") },
-        import_react17.default.createElement("span", { className: "iwb-settings-value" }, t3("settings.followDsh"))
-      )
+      import_react17.default.createElement("div", {
+        className: "iwb-settings-tabs",
+        role: "tablist",
+        "aria-label": t3("settings.categoriesLabel"),
+        onKeyDown: onTabKeyDown
+      }, tabs.map((tab3) => import_react17.default.createElement(
+        "button",
+        {
+          key: tab3.id,
+          type: "button",
+          role: "tab",
+          id: `iwb-settings-tab-${tab3.id}`,
+          className: "iwb-settings-tab",
+          "aria-selected": category === tab3.id,
+          "aria-controls": "iwb-settings-panel",
+          tabIndex: category === tab3.id ? 0 : -1,
+          ref: (node) => {
+            if (node === null) tabRefs.current.delete(tab3.id);
+            else tabRefs.current.set(tab3.id, node);
+          },
+          onClick: () => selectTab(tab3.id)
+        },
+        tab3.label,
+        import_react17.default.createElement("span", { className: "iwb-settings-tab-count" }, String(tab3.count))
+      )))
     ),
-    // The settings groups of the plugins (PRD-v6 §3.3). The codeintel brings
-    // its language-server group here; the core does not know who occupies
-    // the slot.
-    renderSlot !== null && contract !== null ? renderSlot(SLOT_KEYS.settingsSection, { contract }) : null,
+    // ── the panel: the rows of the selected category ──────────────────────
+    import_react17.default.createElement(
+      "div",
+      {
+        className: "iwb-settings-panel",
+        id: "iwb-settings-panel",
+        role: "tabpanel",
+        "aria-labelledby": `iwb-settings-tab-${category}`,
+        // The panel holds the controls of the rows: it is named by its tab and
+        // it is not a stop of the tab order (the controls are).
+        tabIndex: -1
+      },
+      blocks.length === 0 ? import_react17.default.createElement(
+        "div",
+        { className: "iwb-settings-empty" },
+        import_react17.default.createElement(
+          "p",
+          { className: "iwb-settings-empty-title" },
+          t3("settings.emptyTitle"),
+          import_react17.default.createElement("code", { className: "iwb-settings-empty-query" }, filter)
+        ),
+        import_react17.default.createElement("p", { className: "iwb-settings-empty-hint" }, t3("settings.emptyHint")),
+        import_react17.default.createElement("button", {
+          type: "button",
+          className: "iwb-textbtn iwb-small",
+          onClick: () => {
+            setFilter("");
+            selectTab(ALL);
+          }
+        }, t3("settings.emptyClear"))
+      ) : blocks,
+      // The settings groups of the plugins (PRD-v6 §3.3). The codeintel brings
+      // its language-server group here; the core does not know who occupies
+      // the slot. The slot is part of the full page - a single category is a
+      // view of the core's own settings.
+      category === ALL && renderSlot !== null && contract !== null ? renderSlot(SLOT_KEYS.settingsSection, { contract }) : null
+    ),
     compact === true ? null : import_react17.default.createElement(
       "div",
       { className: "iwb-settings-footer" },
-      import_react17.default.createElement("button", {
-        type: "button",
-        className: "iwb-textbtn iwb-small iwb-settings-reset",
-        onClick: () => {
-          const reset = resetPatch();
-          setDraft({ ...draft, ...reset });
-          commit(reset);
-        }
-      }, t3("settings.reset")),
-      saving === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t3("settings.saving")) : saved === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t3("settings.saved")) : null
+      saving === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t3("settings.saving")) : failedSave === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved iwb-settings-saved-failed", role: "status", "aria-live": "polite" }, t3("settings.saveFailed")) : saved === true ? import_react17.default.createElement("div", { className: "iwb-settings-saved", role: "status", "aria-live": "polite" }, t3("settings.saved")) : null
     )
   );
-}
+});
 function SettingsSection({ store, state }) {
-  return import_react17.default.createElement(
-    "div",
-    { className: "iwb-settings-section" },
-    import_react17.default.createElement(SettingsForm, { store, state })
-  );
+  const settings = useStoreSlice(store, (current) => current.settings);
+  const shells = useStoreSlice(store, (current) => current.terminal?.shells);
+  const localeTick = useStoreSlice(store, (current) => current.localeTick);
+  return import_react17.default.createElement(SettingsForm, { store, settings, shells, localeTick });
 }
 
 // src/client/QuickOpen.jsx
@@ -78924,7 +80229,7 @@ function QuickOpen({ store, state }) {
 
 // src/client/SearchPopup.jsx
 var import_react19 = __toESM(require("react"), 1);
-function interpolate2(text, values2) {
+function interpolate3(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -79085,12 +80390,12 @@ function SearchPopup({ store }) {
           title: t3("common.close"),
           "aria-label": t3("common.close"),
           onClick: () => store.closeSearchPopup()
-        }, import_react19.default.createElement("span", { style: { fontSize: 15, lineHeight: 1 } }, "\xD7"))
+        }, import_react19.default.createElement(IconClose, { width: 13, height: 13 }))
       ),
       import_react19.default.createElement(
         "div",
         { className: "iwb-search-popup-meta" },
-        search2?.loading === true ? t3("search.searching") : query === "" ? t3("search.empty") : search2?.error !== null && search2?.error !== void 0 ? search2.error : interpolate2(t3("search.popup.matches"), { count: totals.matches, files: totals.files }),
+        search2?.loading === true ? t3("search.searching") : query === "" ? t3("search.empty") : search2?.error !== null && search2?.error !== void 0 ? search2.error : interpolate3(t3("search.popup.matches"), { count: totals.matches, files: totals.files }),
         search2?.truncated === true ? import_react19.default.createElement("span", { className: "iwb-search-warn" }, t3("search.truncated")) : null
       ),
       // The upper half: one row per file that matched. The matches of a file
@@ -79098,7 +80403,14 @@ function SearchPopup({ store }) {
       import_react19.default.createElement(
         "div",
         { className: "iwb-search-popup-list" },
-        search2?.error !== null && search2?.error !== void 0 && query !== "" ? import_react19.default.createElement("div", { className: "iwb-search-error" }, search2.error) : files.length === 0 && query !== "" && search2?.loading !== true ? import_react19.default.createElement("div", { className: "iwb-quick-empty" }, t3("search.noResults")) : files.map((file, index) => import_react19.default.createElement(
+        search2?.error !== null && search2?.error !== void 0 && query !== "" ? import_react19.default.createElement("div", { className: "iwb-search-error" }, search2.error) : files.length === 0 && query !== "" && search2?.loading !== true ? import_react19.default.createElement(
+          "div",
+          { className: "iwb-quick-empty" },
+          // An answer that was cut short is not an answer without
+          // matches: the search says that it is partial, and it must
+          // not claim that the project has nothing (FIND-03).
+          search2?.truncated === true ? t3("search.truncated") : t3("search.noResults")
+        ) : files.map((file, index) => import_react19.default.createElement(
           "button",
           {
             key: file.path,
@@ -79118,7 +80430,7 @@ function SearchPopup({ store }) {
           import_react19.default.createElement(
             "span",
             { className: "iwb-search-popup-file-count" },
-            interpolate2(t3("search.popup.matchCount"), { count: (file.matches ?? []).length })
+            interpolate3(t3("search.popup.matchCount"), { count: (file.matches ?? []).length })
           )
         ))
       ),
@@ -79186,7 +80498,7 @@ function label2(t3, key, fallback2) {
   const value = t3(key);
   return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
 }
-function interpolate3(text, values2) {
+function interpolate4(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -79198,7 +80510,7 @@ var MemoProjectPanel = import_react20.default.memo(ProjectPanel);
 var MemoCommitPanel = import_react20.default.memo(CommitPanel);
 var MemoGitPanel = import_react20.default.memo(GitPanel);
 var MemoTerminalPanel = import_react20.default.memo(TerminalPanel);
-function TopBar({ store, state, fullscreen, onOpenSettings }) {
+function TopBar({ store, state, onOpenSettings }) {
   const t3 = store.t;
   const branch = state.status.branch;
   const detached = state.status.detached === true;
@@ -79241,7 +80553,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       ahead > 0 ? import_react20.default.createElement("button", {
         type: "button",
         className: "iwb-ahead iwb-ahead-btn",
-        title: interpolate3(t3("git.aheadTitle"), { upstream: upstream === "" ? t3("common.branch") : upstream, count: ahead }),
+        title: interpolate4(t3("git.aheadTitle"), { upstream: upstream === "" ? t3("common.branch") : upstream, count: ahead }),
         onClick: (event) => {
           event.stopPropagation();
           setPushMenu({ x: event.clientX, y: event.clientY + 8 });
@@ -79250,7 +80562,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       behind > 0 ? import_react20.default.createElement("button", {
         type: "button",
         className: "iwb-behind iwb-ahead-btn",
-        title: interpolate3(t3("git.behindTitle"), { count: behind }),
+        title: interpolate4(t3("git.behindTitle"), { count: behind }),
         onClick: (event) => {
           event.stopPropagation();
           setPushMenu({ x: event.clientX, y: event.clientY + 8 });
@@ -79258,34 +80570,21 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       }, `\u2193${behind}`) : null
     ) : null,
     import_react20.default.createElement("div", { className: "iwb-top-spacer" }),
-    import_react20.default.createElement("button", {
-      type: "button",
-      className: "iwb-iconbtn",
-      title: t3("layout.hideAll"),
-      onClick: () => store.toggleHideAll()
-    }, "\u229F"),
-    import_react20.default.createElement("button", {
-      type: "button",
-      className: `iwb-iconbtn ${fullscreen ? "iwb-on" : ""}`,
-      title: t3(fullscreen ? "layout.exitFullscreen" : "layout.fullscreen"),
-      "aria-label": t3(fullscreen ? "layout.exitFullscreen" : "layout.fullscreen"),
-      "aria-pressed": fullscreen,
-      onClick: (event) => store.toggleFullscreen(event.currentTarget)
-    }, "\u26F6"),
-    import_react20.default.createElement("button", {
-      type: "button",
-      className: "iwb-iconbtn",
-      title: t3("common.refresh"),
-      onClick: () => {
-        void store.reloadTree();
-        void store.refreshStatus({ initial: true });
-        void store.loadBranches();
-      }
-    }, import_react20.default.createElement(IconRefresh, { width: 15, height: 15 })),
+    // PRD-v8 §4.2: the top bar carries ONE button now.
+    //
+    // The three that are gone had a better home each:
+    //   - "hide all" (Ctrl+Shift+F12) had a keyboard path and one button of
+    //     its own is not worth a slot in the bar;
+    //   - "fullscreen" duplicated the button of the HOST's right sidebar, and
+    //     F11 still does the same thing;
+    //   - "refresh" duplicated the refresh of the Project panel, which is
+    //     where the file tree lives.
+    // Removing a button is a CONFLATION of the entry, never of the function.
     import_react20.default.createElement("button", {
       type: "button",
       className: "iwb-iconbtn",
       title: t3("common.settings"),
+      "aria-label": t3("common.settings"),
       onClick: onOpenSettings
     }, import_react20.default.createElement(IconGear, { width: 15, height: 15 })),
     menu !== null ? import_react20.default.createElement(ContextMenu, {
@@ -79297,7 +80596,7 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
         ...state.workspaces.length > 0 ? state.workspaces.map((workspace) => ({
           key: workspace.path,
           text: workspace.title,
-          icon: workspace.path === state.workspaceRoot ? import_react20.default.createElement("span", { style: { color: "var(--iwb-accent)" } }, "\u25CF") : null,
+          icon: workspace.path === state.workspaceRoot ? import_react20.default.createElement(IconPin, { width: 9, height: 9, style: { color: "var(--iwb-accent)" } }) : null,
           action: () => {
             void store.setRoot(workspace.path);
           }
@@ -79312,12 +80611,12 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
       y: pushMenu.y,
       onClose: () => setPushMenu(null),
       items: [
-        { label: interpolate3(t3("git.aheadTitle"), { upstream: upstream === "" ? t3("common.branch") : upstream, count: ahead }) },
+        { label: interpolate4(t3("git.aheadTitle"), { upstream: upstream === "" ? t3("common.branch") : upstream, count: ahead }) },
         { key: "push", text: t3("git.aheadPush"), disabled: ahead === 0, action: () => {
           void store.push();
         } },
         { key: "history", text: t3("git.aheadHistory"), action: () => store.showTool("git") },
-        ...behind > 0 ? [{ key: "behind", text: interpolate3(t3("git.behindTitle"), { count: behind }), disabled: true }] : []
+        ...behind > 0 ? [{ key: "behind", text: interpolate4(t3("git.behindTitle"), { count: behind }), disabled: true }] : []
       ]
     }) : null
   );
@@ -79325,11 +80624,11 @@ function TopBar({ store, state, fullscreen, onOpenSettings }) {
 function Stripe({ store, state }) {
   const t3 = store.t;
   const sessions = state.terminal.sessions.length;
-  const button = (tool, active, children) => import_react20.default.createElement("button", {
+  const button = (tool2, active, children) => import_react20.default.createElement("button", {
     type: "button",
     className: `iwb-stripe-btn ${active ? "iwb-on" : ""}`,
-    title: `${t3(`${tool}.title`)} (${state.settings?.shortcuts?.[tool] ?? ""})`,
-    onClick: () => store.toggleTool(tool)
+    title: `${t3(`${tool2}.title`)} (${state.settings?.shortcuts?.[tool2] ?? ""})`,
+    onClick: () => store.toggleTool(tool2)
   }, children);
   return import_react20.default.createElement(
     "div",
@@ -79420,7 +80719,7 @@ function RepoSwitch({ store, state }) {
       },
       import_react20.default.createElement("span", { className: "iwb-dock-repo-dot" }),
       import_react20.default.createElement("span", { className: "iwb-repo-name" }, name2 === "" ? label2(t3, "git.pickRepo", "Choose repository") : name2),
-      import_react20.default.createElement("span", { className: "iwb-branch-caret" }, "\u25BE")
+      import_react20.default.createElement("span", { className: "iwb-branch-caret" }, import_react20.default.createElement(ChevronDown, { size: 11 }))
     ),
     anchor !== null ? import_react20.default.createElement(
       "div",
@@ -79439,8 +80738,8 @@ function RepoSwitch({ store, state }) {
 }
 function BottomTabs({ store, state }) {
   const t3 = store.t;
-  const tool = state.layout.bottom;
-  if (tool === null || tool === void 0) return null;
+  const tool2 = state.layout.bottom;
+  if (tool2 === null || tool2 === void 0) return null;
   return import_react20.default.createElement(
     "div",
     { className: "iwb-bottom-tabs" },
@@ -79448,7 +80747,7 @@ function BottomTabs({ store, state }) {
       "button",
       {
         type: "button",
-        className: `iwb-bottom-tab ${tool === "terminal" ? "iwb-on" : ""}`,
+        className: `iwb-bottom-tab ${tool2 === "terminal" ? "iwb-on" : ""}`,
         onClick: () => store.showTool("terminal")
       },
       import_react20.default.createElement(IconTerminal, { width: 13, height: 13 }),
@@ -79457,7 +80756,7 @@ function BottomTabs({ store, state }) {
     ),
     import_react20.default.createElement("button", {
       type: "button",
-      className: `iwb-bottom-tab ${tool === "git" ? "iwb-on" : ""}`,
+      className: `iwb-bottom-tab ${tool2 === "git" ? "iwb-on" : ""}`,
       onClick: () => store.showTool("git")
     }, import_react20.default.createElement(IconGit, { width: 13, height: 13 }), t3("git.title")),
     import_react20.default.createElement(RepoSwitch, { store, state }),
@@ -79466,7 +80765,7 @@ function BottomTabs({ store, state }) {
       className: "iwb-iconbtn iwb-bottom-close",
       title: t3("common.close"),
       onClick: () => store.setLayout({ bottom: null })
-    }, import_react20.default.createElement("span", { style: { fontSize: 16, lineHeight: 1 } }, "\xD7"))
+    }, import_react20.default.createElement(IconClose, { width: 13, height: 13 }))
   );
 }
 function StatusBar({ store, state, contract = null, renderSlot = null }) {
@@ -79692,7 +80991,7 @@ function SettingsModal({ store, state, contract = null, renderSlot = null, onClo
           title: t3("common.close"),
           "aria-label": t3("common.close"),
           onClick: onClose
-        }, import_react20.default.createElement("span", { style: { fontSize: 17, lineHeight: 1 } }, "\xD7"))
+        }, import_react20.default.createElement(IconClose, { width: 14, height: 14 }))
       ),
       import_react20.default.createElement(
         "div",
@@ -79707,7 +81006,7 @@ function SettingsModal({ store, state, contract = null, renderSlot = null, onClo
     )
   );
 }
-function Workbench({ store, visible = true, fullscreen = false, renderSlot = null }) {
+function Workbench({ store, visible = true, renderSlot = null }) {
   const state = useWorkbench(store);
   const entrySide = state.settings?.layout?.entrySide === "left" ? "left" : DEFAULT_ENTRY_SIDE;
   const [settingsOpen, setSettingsOpen] = (0, import_react20.useState)(false);
@@ -79802,7 +81101,7 @@ function Workbench({ store, visible = true, fullscreen = false, renderSlot = nul
   return import_react20.default.createElement(
     "div",
     { className: `iwb-root iwb-side-${entrySide}`, ref: rootRef },
-    import_react20.default.createElement(TopBar, { store, state, fullscreen, onOpenSettings: () => setSettingsOpen(true) }),
+    import_react20.default.createElement(TopBar, { store, state, onOpenSettings: () => setSettingsOpen(true) }),
     import_react20.default.createElement(
       "div",
       { className: "iwb-body" },
@@ -79850,7 +81149,8 @@ function Workbench({ store, visible = true, fullscreen = false, renderSlot = nul
 }
 
 // src/client/styles.js
-var CSS2 = `
+var CSS2 = `@font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;src:url(data:font/woff2;base64,d09GMgABAAAAARzYABUAAAACk9QAARxaAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGpQ8G4K7MBzVcD9IVkFSkUA/TVZBUoEoBmA/U1RBVIIiJzQAhTYvgSQRCAqBu0CBoRQLiA4AMITkMAE2AiQDkBgEIAWHdgehBAwHWzKBcgUdIksoePeJeoaUJNv9oSjsqZ6h5RAPsLF7m6EewzBQqnr3HpBtzoL83TbieYH0Nfns////k5PJGOs2+9sYCKKq+lUWKIzwZAjkMkauVpKJ1DCNUwqO1ufFEVEx1kCsy7yteWnbDh5n1CZO68md8nLsKdVpyzBQTEQgYDPhYk8uXGybo1WEBcipiK5ESo7DhIOwIuY05atUJ8zGQKbsMlGrkRMoiihO0ghDSsKJpRVBwtqojBibNk8wTDA0Nlnw/xQvEpQ7sVLMh4mOtykfiolDb7CLjxrb60UWnLa0JNf9ddQQPXatWNXMXHvaYPvG+lo7zvvuij+nclyI62RchiRq+wnHNyXh6HCXPiud2NCyYT/dRQJxUSc1PxyOkgb5QGou58fbw+o2chBBdTHTfvfu0tZwxdlsdWW/8O5ZlEkcmzBJyitsYJXM0oQ95vxq+61kIq8iwCHvOqIkJOQsCQ4oX0nD/dG+NoqMN/wPH/gps24cUGZxPeKpvgwYxyK2D1I0cpIZLrLI8qoRf/iXcJnvazT2Zo8ASpQrEq6LjLmUkK3jed36nzm35KZwDTEEjAghtNBCCIgYEBFpNuQBYmjVRhNDkUVEbI2HtWNHtD9W0Y9lsa5iw1K/y3YLlmURwvE0Zz9vdyOOWA0oLdXjej0zNqHtV7HdTUiwJuDBkxCBiJKQEEW0UEG8LUfFaf23VKAHXOb7Rlqd7d37aYUFhfDSYHjrqEMWDENQkEVBrQHZs7f3yIoILAFJUpywQhTyKyqRiMIi3vAwt/4ZoKKAgYpJ14jeYMWi6bGRscEYtWgGG4MekRIpShkgoWL0vxkVF+pdf4e+qdWXgRM7gEO0ABTP3hLPHgD+3b3H8ShHvAhh8BhlWYCtVhNWE6nVArb103v1/78qaA64eWX/PvMPTmeeqHMBvKPNGe8Gk1Qq5VVVw/Pb/D/3CmI0GzZG4qp1gcmy2drnkz2/30TEQta6NVYsokyMzcuFsSmYhVEggg1DONX/ky3LsiwiiyzJkiwTxHHY4VK6NV27cffaBwR1nfUDPuQ9oiF2ANhuLS+FEPvA/7b+fzFd6oTDhFmISOxkEyUlEbmhVRiHufEq4utGxeipyA093xo6G5KJMLQBYVkBOiJjUqR/V0Bj+moE+xpfW6FoByKallVPkhxyBHQDMzYyY103svMD+ADhPcqpzRibGctQBH61C1bUxmE3dQm0moPo63wPEQxHAP/87/ftvBHTk1BJOqIZDYXEIln+e10yiUlYFI8mdh9iysPXtH1QTXV3rWgkPsMmezRX41GtWDAG4278GYfFiX0DNKedWC7uQIN4S8WpT5hVhWnnTuBFvPuJsU6sotShojRYiDgJEbu7nPy6t138xZ8/TU6hGmwVs4pZluoxZn0tSSXjMWaZql+SX/Ysa/9Ta/AJ8G8tsy9198ymDA1dhi5jaICknTVBRjDcZcAzov0a4D+d6dG7tL6quhrUasGggeIAbrJIB0T/9+jjB0ijeYR0QJxdzjq8tpOYB0QNOjIYDVDgT13Gwe39MYNYEAtiD7GH2D82PqP6xMgxbNAOeztMPbaa/amimoqlYqlYKnY5F+FvWj40tpMmLNnYA2Dt3u//6HeJetOmib67DLba6v//BiiRKKOOBxy1OcVkR16yrCiOszrWwL3S54XgB4D40ZrSOZ25jlwnxObOjDrqyIRPYl/1r3ou91jaIsEtiAdxYQAHI7egyWLC2LXZzsi3CCPBk8Dfl6p1/a/RMBtwQoO2CXoSORGQPUGz4UxiMCHl+4b4+zea/bs/QDWaEIUgWiAVlgCtNQA6AJADm4Q0YJAtyjlJnpwakANIh4GkCdJEelNMh1vMh9PsbWpPe7nv5TLhtJtPezvn+x7PKfyfmVpp/QGhLTQkvkGvKyoqUGc+eK5kY5JnnA/vgqinBxB6GgDVA1KnxmBNYyDpNYauZkjqNQbieq4zhtpz/s9gTc2A0isMZFrYMyDPGJNZG4Q2SC6I7MsvCTdJN7wgvSDMz/9SNVu+fdhbLjk6ClqHFItOF3LZEAtQEPiBg4903kuRcpTd3WWqgChPf77W1XWORWN3IXepct+k/1srs9sBYqHCQgGhA3o++yu9P0lvh5Brq3pqGEN0AKj1KXlG13TCCmjggNwx/P93/9N311CHOn03aADWWL8PDoVjDwAvhoVZPPz/Wmrz95bonzEbW0C5wsyJVYunmbxyaPZMmQNkW+crbJI6YKjiIrlr6ii0WTDL31PXAo0xJAVpJBWC+r3Tvh0spEjkuWAsVv2SdpSqMl+hEYa4Vl1UMTL+f9N+lJ4Z+q+SojxCss4l72Yy+Zm8LbObX0pRoOgTWhLo6i8OiUPykWvBVWMQnvOVxwi8hnjg3ulvnKUL5IFAc1mYSOCpZmMDZ4ElFqjHw+eJ3ObnHiBnueZT788HOBoNDAo4LM7/Wjqby7tN25S+9GJM4iKfjLJXf4D9g2x1PMKCOxzyePhv2iv9mne3eNyhATYh0u4+V0BsxFqT7QS1jszCQn3+TLoSXBE3JkEwiAc2gKJtq7pZxoQDhyHGD/Vb0xLPwp/KN7Or4ka8RMGiKYBB5r27+y91GFfKldv323bDNZIoSq/cC+VGkM6GKoBXELnaR8IRJEip34bvf++Mu75fu7SUIiFIEREZZJDBlSAllJD9dS/Zr7W9xZdq3/XpHtkrZEMIEqQRERERaUKQZnCPAPhpzk/PlnYc8AKlKbED5AIee/yn8fzImvW8cPWyC2N3nauHPTZSiEgBSYSAAUKIyPgPEAm3knZD7Msf5kOgWg75LRQMRtJUX0hKSREevZlY5PgIReZFuF32NYSS2TpI/SKLnDLfiE+8FF/r8fQxd0aQiDQyogQlIo8DRHsq0ZmLGAElTkAQ69SLG7SKm7WLW3WJh42LR02K550SWyyVtylG9V5I+qn1RfX1o2YURABDAV0htjY5eQURHsJuhaDt2GxA439B4/dB47dB44dB49tB43NB46NB4/GgcW5Q/isonwzKy4PyoKD4eZD/GeRfBzojIIiPAc8C7gRcCTgVsD0KhQEYGqK2qe0t978cWAJyAdG4OLS3sJYRsZenN6na71gARimauNjTF/X9TCCW4rhoFh/Es4gxexhsiyuP5PfZsO5VqSQz1EtBFF2RWgxvU/rkcqbKocA/Gk48lbuMA+tevYT3R+Gvrtdv3/D8Fz6fBIY+q6uTYLmXvjAJ/Ano+9Le+GzgNO1f/wRO0v6tdQPqu+njDc/n/+8l0s73vll63iHd3tv99Ce+PND9+Ce+Qhz2W/TDuPrXBnP3LL5r3P01nweVK1/aCez+ks+DM+7PKWrJNkDTj0CGDZuQgV/66Fvvwlbv/uhd0Oo9Z98sOouL/XbRqXs+ejN69sHwecnOZ/CPSGcPjbWvPuPQVPviMx5i56ruw4kD5foT4VH6UU80ducA+507u1OPetL+kvBE0f9SBfAVc+3dnfOStgC1nnIeLz/2qeDxKh+wx8KTovppugOfvTK6fv64t/yF6Txrau+pwbPOHrusJtX5p9926PY7r752CPsu5rzDdQJf/QB+EWffBF3BW6+cWvt+5+VT69/vvfwsYIvhK36Krzx7oPJqVgarHuGV8d4rT8+Lo67Tqxbpqc3vH1GcJahsTihOL72kWI3rL+kv4f2XDCt8HOAUHcvLP3jZewsvjTpPLrx858iA+yvJt6Xf76mckU/fpt4aO+Xh3hqCUK8cuKfof3Jmdr4be+rYIXfaqHaNPDUqv2fqxKj2nuhxwE4U3qd/IHpk1HpPkBaede9+dnFs508+7h0mfu+jzmH6995jMf97b42V/vw9+EtBvu34cb8GWI+FP2j88fvdQ5EkoEGGBE/IVe8LHxuzxj4UOszCGft0/PSY8z7/MvBEOzHmHw8/KcWT4ceLp8On4XE6OBp+eixcmrn8Ru3qOxJHu+/Mk4ZdvSjgjJ03GfI3ZtqOHx+HbyDUcwoIfq7euvLMeLu1Bm9n87rszcGboOyt0ueCmolu5/LCWxNz905OzJ1l54Mntce9uT+m2hdKf1wA/Gmx8seZqwkf5HsX4AcZ+LBJ/2Cp94LxFnr/SPpXfSqfRc8s4fb2HyMe0Z/wvcNnPzH+jqDWfa5+9DHbe4eCTwVH6LX5p0zleOxQRH2m0r/O/COvi4ZTrw0mjfT8YGocYdTUOk1vTTJ7/eSGFbxFdENzH6ubbItH8We9uRdaq3DumVZBf3W6UAhnEgfX4XvHmux4JnLwtjv/UqOszj8HOFCs975p3W7rYHv6abSjtvw02BFNTiZGU+XcMxHJ9Y3R9AcU36ncR5RxNsi4eDLvf1pTdniXS3M/HC39eV48R4vis8Kj7Z69pLb35uNmOpOTU0sLi5PRpSVnxKOXSFELVI20KJ5mWofGJ0PjjgHazidcO8IHbvPhoGgeeBsW+pDgDnnuJXxjZvoNhUJXzi3wD7rdOaNFeHDoKxPNB+oj0igQzVJngsTA+orMG8GGS2cyJJhk+ozf3nekiLjSF2rhBFM1Fwp0yDpSpcD2RSf0WvrgUC7RW8bCztpEPAUS+fQeW6z63OFw304IxANEBagsgqEz1iAtSKg7Q527wGI5iq1cfxzfRRK4PV2JexZp3scO90lvGN7P9pxghBNnflUFJyzEs6vx+FbN0+V3Lnym+Vzxpdi+5lfENzS/+vN9s1/1X6959VgAEbhj/FnxmfWP++bNdx39qWD3kfqJb2y1nICPsbPoSSd9pL032X4KJ3b3sN1uPN4eHkxHJ9qiN3J7QQG3blYBe/0YQB4LgHy3Jy3Pxf67i+Gn8nkceTM4GXdOmk63LyeoG+LrNZPtF82/TlrQ+HD6w4F3ll4x/4pXP1L/qgJEEyug8Y+whYcT4+vwjUjoTq8MUb1GqISQ5unSgN41dFrxMVSQ0UmcY4UkahRb/1xaXZWiEKgXOESBMYPjl4foG1GdOLETJM6h7mSqRnsixdeEEocN0AQQh1patbi4ZmFhed4Z5+a2zHLEGlG3D+PkGRvbNTh4IpRLJJcZb6S+YVL2ly4t2h3h+zExj6u8EIpzz79vVGIg3Cv6lF1giN9TUv6TYT9Tg1HhvYyQmrxjVBwTU5amNfe9F+s+zv2fv6HLCeI7y9q1/v372f3vcvdDoKCR2TOcENMkuRzJ556eGHIJNBCIakKqAXg/HXTLsIAJAINAf/CKOt895YL7JWXstt8uRjMFpKYvNZVdPYYdtV112GTf9l918orA+4Ex8XtOtVrH7779lCuKC93vu4vD39WD90QTXax7DBnmHfVdBmtJEI4zVXMSUQFBwwc4Q8MfHugaflPHld7hfbcc+RRgQRASRdQkop4rQJRp8urw7OYE/cAnwyPiPBYb5rChYlBX+HGKFnYNVk8/z8hxJ1R0Df3CSFHSTNvx+2xLW1fPuK+km3Yi31mcR9b91RoIBrQL8aI96tsA2uVPBWepyCJ90TXFqEdc+anBDv8HWnwO7o/w8SzcnwxXC1CiAUSYPqkUwQQ8j+Oe+JkvIOBT1xzCdkH1VDb/spUAYahZQRyFNEr67QcoLviPDzp35QlGtcRYUkgE4R7+pcDdzyTECKHjQkGCGqm3tRbtj78ZNRjmU6Kd7JKqfA2kfl/4C+bxhai233Yl2ikpKWiB5J8ijAXqPMIcfyoeU8jB3a/cs93CYUkSSU7cD93Vd+49/R41UWSSM3+fu+fd9s66xN/E8UXZFa+Na+I6dLVeGlFAvf935V+Mi3DBrwBkdZfqUmg5K/p2Lk/hxKRQdbaeq+cIxdZTKQrO/MLUk3bCT0jOOp6qUxoK4dlbop/u/k4b66u0kaVv9nol+ZuzJlF29VqJ2rtOc9LLn3P8YYUVJEH8pIVf7P5SO57te5dY92pWtNWNRUmzRcvsoubfXFJgnneNzduEp8tvG2KwMQ5HoSAGxlSPGdmkRxl6kKk+43d9731THncHmyPrLTDviK2mLHW+kSujgyYZc8Iq51jE931euNGT3dUYm9kbNq8z7WldEy0ppVgvtcVG6G91X/sqUjWo4aGZuSQFKlHOUpe8yoXEZHrJWohS5nzP8yyefpArOZpk4ulMVSxpCjKRTr1IdzuzU5JeiomQb9yzBQUJDoRHhhBODMixmUnEWGdXczWkDFBa04p8RKG0s4QtanoEILzh78kxObl3c3KgqvqTXiU0fUMltVhCg9QnFg2Xqq+rysLkeQRLfDkHA6jrp3TbXQn0Xr6qFE6hh7uP/t2Xv3VoEpvrS56XDtFmzfrLvsvA9UbipboSHNXFN2IAFWQY53L78t94CyQqDD2WoPXWcgfadY1tRnD7MGQxWx9fWiFNRX1lEXt3J7RzIIiKyPop3gOaucnz2bYuWi57c6ckv6Zb3uf9RO7+oFJEJgwwWvLhHm32TKNl2aTAXhoOR4qz6RCd3j+yrvmZvgmtTu2dMM5/nRI7RJg/Qz+JdoZmPlojn9QgpQxCWnJ4gFLAUwW+SIrBwcGgbDN39odD+iYK3Mqun8SNG1nlLvIMttFJEzkcQ2i5l1LgmuxJZRHOKGTXNkJWjlEKrOdIkWuxK4NyK32od14bKHjq/YyleGxgd+iSEVoi26MVeHw7iRQQXg9rUXRo5Z4Sx1JIOqzZfg2tVdI3M5geQdN80AgZKGnLlyp4nGpSYSglJo2hRYnvgFqgLWrLAuQ9XWYjTcUqsoZ029v+swPd9qsOtNUjxC8RrkVRHlYZZSw8Rh2cUmboophXRvSyJaSKlnczCPkOmDBkZV244JSWlkNsw00DWzxSrse00QyPawo/smQ5louVGSY7nyx00zN84ftydCdn8DTPCNP6wGSPKDpa6EkV+Bin3ojofqGjYdB+y6HIOUnF4+7FTl9nLAJZGKwfpz2p+GW5wV/VOyEXMKXVgFb6p0zbUzrRq9IE3AuRUa73Uy4sqNQIAeiMGU9xh9nGrWLMGNX6sjYvYc2hBQMHVzll8pbw6Btnp/yE0CqdAGGrU5dzNF7enN4B4TTzcZu6o8ycj2nLzanjp6595glNX0aAA+nTN1D5OnwmmpG45ONQxEjyKm5krbJsamBy0RoydvX3yblzOTKlcdQC7elhsB+mZgXuZ7IAiChGZD4CIsSk6aWC6vVVkC91SeDLZpPH2KSWW3vP02Y5V7gCdygyK5TwpdyMXf35XZLO6P4hjdPD/7kaeD4TdZhcItTocXwAi/ThyRfXxG/Tk/r5zQwQOh3jCcsIQRqOXIRG4ckVmdwEGbAJSagYHQ206kZpQl6RKh7bpRg6ShL1Gc8/X12dBK1nWRkNow7hA2gmx/MfCenzhbCMJZmPSp1/8xdD3g8ksGi5Ozw+fyvB1Gc89uKrhYLIcAqnlAN6DCWWZ3KwLvd5XOaKg021ihVuStE6PVyfhM498ptTHC3JJW7yXEY4HZ2Z9N1hBdUzSqjKcRqQhH+W3SaPSVdWa3665B0IrKbHWZuBh6pj/mQ05KynPJdzD7ROjp9PpE846MNNFwcruFqFDLxQKQO6nI90tQP+7f0PFqu1IFi0yXcCCNCcP6nJKY/d2A/gfT7hF37jP/xXerb9+Uy96ADUsa5jfYf+yIYN/99tFljAjoANASsCFgZMBgxGJR6UVhJvSaqPsTSQgUHN7vY73MlwO5QK2/4ZrH6IINfcWchf6+5YO9bvt9fWT/bXyoXcK6Twty07lO7m47YOucRhEsa9Y5qC06QKdEGzvVL6Rm4F9kZ18XpbNGbZu3XkrClgbts+p06J9ihuQrrkW3nvcq/YkpuGJE7z1gPGYog5g71bI6vlX+tGszURNKNBNS3tOQDkfa9vV73659YRyxAuUOHhpJwse1ciJ1hS9gsLnWsnRmXaS0cFoF4WI0H7uZ5sMVvE0TenFL2naNHBkNTOHv+ovDvTWL0Lymhfn0EFvKZzY8BgxwLmH7GHOan8eok1q6Kg5JDxlRTcerFexyuK9xr/JsyKKyD+dCikpmTwf2p/T9uJM9RZB2XTztwXG2OWsK6OBxfNN8nwUeDhODiV0EsyMk05k+pZEGVSWQDVpp5bzT61eW5tDn1AKSOVIzA0Q80mGQszg4vMJTWx10CZGTPdsgCGmXUylSVmrlyGMXGSWT7rlDZY+nQzACH5uyyJWdGz4CeOhwTLfcpqlWjVask18FJm0Ze4m+d5lTels/8Mr3aVO/sDvlugfOHDf7PB8X7S4L20hzHlT9J8z4WopsuRG/Yt97Qfho/gdeLIBUEixPpZlwcYPqsOhlvkYceOqDr47x/vDPTzeGmz+MfzrQywXerb46mraSoDJjNJpM69OLKBRsZ+N/gltKaRZCaFXEsgE/rv4GOZUi1OoU/VtbVpe8pr/f6LWtvD8ffHBmXor6plz+KfVudxwLYW9BOrjsX9G1ijG7/qFjb3cCeVtIghapaWMV5LbNVMPgfGhGFOxuLPaRJTQ9zuMVOBeqx7z+AseuhrKMU8lb+R/Ukn5iNhV0K/Q4BBMrZmvzCf8R7YzygJG/klQWkN3Qy0GYzPioQaIfEW7kWbPlCki6utoSaneYe1rWyR5dixzuSw/vj7jDAT308/Eqn+RJ06puAcrqVa0tT3QegjXM3LnpwO/qsjPu3pRxf6rp1b7f1cj5L93xc/VNWXAeJlEpHLZmryDwbLpXhXCXmCGD/cOiKLxl8W8WHf6pQJyMlESEA521t8bKZE8Ax4HPrhiTZIqSPbE8+iW4f8NsIS9TfGPC9qLWe9mXeclFTGKVt7/+zQ4iOf6v1ZIoXcc0HLryCJsgwENuMlLvkz5k+BlsOm2N85R+vfwl/3veEoXzQJDPpzIf0+/iZMwu8VSA9pKanGkMH1Wu/3fhM82He01eDnOT1QnXHA+zIi2lkXymK8UgQsUvv33/txL/vtpqE23xOfPRNT5rLYCzlXX9vrmd/dtG16It0zuYfO4ZgIkK0v59jc7BtLnirDHrWoTDcOXv26wgfhGQtUQhQDlwMkzpEkOZNFmrfxDRXUgEJhs25CIYcmjlMXL7Ikk8X0z2T0XEuXkVvT5aWvCCf/yvELqoaioqrU9smaSPpCLdr7Yp2FvlY3fb0++kb9Sd9s1FjfaqLQd5r5oe82b6HvpUOW2XN6uUQ0r4E31POeHpUH8XLeZHFkDxHfeqC20LkLdHdObiNoJaBCChNoGNKaHFyPjiiexSuUrUmB4M7dfByps7A3DLWgHWkmJv2h6X0cmcdUEgFkUYAyGvCMAexjAXkcIEsIuCV6glNeArOhkfwNCwuA6IYTZiBSIGFBRBdKlo0mm8KJL5L4xhDfWGKLJ48mEdVkUmckLJnoUghLJ7oMEpeZJCxLSqJySv04V9oneTLimi43QQUKYiqGsJmkqISsm1W3TTi7cpJIFcrCKgvR/UBYFZHmVFxD5Hkku/kQ0QJCLayRF6kcL1WdqOUQ0QrKbiWxW0VJrX4mKr1hyxba0QYqaCPtbBPtbTOltoW2tY1y207p7VStrg3Ksz7Qbs2WDxLbt9/TI0zYE1yEPN6r7KQvOzAHn1/WKBpWMSiznGurxJoF62rE4YLL9TDLQfI7zCxCUQ8pbMwmpdqyCHo7R0LlKOh+rlnWksZpNq6eccFlv+wagrwHyTjCgoiYBRFhYl/kRVdE0DCYrcFsh7kOkuVBfkeZDSynw2ySwOQSSiOBy3EAy67IajL222qPLCmy5eXUHmbs3UaEtMJAZqPp6/782eJXA/DOT9PtextXNDH4qwS+j2QhUihADoU4SbQCaVdKTdqMO2za/zRuL7dnaoIiD+7Eq754g9tEi/xVm3YZl47tdbk1b8fWflwfkTrfXpJF7un3D9WmsnEu/VpZMnv4nj0iRl8WO0qLP8xvTyr81j9HJOh/iipx/5uUhQQra+L2kpUOJsD6T5L/tSbvqdtqpcHGJ8MuBjSIPrtqN32b2WbsNaX8fgXJvV1GQbXgKZ/S90n+pUsDprastdqpUhosMeAiZsRnEfB2jxsgFLI7EooGDG27Vg1kspc9WsAPL4peT43L+HcQlCCBjw7RgT2ODf/f2a2oV+m/kK1XjbelsRhHGgUjWqKkXpZqcRoWLmXPLUKthkatPpOWx52xRR3eXOpCaURxmx1D2rH9/mZKT3bkDqcM61lG+v+pdf03Yla3fv9vt0HbaGAAm8sxWxe9qUS0VLqrNlet1WyopU3nAkTC/nQDBiiJoCvX2F5tHYWSpeyAl2JtjteUXUMBo0TCGkhYS0r4DTWSJkqN4ToQSSxZjpTdw9Tb9m9bN7MVdoL+l1sQ/ZgKomxZ8dFUPmeIC1bL+7AMLlD4Iu3DrZBVxoZSZ7Z46yoNKU08xZ3vtv+pLAKV+umv/wZse4aerE/t/PkuWRY+Edvt5n3NrZ6VxI75r/E3G2LXd8RW469Fyu34y01jprNX7/f64/Lnrvv9vSZ9fC195KvMel5XY39oRtguMUvfOt+7EDDcrtAZl+qkMEP3VOMd/0gFFz2aCLeHsRBL6aj3H+slY7AXvecs7Glgqgv8I7LQDVuICsV+lku8RcWNApmp283cN50HsL+FUx24PnzgkqzbZjXySiax3xL3TtUsCV65R02DccozuAyaz82V3sX5S+wtG3nf/fmtcC9/W+36+Oel80bWvBTW9u1c7s/PnL+iNKk1mIdRbZWkzPc0L8onVH+LMOVfhfylJ7kxQG5Q/FVI/sWSWQ83hIfqvupZu3KeVZxwOy8plVpgdqyCwnXTis9j0+M7OXwX9vzUEDpbgjXxpP09uR/jzYpYQrW8m/F7vlb4lokAckhdY1jMl7KQYiDCZTr2yfWLBco+LQjL936iEK/az9jsh43+yVKeLqR59K5CaO9+1PEZ26Ur6g+O10sBWXRtRacN8DatMnC3j5Jb4sq+u35fJP9yO+78eDX2o8GrUJ8pZ5LjU30SNQwSlhRWb9sqhqi2tOVbviUBKWXvpHR9p3fdtqBpbb8kftuivqL6cA87vzlj6i/7vSY4ZxyKS+2l5KmUr+i02njfdl+c4/TeD72PHGN6fLrvqvh309wroj66oxgChROIkBm1jFmBhWUAhsWtxA4E+3V3VhnwTS0+MKQjYt+Fvf/bZjw1ot4ymDcOfa4P75mrx05oqqxWLPfAi+oWV0vZR707fXNEftfWm4IV8KBbcTCOS0Y0+rD4ngQalw9GpDAjPIgppKBt2F/juS92uQe/CFS/slUX8TyruDymlPn+ZLnFKwcrNXJS/gmYu8vkXrPWDZBTYfdPBMNKYc5wOWtnPhSmcXe6Xm1NSzA7O6j5ikv4U68U7XP6prTpjQjVH3tJZDVIbqk+fHss1LPAe096Ko3FhyWco4peetcd5d7h9qXXunV22zW6tE9dqgPkMR4WDbHczka7S2BUkG+8QhwhrFOsRkgbcHjAnV8i6Use0WoKDmU5DePhhcSSbzY8FbJB6SH4w3pEqLdCb0fvYRgnV04WKFsKADf2A4v2eOQxHhb77uUoNS15ZxaeGOUF4ZG9adjVcy3Db8ixFgCkjtWCezmnjTm+Kp5MFRDWg10r87Bdfl7CAik/iLbtmyPAtXnwdVJ573R0MLAcLUO6LS0N3bcf3WKVWF6u5duDEw3cES7p3k98O2HOjLd087cWbcG5tg4Fl8sq6Pz18o996VoBuD+o7kBuiSSw6DHbfbGU27L4iD6Qkz/ou9cT41s25dy2LGzn0ySBN7TCr0OWiAuiA3XtLnui//hFfuBb2CU5HA2LU3JatNX4Sb+1fy8vCtmXb6nGnM+DSY+ecRnyOZt+BicShiV9CYAmgDExoufp7v0C9WTD3tWR0+6NsKSPHzQRDcJl5eLcMw5NCCzhUc+nXWui1F3xLz3bE2mrdcQjhEdHRgv74QuLM3Y6bU41cHOG94RNO3U4fSWCH6hVmZc2j+lhTK3m2TnOh3m14bHLVSGH4ne5yq1gCTxYAkqo01BHGaMrxSXIzb6/eupeuC31WYtWhVlMVgaTykqnRXEoXhBrMVXBFil+CEtmgyVZv0ro3an39lcjU/SBT0G8TkR/Cn7ka7foTT19SR1quSquK63yOxT2KYaZihaCZYLxKMZv/laQHqsKeoLej2ADoAGB2aF+MsL1JpZzUyxgS0KUchaeLPUQxK3hGJo744AR8qAo3E2uGJIC+F2utgk8ZbUWrBG+sOQxNHyT4fnZ4oF+IY8pNrXo1GxF4RX6/1R1tHMo9jEWWK6QR0Xvf2STdHnsyq0lXbXKZkNQG2ndjx5fbMQN71dldHifLRn7THrJ5oLBpv8nLOk/cWyd+DZr5NMOmQbBhuWk+xMp0NrD7/cV80fZca5YzKAnmDVorYP5I98jsLzPcoO23dWrQBODYL39PlzZuSd/zaewTjCuq8tnAIDxs48V4FBLa+o7rc/GPY7FTN0OORwXatkf0R9R0f0OoBatwK+kh/4XENAEIwulINACp3y4df10gUYJo9PHENZP5johEM4+MEkgjOsN6fEB+1O0+nqLhZLj1duBOdhMcrXfEPxmw948nijCNzEzgxE93//H7N8ipKC3FFkw10UxAh42TKGjaXQ2g5oDO69PBGIse2Sv7JMDYiYW4iiuApkI7E3CtGCCmQNx/p58+eUVX+i/nBXg3WSbJDzZXggDtG26c90Sr4cTcT0FFHiIV9uQG3Urtp4h0ZVulQ67Da/iRQGODc8rHjlasspbNspk0CLjPcMGFsCy16is9jDfgH+d9OV0P6AUctCkP9hF7m32XnjlKYKM4xOOE0H/mZjUNSXJHSfsVIAzigwSORhxMgugAXqlfgAOm3nCTc+cu4e3YMQk+FhxBJXoRrCQdDFKSSvQgUutqVLKg51orJjx3nMhUhUJaOcunFa6CoRgMhihMRkIV7PnQkk6aAz7TRzMRtoi3FzJrZUnlWvdjSoPCVFZ5yklwf2VcZX7PvIRZqeiwXN4b/OaE3sYa144PShin8ielc4BmI8jy+IGq6H9Cr15Bi7WGabMQHOBDRUAr4FNEvEgegvOjAZ7ELcC0il/cN899ImuWEk9qRIaxoCzDJ/U/IDshw5agI85I5/bXx5qLzo5kYer4xl+iWU9KBd3wUUTwFs9PBy3Htz/lPWL1XMUYyCVBWBMDA815MgZzYUb5M6DnCcvSEtHzoce8uXLkZ9RUKg4tHiToAQJaJMlQklSWEqVxkK6fEIFigxSzGSIUmVkylWTmGueDLXUOFargtRrh9lJZ7ddOmD2MkP26yRxkFW2wxwkGjllO8ZD4gSfLKf0Qn7Uj3LZHcTP7qLccw/R7gHKQ4+JdeiAnniG9dxLnFdeCfbaLzidfiPyu7/Zeu8DpY/+IdKth7XvvkO9ehF9+hiYmblFkIB3FFIwNAYZGBaLLOjikAPvhCiEkYlQBIGpqXPIiVMOuXDJYVJthyadhrrXwLPCk+JZ0YbvvEwePHnw5MGztm/8aOdQdO/NMUh9EmJgDJ+YimeFZ0XDmQsNZ2oqg/F86PnQk+JZ4UnxkoilE0sidkC6N+UoWHqgOo3tnbIZr8/UjA8mZcb7807xM1IhsKkAxGJYE9rAwgACUkJWHWnQdgo0aw4E1CO8KiWG1EjYmLCpi8Rt9GdlmOGUpNgqzgjKzlPLcZyoy9YpuyrXt1dQ22u1WsgG7VClyLEdhmcPXtrTVeIVARmJNHdhdbAlwpdlKKNRxByoiGOggeQ3ii8DRwERWBHCImBmLAMnTuFEZWPG9pWNGdvHXwhvPrz58OYT7rNkOXHiBMEqHMHYPsb28eTKjSdXzuEwV5Z92FcHY0GCBZWDGdtXNi4bM7Zvv3FxBWMQ+0C58wXhMWMllQ8RepCwRozhLFkbsZJv1L1pz1AqZQVmGqYX2X3lrFyUU7DP15lZGGBbTk6Sv+bsfAvACrabubvQBQz483X0vMe7awtTnw/TF+BW0vNUni4lerJNEoj4v0oACelrbHNHY8a9bPw2fIGxo/7KD8JCgDlVY7wbzbTgXkOaZ910BgjHmSekPpJe/DBPJdwAiCgLhspkAi26BojITAKjaxSAhcjWFOdr+jFeLURgyow5C5asWCOyYcuOPWcuXJEstsQKK622xlrrrLeBOw8bbbLZFmSeDjrkiKOOue2Oux574ml6VnTx3CuvvfHOex/S56KfL7765rsfClJh0UKRYiVKcZUp98dfNUTE0WDMXqWFQsmcMGew1ZRuLrEyuip8mC0lIH0jHAgsbBxcPHwCQiJikk5M6kYHrbROTsE25W2Fii4t3qRXzVRiFlMjJHpWJdJOnmj6egrPrjCyuZ+TA/QDctgRRx3T5PgVkoL+FN1bxN+f2ECeWAf2a1Z3YL30oKMaWcN2iCNwNBrPuDQ5/mE/aQdcQv9HMBJ36X5fUKeT2Ng5uLh5ePmCCKFRasTLfmJPzxewM0KoQU9PT09PT9+PPbGRosoq/THY26u+EFsoSVoYJqduLNLW4Nh+xy3cprxk6TZvj+VbT6qyZDuiBNnKPT272uv5kF68VHO2e3OWZJeLtwlyuTl5v1HSfFh74RmaFv/hi00rV08ytuKOHHmsp65Xm7mvyk/NlIrVbJV+UGWO6lAc6ZKuR0f2W0uZD1/+AsWgYylVpoKYhIxCpTvutu7Ngf+j0SAMaSmtT401TFBeEjQc6U5ppsHlnjaZCOh7rR19fjqpeVA/yN+79dymt/zns3Dgdr731tU3k6tPpMnVtT6zfy1N7NfIxAja/yqqCVg6FO5LVSiWdEpymP6yv5iq2fnD8878ycye9K/Zjraxtcx1wJZHD+/V9I6XZRTVaJYyfA3HytrdLcRLYCfVPDslaBwTnPljjsYnROb4k86N/BkX/+Wzrrhqog4v/cdrfzOKxnGe75woLLRdUbDZzMXqqcGWTFHYWRUHVwiNS3SVKBUtUS68Qzb8uOL7lGVZlmVZ7xf///iz/dXmuaMyYcWajTDh4BCQUNAiYGDh4BEQkZBRUEVFQvw2RjJ3JiJJshSp0qTLkClLthy5kRcB5SuIac7xKSXkW7zzi1/95qtvvvvdH8u1xXP3j0ClyIu08hVgYStUhBPF8du4URJqlSpTrgIPnyCEcYuIeNSQgvg/+QqiOP4JN0riz5UqU64CD5/g/bqWnBqSmgzyTZxv8c4vfvWbr7757nd/NBlqFZEXX5WvIEt8lqJMuQo8fIKlrSbVhVtuVQpW/B+2QkU4URJplSpTrgIPnyDexI/eeue9Dz765LNf/Oo3X33z3e/lj5HuxLvuulfOk/s7h8AtOyDHC6KEZKwQvcr82p2KADgF/0NN6bf1A7JSpO+AR+LxHWlGyW+XxU0Yvjum+O33P2nUu/ATuf0RUsZHCEx5d4GE8PR94VG6icrb6JAvIE4Ek5NoVw3To9PZRl9IuWPNM6pOHwo8N7aKQmk+iqGxja0PYB+pcqsBv+QkVBqPEv9QU+l1WCNjhyyxhZs2FLfmN8w2/HSy/FTU+gGX+Fi0p8zyea1lbRBDsbKFnXXOeas+suaCiy7l9Zy7HntSNhrFV9Gi+umI/EL/p5RbkhTJc96+ofPbIZYqMykeqjWmEMHzNRar6/xWDj9/Jb/UteqJamOIYLp6mJmdikOH7tPYwT2oJSvhJaKkQ/C7Qh/Vrr0dYdrj2d02zwle8YFdTAQiPB75r+9YsOoR7VY8BMP2duIe+D5XRdkD0XwJhQ8WinlMfZgPRzH2yWI0h7Cna3kewc/+SSHgxR+YPpc9Sg1w1DswgFMFYrdHQCZv6+xqF1N77XeQeRzwqL0tDVLFii07Tse9TrXYr4bIltjJQ7D+4w1xWTy1x2wMiosohfLXW0n8bSwmLOGyltDy7LdRvVdvwPPeg2/6YV8MoRAel9kCRggQDpHPNwlaII8DUMqSzEByVgazZU9lCDsO1Jy5cOTElYaCNRuDKLlx58GTFy1vOj58+Rm6WSLVz7/hDALpBRkhOEIUQTGArhSRqHFISTOKSbGlsbvWTZeTTQUKUlZK0Y6WUZXruA3JRy7Z1XMjrXwsCRU1kitVms+7Bw4BLQISChYOEQkeQQy6p7lesr0h1cYVePiqCQiJtjOkOl5GTkFVEJGXmQSDg8K5aE7NZyRsMqtG1iufgIEpn+U9f06l0RlMFpvD5fEFEQLvvddjU0yYUXzcVs3HYkml+Fm0THUZtZOyxgKW4eThG4NGM9VjH9kgbJdPPe+Q9eY4Yp1nzbI2lnlNF7oeLtclO8zH8hCO/PHw6D2UB/dIPUhHwKE+OOrLPJnpeXu2TsFMn7jpPr6NuyMxLg/1yB+UETBUg8ZOeXe14mGAsMPBR0+1OqASjuy89akz5Bxsrp3sgIko1Kx6kg15g1DH5onBRNZTtkkkFkFLPRUiE1SY7Bj7RMFO9CtNN07bPgUZ0baIHULgzk7G2Jkf8uLT0amsoNwohzt1Ww018h7RPz8SMYB2R6uEKIL10vU01ULzWsBxDLvuRqwfxz0PrGbWRYj18d5zRYpe8xFL23uUYIQ1PpaityWNIWyChJoAktH7XL8SMnptjk8zZPSqNuc7yOiVY8xbyOg9npu4zWyCjF6vB2c9ZPRujZRBRu8GPQUyeq+gYcjobYJxLwPJ4BDcnGAbhxzoTswEFeoUiaumSLghn3sjSMHo1xfNeN+q4T6rxfzqwIz3rhs8kJMa7GqxNPYP9yVcam/5ahjrMz2PsvBnNSiu8KG/ldSTaKJLHgottRuFzssfv6WljdpTIdibq4oUMaknWKXnOfWkgRKxMVOx08uDiYBoyTQ9I5RQRUnS9KhAQgRE81B/epm+wewWD7T5v0O864D8bIy2X0fOQKoSe0Ca1ox0G7Qjpr0VJGGvkRJIReItkCbqFjurGxwMCkDWxmqowYf15y0EEmBBNgXFZURDEqB40yiEjCcY1kO3VcIQP+YJSW03rZa7/u3O8fZajxS9QyvXFoMdvoCAmER6o0CG/4t5gH9t9xrP229eoUa3ebs+dmxlL9V1ynL6l8Mv7YMTNNWMRlyAuLts0XRwW5JUFZpm8qdWoV0GTdKpgGrY5dFQRxAzNsvDgJ3CIu9JRNHXvb+6GPMALjLn4cJqgAufk/U5WEU4hlFNE4pCzN46Ccvx9CyrQlEEYUrEE4ULJqWwoZBhoiSstfOkTwf0N81XA+7AP414jF29Fu/07/XywVKH9xzkzeogk3XU4hwmae3isUxsye1Ya3RDsiIZLKqJHmEbz8NvhMNxsTCjWHHi1xGhjISvUXAgs99QdVxBJJAgWhgDTTeeL8H2Z6S596rsgX/ww7uI7vnEZ3+E8tIjN8gcYaClpvBPxfKkcX97hGD+tFwi8K1h1J7PwLGkKvdRLp9ClZDIrcoJ5a9/jpaP5lPETRNS5GdTbspNuSr/QAwNVfuDpN+qVPdf8V5C9b509OA7Ewigo6FmS0GqknTqIY8hv5wPPULWUj2WXD8pdg5xlf6sFhDRwddzVzSlxbtMdbyRlFPTGGWt117ag2AvdjH0VPiDo8ZB/N4WYNzDrTHG6rHBhrTzBPomNqIfwqojsYoS0sLoP84qEOO9USrlC1vt/T5bRqD79r/40fp99Lf2be9boQiIL33Op3+yx3mFF3ueZ3nqJ3/l5z/j8Q8Tw3FMj19/h9/GN/+NfuTX9vk/a2nXV6pf5gt9zs/wUZ/0y3/Op/BpRNh73/d457d7Kzd9g9dx6NxnPMXxrnSJ8531NKe86qXPPPFwIeG6931v93i3Dl3ataextS9cyYLNbWRda+KbZVtcb7VlFxWY53ee53L2Z21mZ3i6pmW8Yx7VCIaf1ATGProhRjLZsUceUkCzPf70vU9Ne8mT7nfIuJ3WW2aOC47ZY4vVlrts34Z5Yyygf/RrX/dh72ya/idkt7W/ra1pUVc706F2tqGplna+nVaaboTure96rPParZWarsHqKFTuMpaieFWqRPnKWppSVrXSZZZYOE2o7nzP2zzOraRyPHuTSCztCVOSIHMZSVeakklZljOddirJJkYR0sM3z1xzDM0Ks4zSSwiEFysQGTx4MkTwYEUHhYwyaWwUeEjCEYJvg+hlcvfKKpborlP6zpSoZL5UMzNTVVUlSRIAABERKWXzhbVz1RlzMiVahmWemZmpqqqSJAkAgIiIRKZKdcaUWGRmZqaqqkqSJAAAIiISmZXWkSmxyMzMTFVVlSRJAABERCQyxdaRKbHIzMxMVVWVJEkAAEREJDIL1pEpscjMzExVVZUkSQAAREQkMm0dmRKLzMzMVFVVSZIEAEBERMbzE9oZLv1eflmlkUhVZRSSUwZRkiovR4poIcDyzaOXHrjhkjOveJ/tGlSTtHdJ08t6+X5F21nltZ1t51HpdOk315kY6ok9sRu7cTPW7giwazd2M8LNzcUVrqPr7dqN3QQ3NxdXuI4227Ubuwlubi6uMS6FxzKemlRmNdNpppg4RUg379xyfHzq/x6nFwIMOxAJgBwRXJhgkFHEQ4MFRbN+tas1zWtc/epQYjiNZT655xSaJSbpJwSOEz0yOBSI4cGCGjllfAx4MALgH3rVtQ61oXmNiuyjOwtUVU4x+WSXJgLGKt88cs4uK0wzSAcIN0YU8CiRwIcVDUqqpDERwQnBbr3rVsfaEqVx9YoQJrvgC/z1nCJyySRGclWVlSNNvHCkgYVTiWc/7fd9RcD4JtWjZD8p/J3zOCjQINirbz3qXLta0bQG1SEkt4xSiKeSEvLJKo2UqiotU6JwJPUeur33zlN3XdMiwMmsTT01pf8WfuW89s72Ae/NH8fv5p4+PhDfIR88kPuv7u91xmtK9NTyzMxMVVWVJEkAAEREpOX8CDofQssgI4DIHgf46FOII5nKWva4YoJwM2ejGoX18I+IM3RMDquNe0bBed22AtnaqQqsOAIRNxlTibhXeOlNVNCV1WXMNCztuu4mTEos57BpsCE7NcTViYE+mAYbtEN1Ai0YaHsabMBxxlgbwW6mwfpt9IthAmtLg/UZk0WLBWtIg/QqGF1R9GSL0mA92IOPq9nUlHXrSfGwBaeyZDSWvGQTX7232RFHTZk2Y9YJJ6veIPOOm3PM4Tp1We2jOwBdvHeu8Pb9Q1P4P5sMpW4VFQH0ZFWr85RyUfhR4aDLc21OMahE+b0s8aIE8YS/AtCmhVgAMQCsApUR0jWIdEbwa1LEDAh5CkVsTiimEgVXEcupFHFXExprIginENrWSBBNJTTXTBRPJXRZIx1S8bPCfMAAHCJWJFHIRwsTrFzZZq+vOAMtTdis48sg/7FuPXr1OaTfsBFjRg0ZMBiGdkkQkTNKmrybr9bTwOo1ntEFFov9bQw8LEhXXhJKyDelm9NGhg9SXMWGw2I9524/i70iQrgkFORGziYRvAVa748c1sjsf3GHkHzX3jVfcFGruP7fyl1xa9ei6a7j7NjaHv2j6kN6sNTmqZzpkz4tp3Q8GsmxNo6OoZE74tYjF0uwxxTl/nrg+2nCuPfNO63O+a/8TXpLuJ5YwPSnIeDww3V3wPI1RpmM+SiDgq+JmAg8ZLtM0pXl65EPfkXnBQP+TpPBgPyVIEM5WUn+hr6t8+V1Gb6T7vJsk1YevlncIc9CeFoJHvA4FlCnET6oRULru9PGt+uWq+V5kygqg4yrIgQBq66olq0oczy4KNV8XmgWyWFz88cDz/CLaO72+Z2MFROMOCYFjTHKS8fnBY7ECK+EV0mzSQFpiDb3PWBP3zZ+WC16+lVyS2BbLCDboaRzs8ngej9hLZFm3Zkrt31LlPxcxOu8jOWBz0U074PK1or4vLGIR5i5IsgSPid5UkFShrpU3Cxuf5LDIhYuZrOA+T+NvB450KGBA04Ifng2RnILcob8c6Y/zzOTZ85dYJ3QbzFtFfynCKSQPfIv+p4BgopspukoKXOT2iNMrI/WVE+aGHu9PoU7mNdDCVBMyFIZw23wjmWEOT4U+nFPQNjtAo9dkoOM8VhA2JFYtZ2u0JSjQHY8tmCzrum5yaBmYC0c3gx4oD+HvsEJqt+s486JHRsy+gh8wtd08uEd38zdfcqLnvCoPzGKJtZ01RXO7kZONxKKaGuQc+AUVRHYx7eydTcazEG0gR1uyBCXLRCjMPLFluQ/yoAKRXKmmEJSpMmSqUVds+KLsPi1lcGK9a+eBPy92Y2fYQxGCBUu3mRJUqUrUKxUublqVdCoVqeBnpFFp249wmIGXPOzdg898Vyn3733UfezOGlCZ3fw8I51q8JbkCZJMA0G0P+qPPWigvJrTNfXpvA3P3IgsYx+ZieRpiHiTnqI6l1haUCxpJvv40HgxH5kQF+XZP/BPhf6GvWViG5xDPMeTmy73+02zv3bal/QDUm3Xh43dTs0euf4h2JuzF1egHk7G7qpTA2qtqZRHfuqmmqULZQrSeeZFbh7yitl1bZb0cb6N1tHpRmlRK+abSrubg0sI6Pkd6YYVYNS4xrcgDpJN0+RVbk1mQLMvd9woS5RJRzCPLWloTLgvCFbFGvss03jgYMH1asAgVcMPZyny7kWFs7Q6d1K9uozVT2kGQUKGV1EWRljnXbRSANlF0UIi3VTn9Aw6Xl3LkK0eUSiRz7bl87MOKcxp04hVm7dmiTU0PKrRaucsub9n9vuaPeTm664xdwjHR4Wvqs5AL7xJp2Wo+n5h2QLbxjW1Jp+0cPNQxFk9CHN/jMo0CcD7hPSVvnGdTnlLJTRx6tJflMPzgFJ98c1FSmHPLC3Q8DvTAT85sDeInrEpS/C/Wh18RBcDUfvNJMA80dSFf3nCwBkP79cn1NieBi4DdSPQtp6X0xBAuO8jszeD3cYQx7R/BYUlWgjjpiyMWY5E9FGauxlMZgoE9zeAB4Z5hsXnpWpb8MJh49v13LMjw4CQkWFZPt/Vw1wUBGpEzolZfYnwyN9tkn+aHAUJGH7nkMr4SwhXmZvIdg74Mme6wgFTOlH8WwV2v29bhV+bIZcYFaj+m3kfLQbWehq+q/dSmnmjouG6kmG/TaXtFlU4AM/nYoK2kMVDptb9j94z5Ql/lEuUK8rj/elj4RJTR/qU8Io7K/F/cCGDQNw+BtBxEv1jsmwOlF91768aCOgzo654xGixZP5gjBp8r3xryJSy+/LPg6mZs59JADipWztR31rC0TtLFdne78PqgqrOgVqz1uWK6HtPj9FYPcNfbVvgc6b7QtrQHKrIVsKlt15U/AM3L6LfjIGKXcVn1gEd+9qvD1mBOqBa3dXrI+Cd8ne3Vc84gKr9yuGnUH9oHnQEXofhEdN8PzhF+V5IHm0BT6z6foCuOD+2Y34n7cw/YqJ+hYMvPd2pR+oPlD+czQoPhJPo5T0tP0VF3wbXPxiHWiAqfSzM+3nrr+pUW/i7sei9boMN4FYwJtfVsc9FtDn6o3LPj9K/rPhLz/uOOPHv7qvOLdu9VWf8xo99o7+VeO6S54Xmu74gvdFX6T9Db8oOTbY71dcn4H+D60F/Gpw+cXlhtGgD4iG2d6NrqvefeddXXxt+VHXL1fdjXrX0vz1472Dfz/OeMfC8uG3vRqf5du9Zm5j//WRJa8FNcI7HQ/vvZ39RRRzg/rLb6wuLw3c+v0vBl+v/G+nWwAN7nQN/A0e7BuWjq8N9K1aWROQKu+fLyqXn/3lnsu/+JQU/PjLDtfgZ7Q/lQd7is79YIAMDILf0Ny3cMsjLuHC3z3lFP7tCQHy2I0IsvtJx2jKr56wiVacfcIhOm8IgeS7XzEpXD45/vGJ/Y17y5w5Xo8KQbpzX3sqYZto+yA8M8A1AwD+1/f9M0D7mk/1/Mkj8K9z/jRY/WjlO4On55bsLnce//bbR3a+UPBDrr2ymYefEZ899eTA299+8UhfU3GkGX/71W86h2W11SduD89WCzXPQOHEvotQeOu+CVjb/hXuv5pvWRxh7ysMzc7G9SOx9Ux5OSV/6zMRT79z6Ei69vhv32z/q1EXnijVMdXXPo9gmrNTeRcunspZ8tFto3UH3jqdNzXngAAurUjWazTI7/99AoKmDJURe+n3mJa+lpDR+epvyWo4nXW9n7Erl57Jf8bq3zHpeNdl0cvvxNaKH00/3AK92qtLOlk+47gdcL4LsO+1YvRsxCwAv4f5BNsBdmS+2Na8wWjDJVBvI/dZBRq/G98I9NkA/O6lCxhJArce974vS8BU5Jk/K22RX7DfI6mqaA3gP3DHV6sIGqGmZRAhVprpytRSa2IV0O+OpzohwBoeDxAAnZ907rggy44Lk3VclLzj4mzaL8kWsOOUcjpOrU08jSekLoJUt8o+CK85wxd0nDmMtWfFO86eKvGcuYAlFjRKxgrotelUA/tLb9Gu37v+9t3Nksjll+sfqvgWryc5NQqKpinoRHrsHlpayJbTN84Zhqt2xKZWiBunxvnBDWGOUTQlpBzfC6ieVJfqDVMxDdM2PbNidppD4m9Zauvb1hpbto4EjKRjsJMzD7FjgeFegFoo7m6vm7KpPe6y2QH6PhaX2+9o9f/8ssWa1l9Pf65klLTySQAfX6usWL4i6ax37oJj0xw0QaOcHP81G5bs2lQn8zp9Rq8Z1Kdmxa/2vZ+L6nvOSEGpr48LlbVVOKxaaaMxzUT7fVm4yr8q9rgwmMhrVlT9udb3M2aWBOi9tQTXk1ZROl3tS1dU97mnDzPLPeR6i0jvOfnqvW45c4A31K/Dmp3xr+oUqaR2zr/j0Wq10qu+geWCb6nHseiUJeG/5++jH4VjYSAbgygN5smLlnvvCxYhUpQwoysvXIZMWbJV+K7DYnIK5YqVqVCjUZNmWjZ2Dl2euWhEm+uuutL/7prX3njrhS7/dVecOwPgfS7JKsiLcN8sSUYI6Ikg5IQkI0AAfxjcTo5so3FAi5AWGRbKDgq94xTiU+eFoSM6zepEfTo+rM/AX6Mzrd2qz8IH0dk2HcpzslL/Q4Kb4GUAh5XdAQAAdwMw12H8CRzugVwLmgAAQADsdskCbTmmiSiPmaQrincWyncIqgj3BUwF5kLJ5sKNz9AFMJUdLw1PMGjU7gU5nKepUMZCn+nS6r2E+oVUO214z+WW0mnmqtvPJGyoIZDlqe1SykrD/ljWKJ0dS5sUL62IMEx5bE2qkVpIMVCA3SQEjB0rJ4yWx9aKkmakaoz2UJ+RbeWiqoKudJcqwjLFIQjvendVrJ2uHv/ClmgSIntCz4KKjehiRqYrxkoB/cOe6sxrVMmKr3GWi6M3YNfRq/q1qNILn7nC4WLIYAloIzeL6r5Mu7vDi92FnO3tMs64q2dSeIEbzx5j3SPVePRO/vJ0iBPucMhibA1d4rOxg5OhYYhl89vVVnr7VDfy5p7sPZHJzBj5ZKxr3V3no9YCvrvO+nKeCn7UuP/wZRN378mfHpZ4NK0+LvhkMLZCFVIYXff2kn+FoXRJvb35Z7lM2XJJWdpgyqPkPSsquY38djwLsncuL4UQPCSLOeDOhJdUhHklASMDoakxwRTI/zFIXkhVwSqPC7Owo6hFGW4QKgywsBgbA/lE4X2oKPRYUBghm5D7cWh+51OvN0JjfCpJObwThFnu6upvGPP/c+VwU1PLSqlO/ALJNpmYouUGKxCj3yNcy5tWfoVk/okcCUtpWHW3NSmGOdyXwwI15WCTKmV2lC66dJVytk4hMgwTlGIHjxomqti2vONVvjI+rKtIlHWqcM268ZO+Mp67l1TfLLqf1mYUScrGA5vDb9HUkKL7KBnpD05dH+TRZzkxMSs//SMk41VelVFFzDRVcftLdUMe5MrSOJ3GHfVkPUGyBL15LrPe5ZPZrZhXRXuCwmkeOlvnMso4w5hkYDwRxRIoBdTAOrRPfzrPY4JjyKlSV0cazwy3lH+LiH8KEbsn/CtnhUOvICOCrLua0MYSLFADvriKXqbB9ig6GvzomljNL/jMzv5CmtGBDlF1OMUoA121nkd5HEOYDbW6HOMC9NTFlraP16a/R4wfY0vNQjaUPGiE9Ax1w2sCbyEsPrcxMZVqHY9Zu32zEhhVbI0+oJOKVlQ6Mam1LLPtYrIXU5+40Rtq3XQxAQmn+GksmZvwwDWxUsNNHtgU0XCkbfKCuk/dLzuSe4a2EJiL2PITSE+w+o5eWUCxtHY85qMK5NF1xF3z1G0PKQPrxfqx9G77ZBOGXUdJduEBNfz7Cn8F62K1yTGCRAsD6Xi/wR2VVK6omSLCziqqyFW+QqdcMHXaXvVaaZ/onVApuYXa8khrEdeBb/lfVUh1ar2cLwxqj9B8zFRrknaUnmiYkQpmCoGLOwgcS42D29IY1nyMWSg5K3SrlyQX1/omytImf0wFX6pk4jH1SJCsBzI7wwGPGuZIZoF+JNNxmPWY5pRp+qV5FCXZ9KXch8Znhjf5AtByGB027lO0kDNexCfdDFWkwunXBj9rQ+psOa7kT1jmmjrNGn9Cy6dwiIxX55Rv532KsXYYHqgho2AeS4RQgBXnTKUnQO0oF8zl0LJWL+OWFK/s118hbfoaFnYmnLFCm832rRbFqcgJhzZD2bNQRAdFtBiGTFerc16l9Mkm6ZjC0gnbMaceQRGWEFW0LuE8w3sxy9yhFaKualNZq3U5Jy5RSP3Yx1iL6vhrzlsN9lfYDwVY2hXbUYk7FLXVSP4jDlAYKIQS9CdtB7sOVKryraZSgnyZ3z+pPJEmhOPJlBy/8HFpUl3JKMoGED2r3wGLuZWfKWd5pkoxzJ8Ct6EPwhHVTlaefGdNN0+9GxlLRCo2K7jMyauDAS3Ri7s4HPFChuPftAyTfA0ZruPakoAe0vJJ1OD4HFGop5y0T+N/Yyoc0Y6uMZioy22Pdlui7LDGwq1aEEQcluuBkJiQHr6ti4qsyria2da/4cNCya4bjToEOTpT5ajbPgcwIGFEPlyJ+d93dUZRFb9qanF+m1de+jfDvvkvkIzyxQNyDD6yEHpOhqtdXdUjOQAijwrP55tNL0QmusypIdGMKRCB86z/W76QBfqNmEUL4QRhZMeoMCezJSPV5qcwzI1irA7foWtEQhJnTQScuuOQS5+N2AVtnGD0mggvC6ccXaUrfCKNdOW1Pdqp3zdY5f4BWx3kgf7KycUvTIDxF0FCvDwWx+2JruJJUsqdz3LmUrAZhSJKdB0Jjehd7RCb2i6gW0OX0rEX0pwKlrGU/ra03gxwU41J8x3ySGhJurGSlSguDwv213iIOrlcC7pNX6/tGev06e4e1eufDw791sBrB7122GvoL+4R/7LqXqc1rHNpbyTuoTJC5idqIVy1URXOOGQDKabxD2OCJi449ZvSxX7AJ3JpTnnptMXEiUH0QGahirS/5ql3aNNvm0mPLGtegGxutjW17mwqWc5EdQxj/Fa3AolKgrIM/PKdZCzZwxrJZSz45XqhsLt4KLG+tbn3O67YhFw6p6xBpPuhTT3N1SA+9t3vgcqTHNCfzrCn7m/1x02SoTQptILV9/GXjyz6zxsGieM6yIYEWLhXPQpR4PSpMSQMac5NC602YhrK4vT1hVgJeSvQOwVCz+OazXc6sLaH+b23aLHGQGXwQOGczJmWqpA3VU/ON4EHOcW3z4L03nJIAPfJ65QCVUGLP5j6AMk1PKHsP3WKkN6An+UqB+xVYB1fbbCL9EhNXZlUiM+EEeocas94GFX2pTnViwW4fFwnZe1C0oJKEmbjkIbPtD2TIBtWd602nx39gMuVIgSyVatIQYASAbbG1ZHQpwuLdCf7YQvXGt99tZ2+PZGe87/9kkduzWDNK127rtUPOXV0yesnUgajZbS1fnGItO1s0/jHFIjA5fpvhpsGvoevXB00zxIrMMbY92lNbFnY/YkNjdaYE8jmukUnQY9tzbsq+MeKUPJvNNWb8ObBPuPM9WsXGu7spCIcs05hJhHFSjv9Ctsqxd98cmXAvlGBmrqaJ9evKvPTGc/uRfemYKVTAHPGkrPIzFYlV44a+se1Y3ctvo9qXbkYbkxd6Ip0x6mJDlab2/WSN5AwYB/IhDerR64le/f3vCxLfthY6ufRdXSNNtIMQKjTvDNrSlX0N9cAr1XPVUejmNRc+tKqTI0NDlXlZKqiOT2DIfRAbPJkHNezIuDLiH5fKxnKyiPVyX7Utd0R/+QF2H9uH97/bpUAapm7dwSwrum9u0IABaHLK6KVH3FAQZTW8ZRYCRVK5hm094cbWOktlyWaQxOhwtBnY7J3WXhL1iXWdX9OYiUCiMVt3SNLhO7ijrOc/WTcN59Fa+9lwp97sDu8OIieof+GAOJ8Tpc8cvVT90j3l7sjNUAvOsHudbS8p3uyG8yCnm5r5+Xs5Om8xHBefgR0mxFiXfVkel8xK33mYebR5GHGZIM8CYvlV2MTM3vRJHEIthCfpJDXE4D7L/yy44mxqE+fx6IcTy6zL8J6BNmzOwqXjHG4onyi3C5CcbeSr7/cItC/q5BHyO3zCTiOMXZpOzt7pkd4MQzIfz5CP/alunjd3EkOeHP9MHdE+gAyNYB7+36QEDxjlqYDeroloKcTcBfqketvuka6vt3t/DsqH7nwf2mtrQx4kEwuOJ0cjvr4OX052J1c5l5F9Imzp3fkrO5CYdmZZKkjUXpbwddfWRLo3a+sEixnZ68qqheGgvpPdhlvb2KTW5IZyVrykwwZDcFumz6bmO8498fbOdISSanSFBXqu6O0X7K/8/tb8B694olIFWaVVZx69lfFaN3Bsw7Nb+H/a8lr6T639n7/QqN9SjVTLHHHaW5332jX178mzJOtiywKVxwfW7CsORZpp3f1Txhvfz4vUF1BJCwmcn6rCdxV4yyzy7tpcpM6uNOKqrPJdpa41Zmit+9eK0YZlntQN3v0zOblSU54EaHehrJvY+SGTpRqGzje0xcWZ0kYDI85huRbrc/fsECrNBTgAbQE49x4/rLDybGoz5+SncOJpSPyOwqB/tIl4OyTK+5W+pZbBHqlYPeqy/wY4clz2rucXDUfMa+7X1O2dqoRifuauvksaG38Su//J1cFubfl8ty7T4WTWcOJ3FoSVB0TA62uI5b4AKwTqK4+P3i/7Y+I8333tYtt3CjsRW7ujb248rRwsnlUzdXAYYLoWJikFp0sVXtG9528blC3pe9Thnx+I+/sBmpSbiskOq0XllBCRJNi5f7EnTOe7beDC4tNgspTbzPqGp9nSKbXsea35M5x5Yl1IcRcJCGRIYMwmuyX63yldJoms1xw9lc20LdxHEkfuQn0HJeAniOYWY7qV63+ue3u0sUcxtARZnn5JDNhKOfi0t222p/XV0GMO17vDGcvlvSf90kb7yVi0vJli9c6cNk8TXfG6GzDdrRFi1m7IXm3EfllWLXM7Y13NNwz+lqdirZssWhfiey9/da1DW00U7+6R657vHXdUZt4l3s7a+x3yh10+7OMv7rB37oIVmOZcvDRnUA3RBDTM/5HQi/HhyS6IR4E3rWk7lJb70A/XF/W5R/jEfPZ4YFnTEDckn4ZiDlnGc56ZPvMg4RrsC/A2bPxTa44m2cPw34nA4nSof+pc1iawhOGj9c7SeibRyRKt3U33JDZNRD4BR379mA0AnfMsyeIaW35idgSAbzNAr8pZQvf8LSDPtIrMcOLQGJ7IDG7Jvwc0+oLj7hF+Wn2yohRndLnU61bbKkUuW9od2oVHsWDd0xEmDCMYwwaQjawbMMx0IBAfIYdqDfPPsy2aaRQhRk2p9CoIYa5sMM1afYH6PpkfHd8Gi9yvC02LTzHhoBDTzrvoVWIjqM55SvkinoT5kGINZlT0g1NjR0PUEkotzuwC0SFPYUKjZbEpKYq8UgenInwTErn8JsXTGspyTbLthw2MSJTikKqrMDjzGwxGkF3NTk8CfR0s3ZGLuFxQlSe+paqdO3UiZJ1t2qGerPULORSMQcxr87LzlBlIE/weKhFdTbdJ0Ej4izYwLFLNW19VStcN3FMuD5/bGol1zpwCZGFu9AT7vMeKCQkfr8vq5aDWGTlI07VFrH8Eg6gfTywp8bdd2KiOCWUekdANlXdrilZN328dO1tlSpPiILHHTCymwV6usnDJgeRdBGa2JuuykYt8njIE6qMjGx1HmKeU4xcqmGBItNDH2oFayaOVOi9aGyNnQhQS6i3O7CpreuovvnwscrEtLTaZKz6uybaY9LDEP7b9GG3PdQK4TEUcExltDe0G64yvibFiethZCjVxM+j7dYVWyqWRr4Ckn/wZkNKMpzrE4RIfKlPsmJCWP1smxs8WhSWq7gtqPh6xFH2/zvlqlwREhHvsm3mSEWd+NijSHVOuoqOmiwvQc6q0jOya3KRc6wi1JGaZEDO6R7Tl/ms1Myz/ZRYyB6jM+Y15+eOixX1xSQhIkIOur87ywCbbjHmJkHWNm09Mc96yIKAiqEC5N2nFo8/PV2/3SQP015KN2Q8rhYKtveBnTa6ivTpl98R8JcQ4pK5skB0eUvzzjLTHdSsshZYbFIPlTEq+W32VlllRhw2NyQgD/Vg9odf2ExYYRCiJHaFs2MZh4HRHugY7TE7mY6NtteT3/ojR4TrXn/Pe9n1RYhT+QWIpXoOW9NvOOjSA30w6TOxpH61qZ0lX0eTGgdPPDRLNNL9LDnG8SoymZk8ePa2SXx07/7u5MSWg7Tu9FSTpF/m/vCHNUkQhuLgToE9u4umw4qkO5hj9rvjZZGpxdUpiAASjrL9pJPWqrGFm5jTME8pKeqFp5aaEg455GQn5abK4pEhsZikXSN2Wqv6lqLk/Nbz0WD2S/z82dVEkeA8vWi8lCeYzLY2qrOYutLOzTm5miUbHB7kVFflsNvqpeKxeHQm2o8TllGp4bIaZNkkYJPKaA9rH940G4ENgqO2oajW2pPITVb1fa1VwNQwMRdq5A6VSHC9Cmb3HGPS2NSrc0kozyWaNWeipeVBWBw3GC7JHJpN8v27+0CHtapKWJHmWBCsSSRlm7u4pBaZpGBNgf1a8NxilnHuc4tNOuTqfmaYw/PK07BOn2vnNloHbekQxnLl230pof8aPWYHWoP/07Lkb1ekz4XSg/7VO83N2kP+1TIr3y7XtDRT99dOnEOP3bBJlP2OSPsRh76dmPvXCQD7LgFVulRd9T1vKqHeIZzhGI6s96HW3Lt+KFc+W/xT/98QMk5tD2XaQxFqb/Lg30BV69JhnRe7BYXdSzSj751N5awjw+vKkv3csnpwTs8ihlHI9yG6IwyB4Iqdl+1m5jCq1nbHgc3Fw8BA3r4C9NK3OL3ZXULQu8wpPM0tKTzzsKhXNCRKVwejiigUVIkami4CQcWVcVauebFWJraGLS+qSn/tbCv55bKKR+P5R9LKt5rHS396cn00Es3jBX29f2Q9F74yW/7jtLKhJ1OVhBpMZ0DnqktZWdXZ8CMZyaHjuRDQGsEGRQX/mAUur9xZM4DVcXkuug0uqLeDwfepzCK/Wtg+aflBK7/dUj/dvsZyMCde5IGNEqWEsM2bDwcgL8otFpe2NtFkfJ0k/8a1Uk3hsXju0FbWxL7t2TJ+DrMC5y9eQzIZXRPmFUfzZe6nbdpTMrzRNcolZNRNzpMp3C27W5xaQFj32fC6Y5A6SJJVWIMfpAFleRjdfTw1iG0JLT+tKNA7vVygf1peDmNZJPmLMZ1Y1BU0a2bnic6oT59lKXeenGFfwgF56tD7mQra1994ke/nBgc/zFVE/vZbeeT7maHBPG0N0WCxhbgl07zJX0PcvHSBaJAC9rcXPbTwNx6WBhkGV8O/gPbSL6aU2LxK33IEIYLNDyJF8uDhPNoxWdmFn/Ll8qv5nIVisn9r/WmpChG35ch+UI5veJ4im1pfvKKHpKVX+0Qy6qDUYjyZVN6GKCgbLIuWhUSw8RhoXkkQGSfzoaWtRR9fx5FO3UuRqi4W5MxlC2RH2BZbGEaKTGQzo1y6/DoflCztsF/dWPQFf7Bo7ZbCYaFrAkAvngN6OkDFS2+kV0yvZ5/Qg+EzeAHYODWV2MhIpGrrohiIGqepqZ3Rz7cOszynN95WuePTJyKECuRcbq3o6VMRkKcmnAxv7Ynfdv0cxl2ju5Qr5J9L4U9t48ybJqrEnMIBefS/M0J+QUyVK150ky94UqeqePFcoR2Kq42ltiTEk5pqouPgHEg03Z0LiyG31NLBRVKa2ZZ/LQNTDpEWgIHXvskWLZQxsL3SHIrRxtx9wpPcwuLpa+lyqS4Jd7qQKzqZtW8jyUg6A9/LKJMsvMluHkiphRI4RCpVUI+mM4C1NSoRz6mHpiwRy0KQbCw2PK88iEwhJp6+LsPZFSHgOF54LoU/s417aleySsot7JfH/Dcr5BXEKN0JotsCwZNaFf/VC0Xr2nhw/Ii2K974+nmMR43uUm7eErzYO5ruwQ2LojRp6PQ4TQy1hR5PalJFA63ZBJZF/vZbReQ78f1cOS2jDEbVhM2LF5MMaI26li+8QSvA8/y2XpPvprO05MvMcmYq9026fWMco8klRysAjAjhQf8DdHJ4i/VBaldOk3Mcw74x41UJM62qxbIWGzL8QILffiGjWJgwdWzmGLh2uczhJz7cwP+gIIEj0uY0uiS26W+4ianlNi//baYSHpn9fgcSPsIfVpYxywHzH+6rjL4+AjQ6m3mhZ8AxHwA0vvF2buGJomRijbosBvboUP8fzngIihFP9ot0cSX5+HmmRef5hju+hN6HDBITBa3o5tiUWO1AZD6rLyq6LhbuWRST1O7wKD4cw0FEIPL5wZTYfrS4ErtcergpfDEq70oQmvAAD660gbPyq3BTHv3Rj0DwTR4/PzzyTYKVwDVt5t2IfoTO9z5GwN8RHk+/cQIBd3OVX1NKFNweZhdbHo2Epub5wgNz3VEZepSl9XzukdN0rmQpNWuqsCxrPDHg9+1oy4zYzdHX2O9C27JZ6decEgl3YBGAgKbl+4aL6Iz1Io979O7i5bSso+OhdniUZWYMcuP9FK6WDtw/1R+WWoTBlB/BdbKogZgGOcQ43zVy6ojgnuQ0YBJijuW5exqK6jdHC6j4ziM17wsHA0s79FR2mncLPCcAHFzT9gLob3/RBsoJP5pm49wFtabwYL/3EY70VD2NLvvwoSTq0e0y8rtPeN6t6z6yn15kHWjN2XkHPq3M5UDKzOgRNRt7Fiay5dPSuGc1iuyb8+UliSLEoAGtuzEoLBYagU85cKOfR3k3fPJH7tkJw8yFC0kHj51IOnh6dV/aPKn1QIn1JUeVrs5mwLQLncTF+3RySwMVXJ9oShEtWE2je/QVJIMLhmk6rTFC5/W8w7SZbtoctK2jIJWWDPt3mGrjdmnBczzvLvPQWPxLuTzVOzR6l8GruMfoH6U/MvRX/WNTaXlf6RlB4U2hWGzO8EpLVnmcm2IhmqwKLL5SkRUXrpVVbBiovBYWl125ghTxFsaVMtMe3+pVXLkGnJCmB/X/NKflYK/vNNjUsO22YLl6dHzUoOWP4dFhYPj031KPFzeGNEMACj8RAFFMBKJd6LaY+sjI+sgf3cDx+xkH4/cP0Ti2folZiUHKuuDNpCPzI3wx7mTR3+iIC9LXPrCwkf5W96yyeDxmMNh2tbqJ76P4dsqp88Ej/Mf5FNhzyrMuLNmDN2X8Ivj8ydIrG11OfGQfB9te0SrzHkde2eHyDGpPTuV0PnexxMzXqJ94+r4vgHT+/Oh5n8aecz0A9bFrYnQCQPNZXlK/omIpCPAScYqKMp5Jb1roHBsd01F98XhfHzzO1xeH80kJvM/3XwLOD/BYqd9KObjmM3J0JHAtvtt3J5vvf3oIhgNrKijNijAMpiyYhMR/tw1BxkYPrCmnNstvu42rgOLCGK9sA7BkwAC+U4HGHTvgk2DIbMF+OQmChRTfceZciM2n3nwz7vkGTpRvCdo8FsnfU+8MlHDARaZuc5DB1SGkfMHSEvBVGXzP4f6KV2quBNTcIFYWfUsVuv1KTT2eYaUBa3gdv6MctYXRb5Tq4np64nSlpQlnPJmlZUWI5WNL1OUXuNwL5eWKdai87OIG80v822HmP4niv2tZWy3x1j6YgEA/CsnB5mxsz558d/fCXfmnwQ+rtOjsalFJ5mRModYw8ahRhIxJQ5cgUSURaBQXzdE0DsMIc3RLYk7bUExmySqn0m64smcn9+ZN7s6enoQFTzP1FO26D1fcie/vj79TUaFYsc5UsfkSAd5e8x93Jx9S9CuS3u/2NGWaskyTTOvfJb1be5Y2SAMHwoMTWmPjW+kJ8W2tcQl0bVxcW5eIa9UuS5q9qB4eVC9IMqieYtA8owHxkm8hNA8QeiVSGUBiU5jpaV3O1I3EjckGHw6sh0djo6LT4YG9tmbYQnqdA867xDQ7JJwd5zJUtEk8j4KWYzIgPjT37HnqtgSDs4RNWX4hAYlBYOQqfyE3/bRYmn5mIYfPn8/JOCMVA3MhnoaaTYBIiEQvaQ6RSpkSUhKxxPL1AyT1mfaZrv/6H9tIayuarTXcyjYcGH+bW+8xbRPpd5kiyGxNvdC45ws+MgaFoscD2CHn9PW0nodl7FuVCrbuYXnP/ObzVG7hT3+eLoV9EcnVOxN7HUzjMrPzE9gkoq9HBMpr+57+74lpkOKgYF9WGhaxzjrML5xN1FwZGOqf6nNs0dpbJManpydmRUZ4e2DQXtZ7BmG2jHRPdkBoQH46CqZn+7UbfyDak5FUdRhjqHoTawonhzkcRJy6eKD/N+q+YArM/gDy6T/AzGfS+XDbxgei1usVYEOKpIK65fuTV9k+CSEIVEyIz1DhMWWddlaWabEjzBubFk8ObM3fMLcc7O8vTe7xZ2SuQRzdneUZQUgOdvPIDqbjKnD4lCB3l0g/ODLZZ/8wQBzPag1kJNUFETNg8LQ4ioF+9hZ2Eh5BzzkUBO6QerrRtE+gktu6S3fl8qHbWu2hO5cu995sVeAwtZVVmHqc/G1ug1KJ0YB9Kc7OfQObVpp6D/FAdpCxLTqA5uqG8XLz/F7qyOvmFZU3SxNszEixJVHMLI4BshJouFSpKyEK059JMnMPIPq5QlBwPE1A84WHQJxlHk7RNp7tQeR4sRcusjA0MNUXiU54bBC5iZJOSBmXgrhYcbhL1kr4xYTN1xX/8vodCVpnwObjS30QCU4dHnBHp0AiNjgkkha+dZZdY+Zfdr4SsffYhkfI3TY4LgJehifgyuUooOG65u9LIYV2iltiV1riY3FlgYQ0A2jPK5iHF5bJ4222TvOFIovCESVEbv+AShJKiwwNIkZCbaHWk8isqCQgONy+WbPITx3TA8RcenUALj3Mw46K9D+xqTs0NSgUlcTzJZP4fqikkODwFMEmbbi/I9UzjJBeHRDHg2OCIX5keHAoCe4HiQhGZEHgAZ6eMD9fP6ifp2dYAKBr48sC8ZkGsN7bUC+IJ87XqYBqAM8IDEEWwxGlBCpBUh0Ru1Y0fU8qPqxT1hp7ujE+stEZ5mgXbgmnJcKhlKiQYHwkwCXYi+ypd8rsykDrtMxGBuRnhEZCw3UiXgSy6mjbC/B5p7CGUAXWvDh8vyp4yD2nAV1M+AYCCV4FQSN7ldBijDlU0eAEC5+3uxBTjPuGKQEftV2+uNyVgDQicnWQt7rRO4FPsjefCWVKKGFVFAIlXNnnMRJFFJhyJi2oiD83JLjgzHBCWGAWAQvNCiOEh2TCwp82fULFFOgxoVvTbdTeQPZRlX/ptA1YyPllpUeq23HZ65saRw2wl1vYIE2foXfsFe8XrI0lFJPsYHvqIvbsacZUrE2gsEFUsv3SpKhI95OlpECc6bPcSjGkbHRYO0QcKBspRtqLufSIFAqdkqb7qdkwuxcMpSmaDnuv6NcrboqvXN7OAuBfP/A4YV8zswNmZs37BwYlJDDEkBkPoRSYgOvcNo1OSaHQI3KXKylGMeu4dog4PkoNlRdtJZniAs+AD7xSKhXgkkFDRZQpG1/RdlOgeYfn+JEH4Cz9IrY3DhwomtbWJ4jXDcU8A4MmpJgxlPlKguKOHWpm+gEyo3aN+NeSwICpdE2sFPTVyGT26P6xTSUsit4ikj5n1IDhw1MD6zQuICusQQuJ0l7wo+ffs9RJbTtGEj6srkOuw8B1aMrdmrh6S38aH3Y/6awKxJmS5H+UoksAxdFkyMRxjFL6z/lP8Eej3m4ADHtOw+UtWZIMcco/ZUbggBwey5BSle+lt9MDgfBICM7Bt4e4U8wDxsU7vSKuo54RcC+IGJ4eU+tgW/HaKeEHg/E/DTbNrJwEO0wG0SXhSDbSKCsn0BFcAZbA5hp872sWAkGjvZOkv/2JACapvyiPKfvPmKi4qhCCud9G7Cho12dxfSdsbMZ9KQdeM92jktbF4cgx+eRS4Pb6uMZRc02r2nHp9A6wav1fnJ4jlMgEmPTiTv0jOiCyJ8RHruy4pNoh4mx9VCh10e3l+gMhbokWl8Lv0tNIYCMyLG5YxKZhK45E6CXr1I/C1qH5zlU9X0Fm+BclvnA3vHx4MsxJQ5axODgXOEQbvwAqC8Sx0Ne3xLHg1EvZsYEDjKxYsC2SarFgoUZcp9XmXVrR0a7Xzmcea8ezFqCUjFxFeP9bMJ9i5smREfFZLsvTed0FlFEaw+VppuN0XMK/Vz8p9A0wLKPJFyPE1+nWHKRh+7fSMOqveELMDLozCSy/W76l0+wuXjMsp8PJUMcopGLJMGBDV5NZqdlkVihixIepVhKLJjRCZettGRqGETzJ2ALvgMX6Pp6qP8y8KGUEK5bHk8wPntFwnyjgEhkWe4XoBZ5CKoXgr28p9Q0jSgMIDzWgNjzRYE2gNsFFfc/xFBADRiYMJ1MQX7qXDAKtgAQNhQkYMXOWi8aoXHiac6zGdH5uTrVkGMi1q8lM/qyVUxj2ZoLgX+I8zbSU0iG6zokVxocwziojjLPK1QTgoTLVwEnDBMYwiwfBMrYzHyWjMuFp9sxPzc/wHN/drPCxNsCFTCvpbd4wEpLBAVafZwcEjNiMk4kTs2Nei2tDqi8x/8U1LCOJUYSOJ/NYRlCRIBGM16YEH1XIrjcpzUGSSsJv6wDk5Cz+KiR72WYZsxuYxx1WyMGhy1CeoC/Y4k+Cuo+qQMwIsddaWwZ5aOgrRRWMEAVrcxJOe63Uaq1acShODSPyd3JORdI954Sr/m9cU3FvSou/rvYRAnxfdnVvMwCaDgxN/MnNCFrjpiPBf3+Kx/y60OdFsmTMIiyPtWU0pCldxQ/X44skIxQMRnLvZjqxNS6dHaCAzGxlXwUc3/tPK60oJklKkLCB0oX24Xq4YO2GX9Ktun596YchHqVyDs5WirsGmHv8zUcGQ1luUBUb6QzBRE5L0qDg4A5nEZriWKHjgKvx/1hYDJtsSIf0RgE88Drj+IzoEd62Whnetlrj72ORhfuy+oPSCR5VijvAWv76olRKoqLAyTmT96N5hAv6qFLs92+YdeE5ScEOvL+WOfGYp+cOsT1xm7EfX1qyV/wvMz7NhGJbGnToejgeD2Mm+OsvhDXhL9VF9M8zVuufskHRihz6wjikmFjzu1sTcuNWurWs3doH3TpEU9easmfjZ//wTvjvJzaeUFkUrycSdp9XcsEHiZxGEGPjKasvn3Hwun17uv3alzpQfgchprXT9oysQYuYxhnoEzboaLdnrsgJRpG9aER/+d6J+qXD+JnRZDKGsYhbVSqJJsyDkWyj39Hj1y4q3nSMeENHa6aOQSw2IG57121FX8kJEMJHbviCH4qtaduHOGg7gI/c+Cg5OJaOd8NEfXUOtsoS9eKcDgJMRnFGITKd7Wua7u+fY6vroxISpuZAlady4vF+e9oAJjS2mzaFj9AuQ+8SQJpkrlfe+XzCExjkDVDtP7UEta3IhZlNqFIFKcE+DPOGpmcLwAZOR4GBC6pov2JCxyAW5yAOF7YyrV2ts3S2ztG5Ok/n6wf6oX6kH+sn+ql+pp7fi522hE22q6b57FQ3LeRy03azTUvLkWdPegfDIyPHh5q4qhxpCV5oQjWchIhYrTr1GjRq0qxFq6+I2rLYsnNI7zJsF8Dp+41N+P/5nKfH4+ePXG6WR+/eGX0/sG5/9M9Y9/TekXD/X/PPFx+2OdbFvyEIFPaPGtrs9ucaKgBGxC+CAzgsEADMC8hrlHTnpIWS5JzhKUKDJtTUebkmxSh3OSmUSGIWlyP5zPpADswShHg5HBLyTkwG4Cv4auCk85RDGvUk92H7NkbjBkaYGKUEvxnjK8viJy7bGH7ZtUWjHt249sw1bBCuqIG1Qdo9fzktPs1OLCPJzcC1G9tqqjhc0Qk1OF0iY328wjioOBqjpA6tVdLQlkRy4QCROvS4pBPQ0N2VBfDnkgSe8rAaNGf9ijyoEGrqtlnCAXfD2kVvpuhXNUB/OiKeDVEO2KSbyLlWYvNFfyZXY5x0J42nHNyghVLP8rQAsuyrPWftMXd5s9UhOgYjsXEDIC/ay9rCyEb1nZFsGRe4W1OI5hmAn2xEI7yk0yt2PJ5NHQUBCMZgzoIHYWUW+c5sTmEW8hAxUqZZd031+FxDYH3Kl3o+QjwvGWTCVuIP+RUwhUAYyKLUC/LzIAMKXPXtRJyUgdx869wexwB8ZRk8P+1XaKibAmzJAlY/6hqav0bW1JrSJFAI8SWXLQxPZ7tjReyP0MkN4NVUMQsNMBclfiqerXeK7klOxpcvkxSugZi4fUQx1RHiHyRGvNhaA6wBD8tZPTR/hWQqhJqq1IazEZgknTAudjzKk0NzIJCiDfgrFM4Jx2Jllo7trk95fCmXvY74flbrweQaSQReQk31eRAm92OROTB+Hl2+Ug9sv6NbF+Sg/FXKTo0+7Vd5Wkj3GVXSjeYv2DaCBBStDrseBGwYCREGQESoD6vgCdvJIn97firmr6AakL7HEmqqRP1FgO+ZJaTGsN9Bi/bdd+caPmpRQJqWYdrXCA6AdJpmCm55gKA6Q/f4H3dCrlxBTnA3F0dZX0z7auU/6q+x98USWEJ220gNAak6+RFrULIE2NVSgIQPIXuXqQp3Gyk9tz8gTt3kzjLOXuTnWCpQ2OotWXpKCmeWVI92N85K5kGWU2KEZDQidKvFnHIDiMZn0eqOpyY9SBO+MbKlCN0YzljQsiA4/4FK/IQT1EQ4TLT/psI4HpTI+AnvRV5mMOQDfJBSHu3PFBtssa9PzzmP2n/YRTRFpCcXySQCxvACQqACtKEuOgpobF4ejpFcxFNnnERMBgAHOYBGYwFel1hOQpeybDTTfB4yrQ1k1BnJANytl6lcfiIgfUvOEWK59LQ4P+TFdkHw6a27CVwbyJiYjvqCbaqbdpBKnR9zMiSB7/KT3PBTGQv+hpxW36rELziBs6j9l/wnNcbxmEQufsJ7tZcZDBHggwhp2cMpGmyx70vPIViOledmdthT9Ro9r5jdkeYfQSmiugwdjbAsey05FUoQZaUlGPiGpWVHpe1EJ2fbmXfbbielZTgTRYowjk+y0I7oXXGYIEHAUbGAYttcA33Bn3CUP3ep5gsCLaAhqrieVWooYJCXYbg/endfZLukyV95kH1NlUW4+T5bX2yloz6laXTPiIaKDK0uc7J4mCPNgW0Fdz3S17Q/RmgriAmcUAOBu00qwQ6FYD25y+RRTi3HfON0WzttgiO+pBMmgLzdWqPEIeidtFf6aGNHff7/q9Gbeqa5ybjw8lOcwsXRR4lsrSUYPZ1Ose7vl/1JXpSj8sX8KFfkSROchtURZMWBHx2g2PvYJ6aL7WuzmDmO7jr070Mt3JOz/jkwWI0sO/yDwxRvH+/E3MT8PUfOzgv95egdR392tFj4mXDwQPTgPtFx0eRBYWORjCxhyXFq5ckfn1RIPpCcXgoeCioS9OCpfadaSfuSThx69/ANKcvP7D27/ezMMY4vCpef/8r5H6QPHj954lMX/j/jq4yrJy6cpKWidHHfp/v+L/PLzCsnJ0/hhs/0fzvryy0fbDlz+sRjYVNSmX1cUK/b9tG2c4+ffAK1eNro5Q9doaxFffvg97O/zb721Pk7fGZbzBzN0GYZZnKzfguxRY/FouWw5arVpHWt9aT1VZvDNpdtD9tesX1vt8HOxi7cLtFOYNdh7+mQ5iB16HP0daQ5chwbHI873nb8mtnm5OaEd8pxqnKacvqfs4sz1nnW+Zbzr7ldLj4uUS5FrrmuKtdRN6hbgluFW5vbMfcK9zb34+733H8vmXh4epA88jxUHkc9bnjOe97zmoeEQ5IgAm+Bd4f3CZ9aX3PfUN8k39/qhn6Ofj/7G/o7+Uf4Z/rL/fsD1gSYB4QEWgaGBSYHSgL7gshBrOC9wf7BMcGlwdrgueBbwV97qSHskNrQg9CtMHxYcNhy+AX4MQQHcQzJQ02g90ToY0IxMuxn/H78E4IzAU1IJYgInYQThFuEX4hbiHbEECKTKCEOEBeIP5EukBfJt8gfKeso+yiuFBgllsKm1FAmKZcpb6hrqQepAdQoaiFVQx2jnqO+pK2hHaQF0mJoXFojbYp2g/bx+r/eKEbUteiQGGpsZuzzuKg4ZdyJ+LP0K4xFxj3GN6Yx05GJYCYyhcwniccTHyWtSfJIikoqS9ImzSW9SAbJpsmuyRHJguSp5Fcp+in2KZiUwpSmlDMpL1P1UhNSZalDqZdSf0vblhaexk1rSptON0inp9ekL6Q/ybDK6Mq4m5mWKcrsyJzL1GV+ytqQZZEVlBWdxc/qyvqezc7ZnPM5V5L7S15Vfn8Bs2CWtYcVz/6jMKjwc9EXjglniPO6uJIr4b4rmSkdK/1YfrDCrIJWUVLRzzPilfPO8/7gb+e78NH8FL6A38af5d/gfxDoCcwFgYIoAVugFtwTbhJ6COOEvPoM/U7Pl/KbKGkdHaJnVtZf5bpfd3+/o5jH2Eozpc5SWGFRP6syE5lObi5XKuCVoPKTlTPK/VVZ1cdUEapH6t6a9Bp+TVPNeM2Zmvs1v2g4GjuNtwarSdKUamo1hzVXyk9grUVtZu1knUOdou6/emn9UoNrw2ijWeNiE67ZqvlEy+aW0JbCltaW+y2Eev7m5zJmElMFVkDZGC3EmxDIQMD+/d8vb8vb7iF3b6A6IMsTAGXBQAN8VwL6CAUBXHRYUoSSxLmGpWC+n8sBvwqhrBcCUS+QQIDFKBfKlpvlefsd8cUMbGZeI9TaIhuPg0YVsiJGB7fGnVoKoVBBsp/D77+f+XIPMZ9YFgnhrdyxPzXLhrdolMLwUx6Qt1hIqFAlyTwKaUNG0uJRVW5ZUHbkLGnH2EoXaWqhTm7Wc7xuGjUNvAhefDEThjQKYW4xCH46qsM0+GlCNzsKGibh73XcBOMDfkUGOARJ0/hxOP82ICvn2CEQgAhwwGfEDvy5Yv3+Hy0B+8tN0GgxhZqAKO9vBftf/qnIgKRwTzZhdNdTewI7EXcV/hnzxVAZ6SjtTpl1q3yQHeTA6bVc86bTQRKTQ7oR08Afx2Q/HRDnv+VKshEQQEAdgAioI406IEyQOyGRcyWleBQBd1jKW+mdPN/wkwfU8khbWfERTEAVX+lrXUcHIPyPUQ0A5OUnSUIApDk/Ng5QcQ1foTh+jWcPmM9P92BBBQOKoCJ1TOoAgl50zP+Vw609Sr84d3H+8o8nyEp+hU+QncDYXZBngMZbd/eLWQaqiytqj7I3PvOI5jMf36gE+FXwbn3AP8tEVWPcI597ZEnHbSm8RZvV5FfkiNj+B8l0t6SxxVbAqpPZ8suQr2vyCsRXFX0qrfhTtegA53HgyUdA75dBF+NuPMWFvvz7NytXOm10jYazTwBJhwqCCg706BSNOT6CnSc/8z5jWRxjJ2QHLV/NOrWPLLdkpm0tRWLFpbaJho0PunrNvUpKiVoUbPhgqFCmMqHCzJiiBoRl+63WMDiPXEQ63wsaEU1sv4fwWUBB0rUuAeEBm9Oqa5R8f0d1ltwI4pFKPo+kVnH80vHrtyr61bkYfb3xldU6wv7I47+FNeQiRYyJwQm3nta1aLrd0/kpZOj2QlMne1Qac9rxttJL7bfntY2FJvh0i9Xtoa7a1c0EmAh8V2YeYS8Nn1sGs2/xpb4hs75gTav7AydsRy6SL0iuEiFNYKI5CslkNAHtUrd+Cbyu7N2t4ru7F2VmQGba74OUHtaIH9wYzcbxAPu27HL9lMqUONdNrZ70B5ULLphHLup4pYaMVBKQCsS0pbPpp3OBxnniAQJrM1ZKnlLQiIMMHmvVqiwauLOWzPv8cTVcsBWFXS996ohKAatZS5SrSCRtLBNzsOhHGcdTtq+SpMQOyJRnVvwzyT3yYJjTOjxy5t0a9L9a5tgnd98c8nGBEZ6EtXBfWvtnpUIJlAoDsDZBErmQqxHL057Rh4kNozRilPCwRT6LHQdFnUAFhjMmiXGoZBCpfZP0rTAMhMc8ke7052GOjssx6JbTT6G/FfJrL54XbmuQy7UcPrbZFwr+igxehTtZRuAGFvVAx0g4gcbpKykw6JrtwTHw4mqZnWQ0zu9RfUxanhChk5PioMoQXem3OS2kUKXTjNMgedI3KPjAT2R/e47i7/+51C714YuBQnwZJKCJMgeJeMAqj3MP/Nqj8niwJOvUfAC82Yti3InRhLo/qtcHDDcn9p7GJUizjCfjG6Fgj8fX7Y8M8pYBe1tIbgT8PndPsDfaB6rMJ4iiATE6geqSMIqChlcojmAGt0w4XHAuA5t8b3IIE3rjZOkHQRhCmaMle3Q8RH44EzleFAMDyxLgJjRRakAsGmytdIS1qFgFlMSwFKVrCZGS8hLtnNPlLRHH0lyapsFm4QC3oUDQi5wXxkLoV6NdiRKsQRV7+JYk/LHiwjL60HlXBS64F8Eu1wOqHsFDEhReNR+tnkLgFEgeQwB8pQUyCqL4WZFXVMsjCrwkUHCLYlPKBpTmF2DbS01ryV4SgqoejEx5w8wp1cIq542vd9hGxP8pUcfyeP017fA2m40a94tAGE87x5/+BWET1yvRWsb/P+UB4YyaHE7GgsGdar8dsB5aptPT2xMXVo3/lunbcCUEj87/YhzWDFnSPJpuqLoLE2fZhJHorfp52NaqqjFLF6FqhqSqmp7wSdf0PJoGaWg+AdQXwOTr7g/4gCsGMOyXfNIpPuZoLjg3xx3sc7slp4ECCmSgGLWMKySQqrUnXz7mt/HiWZzQySRTHQ+cHzt/SjyLv/61N39Ko/4vOgz7VD1W9e+PWyOf/kLgCbSUaCXGaUF10WBFwst4xZ3viXcw8VxT76Nv3HVngrfcP0KWewE8GcvCuvo6aL1BjZOy2Sopynsas5sdRzgGzaq8zFYrHMyWvNQWyx26/OV2W6tzL9aFb9V9WVW1tJW+vWdQpTZDkqHpSC2TEaAjhrGcAIAAAQhGHMGkretybXL4wPBD3TSxkmyyOp46f+L8/Xfp9d0vbqP+whVgSMFpob/MiJL+t3eRb5gQXBhTdDZDioo3OPyFR3uX8vbNdwFXwydhN+xM7XehDa2nhUDDWA+CUpFDKz3hcR85tRr0OiZgHgTLBVhlL4vtMN5NrHBKG9/iRQ2S0GgiqtB3VdyTSnXXAqKiM6lncTlV+O0d49q+LwIdqbaRkSOFu51zD8R5O8w6z0yT//vPDYbfM8Yg7NJNP/rQQPhwIzV//rvbRObGTwds8DimO/2e4iwsHNMxyqneZ5ZWze6Yt8gGIUKax84Y8Pe1DNptp/nVH0Y/uaxaagu2Pe9eba7bOHYx++viipX69yORgNep+0/fshRUPdtiBj1qZL+21qgVvGBSTTWDnmwpnUrEN2NuqyM4WMUaoEwJwzOrwZ5IJGFaDgP5qri3uaLkE+MwSRyOeRKDIyKsGp8wjTHuSZUq2XM0061IoT1mJCcqhl1QcYj1SpICVW3LUiCAmwtQMkqJgQYLr7URSa0q+uwEcJy/BVOFNu7ADq94yeOFC+5VkOxeB7oxCuBzSEfvO7Jr5exa2l3/fMjF6WX7kxc6UiqjUqsUPM+AhQd//Se/fvLT+lnoB94H7HuY8usfvpfCIH4XPhtwXzq6ki252bOA98BTaN707O6T5DkTvvjX8Xmn/oAz85yzX+zAX/nc0VdG7UdcAW65F4HYLcH5R/Bg4BEAIhx3QAQi64SGKQhBQBVrxQ5e7Rs4hERH6U39L7tZCXcHxsuxM6jxXIQYNR9y8+BxJ8DLLgWDYxKoYe1ZvOK+maflUcyK3M7qa0eyU86R8wllLXYFnWAbrb0OCnzpAAEp+DAENBtqaWFgR63SrX9pJvU8s4TJkLVbL9M75X2O61Xn8MsO+rXd4vu4JJ4yrxskmTEktgFzht5y2auWKKq2LUnyQ4rDe6utBz6D1Hx9t7G/ioWZufvYDt0BotB86oKi1C0VyNjaCgp0+4CoP5XE1Hli2jePrTxiTYYK9S2P4jVolsZvazN3U6hJdiQ2Xm+iBmGCH7ei7NI0a5lSOMuBSGpJEOiB1ErRIOMFSUpkSwYZtCFkMbFHEqTZwpkq3oOxDs/rIA/tMAx5ljcD4i2GFXhGJggSQopim52XaRQHPinCKSC8zRARA6yMJEM4DtljRVJSY2A+IRNCNKjNV897/WMLdE7dUWT4w9OpxAa/KkztZlbQgsYnxeGHNrhP5xZObmKTB45/3Yt+jtKk1zceiUgh//P3pyr2myOCQEuLZKYiw1sltXZ57zb06n6GZEn7v0kkIyxYPjzox2xLN2zF9z0IXddyXcWppcBFKGLS60MyQ6wbkIh9hnQY9g2yWS2KlEVTadrzMp7HxGQdUD2sq18lV33Cy1bPtzm0OogcNOKcubEWNBQfO6+poSKQWWrcKLj4hcyAAvRg6MjkfxqA7hBSIi32YsHnEFccLHki9rcfM48IVh+Iy0b1gbPwOBMdv1/pvwtKqeA8/JW2zx/IHE0K8EdkYpeY24Nf3mh5/BZw4QcNjZ57YEwBlhdhKbCRwtQrrQLjBemzCDuc+lPOig/bAQj4LlxQfM8eQd82acPV/Dr494Cr7/XVIKAQYQbDSIrCCbSMYhU+kSh6EVmZe2tUjkPRCoYikiS2nuYGBhlBwqvxl9LpWLCwdGMCaaKnM1VV/D1JlBUiwt1RUa2O8gxRR7UhJJYbqKpFMELZlBGpOqkaUVDwMdqqGZJQhpo9Qd/XVqWnaDs8Ib/P7XLAAr5UTFEc8ULvqr0knqxWcMHNxGJbonxpWcuar1zlrpgHMmjmJ2EgOw2p1n5ctTjwmAxczTwftSDfkdDrG0lZdfFdYECj44bViVS5NiBYtAK3a7c+OMv1vXpRsPLWx6mJLi4hSTH7NrbUUKJINTW1jqEFuRX7iJpUqhN8Lkkx9mfQwG86I+6G5RFF9ciLXJhhvnzqRG8XBc9iU4cK3SibYEGb5TO7LiNcaWP3TnFIER/sFVXPdQO/RqsiNPZ94yWLsFbcwg5b0aq1+kLVWk9zg3MwAp3AINsnUjBGdMWWIE8lSfpijAnss6wQzPd7RfEc8n/DFlHdREpd9v9U6qPepVk0zWMbhGjxqlIy1Tp6j4dh7IwNXyfVMDCMdtX9xLUISqVU3HWKVSx4LuXB6MnfuDZwzgXh4w9LgHOfKsM5+Gtn9jnH9+eO+MJu+lHQwXfDLwU6enYIAvQIyzRe3N0cQSpCZjIMpiiiw/MMiZ9EYJHhpVvwcjs3rclojCcbsQKf4GMXB+BS2+p59x/bLpdM8Bs0xLZRsp9fw3DXWydpTMMf7OYOzoNNZiRMqNRTt5SzwodWQeE1R3pvmUvGfzQrZHca4/zQEVlnNhJZn+t5Nkunzthao+1/2efvQjaxxZpdGjtbNZ16tgUWFfsTClFacRLA2yEVSw868mfzrqN5eq9t9+/Xob/x6I3LtHvkRre5t/+1czt8MJoFLZ+MqyIssqenVVlSKctyPPKARRieMlpf5IJF3Sq2eLle1M6tRXVTf6UoaIbZCHEaiSAZBEa1iLJ8cYapMg9icI1Svffq40vbc8oJawYkx+tPJp0PQEcn/+DagVvUAutRDCx+2bALtzTZ4w/zbMzh9m3OyUVW5YQVPnGaIPCfSy5z9v7BecOQ8yHLiZ7eXV+FYZgIO2A1rKyRW47olFadsO0GHCfKCNNCFS2rOh/qDUiWM96NoKD0SQNRUDXnmgMSnJKBAE42uTXd6s4nwg4KE0sgzKweWTSG5Ow5jQs/1QzWPgZWoAnCwoIeSFqCCIf+GuIdqv0ayJhddxzZOMBIbUoh+bNiILhP9qtb2hZFLPEDmVH7jNpyfb7pa6LSt6tvTALx6OhpYgezAgRm1ykp88HDPUKzHy0fAe90QoV77rxGHxfVJLqS340X2s1Xysl1NFiuYLARjFCoX2VzCDNl4NREQ8tBXndSGhPAiwqSOxBh2tqZ10AgoNnSUJHhNwqVRWq1IaMwF43hCjRRZODsQCAd5DmkFaQBuq74zqAKTJK2csLo4hG3CM+5l0GGGwK6sQi4SHgHrq7KVD66fJ0wvHy3/B2sfmRm7x3XXDZ1hOvl7P7vkzjTYXoZpWuuZkuUsK+R2SYPWGOdv+8Y3MuUZD7guMC/NBiyWAkp8U++ibIh91ttrX9c/qF2FliTtXryzfpfYt35y+1FvSdUO6zGDI1i34xy3xaA0Inikqx/H/A6XXs1cTbXUuVeO34noDXfCWib7liVDWsKnmDohlWwak914QafZWFLSnKpQlZ33D+eDh3nJddh+UnrkgZvQRO0TqwZYITLgeaqoy4InxOtk6RLD2Q9gHKGrsv2IUJ2+nqjN69E9yaxIWNr6HvhokZjvEI5reJ/Ng+vSOm90uBMDQier7OSsX/Lfe31cyV9lD4V4n+vm8h16a6xXJ4Zy0DKqJ2RlD5jZmS//zNjEh0uyn/rVSOd2hQeTPn4H8CV7G6LM2ratwC/XYdGcoQ0Imul7Fz5C1+ldGtH6mDXj3MGLNWChVxu+1zo0QFx7UyFpqeRi4rvtyM93d2m60qoAUbFstSYtN0G4XPSDRA7bZiITuCUapKUV2MzvTmVFtdPn3UmErVaR0dvb1t3kMZPyQhpVFVsA1dNzOEV5U5eaWCPxeeqRHK8LNDDUpgJM3VjhN2x3U51KIbnjRs3ImLcWQ1vUmAMeYpSE2k9D0sinRdjdHjfYcxKO6qT601K742HgQep2foYnW5/WYVYtSZ3eNnGWrD7kXvA1Yi3lDuSfvsrdY1AN4VuYeRTVymZNRs7ZVtaBkMm7EYuYYf5W23tsleP80fz9+SHxvAWvViki1DXOpBFm5+C882AKMxd0E+tGDYrzVQWoma5qbn21BT0+YM6THXJRNZw05UE1XyknPU84FHLB3V6wcn2EHD1SLWek3PCp6HHXC24x70EdrtB0P+IauDx7cAe+BJcBNtuZiOcIz/yHKrsH+xTjzz4Ajz6h4ZcxeS7Fvrn6ApyzFZQ/vTCLr98Qgoj5ltY6Z8rK39r5kEbnQQMFVo22AaUVZdD+5PnXKswz6HKLm/qLbNr1Bkv86W+SCnvFHTCZuic7WzIJAu07Za6NxuOcksAorEKAdQw5XmKAq4hTxHJDJGGNQhQwgb6vWZICMOlosNVFeYKkabP7v6rGYZPaVKrnWpvBPs+kmaruve1PF8Q10WI12qX0YwufNzi1KZePuvEq8gl/AJ7ZLEGe++4chp7TZlu9UTSqIaSGO3CJNQ9fH9sKtGUYOVHfgK5bomUaXACeUq5Vt5rWISgooTUPIP82+TNfjxW7cjLz1XF4mSV2VyJeZ7cYK2wp7Ts2G2VcrAaUnIuK56n9+OVXwrXet0LIeFsvODVJMCJlgqwZaPVuhce9sfLNl+vZkcfF4rwczyOJxhg6HivkxWunNk6FXYkK9RL9uA7FwypFMrwDAMNDUWLGZSf6ebcxxuoWybTAKO8ClGv+woP07+KwShdRggjqx0Qg8qTeFyeyauw3lYIhOI5506uuSiPg/GtSsNo+vuclt6z04YhUNFaxGjZE8Tf7+UuNzTtccVW0c0GKTLaq8S7xkfdxPeoG+Kw+ln69JcLTOFCiYb2kU5ndvEi3Q2ps4AQEEYTg1l2sCkmtY2HXj2fuG/o6Otxu5p9SdeOh4fJSIcmeGZdg83HiVzTf6tioj8xsCj3FXP/+HLTfpOGnCM27VEreYkuiR7URZCdPUqYFpbBCdPZxEHJq+oxYd1yyYU7ry5hiU2r3jnGRm5OZy6amSJ9Ru7Opmdlpr2vbzszTFNVEQDtff2a6IVmREc7D+RyJdFDz2S8ljNYW00N24a8WMs0GuXR1hnqQr1nysDxICh9KJm8aI5cncSgjG7RCOS0FrCOoPRwg7i2lNMEsT1pCBDaPXF1goevq1mnmm1wVnJQsgogClArcnlDe2elWO7s7W5LdPV1lFCuTErt+XBplqk9DfYkk+rON8rKOlf6/KvFEYoTquN6JwThIFPi6uw0IRAb76ZqxMdpsbEo8giVc1ujdz/q4nDIDYJX3UkQfI06wJ587OivOJZDQ2cd+gO7tXsABxxYzprhSygjyfb5OzatrFI4ASgA237fuP/0Wfx1/BM0/P8I1MaxL8silJfe2wAWgm+8QMBpgAIqY8eZQ8vz3VvgBedEnFN9YMjsXHnFqaN353o8aSjDEPisvAfAxbCAJDQ3cXieYRCkzEgSQVyneQI0WqEHgZmne0q+2AQyTRtd1yb2JXPkJJiAgAi9y8x0+YcUptZT1RWcC0g5K0pv2pkqye5U91w+ea+oDSwdYiLlHFviF+B7EJgSbqmJ2nYxqKLb/oNUxYbZJm7FhcojthZluOX7bcFbDmyOFhClgYhiawAHfbMkyslsZOmqzNFM6akboAzBGHQ2Q9lA+BOADWbBikOTS12OWuSpv47pwJP7kHYDptyzYGUsBV49FzHe0F9dAp5s5rwf13TW5oZxv1WXXY8kfQ7KyhRy02S2ZNkSbX7I5hwo+4jwNxQbk9Ce/ZlxDpDsC0vN0ZARS1lkyWKtfhzyXULg8q/V/mT9zVSVP7cV3dUTqidpHBAfKQZ9yAyFQT/SXwdQAUiJgqBR/PZ1GokDvwwnx339gTWvfx4NZKfQmN8M2Ti+Zura/SvSzYBGGVmr+2JksEBAJter+7mfx8H+SjyDpylHi7ptMTrKTy3jbKLfTzIPIy2vggeyF+ZytX70JzMPSjI1ciHKYZmLck+ALRiOLCQiHcav3ATC7+8vxPMK92rX8DQS/ody9+vnkL/rOrgt9T0uV2zoz4RDlHwM+AR8Fcbg4kYyQoL1GK9xnEwLfD/Pi9CsUpQicHz0nv/5KRCQ4WWoiqNITGiV/bqkuVbI4QlxdCSdQDayU9hcTJWL+QJDE0h+qVPYWgxu9/q7B5OJzXBKnSNXacl5hqOp1WD2uLuVoK4YWYid01UuXtQqF1wvSpznVO9JL70pYRVjY8Ea8h2Jxv5Zxb8sRkUNdTRl6hbJHL+fzOnm4T5nPLsY0NnV96QnV2n0kQ1WNtIE5BZ5YInAgxYW5ytGpr1azEo6ttiIyyms5KtSTGWajvCs39XS6OJFrbLY6D3z+pF7V6auOeLYWD5JlGJ2qwmlWcMrqRDpuVU2RmqJLWMWv8cppUzNmOskaRNuoIW2p73HJ6BRtaGjOYJbITuaCX4V0E903uYFCKYfMJBtYzRtnFVB4g9stOzlM0KrdnTQj5fdKWVUCYpUGX6dx6DCDXsvg3XxAlgv24HtnPi6QSnLMC6ta5GRyNDpfP7ZRRxwXxUceDRRsDsAz5ez+tA5qE4iGObjPP21QqjtW1EUZZzJFVlGEBxfVCmaJhXR1jme48pFhiiGv8YRm2Q8ZovGLRqhpJdXEK6yABtJPbXbBd4a4qJNr9sp2Nfxyr8vEA0NlWd3b++6dKeSjObC8iH+70z+QY+vZ5gc6QDiikKVs2hyZMarZ7f7fLoG1fT/uSTk8lAij7650yQzbLUF63c0FDNn6WGRNjjIIH100ZbJiwfWys96c4ZPzPCsbFjkgy3eSLFOo5JmtHxttXO7otDuqxN5zANcpNlMuVvtbejrShV85VhlUVTw4qXk7KOVigVWaYxKfGxrb23hGU4yMY1s1XiH2ArqGHS238gii6jtik/tpqy1MlSnGa/oBarLR1xYHFg15ywUaLURgjFeobWOcoNKKiWE8VCy33CVRZRcrTpOxQypDNVJxiuqoaXU3K7N8DrIF0P/754HNDQXZl05LD0iCW6Dy31BEVzmxgATq0YweComiqRSlmVu2ogejtAJ767IKmweiD6syiY7hcza3hUIP2Ta6tX/XF0N3hr2fSUNUrvp06sh+74tiMXr8AQ+pXa8FKtFlJmnX8aEZtdlxuF9yoyKvTIcjdIz8cS4Jeeq5k3YDQltKrQK0wfYMwWc8K+WOiwZejYbkurpGmD3FKfVnst1uNZLfu+g6H15svDNl9AHvE+5itPlR29xZ4IbXDvDY8dgfYqNnDsD+hKScMNTjpzyvivUNxSGHcO5z02kOi0HNUuEfFnHruxQ8iktp4cDsxHcocfKsOvcNEAbdMOV0AZttrFdwf2NSc8vDuofh8+Yt/j8Xre5uuRIgyNQPJUmhEGfmiIyXmYZsQFLxcU4iAzytW5FwcmPWIa924JSQ+Rqpd7epiCtl+5umDmX+SRqW2ygo4u1pp6Zo0fdd4U1pUo/JAXq+exM8LMrj3Ua1JptffRzHOKQCCLgGp3RT/JeAM5dD9oiUVQUxM0RfJQs/aYjkSZKxOiTYGQOg9SLthYD7azbfPgJ9/dtC60X9V4vwuO6abYZlV/jxK1mBQEg2X5e6YbaT0VtjMki5Jl4uI6T98WDuM9NTEZGu7Tjw+3Nf/55Imi63xPm4uRgv7IyNYJxZFY/qUoiLUrlmTlAiOfsVML22Z9IzekOuZoYXgSQX4nKIIC0gmA8L7l/xHUvjgtU2o7Uxby+Ab6K/8BX8VUC0q6XblSqiXRmWraEGcsIxnKS76d/5p4fgFfTtJXLNK24qvlaM273mYkX0mCrwGwmSdK4Xlkaiq6risFWUKKSXaNJN0fdKJZ3TP2dnj6/H6QVAlZw5FRD34EKIoaI/L3UQNJl4mSOmMninnGZSOzeaaxJQybTGZ2/r2Z1slJCkypCtJnBzJV268n/PK51ewwC5kJQI6ovPujjZF6P8s9uBHlwLWUZi1SindhUppZtZ9ylG45Av10V4Ny17rBaTHrqGkSf3qqSp51LIwwT8+uBeMhu2ETPlcV5HydRRl33bFqmTl/GTDU1lE9dPxiKOjs8Bwrr/xBd9CN7jbm+L1BoBfv6jh4fzxaC8FzU2OsxUaVIiC9dKXMnzUP5B46ZjvwqHixbT/ZkYOpWs/PBpCoy+eB9uTJWwZjm5fKuZO9hwZcqExutEFumZ9Q5eukMunZjR49eVufKrE6l3JSGKO7uZBx6ZRXWV44tnQRU5DYTDCJWvuEqSP28HtTFN+6755uk0LZ18AQZe9J5n8rtY2G0UAbSbtNKqtO8S81RlolJXxY43Tdmi3kvXXDMvj2OBRaZzdMuSRxLRPOc+pouhrkjMITWXQX0klvkJjTgQ2m10ZJpa8A67qZcMpvmYPJwmbq0kkF1JeeyJazYY6be4JIFUGie7bxj220Hv3dhuMUFYZNLg6re81LobcRTdJvfrMwKYlE8aXDNTceT/u/LLfXGp6uRrfBjjSGaSem6azHeiPjIiRV2C9OI2pj/OYk8XSeX+EOV5nTYwSU0AktZSroJT9ut7vSIm5JfuCXZTQft6nyOCYOLdG4rkS4RJAbNxxN5tJhJZNM7iRyJZy6bPX1pHrYlJb2QGjquqKZMvByKHGdqtoftORJqsjdA4TfmSCQx7x4TgqVo5O4RGMKyPxAKU2zNvS7h3sXvwy//751APjJ7zgSy2qBd6jOzp+fYXaFu4htSo8Tbdo1EtcsLk32Jdl61w8XZX0gqOSj/+fNq71+dadpms/44rwFO8Vyplu+GLo+RvD9CHLjxw+Pj7pPi6MLzr5xgh7Yd8PyDBbsn7waAlWwFgio6pQslTLFn2VnFpj1jr2ce/bdNeQavx69PuOG9brQy/y8fHr6/hekGYy4sUmaj2fv/8x27ibtm+tml1bd+7pIVLgI4lPXIzUAvL4BXGDeDVozxFYISO2pCK92J9oJrkW9lLndLKTVJ4KI7wqkduqqmLnoH8plgUUPx6JOlj9LHpovbxmc3/onPrJe+5vgSgfpze8jYiyrPy+ASuwnCC8HjvqNoww8rcXBD+fLk/R1cNC2+j+qH+134CemWf2yBO7A9yQlRJ+Ty0N6fpKrP379Mc43ck39f/rC4DIdEXuhxPTU7TznIkRlhfVZkYT6GfZsHZ36YE+UcvQIISdKtdBdjLMR1+og3gii+d1haNJBGPwicvkWP+5FR+ZF/XwWPub67HoKNIatpRVsriWVJi6IqsN8V7w6bMkyLl5B9EEHsP7hNQn3aPjjP+OZJnyoKEw7id9w9E0SNWpPP2uP/YTmJmMPegIgAi55nL23WCATut/dtUlPKWgX5uodZVVffoLyWyfcMUI4KiWpqPz/PrVqxVDdi4VmXGF9QODkxl6bnNj2XsZcO3X+oxXZ5JMw66Mq+fNQj/rpNdCIWfjNxuWeajGiPm7mzMROxdKdF3rnAHdinTee0Kca1KbvF21nRoCj9SNX8Y/r4J4IazQRGsbzIuxD8xl0CVtwmcNyNgI0xB9hWqhGPBOEztk3XEMbt8HnjdqR8m3+xVbmTZpie7Zk8O6DvRzLxQukSupsooJ0ESlbyNigOdLIQvkQ28vniCNuOZzHkKb0JcoUjSq2FK+ShJdVqsPnJa0oppheaOjv3uf7mYZPxlATLPTCD/GPDPcMMkhaHz24YLXqXALeicWjJTtmeVUrKDARjUP4KFk2w8qSuFZVzvYbV2oC523VcfoxaxpnmEN2M9EhIxycZKhWd+phikqaeUemCyI0LvzxR1Y0XCcdkOme6zW2Zgy4rcQRJ2gPaD/NgOpynBiGdFtjTvZcWuzPaEzfA4dUD2gfglFfAwSUEWmc+/uTWUmtqS9FnojsbU9PooXohC1NdLzeeFJBa1FUGsnaJON1GRGncSVb6GroxZHjiXIrTqKJovkNl5LTB192DcVGkaVmOa8vLaSPlGSe1xCJwRcViIm6YNnEL1GDl6l57Sed4dSI0TTDcMAAPdzNcLQU27A7fCQIjKYaiWufmT5yl+5z/HnJWZce/6CnNCR9W7jhPUcb/OIPB8HPAfwj4cNmYi+augUWb1SM1iuK1jBtfLWbNjF8oZbiGK5WSqFx2LdNethKgjorxDv1S1afCcDGMwwfmLk7PWvI8LpNl5vESJYuVVDpXrlRKHE+mNc+W0GJyK9ZXZHkCtErncdGYRYqo2zZtVX+6iOITjNAUrB5tPbmrYBB9e1NjGgUzD6V6+dv3dPnNlWQkZa1V0a/3SjBbW865v/Yt1Cn4XjG/Ece6xjK1Bc53JShFGmrhufDYlbrMeE8kvh/YcJlZSzOvDTvfkrxn7v1op53/D+eQvuC8ikEbId+u7dL2a5h/56rxF7fbKQXoJzIKYdn3RT9Q08j5CqWKKXLD1+Da/HZazV3BQGMuhR5vbNT9CwKcJ/MzBVY/xWmcUN7heoubG2qNix4LgbIfZGgOrzo+8x4DQQZ0HqMs+TqzO/GF//3J/Bi0lchyB+tp2DDRT/qAbm+jdm6vVovRmGOagNtUs3mBY1kJcz12AncznKTHNc9VOQZ0wmZRGZ/IgYrFPVGjmqYEydrwkkL8cQ1pb+L7dYk54ETdMGh1beBmbrwgdc1A/JKjsGDWgTmkOIIFnF25IcMTsYIDHqwpfBnn5PlSDL1sGl7S+Xg8m+XSF2yniyhVqFxAZZmsSqIyUYz7w+EgGx2c9ggbS8s3bqgyziaqRI8btQBl3KibwqbgIotnGD/SZhk8dUYijGlLIDhI5CJ1pWq+cxjpAh198PmPyA6Q+Kw6edp/2SnkuOuCyrgm16+ZW7qWcr/w6mjHl27X13SY29r+ffBfZ5v11Y0vq797NWv7VS1hBr0s2j+KHjsN3Fwo0k5ZtCgewOV2K4wR4nCH7/sf88IEeGVob9ZhsGtRuk9Jjs8i291sj/iIkXx+1aFYTPReQZ2JmTalygZ2FtV6qkykHVQQB4UdHkg6TixNGt2b5jiVkWnGKxG5NGlVqFQ7Yra4Ra5KhuF5pimltxnOSpIIkmUupFpaWMMcRGokgPCbSTtM0yOJFkHrHYzjsKRKfIdP3XGJmygHNmHPjBfcv78zhEvE22GdDXHU6w8MkfJZEs8IsFLSqydKpdROBsGxB5bZiA4Xc8l4OrkFOundPJ+KFc7/hGX5rtRA2AWtDyTJYaqQsI0mObyHXJXhXqfV4PbtPkkoP3pUbQ+sY7Jh7OgnvhSaqoLr0LtFMtX4CvmJ57G2Znv1fddj2X5/si+TpM+pwAZIn3ZlyHM39zOjP/vD7vXTQyyUWO0+8gtLmMXync5vX2qGQZF6nA5u7VqaBzp/fPyFmjz8oaq0M3vJWuNCIY5zHk0OVe8tOb2pER3INKXa6YVVte57cPOGPk0uSstjcFEN+2QjkFT86wlro4bzursaC0oBSFKdMenCgqoFyrVDndJpR9cTyUQ8JqOblcm6luNnC8k4iZjFSFToJ6uXx611jFZDnaD1Hbxwqx2HPKVLwV+5DGy4t8ErLgGhL7kSFGue7Xg0rfG5i5kMG51RhYxTQMIhLZlNNLpsdySKzcUkNmvzmXrwlao9ViV3NIbokioh6Y16CH93CJXMzDgMiA09hKpuAwoq6aVFPzQ9rRyWKXnLV0+R1mYWe5MzdgYTIN3K1IF8PgGuXYuvIU8xkC8vup2+HqHJ7JFo1G/fNSulJvpr1jKlsqpKFqEomIIcsWShoJ23Dex69PcquzqMA2uRR/tbhDziilMXA4gjzfxnCYgSY/dYhYaGaVBakF2xpFFvTzj5zqtsNF9LgM62DsuEZT5xaQ/FblBal2Qs640Za01u0qgNDZsZZSYqI6MuxcixWLqlqqdqYRg/W9rPutfUe5G3WK5tdQgo+9NeFUugQXm9IemvYHoZd3Nh2nACb8bu8UDwWfgS7IfPwmfo9uscWjbGKMdusHkVLn3BPlWmIMGgyKWOYTqT2QLFR5E8QqBSDhEl0iQKoM03SLLb9cFDt+swuM+9gD+MLS2bjoAd6LKNq2gi8SSDkQ9XGJ5hqdsAusvk83jsrYmBUtJvDc574oHtRFI/x9YleXWhprcl6QeFuucIdcLUgENE5vJhrzgCYs078uHwq98oLvXxwd36E9eqgYbwhMqIhheH6mgcdQb63ez1VfOZpubimprz0iz6PfLGYiKMq4XVE8toouTtc+q+mYu2NmnL6wNDeBmZLd5uqDV1trf/V5SnJtd3zieJvaY9q+F2U1vZiWOhM2Szdk/md5TF3PmZxqE2vM9Lu28QD+AyuxWu8NfIYuCrDzxX57FvHCztWtNiW7+z3XsLDYiulEo/mpzS5FUSvXvUJ5KWINFTskN+arhU6gS1mayWcBp2O1BYeLfkNCRgIgeVsyr8Fs8SLk5DZ3OXUBcawaKTomVp70y9zrjKZiu0pIuEizyFDa7NxvXWW7XRhbIq2yKXEiWVRHWHcdpgaYKYK25WKKyqOqByTZBjMlJiQli3DKiBDugdosmDw2tqFAziO4qjKh+1FfnzwWR0QM6GZipaI7y8eyVlMkHvD/gBHJq2iQ58D3BahW7XgiVXQYQrRVnuvCmQRjwEe0X5vhp6KNl/JeNmmxoben0nsRUJhIeKoT0JjKQp8KSCq0dwq19OZYFz+RX279eRWyk6llUj0/3mWCxRmZN9We/70tJjgF8/ZiTVZgRMYFjVzTVet2rd2+LWnmdta+GzdLbdR+igigHGmOSIEeWaiKeWrvIBk92vFpRU4M4RmOznGwwm+wFLVPEpcqPHGpo8IqsmpY/MhtHBTgvLZJW+rHqOC5a/KT7KTdUZYq0yVVw1xdKLZVE0bduMmq91uVEY6SpyLRmoH7M7atKfQJjD2MRCU3vBxsqN8UP8O8+asv9vLH1W7PUnDRnz75MEd08eXuHYloN6m7rh4Ic4wOPxgt9+yKMfBB8QFuYAag7vtUBiUE/KSlqjHkI/wEo1otXDhNEvZOS3HbB2pfxMZwkXDOAfa2slAC6BxoSoEY8gM12QyWqhccmxTEwzDCuSMcoaNc6RuU+1Rd62P5MyTgXj34hHFhUVFZ1GlbGGnIEfZOwcOnh8tHvolcFvcbeIXlNWAlAP7PvCkfzejzgS6BT3OdbHncm/HMG/VoUDHwI1AzbEwYAkGDkNQQDppyhSahKX1MG0ooCAxEBiY6nj5kxt55iKiVv/2GmxjtYg2lPPLoBnobH9Y9VXCRn2o045jHUJZ7qZzr84GrhJKEIuR/5xrAEqDPrxDhAb5lviSdf11OLqOSmFyfJ26djK4YibUFSUSA/0UyqKWuwtkrIWpmRA2uCyWGDwxa9uYsUuDz+4deBZ1wd+ewgqbMNpMLkvKHNTlTjb6BtUolws41R12xyDFoBNdoIgEglFOYeC3Dn8PX01e5mQhh+ovZEmziwLKVwBjFjbvCONrNIEWvXUuWOo2vfZdvoFPu7Bn+N8lolGP/5ov81rakr4a0jr9pfaNsIJb+45lDb/JaPBwf1v7ro7skdTCMqIoLTCCFOzQ9xmBLcev8pMtjkxJtG9RsoHxoCLRVV3g++U+f8P+O8oDTlDN7haoPZhKsoKpa+ZKS46Ygo3OD3Yo6/vWyjlaUmxbi1Fdw45b4HLcOOQkF1PmA0c7I/XFHJKMPKlAVcGQP3uT0RZooHRooOqAvrnUTQBgkh5R/xXd7uhEJqzL3fXUZ0n39+1oGfMFQePHAnr8cXwiSNh8jsMHgzWymtgYUgD89ReA9awwOwITZVplqKYaqAaIklIEk/KkgJD3ae2DOg6lU2QFkwTT+5yg5EzaTByOp9LgoMj/D+YjUZHTyg8jbMMUUEZNCn7rFxAyvffY+9IeZa+byDgJkxyrm48gsRQr3ZZhVHMNMaQ255xZEV+HBmb96K4pNoJCOn4Gkr6aERLJ4cYZoAejtPPBPOspMYqvyh3otyTbc99eC2NOsYhyu22HX51Mw0RQ0C2SKorJkkg0DqMK82/37w0ndep6ICepaOIB+kVy76dhpqb4da3rWyPn7vkna3G3XWLIstu7ojjRhPTdW0Ml3jN81XDU+pS67ZbXMFLQto8WGhclEUqCqHUSvtzkcxVvRnOd5dtnc7iaRMd1GBxD2UZWZFDnZaVAFvPBuYUCTTe3OwWckQgF/mOdCNNYZn6pouaZWZuWNp5W8FNoglMLoOk0KDMGwQTohKY1d+A4v7X3T6JJrkyN/qNQ7jHzKk6Ch7IMkZk2NQG5qsEfyAxH/inTiOVF7U9kPces5ZmrLrbnyQP5N8PtGyDC1Nb6Et8ynAwqi1kxfqFaAt5KfjIS8C0pxN/X83A0kgS+taIq4u3ASSx0pxcMwq1mtxwOibbx9f4+5iO/1GeOVO5th1mCMOuMmJ4aVlAHHFmM2goOlKKb/R/y0YCBE4ArfQOBfjgCGtGHNB6Ipq1EAXc0rsKAAF9yjM0wAQN69CRy9MKUA9dBnPNqlTMhYnEUOgkDOB//jMtTTZdU8M6/gl49MJxeYplvfJP9y0duwJsc6xoh78js22fVbTnn7iUQXP5/3bNZRNev/KvSYFA/FJo9My24wqSvip7Iuv6tPVq4pa586o/5tvGkKpZrJsjHa7766oOro6SsTlvfeKFEEE2Npgk6RJ86anm1fiNLsXE4eq0Id01tWR1b1IzU8UrU2ZMqClgSDxnx4Xv6EE6TjSC42bSI9i5GfA72PCGsh5Vy7kM/N0twLA7CV53MTj1JdeAoTrnXB9m6piyK2yDEYb0xwiifJj5bVC9g3j/awm4Myebbw0uyfdxUAjIZWqEhAxoymyls9pDDgXVrqnlO7X25Xry3VV9qspf0bijKyySUhvdtKFw6BL/I0PkUNhNgTKH6dsKZkE+1fkL8PpzoZoGsTHeewEeBUOTb/DJRlpiGJDWXdcMQu4HMOM2APLh9eByCJfY4QvGXezE0/gRMkya7FGwIsRTifDlqfyBBAaHMwuYMJaH+mOnYsRTZR4j0GBzkNZBPEVkBH6MTjqdYzItnuM5FI4wGswLw0I8dwiWe9l2a2JLQeKpMp/ZlTARzwLBchlRTOh3A165cNw/ZMvyLwLzmZSEiXimgQlXfSi9y6DzCvAZLw5D3jjIOvwIvAk7YRz29e88DC/rUD5PJX5uo8FXyjLOZbNxExygdyPgJDJ4JokECqb+nm1DVhu8UFn+UXS8HXC6mwbPhJaoYOrNv23rBLTi4EVsafl3BmiBA1ptcO4reVnz8vnkgI96JDzyxHO2egboFAacxAbPZEXCgi/bZRh8cothNWLcczYvL5tOyUYbdne70vapVGuRGnJQgBHIsMwggBAhQRTzVzptzXV1NU2NrnFFClalJw8kstlUwmR8e7xQbLACci59X+1usMVP7v5Xebl6MB7bS3ebEkybcmb+QS8q4ByUKHJ8LaOZbzgsfobeV7YHOeWI4GePZ6X/r+/naTSeCSIodimn7o0ub2cq+qaw4B777VN0VH1kekeH74c1fb/gZjJZL8nMD1IFYxUj6fsyoqSxVbneUCT/XHoviu5yrDDEmB2OkNsmc6i+M2wqMeoZ7hKJqZH3vPrz8+bHcOWYUh9HtFFRmlk+7GVg70+E8zSesz7eh2MV40QHG2OW0kAaZtLrtboKDkWSIhmssC0yOEiwFF3Y7PEmEte74u5AaNwmMnvX53N17R4ENdL7cFMOhvhfKghdS1MViUGLoq32YtcILis4SQtm3TDqfWe91TmL9ktdfHXoQmI5v+/Q9BTcvWwwbpFF5M0WpCeRudJId42CkPQ+4X360GoltciN2f8pRrJoK1EIJbNcaW8+F9m3jubTBUI2W328VDmWyS6jiuNXu20DzyK1ZoyKNyp7rlGqun8WbW3SGTZfPZrrOvGEhoWcehy+6XjZjn8lDUFmyg1jsp42Em4JK+xuTXDhvrtDKfmdjePYD1oHGtvbexrLVkeIcr7/pZRm2J7ViVIZKSE3FZF2R9jRjOOl/GwU4sj25ozuGzwRkFmGtF2ZOuuIdDN0dcn6sKY5UaKldlCmAu1rhT8bUvqE68pYnjPznECnMm7IzSBtDW/LtO6mOit+MRVvL6dsZLZcyLg4lwIlDtKyFFFj1NFw5bw3gjPlMN7qaCvmj63HGIVUth2Z5jXY9YcYJfguQycPP0lZpw2U8psv/LdnbvcT/9unyJopwTBVvb/qaxXVUSWv1SiDACgRN8S/GSEhkInC2Sk3PNtTrpQxK5JheYFhRJGlblKAetJAPgAhQCAsUUTUEWsGEO0A0pds9n7Dkkpm2i/U1gyxQjWc/vu++fTfSL3bKVnxbdgpoOC23R7sUlhzHHMLsLYaztZIJ7bXcXd/BhG8/Nh29gspzM3d10Lu2Qlg968dHWvbYUQjJ8yxNd146LpWqTF10XijO0IPrTN6ytY+0Y+vaGw52rGLQol535OkRQoDKdXEQRQen9fjFtGFYer9q5qE04ubZuFPC3unlX9r90cyw6iBSdcrsk7O4smeqIyKVs+2DN22tZRmmbOwmXWFCIk8+ACa9i5uUCPMVtCMjj1W3DL+WKqyJPCyzHGS0vbxaSYNI2AVNBeafUmCaFNqpcxd7U1GcRubCUzC6dylGEbyX+VSjUliiW9E453YTRQoeL1+XeR8K+dc0VQUDdKYibTUW8+M56AZMm18W//T+VS9tq7mhaau9ugbO7GRrE6p4M3yrKL7+Ao1NXTRQFcRMWea6vwCkGlq4b39CvnuImUV1ElSzIeECNZM28q30kFQo0nEDc6hOcAO8QuaY1lAdGM9iLSahiA6oILLHSXWSl/D7Wf1dPbwexomm6YUM84KAhg9yJN+uFiXUxrHY4Dl1U/NlvZgI+7Th9ECZ0JTXK1bQwjEqzdHf7F+/7/FhB84Exi5Wq8AkSiBUauopVefOiUvawlojFrCcLT8WC+VKpUMwwMmk0QWV3wqEbQHcgXPUmDy2VnlnK/sN0tLe9outftx7jNaxZgUTGXM+2jv9grnwt0ympodbjnuV/b5XN5AclnMvlx2auN57cQsxnC5421rIySgUh14JTQmb62v4IoyDaPfvTTWjrcweXJ2Ius22toduCqrQS1bkdYydsiTYBkCA9Ym44g7uKkrYL24PAGkNysstxVgshRIWUDZMNzR3WYOtlVLFnmtYjCKGXcEmo/W8MtSKBAaDg2HagcwMbjC3RoIX/pVWC4KsPCUC2UKH85iWPsvf0gUsnxb5Z+pkD1rqEI6AYKIsYXie8jfLJh6Ryi8ghNYOZXKpBGk7LxiFUlt8Af2GW0b+U8N6IEUnPPeZZCfMpp/uSV/4CKyH2PeUtXqk1spll1xwqVR9q7Z/FaXM9wDiWsaKtbEKk1cuFljYNi+wiFaYFA3QbSE4cQEoPPZ1NAVY51UP4/L4ifhsqUOObrkErXU2DHKdk4OafXRLo1aMuMGSaKTQY5xBiU0G4+jirXiJvxl4w+BSs7ENf0iCFm1GFc7G2OXO+k+NwgDvxqpHsV1TVuvWOW5wlkepLT90RGE8AELFIJIZDtqjIg60opASZ3CMAzs9refVBz3FQz/2QcRV+F3bgOYetgt8LfC8rP2pn11mzAXy4zgSWbkEjJCXLtXTSMssfZzEmW6votg+6RD5e/qzKmT2R952LncnExuqSMT3YAOBgv0aRlNGY1v2Xwlm9kVWBrZuTM5oi0lGEj0NJv9fu25peHb6jlJS/7HcyUUmyUj+bL/ccAyDOcXxnnPo8+XKtHBuTPoWbfaLQazjlW9vYwQMxkSjYyURjT1GZYtklDT+EOYv2UEPUFsBC1AbGnC/WzAwW886ujouTnzUwlukqClWKeqHaHuOmBe8dt5gOcr9WqT2puDf4gVGEuhexCqxMMkMBMsORg6cPO7qp3cG+gcp3EbZw4pbcNFsA8+DJth65eSc54pZAvJRC6bTKdvOj0Ou8dlczh0Nru3uyfUG4/3JVNZQNpMKn0gweG1GmeB5QaBarjmmC+TFV5EIRP3fH2kZp7Lx9StW0Z240z2nv3Nbz6c76glJyJ8z2/zV37JOD1wswF39e/CTQ0l93O1GRxx1tGRMPVKoWfP2i+PdB5DLzfNi8pPRVKsqyYeitGoVi3hl/4d9HGQpHXdYGak5UwmOXkGJevdnJZSlWz1hWUkNFkUWlDpfn7EsB5NE6hM+HsYkrL+cjKbLWxR95HwWsaV26g7P2GdAG4szLeaWWho8W7d8qfqwvaqQy+rzdxJJwhNW4SmjsmmIXewtGQ6QZSv4BoMx5VDbxJjLq8pQir0ZTdR57V4JoGUdziaVCsTu2d5lXpn78hMrb2zfrHV4fBxZqttLeCw67UaTk2ShKq3DhooNrNMXoGRTtLISGQ9uJ/4xrO/FyejK1WItxwRiHNNLwfJAR4epXi4lptgLigAGnHXCrWuG8jp1nJGoMR4zXeh7AL6Jrx5v7OobZPV8z9Qu8TfjUHnh30L6IFB2ALd0L+gfl+SRJwulsssa7ACbv8ft8jqikLTBRoHbinJCEwkCkqXc+q8kEjY1gqneJpNJrNyq09UhJSvEQLne5w2y203lD70+85OS+ENM6L+40O9k2eEWIBBCg2+s8n5V/hSszBab6bRgldWOC9Zr5Gy1fHaHXw4ncHPwLzudliNo27efefjcOPFi30dezHrp8bWtDYChiRhpNDmf6c5d3OXEGx+VL/dJvj1B6K/v+tuEOx85GbFDtIY21vudxW8zTpYVxD4yB0awe2I2DoOGFDAGYRnRDdU1V1wm4jSWXjIOWTV6dOFczuIkm6bkQSYNbkeUibgv4jvmfXeGfdgMMM/DlzIfg598d1wZhgjHg836DbRhr+jscNxjdQmTdfEw514XhT+6fUAAyAc460CxuFJcAe6oQ47oY66GgDar+Kz0VB6Y44670s+zdMsGr/jDw9iUhODH7s1H9QBGXNz6TrY0zLqjNZCjX1jKPJFRiK1gTi+O//TuTJemcFD+ZL/aekILtUxB2/AwX+3VqXR6R736F/oJ0Wx9JNSGrth9n9mxqZcpXZ1NkfT/30+TazU2tuO/wL6dF7nNS5NfUC+CjppEJK7UUMZKkrLM9R+Wkoj6vocy5ZJaGgUW6aKHwB27/b8kolFme7d0sIel95slkFqwYUY3ruug/uZplNuoZLTCysa30rc8fTX8Ayzbbz9C4u22QXeNdcZVB7108WpFkdBHIXnLla4INLDSc8oOFTbNb2i8b3/5/lyA88w7tR4FTYUIrw0/COSLy1AzTVgJzt/E/AaMdnJ1zrM7tBVmIO2rPoiBiK9FNp4yxkoB5rJ5mBdR10fvu0o6eJqeI4uKw1R2Ra7zaG6zLx2KMZwI6Yser2ebHMEGOJgbZM1b9Ic98FbronidxtjsdJSIE1jz3js7Uolkci5UfZAO8wtOkntp816L97eUDGZYAgK/+S/91vb+K7bKpWCR8CRCkS/d+83rxHSfufrvIQIoC3GW/D1NaFNLaDxgJLyFF2rPKE9lHp7cbr+FB8sZT+HI1tRNhP0NiUfihR0rcbzg/QR/uv1+FYo3HWhwTIxuSgOS5eeIUcYFCi9moGhbFJ7z+n1LkoNuJKxOxF0jEu7pV90B7/gal4aQtj7HZcsXYbXzfsrr5tZxxQUEID48lmO+cDJGsXzLEMxLC9BKPEPaRHnffC1bmMgwQDUUT/SHohr2VtmSzwnNGfEXWM2mxXnW4BRefpQT4ykxNeOCfsbiq721ZWhRg/gjkMz/ox2aJu9v3zUJL36HHlVLWNsdE2jpfnRAL4Zefrcer1iRktDhervRWNeSTSw4SXlsC26LjQMy3YxZlvGjK4JOdDFAMaRYzBRlgQKPgiTVcUMkIPliUIRBElWZElgaZoV0k0RHE//A8ewcQgJAwPwYfgaH4AN7HXEAQQeQRRnTVulEGKzJF05bGqiAdRkVTMt3ZtknuUEQVJlgae513LOFIUHBquwRh8x+lc9YGHJo70FgJKe2zEXNZuK2ViFjo6tWQLUk1cznHL3lfaqVKNb5XoLOzaJdGexyqe/aTE6Qo+XWy86eQsg3BnSCew7qzR9ePO6RXSrlOABG8XfqvTcOtL3kRqsvONh7+VKOcDJDiG0+79MfThOwa5UVtLXLE5nfZF6VNzxq/vm3VqPyLtsz8Uvnxm9V7WVAV0ftCkrG1FI9tQ/9z0NINZC+oXH/ovzhlm39OjV20fr/ZK0z0H7RkZ58SGpr776fRrGZqzpKwko4Tdz/JyoAaCmSCLHCt5aMSxT11VJ0Q3HyjwtWEdACODZLJgaDPjS0LckllSIBHslFnWA1hgysoHTv0EtQRJ5niVbvBATk9hT6Quf5+XivwdeYC98N4B5F5C20N973t9kE650+N41aWn0+V09vuf9TccR+Iwu3yraaE9rfb4h59Of1jp974J6kX+1pNf3fONIhcnovndBXcVu0ozwe74XQk9Yjo3yW7b4pYLJ8Dhsgk3np/FEWlWVZwl5vkmRopCfmqayqbu2FWi6wYRRBEqk87eMIKvbtNKk0jqooB/NDqJ9rsjt8yrXpzIZRdrnem6fnwwsrlvDaQl5PoilxqiRpu6ai//304XxwDaaesONFvq3zdQ8+YP6fU36WCvj8paNUi0hz+ectkEqpKqTvqTTG7xCZ/reZZU824n9aRA0lFtAFnQwB5qg6UJaO3pTUCE0BZ7jNE0QlgOAiBTORLCcAdbL4SNqjIHyl1g+PfoCCez+3NHScrDxlkCq2qiCRyttYm8Ep0ANv6e5H3mFkv/Jfb0tjt0YyLv3fsD+5WevkwfR1gs/9nz19PspMwKfrdextx8EJCWRj042kNNvS29EF2ylx3UJQk43TFMUdd3oAwahcKwBrAde5JoUH7y6Cxh5UkFjGkEUCWmXhxcNDjzBdHNwzfAEXJkv90hlfVdVdEMOetkzrZ2SdEizitoSd6HtAPaeMdnbs1bVOx4YgkNpXWGi5WBrbPfmuDXDdSInpkpKpWDEzAC56DPxmTtQYNHcetWxxUB2wWYTy+z5C8pqc7vLPT1eV+L52cf6yA5FfH8yLfchRP7vVSr75BROFVHSS3SO1yj/eOB8pbiqrwQVirap3YujrOAdTxbf3RIENabqC3jNnOz7EAmGknZ8dLplF4NyLJ7uwHj+TWL/qqqOB4qsvQwtxMv9V3/JPQ72Jjagp37xFet/rgBCjxf3yncbRs83ucoTPUoDxfwHJXVVPIvK5o6XtSdCIctME/e83n81VhBQPYZTNSgbiqRYOjRMqAeeppZfcw+oqq6pygxvz1pV/7sG4nIIrVFP4UrbgUJ0VbjUpFjj2iYIjAEcRSX5V4yyYNTzrBi9RXQB2k7dxSZlojTViQ7CAEEyb/JNBOEAhoXAJgsWOVAWpjY7Xlkp+ylvxDfqqWxwctL9fWJR9pmYwjd8YPijMK6nHkhQlmE6RYQiL4inbIsZXhwCuWSi9+V7Hr29PiAqbGZGAIKwMUJ6q1EI61aZdUNyfB3Vw/M88c6r5lL1dFbjKY4Acw98U1aPunz/zB7csvyputNCuI+1Awrq4U++TD22tdN5z5MnGzToU1egB86CszuLyn73bilr4hEDQhzBrKgn6vGCKq532WbdS4/tGXXYmgwG9X9EnK79ss3GDOEbLGsxOSzZvfb6bW4HjgYyYevB8acgZ8URIxjQ9atibr/6Syy8A+hQRrzpZkr4lhqAuHf/HhEpsEk1qBm68ytZsW1oQ6CUTPO+fM+jt9cXDACoJxMENgRkpNwljQCEGrOufC7WUb2A9+5XsTTD0KnB0ZzAlxGexrLADQFTMs778k2Pbw2aAYnAyikLQzDEd1QYgaE5a/LtoGq8xaJmWW0AIgQzhSPgGcEBK6SwQ01g2SU0pGsDOFoJYQeMBFBygCoiX/XUJPOgaJrZ+Vkt0scX3DkriiSY9IWqXKZh4JQmUA2rbtDjhoCh8O+/LOfArgUN2t03wNsbSuRpah6d8azg22fEw5b51Nli8f9QCLKgnvHGPDzlTb7AQHfY2ol2jMmByIOXoIGhvjr77N+TBmvJ6bd/GTvfWXSxEGNXm0iKQqUiqsSopIWnsHXFAyv9PTXNsCSUBqEBxU0ct3BgpmygFQ1AoiRNCk0TiUreNEszCPazHJyGeU+2DjFoomIBgQfpCAKrBnhPCNYDT3ErQGCT7MBBjMcEHHD9kTMpDONRdAVMMnhJ9AfjkhtsjFxj7yo74B+ZQW93CDTDmUZ41tHiqbTPJHB1xFLt0d3kkj5exRZVr5b5hOi+gStoyvn0anVNhRgDwUla8+5Q9nd4EwwXhpb3hs+58TDMuNwjlysajQwTvO5Uqwjbn/7zIttGTuyQjVAYKbj7IvH0MJWi6ogFTJ1jCW483aMPFmocJt9Tx5TCqXH6rvfdBQ6cP03cZTEwzAwo9ts3aT1U0n+CFw5Y7dpVjcgRUFYqasjNE8+bcTtTbKpUivTz2al4YYuN50HW1Kt5/t87wzeO9rdp1NoTVbFHNogH7Fe9Ej4ViqSxd4lPJ++3/zNgSuU0Z7G9b4druhU3J8rbPq+MRppp3nYGtdAKemlayYLMkWQmQ6pqMISx473bYUiSICC1g5mZauCtkuC4p+sKxlqIRifh+OQAroc7W/JUSfYwRXN+W4NhVjq62goKIcHOnryCok7RYDBUUu5pUTQddq1BmcVScsBDoi6mLY8cvpgSJgzh0z7hf3zax7muofbRkSWNxRG+RkUy1WkR1jJlFwlNcP4xWqQ5TaYoKIVj8PGS1+k+gsEIr7PD/X6fTxYNLY0jp4WsQVbU2A5xcTeVoptIPkO7AaqUOUh0g/l9k03pcuLbFboRdWDJoGLe0tuLT5nHKiZlht82NLflVyEheue6BdRQVna8rjXrOQ16pHeC4Dw+vaoSWWa96aY+9nhdHLeUv9Qdc4qDMPqBk/RZEgKEY0XQ4g64mfLly8sw0X7nbfMief2G6sh+Iy45Q5+s3A/zcGGwTKIO7RjKMFONw21tkae/FIlsMKh9tBXkZS1+EZrQdmw3ZRioafd15eWNy/zb28leXaOeQ24riszDjmzVtlBoMogJcieEh+E4rKKuRIphzUNVsrslDBqsoFiqjkqRJEXzYg+ombUhWkrnBM9p0u1AGsVqjYVpBUHc1xHe3DYah5vrIFOzRjsWIWljnnLcOt7VlcKrfMpv4BQqAmWqI85rxdvObLCOdV0tbQe1idJ7yZe67vfiGZVyc00KZcYjV6KIilWm/AZch96JTU+kez+V02oadFxCtEfHRt6n5HChoKODKNT2CGVN2KyclogREuAObVDNnf6NqdwXebLfkE/ezSUmSsqiqioYBs0vN7k1jl8ud4D2KQc5DrP3tHPshw1SGzRGUeTcL6qgQdR6Cy1FjXp8FQgcAqibf8caFy5/4eDjj+/6oGOt1DxDfC364gz86VN+8OuROqPh00V+GW6MOci95KS/v8dj2w/trS1UktKSBBSQvN/kIrwgihQoaw7yRTgJhw8PLLhjeX4q1FXlpB1WIGkCIAud8ScwPvw5uMzg/42OK2gRYYM9xNjqnQrika2R4sV7uX/6iPdEMEf+R69vk/A2dKoiVa97GB0omKQrK52OXqykRbh+kt7TguAZEsfhvvNMZ6DlPxUVtlH9QLaZ4CS2HevZ5fyDxVZd2WRwddRXiaoPgU06lR8W75xXIfNCyzTopFRZuyl6pfGdBCpir/n1nHQHvIh77YoursBAA6iFHHKQ+S8v0fWbPRpXAAVidGMKRtHuFk/gcLLQoAoOwxgMQT932V+DJYG8RLHedm8CIaEsDKh8nZvrt++/h43Z1gD9IYJJGsahptyRhYh/VDtJtx0pPPRv4jQvQElgCNapY7WSitJmgg6edZ4JqrkiozfQYygEMA6dmrmdzXKdNggndKyZXaIkzoiKDf75yoyV5dV1GJ6c6uzEZY4JTwpTkbRiCHJkWfjhefHqjo7M8atdkTkX7zca3CSdxaWsqtW9WOQVXfpV09Nbx5uI1q8FFNT5FXs4UbKyrrWVwCehCv4MT8OT2uw76/4xqDVZQHgocxTUNZPGGQbJFjBS4CkQTnKcCLnIF1maDDkVW+q1/QXxUia+TGubiKQUInYTGpUw4PpaW9Yg58JYD3mNBCsYz/HEQZ6WgYWXYLk6GPdUSqNMYjautke6tLW1ajI6JfHM1uqi6FK19dXVm0ab6rw7MBt7ZC4jY2NIPM3aVwVuVTTbZDgzXRleZu+FiIaG+4Fg9oEryhpHwpCsiP4AWHxM+0hr17FMVzf8eu6PFSq5wG/UJ27lvog929zlFGoYoNvRN/baTcZxazYaooMuJphhgWkGTF3Z5dSSQ13ibITPfLCrq7NhZgqlzXYelltgG9hO8WUU2d775GshbVFYIMObKyqcH2Fq65R4No7VkPH0S4/NMTMf+7lG7xxIHfcBAuXzjcoOulHEWm6Rsgl9U0R3Kzsu4wwnh/tR3wPF8bLV0+yFcFXf42hO0kJwL6sQ5hZnzHM0PAGRTjyObGMY/X9Z7nfWdS5o0WiSxDaQtRXaEx0mSd5GpEyEtA5SUhMpm+LyZt/UtWgdPJhCojVQHBojCUutlQkjSy1BljXZdGNaSWIGSVgHgTwErm9jGLnH96FoHGuQRqGS5J1xHKSNo6YvCKAAC2hB2y5S/xrPo2gul5aW+InHVGE8A04fr3rMOGjcGa6ARSjsnVZrm4Te2MP/UDJH/UGcgDPhPSiZyWnWYtL8xx2cmcyk/6GuPEhCy2udwZMHHeyCYJrJZBqMwo14XpkI+De4Dn4N/wbX1frukkkSpjQ5befEmc1KeXslvhrsQ3ITxfKCrEggPwPKu6zw/5fmJZJEnmMoW5odA99byKILoGwgK14DCsZSIOQ5pkEgQXAopUIfSGAg71FJ7wOS0BZSC0Lg8774mKiA4qlSKSMiqprRqW3kMBjsgRCKzziDJ4+iycA6fvk4ci05o+xmNLY2o69V7Kx1dgzcgBZCdVMGTaOSqI3RIAeHbVJMDC/CpovgF7+ti/7e47ow2GtL9mrpYFJfNMtX1iG98yZ5JRlLXmyeLbIitGKxk890BX6qZw+D2oy+Xnm82mShQofL1yvPb1fwb+3kWvXxnn0MWoiCbji/V2HNi65t2HuuZlCKDnKVlG34V2ghGhjVKGV4rawfnOX7ivKxSfmWCSR85npQYQeuPwrD9ERVz7Xl2aI6Q63VUnSq7Z1rWIqtwmGsCFQmKGpzso5gFMuQwoAa+aKuHfsy3KUpIvBXhbYAz2VYYWiKIEtve5B1R+Bf+OgYiRBR4wLHEOrNFjbAmn3tIgFEmigyqLw23BHCRFKCC42sQUof6iDzwmAqAqrinrBoEBchtBIFG66N6gmJ9rXV0gaocgGb8MsjCoCDJB82BEIGTxWkWBGvGkh4UNAy4NuePSIFSkMqGXxoHAOf24SMokAqven3EmkldcTIgfPPDv9H4ZODXMcrBFPMIzlGZBjVthSZPZLqvepMF0iJKHVL43lBkg3xDM/TxBzNyLUWt0brquHEyBTGp+FWrUmjyPIGKU+SsaxSSQDKKHk50hxsc+2SNDL8n6g9k1pLKb/pptRuzsvpoRcSqVtqGQU39b4fm6PtSY6oh8GYTKXuV9bV6o7hO/0wBH3/f16pOLKP2c5bSRuFjyfBfeDPn92RbVp2CC7N5W7J0t7NFvOH5c7Ym7kxYtPAo7+xZQbo6BuuUJ2uTGaJSmK9OzaBs8xDe8Y6DNqodraxG32NBdupv1EeX9ZfsvJmn/hGSlgDLAXCNVdXB+kEjQm/VT3CxxE4pIWTqWbICWxHyHJ8gVNWPBu/5Xf0I2sz9PvHT3LKtKeDhUa4dy9HJkPOjNLA76Rc0xBD+/SoaJi0B0N31jPyG1xAMqvKAiUnS5nBEdml2lo9V5TeFvFG586SFdzqGgS1aThQcvOoMj86cNsB12hlVSqopEXEBdfNSZM2jZsgPqkptm0QS31biSsBRWyBT92MZtY+m4+0zVEYqyFUIMsqCHtjrR8C5x/EYsOsYQwGrakKlY2sqeraJtoI4C3jvpNGaJxP5iwYgTDYDKthReDcicTSeBN54pAokMSziMRKzuGy24GJGOMguo4ZItgr7DNkfcLtl3oUFfi1cXYdjeh7m+cG0TRVL/IP6uMeeAwHKtZZyOOu62xjmsI+dMtI5JgaPmmr/bhuaPXO98+J6g6c9drwMVefsG5+hzggIw4hCLkUAiDBMhnaa7anroO3V8kMmpjzNshbTMAwdyL1SjcU7id2zkEKzrolIybMOKmWFQHiiMZBJEsLBV42WboiI0zMQMZZseLG+Fdhtq42AFxxxoE4vpaCC/VH71aQloAEduAAPeir0tLe51CPqCnDp4HF7KBIozNhUm7w1tXlVTnbDMq1k/vRb/9XfmQjQ3zyx2Pb1epfaS0aHXmjHP+bpngjJAhMOxyiRDj2FOBmB0Uc3UUz3Dm+w0YCE0X1SzU/FHMcL4N5q7v4LrCYTWC58J+vA2jx/kDAiSSsMRT1GTDmoz2OhpBhoh8NcSEMGSxWY3acDnGGiztCEZORyfjicKjjeLT8xAiJ+2DPWmoV4AO9At4NMPqNGlAu2oq4bOcvFQNggAHmYBjVxAlMwIa9qlTGTJFpz+2gNVyPgisByWJfSNI80YemX0gRw1RGl1y1yVXnAzZgwbB21KEaIPaOrjF4+hqh67aj3K2dEX8cA7sXGn2YBGMBSzZ62/23djlydJv4FiJiTrGMHsafLRTrZAPKw0+gBxJoVE2ioAEUpooAW+EduGFVUIN9cBVcFc14ou9akEokPb8fdP11ppe8whcccp7XOjiq/b+knilrWSp4O1qGNuRGyqy0ahrOO4YKLrDyq9VWKmj1nrnfYjcxkJ1YxjCZKmaCZ57vNw6/QO1vUuKzDBgyNhorHZVfCumtmC/0hRU1AuKPpMP2tw3ZDEfCZJy59Yk9hjnL6Y5B9uu02qM/okf7g/9prdNYYOxJlaa5HcVF5vkn7KUtk9a9SU0dLoLhaiPey7S4qVesmfapxypGU2oFftB4X5n2KphakQQR68nbHXZ7qnpdR7Ev8noHTla/+NLR/8gP3kIiw8tAp1iOqcr0rTM59ooMh81hGEgxrp4XL/GEMEMr2JZEFLSkZjpvZaR2iDMnlJFECiGzkMgz0wJBYK2RSiXNclZSJZtqhaqdkbTeSCbjDlOhHMWD/ZTKql3VtSY6X+ug45hXmYYq07kvuoQj04T/hCUuHqLSdqVIkkZ7zgoyyfNk7OAoB+0wbEkhKK3KWh3ZRlFR9YMGM5Exx82hojTjLVyZ1cFXq0f9tAWa+Xx4eMNn2N2jbj5dxueO3HY78iNzM1+NZm/rkqVDUzaa6yOZjAgFC507vuyLxTb//I90drHN0TluiLVo/2/E7Aq98fUYs91T59C0BXK6Ls2s4I1MZNS5p8ug1bfsjWST9MFzsdHv9jipYMJWKd5QmcqJSnKnjHL0M3Zj+FpbuPm86S6q76u5vzqcoR1RRAP9mi8d9zK5YVvqdZJpmhmi9t6A3+mpZ42SjgXzTC6XafH0Ut3WtjLWZnGQ0MdstgALyY2XpeMM4XGkoZDLE84zGhqTgkLdFaOkbXB8o9dPl5E25Xn2Z5KKgu4q7rV4uMZpXWNrLIPFzRswSeJYe62hSjY5sCrfNGxQ7IkfJL5cemPxEL4SZkR/gyR3IePpqo7km82cHYEREAg06Vs05b73lX3g+HBLVUMiHIDcbo5ZtJV+sRKayIRzlP1udFYO93HeA9nBfQ9s5u57oCC474G14P5WsJGHGrNhj7PhCKoRJ06GfFzIxOJQ6Mbj+Uzo/8tMGH8zb1j7mae0tfOPLUqUr+aU9wDK3Z+Dq8FtxHsId0GhMcccTPxGcC24hxF/QawDuf8dQHmIR2eL98e+vXiGE3vonQkWy9H+9NzfT6vvRgUoB632iV9MfirIPH2gGzmTnkmoNUdPbYmkWJbZVJKlobI9IBBJIk9RHFI0jhPojBoEvqVK0tBa14eyMX6m3XH9DNa3t0+8CWrO5KGOVVvg+oe0QIZAZzpViMVAIVyQslGpsw7jHi/mNI0W5tkD4oAwQyEwkhTDKye6djChy/PmJhM/UuhFbtHhNzvtQX2oUhcTqe272/p61N6kmr+pGcCxEE7I4pn0X/Sx83wdiuC6aNCtEn0tGI2fn7PFRyu08q84btbjm1KqKXm+V+kqOAZDJ26l8gl+bAorntyuQr/a+poK5fKTGubKTmTxUfVWT17VpVsCYcql+r73N8lquUyg7vr4gwXfAuob813bXaf7Ay4TDVUnaMflHe1IDIOJXo6aNo8eui+eUiJgb8QsEq2nBSzvC/sP3q64zyTBYrO1BwZKBLeSMXql0R2dCGdtw8lJGdl91N2zdjK1aYNFIwyopYbieLlOoLRv+pQqkVId5n1hSUSnL8inK5dCl0XammJU1Xlq09P0E/Lr44okGR7aXbtaw5ku4hRlNulKrlBATTE1fg+4QBbC0vNrFX1lXrg7EtY4+0mE68eQfuYyH/nD3FBVUgyFYWdWp9s2ljvFoE+LVmJbqT65HHXx7STvU+FhCpzKk5APLakqkqSqmawUo6k7czxiOUFRRERFfZGPZUghOIjb7DD4utxncVJQD52B0HTLFtboBPojIAq1BXFwpu9nCH8jbYxW3UChGlkVLWqoeW3b+v7KirfUd7dW90ORw8Hnjo9tKHPb4GXo48m73t7YIMVWb4/H3AOktQSPwq+fsYJVM6i1vMA8IAAaIWE2d/X+ypHU+bMfngXTYDcm/1BtDNsMQMjua3FS0bFLQnO+tudo9Yzrdqb0P1IFBfczl+d8u3ZFXQf2SJi5mBUBBBESChLBrXCsWFSPldt0Pfhikj5FAHM5LxAEj1LwRIE2FYBF+EqEGw7zllU5j9tl1YjMuHYqZs/QPtVu09HkejSxw2QnvhU1UwxoJecmkS/ncpnkbgLenjc+cbzEo8W/tLOfkxPsU1OrZ9Bcaxf/DDwbXRVmMm83u3a4bKgsgxcjOnit0G3bvTl+4VUsuN1cd84kZ8JuidWFiXpeyKyAMFxkQYVHC+PCQAjOyLw1hBUqCINSMEiyECdB8wFV/MmoIGp1i9WtGa4m3C/shY9CE/bC3qgwTGS+rTo626OQYKc4Uas69kDFG1uprcpqnEXTSQvH1KWeOlAouPJuZaVht6UALIFvlrbjk8HkH1QFQR+tNGrj6DOpHsX1lDFc2dvRsJfhatlQM6JzR4omE5h74KIMGlp1xuLF6TkCCSX+u28/iJpKv3LiI7tpNMTcpRrY7+vZIHwgBgne1Tt3rRa92iUfTPIP7lWNUtFcqnwzk70ikc09kuG32mvaFqJQhhV3Z/ja/dtTOrTRZ8+Yx+6uuXBCMrbN43rqXVcyKMYG/lDne+iRr/QlhsYUZ9BbFDX5B63WlqGUNbrdJ7EtzdS8hugkkxmj2w+bHCtu1LpNgQEkmITrWooLBMusYTw263BxvuEXkUQyb06CLgtGfnoa9KEdbk330UhM3Cn39JTZRaNkt3J6z9+9szgGmTDpA1OhwbwwLe3BdZR7eBf1DIlBwkAoXWyljzWlyAMWDRkJUlBnpnCLgrlnzJrDu5zptSxwb05VVyj+QZdmx0IUy73h+/aE6VwC04b7CruCLyKXhom7PbxO53RD3p4tlU1UVVupCugti0ZWQhoXh7XZlpfLv/3TSDlz11ZsPMGzLVgc3Ngyh0Mhe+8Ikr/Xdv9suljGWWC8XEzHWH9WjF47afdhwtQ8IE51DKn+0T1Ei00ihpQLcT1WfO2RSvQs9hvC5UxC4v137RIeVV38ioZaaH2P61sOQi+19LUhlMtd57D49LEihXb/2vUZ48Rq7PVYrx1iRms6r5UwJtVq4ZrC8ZcjSr9s0Jf2mgfmVW6rFBHc9gEGyvyxqBzbs0wIsgnFSzN2GLYzl4o7dueo8mTwivbQapcMuTOKg21d0Xm8dDtcEN/KXzz94OJ4dSEV61AIjsu+Gsb8utFi7/H6hnhaDW3cIxJlhwdNsXJMOTTzCVm7Zw7GFvunEVQFnHirtLtbqs4abYT+qbqG0ImLRjbClNM5OkVch3yQhu0/ZBZ2YbRkUEa0NcOxreaAv5lIwx6LzaIrFk2kIWYS8sIJEw3zsaQiRCXxaGIYUxSbe7GIxD2Gm4uPdeSFYWHw1g+pE7RCGnTQAnVQRwjF7On1O616k90l9g6z3urrBdJWJmW7KClFMqULRe/NF3qM0AjBtLss5OErc5xhqSzgJcvX6yBdPzWp0Vuzx0B9tC3DndZGglpqsT8ym0zmn1zRoCj10+XtfPxfZbtwCApDjczYiDUQVLJNVBB5G8NIGrbFuMpLjjYrcZFQgNcUaW5wsVKgUoLLI5/OpWKhVs5oW6VeEHUPjAXFJWI01FBYNJ6fx9iCK7RDbaF24RaaF1zCmXJhd/vmsTIYTjkz0qSiVKKm00nL2RadJgXPpfL/sjeottHqgWYp8aS2lK25KNH6/lOydnSIDsYHrmVcifyngFLK0pQTlDPMLd0cW2obMJazEGoUMOqAjdWEYbayI+7I0piCPoJVUhSoiiOGKwjCxCZrNrEqG+2VbHIp1w7GiKlagw7lCVAyUGU9kNxShxRa2afnXtIQn/xd2DQbg44yNY8A7LqFpv/75GFfvH/F4I/9sRfKdP9XV1ESG2f2S62pXAJeCJnD7yK6nRH2jkzH2C2UOtoMHiigAOuBHfmDrZkNz/VuthCqXnm+X9gKnj//stjSyKXFZdAc6kS5t7kSyfHkJI66HHahsfn8mCj17KtwD9fANdOu0zcWST1R4mmQE6Ig6SAvrYsLohgTjy9BQQA2RbnZsxbNVCyQWUj/qM1mWM4Yuvmj4Y5Soeab1ORrxhcMW9v4EgyhcD/C3CyH1p5Y2UPboWRQY/7wIZ3JDkiLbJEblHJd8IFso/XruOeKgfvMkMYS6q9td33JJ4lBcW+8YNITVcMBJaHpaj9oqOtMXbvCFxxegoIAZhH4xs/KPU9biLmSVsKIscOgwK4zY8aVkYyNL+GTPsgh8lVzRK9vZc+UykjRBJzwVpACzauOP10GKZfy+WIhUiHyKJrXLSj0LSj4cHbWGrdAIZFYLdzpzOlNu6oFcxkdvXXBZCj0nBh++MmoSbeg2LeMpIuMF/ccaa/oKQWWlZ/cy8JgU+P6kedGWCEjz79PXUjSb3pjuOy9cvhcMkRBJ+eFLS8SLjhbYrRuTFj53rDOqRj04OkyNWVCND8E1qXfVkrAeYTCBTmbylNOBd31SopODdXD5jJJVzUM7YdoReINmJdBDrEw3AUXwQOH4Yh6aksft7GEqgRDmBTDK8UL8PPl1MvaYY2qMHgsO9y9IhGJKBHpXDCfU5Tg2COba6kbPB4THG9WR8QmveAcGe5rKcezRBjZORvQFNK6fZkGCtftqsj485cbPeen0ck2USQZGTUlgVNwqtdcL9TC61/90cwUjamaWUeRmQsoPkiAvY5klQJ/Hj0Q0ybNTx/fGr+4RBPOdYKC4vrM+ZqKN23qe57oF56W5que6/allIAaiwmpD3Y3No5KxR8tn/0Uw7kPCvo8qpfRZctLIsJbggc/1k5t31IDmcQDoTvXGpeMwbxyVgvqOXmpa9npo9A7dqU6cs8COT3j1qE+ZEV5u8UmH54TfK89smz9tWHxwHtFROy1saK0WVVFkodaTO29530nCPvrP9p7sc9+6SfQzLG+zgvVcoF9v8XWCdbFrGPvbldDzSXGwXyN2/1pZXes2+lsrmnIMWvX0/INxhsMhWjMg6YZ8D+vbV3F4fAlfN5o1i7u1qpGK8O9FLrRImse2t1BKFg74s02WChphJmm81ynl6rCioo8bYZN5cK2UOy6/heFvYszCPDvv0c3EIThrO0ExQsLSJNwh82xouvz+/3I7VXhM1KEsOCOgaXJYQs91VTY/dUN2bO/FbU0Sfd+NNBr8/S2TNj+mykUomCpotxid+ImdZpeetTyx+4MDcp0iTJQ6TIt57f6E3EJ6+p0VyFth8UxWjTTzOPRQS34hCEKTF4it0FnuHIWoYyJVdBZqGLhkeokDooo1D1jb0o/uITOhZ62bUTcwoQXYRwXfOMmHj7n4ytoFRIZBMIY0kJ1y1MPtn2wknYurR5gVeK5pBbJ+2rwqY1UVBDIHnxhy7QQsdtT59eCPbFVTSArIKhTFTTHylLEkPgDJYHKSoOQ3xBoAZZqjp9a+PXOl9Gy3v2kWKpgGlObkKAQU1CJU1MJbKKozsn7PcvQeXRPHwot2ygEyQ3orhIvatP1pDnHh9Z2JXOzhsqlwQDN1TVTL2qkjZS1Jpp15CC8o5dZ+Mu+jnU4AwMooIDqPRxaI5DkTWhWQcOhB46DPjNB4hihCi4YNnN380P6YEHOcC8sjs2CvhSJAbjZB3MBCIAA3IGjJHiSzQXwXGmM2qM50qHnGyABJD9Y4ABOcILz1MpU4Tgo88LqlCCsHIdrFzt1mLltTxYPrMnOvSyYXeIJgG99s54qvcs3+4nCe0pH6N/vfhHeJX+FhQ89K+x8AHTRd3B058v08IN+laealE0TKoZuxsAQ13OxqM1TM/KkL9KMwKPtABepcyMTZvjQbm+ypAVYCE0jLwgkrJ6HFg+7RQmJVOjIFfYmhNBM2oDNfIYPQIieeEhP1S4BsLtGCYph96MIFEFwXs7uGtnyvXHDudrdbU2Le8pkUfZ3b5V094Qjv7Hp+NzbpjsNZGx6w0//fLQQVx8M0eI1P2iWWj38EFhHsXTpo6xB8zM18fvDN4y/t/qN57Z9J3o//C4FCA4V5OXq5uoVhMKRYpLSM9KTYkg4NAIOPwQahyNHv4NkXD6GwqVg8rnQ/bZo2/1QNIACdeAl7u7ztWCgwOIZykawCxC24vkl5fnwwThMRYlm73buUFc9pFFdyQLThBAaqEmAejMhENZjThysqp0ArdLcHIs4ypMssDdpGs4q62BNNg1PT8DlYSDot0+XpgE3JaRUtNnqlcAvV2IxW4KOqoE8JOFw3SLBf4JflW8w8JMJffJfhvhplzrvmvLghMusoowMEJ2dblAl+EnY7uoRJgD2HDHP8+6ow28DSTnCee0BmwSlHjgNEYd6v7lxEDbCRpqlfk5CZE+A6K+X4+un4X/RBt408krXLB0csBCkTpxWVWesvHXN6AUlPh5VAHZo+83xpY9kvxlLTwX+sMXPL8fH6fCqVFKOAKhBx1/+v1W/ZSmxW+e5j/U90mn8dtWWTkHr8NLFEXWOB4iQNCAAI+TmIAQmOXEWxQAXRxR+Azy2l0Bx6X7oR2KH6N/+QqThbZsFpODqt7Pjr1IaORqirNikmiRaqVM0zFjSSG7kF2AN5c5xQwIBXyAbNqEA1vDB0xtsCENgOkISomiWjFfQZLudKX7PXQ00kP/IGEADI3AGEsi68FdmrRZISwmf/R7tMc3xc4WvGaDW/sJFewIGCCK0j/UjSLR2ztShGtebBVgP9LNeYEU2FpvAReA6BgOE8rAB+ZhurWFHlsac8F0VIiIBttzlFERF8Ji5XtRRYCdkOIBEctL5oXEpmQaGgD5AH9ybNf9LN0xWInD3tTBQk9puY9D6bTOJnylbW4D0hqJpNO13HRME4ERP+acQjkR0Yh0KREQvoGLoT+f6Q4uMJ1Zt/4a8fmFxhBrcXxPBVwFXwQl9NgD4xCnxIRKvjWAesGY+EQ4wCQPB58W22OYdBquPZQNnABdIADDAxAD5DSTHPfyPTpyYbe9j8Og1qE2yfGEbOcwWnkyACRCu84Dk5/ICMEABAxTCMYh0rC2/4SHhR5nRgEoLAR/K8STBoyS3l5Y47MQHVGC9Pd5sZ/E1bo1CMABI4l4i1N0K/JB0HQuALMYZHRYmySAQ/aazUjDTRRxACtFbTdCADMhkM/5Rkh2186RO9ttZ4x1PftveCfbhDjAyExo7DgWCVSVc2Jt3EEFOlOtVgOkRzAT++ZiBCSaI4PRNMtiPd6JRtxEoraaARVGXNpcP6yXMJYLi7eK08bMfrIwhv0UashnAIxDJXp7vp+n2L9Foa/43nGvx2mVbW66Lc0BK84K+Fu0SuxpyWQiicamE+6VxAnORhyr6KIbV7VjgViAKerKSxDGKLHSNRfH4OnHAjf2HUNTts2T79elYMuOrUJvx0ocztrsH+J25IZjrAvfekOCpSfJsbSTx9AMO6QGqMaJTNzoDeAEK7V6GS1hUSVRHZCr8dmQOGIA839KO0F9uR/DaeRF1K05OXM35LmKDBSJSgWsmwSgwej2CRapgFHUik1qEKzBgNXNfBm6igHt1Z0X5Y0ISqVaTm1RRT1/FYHCO7qG70iMKHXTAACnQBgaipeEDC6vOkzdBSVvcF4/Dc4zMLKlE5lGXzlJiv8jCZBcibT3v5DiAOQprAOmjOUeDEE8ITWjNDNCoU4MXGPeisEMLNSdhVywEIFAQdSW+XZLenjEIXLMj8VoM3wyKLQibCJQ0dJsKEAKsNtK4GDqAkhb5BE9n89CLIMuemGLgwAMiz1jAA0XwBAlQQCmIxmxVhYa7chCWhxSYeFYUUY7X+d+rPYs+rdoapTLtL0yCuV4FJOpKOyJfIvB6lotc/ZObNJrQ0Wiq3G1IA+Y9ymX7/2daKf0378YEPmiatuGuHAzBY1tcERqq2dSJAQmS4G4+uKZKKpi9tPwbLMvxPCcMB5GKYMuVycMP35l/hdvt4UK/g0mQa/WMwBcW1vpum7AQBPd9P3W5o6OTi3wJ0nA/mvp/fZRV+ue3dZyZgvBQOUOUhBnRE30LPVWi8q2SJAqCSKaDunZiAQEGSMAnzsPQWGPaJusETeoUwMUbwqY+H+34uX+RP/IVEIN/TVuSgKZmX/lzIHw2bFKTuI9LQBQymPtrsiI4ReC+ixzkf5tQQmkAqfnTrs8mJwc+/PD7AHz9r174ZXLfZx/9nZ8AYtKERmqS5EABLO/TggsnTc8GwMX6PQ3XMbj0+zHt0viS+/wefnB5z9jv+UVhapxLU3raXVWrONnKOOQoDgoUCMtGYNknjcF+S5NPhqIS6UdhEk6D/zzzxlex17cw9MPvdKK4zL+VdVuCBGk4X228OfvPV978sHXzSAiargl1FwzBZkFRFSnehIYWFZHmFeC+EAbQBD8LKw0W3XJpKpLzCGJdrCrc01CCIite7QG/LoSqBPgIBNQYIIm3myyVd9aLP8wTD9RPfrvhymyzj8Ol+Z77/18zceHgdnHcEf0HadddOQDQF8Yf5J4NeMw37uz9iE9pBT3JCWff1EwF+pO2eZf45b/Xn/BmZ/KU6FThpxv0kwYjatuL1G56eCnmolCFmqU97LGROsAnFUA8gIhmBFxPszQnccZ2BHf9BM6xlubpptMz3de41p5dZ1dIARwCZrgJTfI+npy+9Kn/3cdxgD36+2jyq78gRX944Qyoit2/HdRM2lipadS3IIjAXRM5KLmPVXkQ6MNJvQifuIoZazHKGlsQ5ovWESjJsDU1RY2vUhB5bp1K4oai7QxiII94yQQAvSEhQywWuXgFhqdSNxudk6wxVpWlirdvGmCSbe1TD//BfNZpQ/6SEvJbqNNqtavFlEnRuEwLdryxheAEoaS4uj5jyK+7I5aJYibfvd3szeQgzbaT3NOXwBcMFvMo4GGFn/gS8Qfe0lBfLNkHVQX6jCgbet+arhlm6mwSjLCSkhkbHypHf1BW0CxDZwh5j+cL4zlBdD+gMmchDPQMp5qEmxdoEhAnTdEw9JTm/7wgMUIKMYUT9FrPMISd4QsEdi+kYCN3LxXIDCFtfpys5gdjKPzZ0/E28HjQO4DWRnjcFdhs438pN66qDwPuxluzN02OzX90Bb9Re5bc6zz6E+DXskwKPB8IIkmOBTmY12BW2K/+b1EFrcR6sMsg+PtLduHTlHwMAjCwPD07Rkjsr1cJr7VBWeChKPHMNwuRELBhhto2ZJ2+bh9cFOni2TBcz92LaIC0mOw5tZ2211ceWLsjshlxqnGH7fWntc147w0ezO/sgMx6fjxeCbAVKroBNfVQidi8dw484ZyrqOQPSDO8QHOsAFyYTDZIQQq6IOWlq0EAl0IJqrEiijEQoueyICbFhqmBb+wyxfkINiuGqa32iRMjF048V3iGP3Vq9eqpN8rgxSG8OP0yeOna7iZOEW8GL4/qmUDLDAQUZePwbiGii9SgEQ1fnyYQQMHXycYkWYFin+JeAop7muzF3uugvnsudTIapRTLmhYDPXrudtAPFf6hjCDv0ArC8pSlyeRrs49YPr9JjgO2WY4z1CAIFsEcmJMYH8iYi9Np+RXIj4+osidJHXnMezIEUTPJSUWoiQu3hY5EJ10zcRPhturlFDS9338+zx53Gu1Fmv1O89B10ooZDKR86xr6fjXUmblyMLvjdfcE3j+jbkTWiOtC3ZnaA5PGUE8yPbGgfGaefPGtncHp/5Oc62lAHnvCBOg+v/ShTfwqmVe03JXd1W+zX1/WSyW9fdcD0vPOn+jYmFaObfErtVPYVedq7dwCPCeFgqZrrICBE9alTuJ9XLXEjurZCY1VFTchMSMYVNAMkmK2FelDbXzpRpA9gZpDl3Cwsze/BclRZ7RRd7Yj2u7UG7PHpJheUg/UeZIP7/RU2aVUgW6ukK+HyIdd1I9o/k1R4DNFlsRvTMpSxFTxxlpZZhhYUlalWSA+GsvIlII1ymq9Tsortj0OgLVvzSNBIPUlcGJfBxm5/IEFZ7xDihMDs4AyhFuPtUNze3vUyS+lYzX739OHL4OtvYc5e7Flr55F6xQQcrLouWxZ9JNe/p5CedwWYNISUTCLCD+9cJLlRaPkIrGZtr/5vXBusZSHHSCae8NVZ2R0F4dzuaKX6OXZTKi0KVCjIiHMH7mf+f4UMDYIYUXJQM9uAHYIQOLb8MJxM3b9to1eEYvpGhgST5pu0EBpRc5IrfdOtY+Q5fWrcrI+2ShejFme4wXf1G0my0X7eCupqGiLCS/x/v5M0JMilYUcDbD1xt9oafZ0MGsAbjTvMtiZXUticNQE5MZvsYjXrJ9umIYOBZ7jhfiKkFE5XpBKure3sNAUjBvQlMlNNBv6BZohZdVhRfpVeoT8rra2W1y7M/Mq1IYyaEAlUGfJ5iGfL9due268fUmprDUYwpdX0LtvPDZLD01uMycCrBHOWRfZltc9Rfie7sWaCPcpd9t6s1b203/JerFv3hBk3bazPwjuuCsWWxFF1fM+v+lHvxzxya0oySSaRCHUcf7QcLENXcoLosCbrz3xrBb3z9bl+zzbG56LoiZJPA/h4C9/YkBYBp7/OmA9gPWKbyl3ZtrnKp631rteXQ/T6FJpBb9SfseWHX9xgwwcYHdAq7IENH3rzc15mh7vWa8t+U8Vt1ERbeMaYDAyULgSTgOnQxYzHDQsXb3XNc00tVRGEIq/rIKhAwxnL9iLmlqQellzjtNYVhBoWn3z+YFrTstHQ4Qn07Jw8x022Rnf6IJYbh+GsB6WSFCBP0cFXpA2xwYXBEQCxFkSfYB+LcgIs7ic9H4ORG+93TdNcV1MRNFq++cNz69/5bWJvf2tBnoxwaKmnagOGp4pP2NPOTi5AP1aCNMZYAwFlX4O91bH44qn7YxeChsZfZmflqvD/VTv5vgpTm8gG3Ll7XTd6zeamx03TgDsiI8ZVdNUFcpQKd3Q1d3xNe8zwq04grXVRkAE1TiOGZbjWJamUn2XvMCziY9M5gT4GOTDk/AEPJl2vI+4tgl1EQYmNAjQMJrs1uaosU9u0lAFQYG1RWDJCLbdvN2kCxA347g/hzxPODoRqI6oySyR1l/Nyo6j/n5F09cWuSLqgM2RrDQqr9JJ0pUJp8SDa+0Fw2Qlf7Etjdy5SyjEo1ZuUDN0SnTnljKmIMb06Jub7OLQx6tlKeqilGYlQXX84227QcaleGSqksIdGQPJk5Po+Mf+4Senuutt5WIS2kJ+KH89oPQgaBIpSSARNdiz3ujaS2OIuVjYYmBRHxoTK/gp5hBFxepRbXK33QLweFXiFAnf7TJkm6fim1mQ7kEunE2mxeDK1j4Mi7WXEGO4uGQG1WrY3U83enfyWM+cMEjrfk8yYHoL+l49cbTuTZmoqhqLI0RuFonI1FQrv0vZLCLsrY2AsS4O7FbTeclu5GHkBzKZglM5sFKSpZysojZWaKV3Ms2ruFZCiIeqbdGgGlbWZpz2qs3RapLSuyaudqOuTRnWPZb3Z9mw/GrSD+XpSj9pGXi+kajaT+fJA8skmjxcr4uq7TcburBcx/Z8v3Y315SVMOI1IAAHrIHAeUcWvGimzFFoqRBKcRWUQOUKp+kyoWnAb06u5gbu40qTCVFTugz7bcuSgSoKL8qtaZDaAOKgW0JuF+WEav9xA+jaUqG9ppDWEFwDy+SU2tbrmikMda09it/5XdtSzzDkhaT7lrhrNfKdMr50QOG+bCVfQfk4OZ1bRaPVxZbx6L7WaaCRQxaNNl4jiWVtaN/pkMlRf3dTcnG/P9u5q7daWJoW46bXNAFB2fgwXQTfnAO6wXXAZXLEoUIhqdYQK0EqdC62otQIaTC2icstQ4zSoGRWFo0kMkRZ4jkkSLKs6utqMsiTk6mWXiR16kSSnlbX2lqV1QXHS6zV8GoqyYGdcxJXc7OZajEwKEJguGzWeFknmQWyQoA+1CGDZJt/sV0eXCuxMsbukVOgV7mg2oG3hE0MK+G004LkB9InVp1QnSGGG8eGF4ZkB/bua35lID/S7x2HKO48xsU/IdFrhtI1a4axwhLIr/UBVQgMTXOC8NQKYU82FEDmefO8QWbybZKQmI0yrodrPD9+ml+SbeYfaUBuFggBhACI2xy5jhtNdLucDpZru/HM8zegD3gpYISRA4QlGauh5yqMihZkDGofh8skxxKcjiP7qCSCzDFb8NMP2VSRMY6zZTyev64yHBP4DEMz/ArAAEebsNlJARr0IFYIAiccUl6eFx5aV44F5z3HduVyxd51CyQyEIATe4VIK/gp9RbqWxiOYaUbwP4JabHtSjiLcOVUmHb/CH99xV14OJfO8fIn3wTun5ByPldBtvcsdaVpHkGOjr8cY357Q+us6pqu22Ww/HN/wUG4AZ6Fg/Dt99eXMpms5KCyCL2iJMMGg2RT1G/fm+RNeNI2w0E4lftWQ9lShwfYF3rEBxcHJKAJ8Uo2UP4SDiIxSRtb6dEPgiFyH3Ow+XMROLe1vFYYSAj8A4renKexP7Dqjustw2USSebDM9A+3D2hgIoDsnobSy1Z9IY3u3pdS3wDqtK6sCxIKV5+2w021dXU2sYoxDs3zx325iPHz+w3eSdy/rKdx0/sxknoQrqfXL1xym68mfCWFh+bkQt7SF4OA9sdZFDZrJ/u/PDP1ijE1TfXMgphP3MsNLFIEpUuwMZ5bDFr+4t9HxXlWOHKgr5fIS/UbNy9J/qzUxmV/QSYhGgjTBQRY7nWIzUVvHpoq/RAa/jywUXgTLJLjOeqOGfKaiOa+zE6Z5YOTW63m+2RgY0057DHqmOp1RYbok6uayCl3bvttfVVLQL9aekkpVYNY6qPuIEdI1rYOWWZmYzWFxn0okze/i001tkTnNfYXddCTSXF/IsyOrDgwEtVf8RLDQReJaAcr3LX2UBh8rJQIU6r2U+SsEXkhUPZAiMRmfVTRZhHSnGpyYK0+gMgyHpkmKqUsCJqbAcS2yfe/U5zueKRJ+EXm6kCWmkCPjgbqf8hFEKD3jttAZkGQWc8kOQA/TwhECbWGlilnAt/8DgIqEZsB6WPjCoL3ct7d8UhwWq61l3qGiYfJpiO+v7hOHX7RgO1A0ABkjUFEMum7zgmgfeDiOxN4rYoLGNgESm7LBMWeWT2LWhh65EvFxkQQQFG0IHOIPr0vUOpIo6rwCInVt0EwTDsGO/n/85C+63ZwNdywkdUm7Wa58IxKQzMcmWgZiQZfBKtmm0+dEdibGrxNDyVxF1+BVpwmExTGcjiCXFyp1RCaZoETgLK27yPiokdoAFhsBI6oVO33WIKqWRWiqRwihIEnEzvYLeREPYexK7ZoMLtMV+gCRaqJhKPxwnPxuIrBSKYOuo4dizLpKztWjZUeOfOevhwO7nzxUvonZ5xdVko9UZRlQGX2a6647Q3w8eSfUqTZRfGNr2+68az1Ru6u1N6syh1GZ9WUL2FwjbD06H9q40AyyHnPH4aHmNda8URFguvf6MW2h4xSaXaYO22DXJQjwVO+8wa7u3cKIm2jWJqDSsr8EnY6HUdRKTnD9vCOdhiO+Poyg88Tsbv5xiMw6aiSlcn5b5SJjcYM2HlgFrY8Q3PxJuhaBvFj9LnqpZFfpaaDbmKLXnliLFGZzypIOgwk4OP7eZAXQqyoBv2FLqpGwXStGWxiCHZwAhLUSxVoMtoRdFMg0HK2WQKiRBEdiMZKAOTmbDR3eyLSycKxbQt5gpDd0OkUhSne1G1do4Cdxvdc14ZjNihcW9KlH6kDS/2HpN45obGM/j5moGeY7YMHVuMSIxJX29Hmm22lkaDbQy4LFCxUbaqbtxBzHjTLvaqqIsP96PrEVFTmjmCASKpRM0lidqtQy4rnGXfGZMmsDD4WOMQ9yVXp+ltq3qZ542av+xWxgJIM8cFwgbrMtiXAr5MCk284PvVYcS4ho9YV+wP6S20UK32e21rvGHCxQCZkCZNXhB6uFMp1eZrTyzr4GuwtGLcqynFlIM4QfJYdvsGOgSSLMZioUAYRQj0aJkS1kgu7YCuSILXFWNC8FAPGDAvRDCpK06V2tx0jKTSsvpVvqetui78tqxmga/QITldJ8iQryQGBa8jUV5HjpdjgWmwBeEi7ca1Ul6/b9eOgXGAe4u6kMULoiAEAsQgPop87I54fCBQ5hcpgv2V/4Hyg0bjazh8bL+WWK0mSZBSXY+srbGGm0CABv7DswsdcUKjYoSFwhOzKFAsx7UB4ADopAdUIjGFoGIsZEKMihm4n8cm+pfE0nH85yJ2trErZo4zF6kREDJTCMWcJyFEtxf+8R8n3ZkMKrpRuiTf4qJuikWvb49QeOya2PG6LiJWwDaydGnSMSA4ysHiGSZVn6Puba72tLZgOBKRCmcFobSdHAGviwRZJiGMwDfLWoHYuQBSKivAuDyWcDspFq4ju57rj7mW8+MBcwiEMAWJiBKYkBEK7CDAAQ/1y4Nif10n0VOMpvmuewR4Hpe8LLdWDyJ/+yGB6DYbA3cL0xD1qc6X8BhvDfeBVj2bAhvIhgiojUca+mpWUYkz5gZI/VSIgmZtnSydu45hSOC+xvq5KmTogpGwEBbCgiZLqgxIbLKe87xZ7NrEpkxXXyT2HFyDyiIucpzV6iLXSyVt0tjM6KJ3Kt1VB6Kag1c8KHrhJB5/fV147/Ymi32Y2e6+Ijog+P+n+sGeJb/VORkysFsfEv3M2qrRWby+q0uxfUIcg0IjsNXlnyzy7Ue2u7omn/vkamkdkJ81LdWo8bJKOYhFamABguwR+l7PWsWS0rDTPmsonTkdEVlZVV6MQVshuCK60CblQ6Fcn5Hotaz0vXD/7gKiTDX86klPKrTjnmcYprxhyYqtPtddkNA2IyxfiXYUZE9aIpIBijgZH29HmZIkhmshA3bCbthFtryHnGpxOFntBvG615GLXoveG1cEaGkso8FggFxZllmnKbzISyxe6Ru3Xj+PGLQCySqhZZygmxgmtxN7G9QBgdCogc3zY9ag6/7ix5Hl3mXwSWwW/V7rMj1146HRIiJHJ/jOXQehVTXHkx4CYV8SAjHR05cQk/pgDz+cSii19im0esgzJGEvOY7v24Fpeq2Qn6PtvWLlBSvSLIuE9ID0aCJJO816P/ZMAdMjvZ9GMgGaSZM0kKD34wuFQkcfopzkltljBLvBRkh3nP6OYa3iBegoDudjkWFe1CY8tsJ2xCbgHtb4nm/TLu7BWIPr0pJAIzncdWMpDagsq3YLS6edgwqujcUxa8CaBq2txKVwba8UYO2Nj2oi8rxyMV1RRF3BlQEvCQwjMBAdL1RcSzE01bDYILJj2xJMR1DJdCFIv/BqFtGsGpYlAgNBQfeNCwrIIApGS7hUyu5ULrBISIAzzIBqqP69oHykHgzJ9uvcEhWGxjBDKYPm5JvcOt9Kp2ugOuFgsjS67R1l7k9/am1loUR/+UuwK656HMc/tvThYvE5IHIRx8/xQrr25qbw/e0j6m1JmNdqkY049rTNeK7yk5wCG1s9MZEshHBeYVDz0TLPS1J/118ARIXM5FmbaAKF+3lGL104V+xp5IperZpmV4HOICTKUHGojGHAw1+IB2yD8dAFXdDVpeYlJIqFZJJ0B0T1Nfjw9mjm0kX9dtg/xlpGad41CMAqKUKwq6WScnESh22pqHM7P6VFhNlj3RYE5awEIT96Ew7o8s9/6p8JD2jxIp/e7uUj//oXl0Hn9vmsHQYMrmEQNA/ERgtx8zpiNlhwKR7ewvE3NjxTZihsJNuNDMmdRnlh7HvrIx3FtBGFOl7P5NuWzU9xAzZya40PWw2GVdBHHgSlXqmULSFshVmgjjauPGWctOJx4ziUaupE4hDKHZE143pKU0Z4ZCGEkqnqzGSzVMqupjNWwgiDiIOGFBCLuSSFc4w1umroaKYpmttQNGzpj25qIpg7o3o3KqRYCHhJi2zO2PervWPxpFaIfu9nxtgCdZICp8Yx1aqx63ZbirpZRdTeQF9TRKkf+AtFmG9TzbhxOMXTM+xQ7Us/PozAdugjqcbZyvmwk6gvXBcKkqB7nLEHc2pF6FlOddoZLiJkcT9trq0aiUjMeFm/DsKaOI1ESIpdT2XCgFlRL1u5MGevl3Xw1m6qhKWv1Wk2oJvkmtNhaTNbDI21KbqnjeFAx4U1fUtXdBJYPSgINi6O1iLlbmo6zly7fGaTDVJZjAtG//Wv42JTCbkOy3ds8gJDuFgE2NUBubOto+1dt29MbNay85eEg3opwpbC0wOMq2OZ7oZ6FLjQ++Eh6ukqQeM1qmyasqTMyLI/S4VtGYLmsXIUb9ItwrSdaxXIVtRIBc1qjo524q7G4am4GqRoWabtKQxyxrJTWEJhrWOwcBDh3XveBIOVoGBTen0hexOr3moE1joWZ1WIJJsoxfJchWAtiYmqNltxRGE1782c6tRLu0VnDEKqtnXxrhOyVxFQO0UvpY27NJRcOq7m5DaNRi5RDDxt+/UoUNjwBv02YTSag9UB2g47UlbV3LXBEooyIRifkJzN0fRdkWaYQGe1ptMv4G950CFaLJrmaWMFbGATmaX/lG3yHGayrCZR51vA/7RIe88ep6QQzskkLvBAk6Jv4tXq7CM+AL4IX4QvwBfhi0sdn1vCEChb9WiBsSJnFN3JZlf69qyUtGa1FpLRlRBMGSEYXd6HEka0I1oXVKC4kA0ZsbY37kmTSCV8bZEx68PGWt9Y5n0stV74FtHkHTObSTUppmk6byg6aaQZl9lCQb+/NxqRQ4wzyorQevmimHHGfLExI64ONA2meEsIZbNyLNsxHNOCzDjeM+oj2rKcoGnDf//3tNHcFWJ2hN8Z2DVarWMgkIPRbuwds7CxAup4RNhBoaM6HZuQtKurc0AnZY4a3Ba9hdJmIVWJSvQWCt39cqAd+o1zFpgicS40SWZwQGJrrVLJOYWNTIDzV4dz+E1imY/Ot210m21MsVql3VhLGyUbrSnd+UKTmaK2DnXDkGp/FNE4DQFSCKNFabe0umih0cqTCPRNW4uFqSF4thmDwQjRZBpBIdk5QtoQEZJbrNAw8QzG+Tv1rCoF1SKi3QotvNoYVtcXapGKaaPqekFR1LUSq3o1D+rO78aYh+HO3b4xRLMnSKZBMCJK6esUIkgNFiYEAUa6HUMD3Tgmbml8vYQx1sgBk+FvLXzrFoL5vGIjZTrnijFMlCh1ADQKb32Bu3PDcL6cGl26ZbU0lcE5Oee884nSOErpu+Q27MgQ83rlkDSqTm43B73iemOKW+aFW+rervw3S2Ta6lgbQkk6FQXDV3EZvV1L9i5L3kQU0vep5HWQE8AqfZAuXTf/c6C+1r4gspYkVwsGI8jk+unO9Rg4dAwPRqaPgaOTi2TskDq45QQfnZeMiBssK0T3J1KD7XXHrfdOtNVJVhJsaHesyd31Q22gHeBSwOL6ajKZHwOymRQ9BcmSJ7RNFcvVScIWXj2v7AocPYWBW2293Dok7xLepK5DBR0rrspI5RNId/3Oklw/TpJFbEeNm5ZMqRo+hcsWwKJqKI26bGB2XsHrk6UQoQ/dd5PxtVUjLq33qk7mTUtj84IQs0fjoFMvsCw1ekItR9UfTXsS5sdiSLixItVi2QiiagVMAvennA9RnFLH13pHm9ymfqJD2RiXSL+M4saEXun1xwjtJtR6RstHlsobwXsVARI/7exDHflkZI0Cnnl06Xll8l7xzGEAvvGm/BNl+Oj0084ColS+qRPXo1rg3/wJajyUNsHKBWlJJLWj2qBvHJ4Ylx9AJ6avBm69HhWaRVFabNAME8CeiNTdYqhy0SoNafwArr2dWJ38+8aDdwDwlXeDMMCPrD3qMCAaDoIlobMWEFEgdHN9mpbJKyWAJ4HN8NsQGgySSRZPj2JXTGZQCcSVwFFEtevHYroMM9monJHFcsp//4dGy3S01j+EGL6pMIrENYxl9ZkIZNUWTVpkrmM4QR7T+0ziAv9SEYEnYkSVQETApIkdIsDIqFjJ9DxbkoqSE50FtpCcUESIRrskjhg5Q//P5k3MgsOapWqqaJyCBGJE2jAI+ixcq6AvWgxjVHAlv0vbERRZxWbKvNcFnZvARtwirzoYK3aKPcYWlmBTPKvdHXL4eXcU6YrZ+bAbrouO25MR41ImYZWp2F7VeMGVDB0gwcAqqQBEgCQjQiZsJw6JuHLEpvPhGnR4Nk7WTFwl0ML1PSaEci0NgJQ7kqqSqm0SkSLipKO79XbDQioNAAkS7jS3ecaeY0Ph5fz3GywGUjvP0WUHmI++/HBpEvrf734EQPKqSQLitpFgZyY421FdUJb7uZEYTeopYSEHKFADFAuiNigCVAhA1DbugCCtxhyILrlVCFcVmCYBDCMg18rHiEpHnpAk4LlCh2RKQug/bvW7gGYfsg+3YGo/RAAsCxbrmudwgf3016OR4oOPmR7fQdhWlMC5ZHQWfaZA5LX1DfhNXumL3LDun9aSj+QQCkEB+jSsceLQ57ipSBSDz+NSQ7/PXeb/z4u5K6GncFf5MJ/JSUJ/yj3i7Xw2ty90DrfKB/lCLi30U9xHvJXP57aH/phb4if4TW5f6Nu5S/wU/xb34EPtInHcJv8Rn7WV9xKdE/Jn+S3c/dA3uBf8am0WCv05F+e9/BMu78Gya4uzh6dfPZE+lncuY+xdqtqViGujDORgEbi0lfXC8EBAnlZgcSX06irXFuA58BknrRefipDSPMUBlPjIUxQfn5i702KG6QEc+GmSi5GrjCBv2iMY5GDVptAMKEeWAlzO9a1kL0ARV/AiDOP1m7KLs4+/JZxJggrKQ9oZRIsH1h1pcG4f9yI6uGhfkcLHtSqRagnORIDeQZYLowWQR/qJc5nu6agrB+N2JC2SsebE2OyhQJG7MBT+AbfA9fBT+HM2vsPd2WYBFpfLEUh0P3K6bH2dV1ye1hvw/UgJy8wwZIvTSO6xiBwuqWRpMTSPBrTZYkjKTRBl8KixD0E2Y4UTNrwB+YzTdztmxs1XFoauew12xlFG7ab0KTRcSC/PzZtmo0SYp6lRlDl8yhZ2ZVHkF7d+MwFVDZALdxsU8u5irTe0nnnk7frxX0HxP+F/eSlWEqSScdYWa65wGJJ9/ygOqaiCpihWz/Q9aD3cad97pBJQQTZvpbC14Bp2gKCJSZ3dYcMtvM61qwJt29hkNlA1zx2Uigp8zyAFiXbgWRx9JDgDVssaWI/0gZldqpw4teFEQHTB2TP63bFVh93pZJ2+drn1M1CioUjYZv0GE3qIaWCI01TbyXKeLJKSdEGSHCTTUD9LZovD2WroviiEFS7vEnu/EBEa7kL+XvaLX2unD/Yaqzql/pudAbDZZGK1OuBO0HBTjcdjQlSfDQMRankr25r4HGmNb3ukiSY5qGXYraGWxtOdpiVVstv4YjqavIFYpm6CjGrk9idUIoVLDbJsbRf6Fimmg05n60or4xXHcogmEpZFf+1uarbVTTF0bmiuz/zJHjsZKp2HrsyiWN2N9GPIk80o9YgVA1Ov3SalXRlr7pgR+5xrOguw2NcMFpdhMfaamUca1tZt2SCaaEvRGifZiLbQaiXagfDCURdtALL+mHZaoFUP2X1jA1BeV5zZfxvmfUeT3VVTKxdwbhGbEjuq685Sg284fMZf0Ixt1SeiuwGN4NFNH7ga4OReMB936vViTAA1W3DPhL8jbmmmrTe9EW6KpXwC542qH+YKt1yAu8M94k47DwAyCxIPKODOYYKCCX800RfnCmRx5xxK7gX3z7a8KUMZIGpxW+7ym2kDZZ4Tr6EU3myB4Nceq12OH4hEgp1PY33PZa/eEDoTgqCBhr/NM9QVeZE+7pDd96XGwJu+8ItDL76InNYuD/LOX7q7uu6MLH+77T6b+X50oL9z7WbT5FMtPTG1ChBAAanBLvm9CD8URD/6tSd8ADtqe3bs8k/QlTcEmgUChA92QKtx6LQPrXtqjsJQ4xSGgkZDLkQTBEldHRE+JwqCpEgC69ELj+dy2WwulUr7fQeZH5ct8CVzzw24mYDXAjfOlE+IMJZpjDmlbnZVNA1ZN2TsA/8soaq9q62WSyaVMHTKcf9VfcbutQ3Lflx9f3wUo+cymOKzyygUliqetMZV+qXS3OdjgqTX/Sh3Q9aL+i6K4jhqMXS7LeHIrIfkjiYcx47bjuXcFH4rPHnxq7rBat7UTFcOCkEGKuZ2Ixdw0QisoL1wpKsBGoWsOcnvXRLIKc3VmZCwIHcLfyg4Mw+MVphsocMwGbbCIlg0pKoEMulDUgh54vLWESgItYTXLDMJT6az2zu+IkHYOu6txZtD0ShEWw1uHF9afN8zGiRCEx8WFEwgzk8qzpqi1HxbiyVZYW/z0P5JYJ8MfHngTmnncMvV5gRVSBr6cNNq0sLU1WtIlNCIY5L5Sy+PUcoF9eKnmXIa4o06BTt3CDSPBcAF6I+XN9RoQI0WGxF6WQukzThnd7cFFoSOz6TbBwV91X4Ex/uQ8MY+GNvhg7+ma+XN2JoDInV0KzpCa2vNQAImi91DVqlK+JiotomjNqZgoggL3bVcQapfUI+0leqNCRrqZhrSUlVf4fCjwKQNs/ZVHzzbkwiEqPk7IF9WJ8HU6x3el+zI+aTZ2R95YJ1O55O+hLUHRvn4VU0NXUVEFbxS/gXtKDiOieza11bvijjeBTSLAARZoIAFMsgtYKOQowgICQok4GKw7B/1Y0E5zgDzjy9xMFNKf5xri9/13d0Pdd0kr/RSmfixoo3spQaMLyrsBAnV67a14UKMH4Gm60Pou5sbYQCDokL91vdGR4uKRtOaAkxDJgtscCELNtgcRZmWDJZgjASlLopcDiDUh5mlRAiB9i/Tx7/7gOaB+Y6sv7xjV+9C4Nsv7Veu/sGSE1nHES2Q8rt5C3irQ6Pfo7zI+Trw+votxl9e+Z3wczEJ2dRuyTCJiP15JJINYd0SLIOUPk9iQOWWqEgQLUozm29a83iQS2VLBQ+hWEbXmexGBHdfi0/rOoyfFbOoGoGLCW4flljmLDAtoK0o2iIv/uMnMlAywBFOI6aj+gTPEFPGOwZQ0s0LuSoE6lEsODyHNpS9Ty0OxBwmVB/0kBUVKLEZC8wUvuWEaEdRosmgahgcpOBJ2+Xj4rCNk15jgTwaZ9ePOrZVQJU4uqrhKzZuaqvt7PMDEwQVD+GZdZNov5zOBKci8LkGSjZ3A4IoOr2YLkgQ4cFvPLhzLIiS7IrKgpnDFo21CQfr4o2oVMXQ4c/pSuKN6qHg3PxZCy1Az53ZobfYO3bchAbmOTvklUqPhviW3/KKkr/DRTP8Ktw4vbbx80n+IPpid9LY0FIw/qHmNJ6oQZqgfMAS3ohKECL0cBX4cx9cPHYsifQ0lPGSrs/JYWfWngmSQAYDJJCiGB4aoJshRzlQbg4Qex+BNVIm2XpA8czv/95b+ODuF0uBOniTQ5lUvK/Q/o200xa2MTbaKKJ8GsW4DSlgqmFfulxKw5glcMJLKjsBr1eO7NuCCUE1bRUIrDIACyLsPQTMsfkAAwc6YDQlOBDm9/oQfPYPKDxih5sYuFznCuMdgiGTGg9M+RIgdpvk3BIaJnAQJJORgMA2GECOVEZZLRqUaAYqi8nf3MzYcFpImsOI9oPhcRvYLwJ1RDpB+w8Ye2DGODFkkSNCkgofrHA9/Bw+Bp8ctMwLMGUx8tXHpGrgPKQWXHVfVjkFp1C5j0r2bEvF4QF+rWKvpt10Did0YPOqGW3bSe6jHZ1ouzY5F9KFtYBCr9XhWZVF9DyabfoZMPWajLLwR6uptLxs5ErmazdAwbUKi8pSdvjBW4AXxrAbS0XmcTyj9YaV1ljo0OQVnB7pFgo0byCxJivfc6+2OjqZnXi389t6a7FhWio/BG/e+FocZFa7MYItGjGshVL14PTbT3WOsbDeClqe/2wWvgpn4Haqwb3SC7myNn8pu9ACLRFtCdDHLQuaLZcDfKrKM1tKAzRq4w1UnkusfoEiTEb9+HiaxPcIfNmgVqQnKyEuqNRQqS7Rurne4ZHvWOqsZcaUXHYkvfTo47UFkZHLED51Mn46sn9J0sd3CwQnoBbVfPAPcQKpnAGn+yMsADxhAygCfwgmDVSql7/r663piyLS7keoFASKYAQCBgsjlZ6Mf2a3mN2dNr9BbeBT1fLbVhCtkz0PSEVEJ8Oc5CoN1SczhkC14eXnmYh6lvkuJw0DcwTrMyhlAM6gphIBYlTMMM0yV3wje1eZ2etlIaF6U6vMSyLVcaAySDRWgzURjzqMCSt5Ninb8SqZXvo4lAGHRr1WdfzYoow2JfwYqthw09xGEAUcZVBK0ops+SZBPVHLLnQd2XF457cT9vr+L5iWeVwiFvljvlGewQe54casSfZMo2RVysrvMWZtu8PUypGIMtu80J3DaTQrnqIsbH/g4yxKE97BlrbZGKQBfHb/eiDkaSQhFCoCIVivtkKub8/oCLGIW47jtaqMTiV53/YDTciv3zmAV6faah5tRUZup4o/kx4AIn0xAqIsP/SJltv3j4bJcMvHcMGywKheK+UKW1ZiW3oRkqPN4Ud5Sp0zbx6KESx6ja9fiVoqGmryNf5LM82GzRq+ho4u8vKpoCAP+1Qo1/1avs+p2f7VWHKCQw05TUW/U9jrqm5W6c42e8v/R43VlCp16ObVZJboZ8DraHq1Nq0tVCwSCIWWyYKU4UKCtkRp3Io/H4HOuCBanVgcI8nu5oZoftXEjqzdQXVtPIHElcIBRiKCtPs6v5BLFesJ1GTR1HykXkxlhZm9J9CRBORAhCVK6o1DuffDcv/75oOfHPTcVTj//tPwyWtVrsGng+eKLvHw08BLK/Ad4HuFiKnAKvGRPRDToYBofxLcPYtxpgdeKJgIOLEPDw2Hvx5efDQDuXjAgozbDarTOwwZjcLro79HoGWSxrGZ10iCXvaZIR944UrOnU8f4tzx1MFsozw4vSoF+9MDUr2Bsiq/tfS+g+jw2SeNPjPn/BpdOEF1Zo2QN95xi0Ik58eQ0EhEh3M5e3EVdK86Toz6v7sXFYXd7F7dBGTygR42FKxTHTAE6eehaUIWxylZisDxn3cbNwmzEIit30qt8k8isJp9xwEWQDAi87ul5LxLCbT3w+HMxT3vzAQhx0ErCGY4BxAsyEOoYZtJ2nVypjotwdFofAzD3xHLbUflyq37qxZovJZZmKrqODHusVggEgl0lfiovDP/si8vsq8cyg9ik8qG4F0tfNu34s8PoJJ7kCPvdfe4EVM7JR9lIFId3Ir5l1A0k9EMssrzKgOb6tgk8tGT/1TmG9DK0mhtOFuRATJP20uTF+Lc3GNIbFFcfGneH6tAu5/w/hkHlRbLe+d31p2+8Omd+yPlBRKJ3pFHPPOs9frLQgM/jRLsTyXml++b/qZ9+k3vGc8GGSAR+On8q/7H02kKxdRRF+9UScgpPUe2pTjPxmXMgIshADMJIkaB4UulbUNGHakmlT29UXkqKRItCDwvCECtJOUdjqNkLYGj5ElHYGiMtCnDxoxiW9tSgW35tbSLlrCWtOzgJFMzboXDGydjDKaXAIYgBKwhgACl1oEyRgkSzLnoQDAajRuLWMXiiS056wtOaZt9e4Xlxbac5s69VM2dOb2ZTEiEiWOiTYfTCB/te8h1UakU9qaUkmOa7FQCb4pqaYC8rme+6/phVCuHNBUAds0CiXxgKi8pLTd1RSQD5+nd/TFRZ8yzdzpU8OZgg/vTL5HgDNQ1kaWmRVu13h1xhsWUGXv4RJHe/gJ49AtcQEXohqi3MpJ9v7u5uhl1TsaopDNCq8MqeVQDtz/OG/HP76Te74OFJupKGSwLekZ4VYQAE95UiZ4MTCZibNQaJgqqNaGan+M8DCulIiOxAUdu8sjlYhQLtKqJHEBCGAD/F4MKGuIBjmBOJcnOc0Qi26JYog/GUv48rIAZJD8vtwtK0M9phH7l2w0Q2SZ9KOh3uomT2+3t+tlwhWUWYuHyZUFckolz9e3FZ8eEgDlxGfmJro60Yf1kjNP8Av4WJgC1Wpz5Xrw3SQ9z4EkQ6Fw2pH1f3UtAz7trOFuGkXDXU5kE8EGbLeoNdYGBOis8TujxUPg7E0w0SCHto9KlKL5wajvWt/zcH7frQUgDT5TT9MvelQNskBCwBggJNSSbUxgitzQcWPmkmwBz8TJ47fWSxGAQ4MyxqHpSW4QHbGKSmOQBxKoCJfNFbTvns1FqNdwl5hxtHr6XwPHiAibbAqrXwxNeTk8X6q/LLrWXqC4dkAXfNS5rUMw1RDaWx8CLfGvDeQPwrQ19p6fnnY3otyAgHYKUO25sWB/78pGYmUfHPqIGPyjsVm6Isnfnnet0FtRVB4MrJKL2dYalFVa1GZWcsrryY1kAUjXUPkRt4iFlSH/qJ8CzKHveX4LP4JXiV/1P088hnZD0EeyDC2+8ygtqfp9I7XIos9R+yciqOXl6+maQyG0afChotXdaHC6blbSw6EOqNxRZmkDuZYls/Tc5F/XFif8eHCtMi1eefeHeug0znLZ9rp361k9cahf6KWn8R18IpGj6Letv33dpKakbAjLsiX2wo1atd1RKbbXPHkH+/HNTMwgEgxAWpn1C4qIFgzL036j1zFxnYkTT1ShsrRQEVegVuhVpj+f5ALq878ROjEhJ/4kFIMvHl77z+bxen8vlbkmhndMOKQr7t3T+bRRsZAsGOVHssq6yqoZo64seqZIZwxWle4UKzUntT5F5a5tv3RkdzJN6qF02ghyZ48nFxbFMtbr4JUY1L1lBKBLnQ0olLV7O8CB7Ln2ov4WcSea3K2UuZJzpcc+LPYy8hYAm6kxG03XD0C3LTNimlUWUZIOM4Gm4C+qEhSL7BsNvZJES7kAZe38gB101bOHaCZ5UpOLDFqX1PB4CyMdMwVYxf/qNZ/G/668i+Lj49ngLC7udz5+81ncKa4yJzc+WU2k7RarcVUNN/aEnvx718k6XJ+10aQoVfoP/hQVcU41WqHhUWnSRbrNQpSHj2A6SditETV0ZVSGOqmirj5EUa1vaiAFEHzygc4litygyuMs614o6c7fEipYkUzFMnA4wWwHnilUZirAwHBPMQ2BGsnOkd8EeaML5/FCPz1RHycIrdXNWxDzeiB/LXrpwqXNTfSuhpwuKWcmFD7F6PLnmyQMvb37ri/1Huw9DuoC2V9qCf0gYGPMlSIXlrOpa9y7c7LwV+eLkM7brPGvx6aXvUy1LfN7cx7ms6ZIAlfSx/KmLdyenLbksoh3E3KKezHgZD92K1do6807mmm6a2lnrHptIWNl0OmsamhaLqbrMcXzO8PIRWCvDWrgRpvLx05dYALRDx2eWx548Q3zzBhKML1ovptFgfY0Lheerv4Y3stD//RrK8hn3m/6CmhvrJbJXIBE7bzBz0ovOO65ZSMudN2SixHlD2zSpIj9dHl6u6XKLjloEgaT9xZ/Zo2ftICpf8GjxT8ZOfchdFZFlO4/dLIlgYJvCr3QNs0+Kh16cQVYWJ0uOvCOWY4QfkLKWuweV7eXeoVkd5Y4b/2wYPfVxKNmBxJIFSUmIQEHEsjQn8C8EJNZPEggckEADB/S/xaBUsIyEEhkSu3i5Hxzk0vdh+BM4B+58R366RSy/fkkVJPXivqYN7UVt+X5hgEtBakmc3BdrOfEZUxkE0sXE+WfBw/LsB5BoXNyOQ7MQyOd3EPt69LKY2N9Rni4QB4ungXbBR9T4Os4jcIkC9AGREm+tgP7yiVWn1ca+mSAKwEC09Xm4SSEBZpcZvxqOkdGIaWljryaGQBDuZga6ajpBuww4ZslLXqAXdwVcVO/7QGDqjxmHBw7mBfqe++4fqy4onM4QH19+y4VckLAMU85UR132Sop/DuVZJOqdeGoctj7+XrA/7tbvOfQckN/RKMYmsJxWCIAeALzDAAYGDk/Td39v7P25WWEAAADeXf65SnfK1g39WggF9T2k1fp/0hCBjPD/5oPRb++D673AGcDlpxArsGRt9feAfBSQW0f5mTvkIGY7GmB6f/H5UeV/0I+75CkqjxjnlNucXfET9MuVbPbhrvY66FMXuZ+4ze+Sms8w2+FX6CjdeXgF7slKpFxo6ByZrZjFSBuc+6jDHk67G8lP8glOWdswy1vcIZfi/4QXAjmCA5XPtMcT11Ee4S4uIbfjHplOyQP5Ms+UyP03U3FYId0B8S4pVWi7K76C4WjWhwMotJLYOMzVI3Rn96ebpJnW4WRKzClh+vDwvOAxBQTOdMC3hl2lWq0dYySNpdzuNcc3kHv0UT5bLiZm/K5LBbwPpfCIBHyeZrEC5JF+ChiJVY8jZiDIywRG/IWR/pNb9HkdwEH/f4LzISBZAiqTJ4neSabLmJMXUeqliFxJpV8l2eVUzsN5OZoJz2ER6qNiPcyGE7ABzugboSzH2jrqzl/M64fiSKxzU1cVWre6iyZXF6EFHsCptsvhsLYh8yBgi7o2Xgro/vIxTR34dnbO3cV2542PPYUMeNv9w5JV3Yv8w47z/ZP2aN2Wer1VxXiRdhykT9y6NP+YLo1VTgA0AP4a4K8lB7TTdKfXvqy1/126bkYVfem6WN5S7RuEarAJO3zAplAk+3F42VEO3TFztB93f37F1gh/w1u43LMd7pweDfGFXi8Xg/TdYudaKFkdMl/6r5SzI6kD82Wxy2DM0lfR8qjomvv6UlHG1FU41f1zFJS9VPX7pb6fVfVcnLYWPfY1bvwa1TeEnMWi5PF3pmVLKT5f5KIH0XPBsqfZiyGFe1vUxxbO7qA6qjnD8/L9drjQuB1y6u5oBDk7PqxzfLNO8uvnPJMZfWphGsDbBevB+N3ch3NbQBGABLx2/58UVjmggeDSerFLXvmFxndZI75/hMNeAARgUARmEtqwB4BOE9/h+m2L5226KslnTd0u/tov4EDCtoTJ0lsD2bnX5m0mdRFXMdvbOwF8Epf4YiYPzmfHi1XPztjzerHllJT+2+VP0kNgO8ACQsUE0KXv3xpWVhScQgBOHetNkKieEHx/hZJSXWjKysLwL2TMRlwKvubjDgIM1IEgSNyKd5wr0SXXFJ9EGvb05dfoe2dz/JJalqFxauOfTHGGJZI3DkD0eHhWxNiA4HHg5l8Koi2N4FIKZlcaSZGQJETjUfUUsKYiBTIVGsNUD+ebJptegGKmwq+iq/sIMIx/xY98NtGSbMKSVInb2Uq5QpuWGWRnCFdx1EqUDFWkFTlOi8usKTDNhwmQo5WaNt52mGIqU+7ERy3+PeE0hSbLxRQi+FlyGEzZWQy8h1a0s7kK5VWt0OTa5Qdt1rupVpESU4wxWu7OeomVa6y0GmwsIUCYSW6hih8t3cj6CDTFciZe/CGF4jDZNIuJXMFUm58rxdlYcSbMOQXKmsq32ok5bLQCdPaPqhxTNZs0lqmUpbnLKleL6cki0x3LTkyOUrrYVKW0WX5GjcZKHdrUzFgWreyOY96JWsGk3lKZ17ohLpOfz6/+kip4bAe4LXGSpZHDmJ9k8994PquFOpoE566Dn8vRxzUhaNyUq82N5lHM7uMiuHFn+NHmQV/J052O9bNbbnec0cceedE2iDJv9h9tum9L+cjjAfLLDulNcUyVaXfd6zk2IG925sKVBj1q8lqe+Rlqbf4UJ3T9fO4jDzw0NU9+IFsNj8NBGf5RRgopsFEF+dOPhQkHh4BsRJHQhZlmhvwimh4GtkIFdoaDLzxC70UoYhYZsSizzFSsJBIyCmpjjI0msnFFiW68x8qLqZRJGet+403AbQZmE+XNYouhG/qPitL4lP3dsarMscs/zfZDmbJky+m4L5VbvEnlyS+hAqyW+lpshRnNqwinuarVMA9pS6TRkuhsyR8pRbObzEHavkO/3C1/EFigXnGKUslZUbBmq2TGtsXCa2moaKpOPUNQW02atXBg8uw29qG2Bgwa4iAqHo0P5xNqc84xx1mF+sPjoe2RZzcBiWAh0mRwrNmCUxYtWbYS64IU6X4zktQJPqpOS9iV7IwefIxT/IZcKSXdAJYO29FP2bmsRVwXqxwOVHgffHROjR8IVOtbikoQZWh7yYxi0b1Ppv4mK8i1aksHbwllt5CozncXg8XhCUQSGWRi8j+uKlRD1ZgGJ0iqL776hrNSkVUWPPHUCy/rMSzkojILf1NAkhVV0w3Tsh3X8zFYHJ5AJJHFKFQaPZwTZ7LYEhwuT5IvJS0jKyevoKikrMIWLiIyP5ldT0dUK2xw60N2tQ0Gp2RVM5CaE+z0475AhpmecYg9FOpkCyVEn1XSpM4VR50RrCSTYh8BtNXNfr5A2mNnTkGYPop3EzDULKMCIsTsnWdSBQsVsyNFc8NnCDEZu00RROjjWJA+5z4ZcnNlP7mti3+PM7BOX2/Algmiph04mlh2eIC5kjK1KpMKwvQFJkSfdN0B1kMKP144FPhhuh7bLALMPaRMKR16YotQAu5dw1jGkxF6twJPxaXOTIsuisLJSChL8fNE8hqP4pnVWlr2QyN4RlpEs9MS0h1VTp8PUme20EnDsKdqFcuzgFu9B/3LxU53yJ0pQvbRWEOhILV/pFwsU/p3x7zo+RoOfI2FiqTq4CUtodYoqHPYOoX4n6qMpWaP2Zg2fNqBhq+9hvIsa82+H7ootDwsuZQ1GtqW/on5M0HSUR6/L0GTxX9bbcyYRI6pRAkK02TK2unnpuFK+o1w1KME0tKjZLiQPtaTML0OmKZhmxfOD+1Px7QECTPZ17joRg+b5WkRENokwDzaBVN8dWqLSKDoRRoqwqlqZre4E9fTkS10j6jKa/Sc6nnTdeZuod1rcN+pY3mw6NqtNNU6r3uFq1wtTVCQK/uBM3Hwod8ulR+TPUlZ72QzlU8fR/VcQKvJx1kYgHvon+BItH67DFdmm0uFtvYLe1+ECx9tg1JUkVwXFc2asjxKtTO9nI6rdaNTvPqRVnXQXaYrovFAbfQRdJUUTBKOq5SY7CqwBh81x0NVtansdHt111RUw1dVmw4KZ8XcG3HOeO54PbkmHwUv+mHzT1J+aR5KfIcL2cnbSHu4VJhCZhqpKWSmXJpibioqU1WbcmkmIT3NJmobCv+T5LrdvD3Ot4RoZDILa9KLm9hIpW0wIgAKZE16kSOHxS5kAdhwDBtuRRZAM5EoAOgG4MHhpWkHpDm/TeAA3DsA1Fo3DiMCoEAWtUYOAATECrAAACAHAEAlAPAgaNoBJQqYKMAh7rFBaafpzRg57s+LFLPUn1hYSmLFu3T9GF0IlMXEM4HU6zYN89cKqgAWFmXk1RRJWTQxK5mYtsq2QtVUYkU982BiyvVd8+k+SrVzksyfQKOysA8uuWBQ53HelsTy16iqFV4Hqm5ARb+CzlpPNeqqugd6wgxW5SWlXs3dPTzdqNrgrPZkvXtY7g/PjP8ZYluqt9kPFKtMSkn2MmWqeNpNpqdhTckzdtU7Nnhi61NgtdnPhkvCx75KTg/oHNHbheuj5UqZ8qTB8YKCs1osNY/ZYGnejl7PLSd8Q1i0tgiGT3T4OqumxAlNb8v25SrNWjIiTpluwAnG00NmJKboWx+z/5ST+AEAAAA=) format('woff2');}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:100 800;font-display:swap;src:url(data:font/woff2;base64,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) format('woff2');}
 .iwb-root, .iwb-settings, .iwb-link-shell {
   --iwb-bg: var(--dsw-alias-bg-base, #15171c);
   --iwb-panel: var(--dsw-alias-bg-layer-1, #191d24);
@@ -79886,7 +81186,83 @@ var CSS2 = `
      button black on black in the light theme.) */
   --iwb-on-accent: var(--dsw-alias-label-on-brand, var(--dsw-alias-bg-base, #fff));
   --iwb-shadow: var(--dsw-alias-shadow-1, rgba(0, 0, 0, .32));
-  /* \u2500\u2500 the syntax palette (THEME-03) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  /* \u2500\u2500 the design tokens of this round (PRD-v8 \xA72.3.1) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+     The host owns the COLOURS of the workbench; this layer owns its SHAPE:
+     the radii, the spacing, the shadows, the easing and the type scale.
+     Before it, every rule made its own small decision - a 6px radius here,
+     a 7px one there, a 120ms transition in one place and none in the next.
+     The result looked like a collection of widgets instead of a product.
+
+     The surfaces are the other half of the story. The host gives the workbench
+     a base and two layers; what it does not give is a NAME for "the surface
+     a row lights up when the pointer is on it" or "the tint of the selected
+     row". Those are the surfaces the eye reads as depth, so they get tokens
+     of their own - mixed from the theme, never a hard-coded grey. */
+  --iwb-radius-xs: 4px;
+  --iwb-radius-sm: 6px;
+  --iwb-radius-md: 8px;
+  --iwb-radius-lg: 12px;
+  --iwb-radius-pill: 999px;
+
+  --iwb-space-1: 4px;
+  --iwb-space-2: 8px;
+  --iwb-space-3: 12px;
+  --iwb-space-4: 16px;
+  --iwb-space-5: 24px;
+
+  /* One easing and two durations for the whole workbench: a product that
+     animates in a hundred different ways reads as a hundred different
+     widgets. */
+  --iwb-ease: cubic-bezier(.2, .8, .2, 1);
+  --iwb-dur-fast: 120ms;
+  --iwb-dur: 180ms;
+
+  /* The surfaces, from the deepest to the highest. */
+  --iwb-surface-base: var(--iwb-bg);
+  --iwb-surface-raised: var(--iwb-panel);
+  --iwb-surface-sunken: var(--iwb-panel-2);
+  --iwb-surface-overlay: var(--iwb-overlay);
+  /* The pointer on a row. Mixed from the theme's own text colour, so the
+     hover is a hint of the foreground - never a grey that belongs to
+     neither theme. */
+  --iwb-surface-hover: color-mix(in srgb, var(--iwb-fg) 7%, transparent);
+  --iwb-surface-active: color-mix(in srgb, var(--iwb-fg) 13%, transparent);
+  --iwb-surface-selected: color-mix(in srgb, var(--iwb-accent) 17%, transparent);
+  --iwb-surface-selected-soft: color-mix(in srgb, var(--iwb-accent) 9%, transparent);
+  --iwb-surface-glow: color-mix(in srgb, var(--iwb-accent) 32%, transparent);
+
+  /* The light of the room. A surface is not "flat with a border": it is a
+     solid that catches light on its top edge and is shaded underneath. The
+     sheen is made of white and black - not of the text colour - so it stays
+     a highlight in a light theme and a shade in a dark one. */
+  --iwb-sheen: linear-gradient(180deg, color-mix(in srgb, #fff 13%, transparent) 0%, color-mix(in srgb, #000 7%, transparent) 100%);
+  --iwb-highlight: inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent);
+  --iwb-shadow-sm: 0 1px 2px color-mix(in srgb, #000 26%, transparent);
+  --iwb-shadow-md: 0 4px 14px color-mix(in srgb, #000 30%, transparent), 0 1px 2px color-mix(in srgb, #000 22%, transparent);
+  --iwb-shadow-lg: 0 18px 48px color-mix(in srgb, #000 44%, transparent), 0 2px 6px color-mix(in srgb, #000 26%, transparent);
+  --iwb-focus-ring: 0 0 0 2px var(--iwb-bg), 0 0 0 4px color-mix(in srgb, var(--iwb-accent) 72%, transparent);
+  /* \u2500\u2500 the glass of the floating layers (PRD-v8 \xA72.3.5) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+     The material of the recent system UIs: a surface that is partly
+     TRANSPARENT, that catches the light on its top edge, and that blurs
+     what is behind it.
+
+     It is applied to the FLOATING layers only - the menu, the dialog, the
+     popover, the toast. Those are the surfaces that really sit ABOVE the
+     content, and there are only a few of them at a time.
+
+     The dense surfaces - the file tree, the editor, the bars - stay SOLID on
+     purpose: a tree behind a blur is unreadable, and a blur on every row
+     would cost a frame per row. The discipline of the repository (a
+     performance gate on every panel) is the reason the effect is small.
+
+     The blur is behind a "@supports" rule (at the end of this stylesheet):
+     a browser that cannot do it keeps the plain, opaque surface - the
+     workbench never depends on it. */
+  --iwb-glass: color-mix(in srgb, var(--iwb-overlay) 74%, transparent);
+  --iwb-glass-blur: saturate(180%) blur(20px);
+  --iwb-glass-edge: inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent), inset 0 0 0 1px color-mix(in srgb, #fff 9%, transparent);
+  --iwb-glass-shadow: 0 20px 52px color-mix(in srgb, #000 46%, transparent), 0 2px 8px color-mix(in srgb, #000 26%, transparent);
+  /* \u2500\u2500 the syntax palette (THEME-03, redone in PRD-v8) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
      The host has no syntax aliases, and no single colour can serve both of
      its themes: a colour that clears 4.5:1 on white needs a relative
      luminance of 0.183 or less, while the dark code layer #232830 needs
@@ -79899,47 +81275,60 @@ var CSS2 = `
      while the lightness comes from the host - and that is what makes one
      token readable on a light theme and on a dark one. Nothing switches on
      prefers-color-scheme, and nothing waits for the host.
-     The SHARE of the hue is what differs per theme, and it has to: in a light
-     theme the text is near-black, so a LARGE share of the hue keeps the token
-     a colour (with the dark theme's 52% the violet washed out to near-black
-     and the code looked unhighlighted); in a dark theme the text is
-     near-white, so a SMALL share lifts the hue just far enough to clear the
-     dark code layer. The branch follows the host through light-dark(),
-     which resolves on the color-scheme the host declares for its theme
-     (the DSH host writes :root { color-scheme: light|dark } for every
-     theme - app or system). Nothing switches on prefers-color-scheme, and
-     nothing waits for the host. tests/styles-theme.test.mjs does the oklab
-     maths and checks every token, in both branches, on all three surfaces
-     (white, the editor background and the code layer). */
-  --iwb-syn-comment-light: color-mix(in oklab, #6b7482 80%, var(--iwb-fg) 20%);
-  --iwb-syn-comment-dark: color-mix(in oklab, #6b7482 52%, var(--iwb-fg) 48%);
+
+     The SHARES are the part that decides whether the code looks ALIVE. Each
+     branch mixes the hue with the text colour of its theme, and the two
+     shares sum to 100%:
+
+       light: 76% hue + 24% near-black   -> the hue darkens into the page
+                                            but keeps its identity;
+       dark:  86% hue + 14% near-white   -> the hue stays VIVID on the dark
+                                            code layer instead of being
+                                            washed into a pastel.
+
+     The old palette mixed 80%/52%, and the dark branch came out dusty: a
+     keyword was a pale violet and a string a pale olive - readable, but
+     nobody would call it modern. The hues below were picked for CHARACTER
+     (a keyword never reads as a string, a type never as a function), and
+     their lightness was then SOLVED for the most colour that still clears
+     5.25:1 on white, on the dark editor and on the dark code layer.
+
+     The branch follows the host through light-dark(), which resolves on the
+     color-scheme the host declares for its theme (the DSH host writes
+     :root { color-scheme: light|dark } for every theme - app or system).
+     Nothing switches on prefers-color-scheme, and nothing waits for the
+     host. tests/styles-theme.test.mjs does the oklab maths and checks every
+     token, in both branches, on all three surfaces (white, the editor
+     background and the code layer). */
+  --iwb-syn-comment-light: color-mix(in oklab, #638392 76%, var(--iwb-fg) 24%);
+  --iwb-syn-comment-dark: color-mix(in oklab, #638392 50%, var(--iwb-fg) 50%);
   --iwb-syn-comment: light-dark(var(--iwb-syn-comment-light), var(--iwb-syn-comment-dark));
-  --iwb-syn-string-light: color-mix(in oklab, #2a8359 80%, var(--iwb-fg) 20%);
-  --iwb-syn-string-dark: color-mix(in oklab, #2a8359 52%, var(--iwb-fg) 48%);
+  --iwb-syn-string-light: color-mix(in oklab, #259f56 76%, var(--iwb-fg) 24%);
+  --iwb-syn-string-dark: color-mix(in oklab, #259f56 76%, var(--iwb-fg) 24%);
   --iwb-syn-string: light-dark(var(--iwb-syn-string-light), var(--iwb-syn-string-dark));
-  --iwb-syn-keyword-light: color-mix(in oklab, #9455b5 80%, var(--iwb-fg) 20%);
-  --iwb-syn-keyword-dark: color-mix(in oklab, #9455b5 52%, var(--iwb-fg) 48%);
+  --iwb-syn-keyword-light: color-mix(in oklab, #a870e9 76%, var(--iwb-fg) 24%);
+  --iwb-syn-keyword-dark: color-mix(in oklab, #a870e9 76%, var(--iwb-fg) 24%);
   --iwb-syn-keyword: light-dark(var(--iwb-syn-keyword-light), var(--iwb-syn-keyword-dark));
-  --iwb-syn-type-light: color-mix(in oklab, #12838d 80%, var(--iwb-fg) 20%);
-  --iwb-syn-type-dark: color-mix(in oklab, #12838d 52%, var(--iwb-fg) 48%);
+  --iwb-syn-type-light: color-mix(in oklab, #0099a8 76%, var(--iwb-fg) 24%);
+  --iwb-syn-type-dark: color-mix(in oklab, #0099a8 74%, var(--iwb-fg) 26%);
   --iwb-syn-type: light-dark(var(--iwb-syn-type-light), var(--iwb-syn-type-dark));
-  --iwb-syn-number-light: color-mix(in oklab, #a1651c 80%, var(--iwb-fg) 20%);
-  --iwb-syn-number-dark: color-mix(in oklab, #a1651c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-number-light: color-mix(in oklab, #d07200 76%, var(--iwb-fg) 24%);
+  --iwb-syn-number-dark: color-mix(in oklab, #d07200 74%, var(--iwb-fg) 26%);
   --iwb-syn-number: light-dark(var(--iwb-syn-number-light), var(--iwb-syn-number-dark));
-  --iwb-syn-function-light: color-mix(in oklab, #2a6cbd 80%, var(--iwb-fg) 20%);
-  --iwb-syn-function-dark: color-mix(in oklab, #2a6cbd 52%, var(--iwb-fg) 48%);
+  --iwb-syn-function-light: color-mix(in oklab, #2a8ee7 76%, var(--iwb-fg) 24%);
+  --iwb-syn-function-dark: color-mix(in oklab, #2a8ee7 76%, var(--iwb-fg) 24%);
   --iwb-syn-function: light-dark(var(--iwb-syn-function-light), var(--iwb-syn-function-dark));
-  --iwb-syn-property-light: color-mix(in oklab, #4a63b8 80%, var(--iwb-fg) 20%);
-  --iwb-syn-property-dark: color-mix(in oklab, #4a63b8 52%, var(--iwb-fg) 48%);
+  --iwb-syn-property-light: color-mix(in oklab, #009b8f 76%, var(--iwb-fg) 24%);
+  --iwb-syn-property-dark: color-mix(in oklab, #009b8f 74%, var(--iwb-fg) 26%);
   --iwb-syn-property: light-dark(var(--iwb-syn-property-light), var(--iwb-syn-property-dark));
-  --iwb-syn-tag-light: color-mix(in oklab, #bb404f 80%, var(--iwb-fg) 20%);
-  --iwb-syn-tag-dark: color-mix(in oklab, #bb404f 52%, var(--iwb-fg) 48%);
+  --iwb-syn-tag-light: color-mix(in oklab, #e45c79 76%, var(--iwb-fg) 24%);
+  --iwb-syn-tag-dark: color-mix(in oklab, #e45c79 74%, var(--iwb-fg) 26%);
   --iwb-syn-tag: light-dark(var(--iwb-syn-tag-light), var(--iwb-syn-tag-dark));
-  --iwb-syn-heading-light: color-mix(in oklab, #1e70e2 80%, var(--iwb-fg) 20%);
-  --iwb-syn-heading-dark: color-mix(in oklab, #1e70e2 52%, var(--iwb-fg) 48%);
+  --iwb-syn-heading-light: color-mix(in oklab, #6684f4 76%, var(--iwb-fg) 24%);
+  --iwb-syn-heading-dark: color-mix(in oklab, #6684f4 76%, var(--iwb-fg) 24%);
   --iwb-syn-heading: light-dark(var(--iwb-syn-heading-light), var(--iwb-syn-heading-dark));
-  --iwb-syn-invalid-light: color-mix(in oklab, #bb352c 80%, var(--iwb-fg) 20%);
-  --iwb-syn-invalid-dark: color-mix(in oklab, #bb352c 52%, var(--iwb-fg) 48%);
+  --iwb-syn-invalid-light: color-mix(in oklab, #ee564a 76%, var(--iwb-fg) 24%);
+  --iwb-syn-invalid-dark: color-mix(in oklab, #ee564a 74%, var(--iwb-fg) 26%);
   --iwb-syn-invalid: light-dark(var(--iwb-syn-invalid-light), var(--iwb-syn-invalid-dark));
   --iwb-sidebar: var(--dsw-specific-sidebar-fill, #181b21);
   --iwb-mod: #4c9aff;
@@ -79954,8 +81343,22 @@ var CSS2 = `
   --iwb-git-conflict: #f14c4c;
   --iwb-git-ignored: #b08b4f;
   --iwb-excluded-bg: rgba(176, 139, 79, .16);
-  --iwb-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
-  --iwb-mono: "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, "Courier New", monospace;
+  /* The type of the workbench (PRD-v8 TYP-01).
+     The Latin faces come first and the CJK faces last: a Latin face has no
+     CJK glyphs, so the browser walks the list on its own for every script.
+     "Segoe UI Variable Text" is the Windows 11 face - the same design as the
+     "Inter" it replaces, so the workbench looks the same on every machine.
+
+     Inter and JetBrains Mono are not merely WISHED for any more: they ship
+     with the plugin (see fonts.js), so the workbench looks the same on a
+     machine that has neither of them. */
+  --iwb-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --iwb-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+  /* The type scale (PRD-v8 TYP-03): three levels and no more. */
+  --iwb-text-title: 12px;
+  --iwb-text-label: 11px;
+  --iwb-text-body: 13px;
+  --iwb-text-mono: 12px;
 }
 .iwb-root {
   container-type: inline-size;
@@ -79975,14 +81378,92 @@ var CSS2 = `
   background: var(--iwb-bg);
   color: var(--iwb-fg);
   font-family: var(--iwb-font);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--iwb-text-body);
+  line-height: 1.5;
+  /* PRD-v8 TYP-02: the text of a workbench is small and dense, and the
+     default rendering on Windows makes it look like it was printed on a
+     dot-matrix printer. The smoothing turns the stems back into stems. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Every number the workbench shows is a COUNT: the line number, the word
+     count, the number of changes. They have to line up in a column, so they
+     get tabular figures - proportional digits make a table of counters jump
+     around on every update. */
+  font-variant-numeric: tabular-nums;
+  /* The ligatures of the code face. Cascadia Code and JetBrains Mono draw
+     the "not equal", the "greater or equal" and the "arrow" of an operator
+     as ONE glyph; on the code of a modern IDE that reads as "this is code",
+     and it costs nothing: the face is already there. */
+  font-variant-ligatures: contextual;
+  /* Segoe UI Variable (Windows 11) is a variable face with an optical size
+     axis: it draws itself differently for a 13px label than for a 28px
+     title. The browser only uses that axis when it is told to. */
+  font-optical-sizing: auto;
   user-select: none;
   -webkit-app-region: no-drag;
 }
 .iwb-root *, .iwb-root *::before, .iwb-root *::after { box-sizing: border-box; }
-.iwb-root button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+/* \u2500\u2500 the buttons (PRD-v8 \xA72.3.3) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The old buttons were flat: a hairline and a fill, nothing else, and no
+   transition at all. A button that does not move and does not react reads
+   as a drawing of a button, not as a button.
+
+   The rules below give every control the three states it needs (rest, hover,
+   pressed), a focus ring a keyboard user can see, and a motion small enough
+   to read as "the surface answered me" rather than as an animation. */
+.iwb-root button {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer;
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease),
+    color var(--iwb-dur-fast) var(--iwb-ease),
+    border-color var(--iwb-dur-fast) var(--iwb-ease),
+    box-shadow var(--iwb-dur-fast) var(--iwb-ease),
+    transform var(--iwb-dur-fast) var(--iwb-ease),
+    opacity var(--iwb-dur-fast) var(--iwb-ease);
+}
 .iwb-root input, .iwb-root textarea, .iwb-root select { font: inherit; color: inherit; }
+.iwb-root button:focus-visible { outline: none; box-shadow: var(--iwb-focus-ring); }
+.iwb-root button:disabled { cursor: not-allowed; }
+
+/* The icon button: a ghost until the pointer arrives. */
+.iwb-iconbtn {
+  width: 26px; height: 26px; border-radius: var(--iwb-radius-sm); display: inline-flex; align-items: center; justify-content: center;
+  color: var(--iwb-muted);
+}
+.iwb-iconbtn:hover:not(:disabled) { background: var(--iwb-surface-hover); color: var(--iwb-fg); transform: translateY(-.5px); }
+.iwb-iconbtn:active:not(:disabled) { background: var(--iwb-surface-active); transform: translateY(0); box-shadow: inset 0 1px 2px color-mix(in srgb, #000 22%, transparent); }
+.iwb-iconbtn:disabled { opacity: .38; }
+.iwb-iconbtn.iwb-on { color: var(--iwb-accent); background: var(--iwb-surface-selected); }
+
+/* The text button: a solid that catches light. */
+.iwb-textbtn {
+  height: 26px; padding: 0 10px; border-radius: var(--iwb-radius-sm); display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--iwb-border); color: var(--iwb-fg);
+  background: var(--iwb-sheen), var(--iwb-panel-2);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm);
+}
+.iwb-textbtn:hover:not(:disabled) {
+  border-color: var(--iwb-border-strong);
+  background: var(--iwb-sheen), color-mix(in srgb, var(--iwb-fg) 7%, var(--iwb-panel-2));
+  transform: translateY(-.5px);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-md);
+}
+.iwb-textbtn:active:not(:disabled) { transform: translateY(0); box-shadow: inset 0 1px 3px color-mix(in srgb, #000 24%, transparent); }
+/* The primary button sits on the brand colour, so its text is the host's
+   "on brand" label - a pale brand colour would make white text unreadable. */
+.iwb-textbtn.iwb-primary {
+  background: var(--iwb-sheen), var(--iwb-accent);
+  border-color: transparent; color: var(--iwb-on-accent);
+  box-shadow: var(--iwb-highlight), 0 4px 14px var(--iwb-surface-glow), var(--iwb-shadow-sm);
+}
+.iwb-textbtn.iwb-primary:hover:not(:disabled) {
+  background: var(--iwb-sheen), color-mix(in srgb, var(--iwb-fg) 10%, var(--iwb-accent));
+  border-color: transparent;
+}
+.iwb-textbtn:disabled { opacity: .42; }
+.iwb-textbtn.iwb-danger { color: var(--iwb-error); }
+.iwb-textbtn.iwb-danger-solid { background: var(--iwb-sheen), var(--iwb-error); color: #fff; border-color: transparent; }
+.iwb-textbtn.iwb-small { height: 22px; padding: 0 8px; font-size: var(--iwb-text-label); }
 .iwb-root ::-webkit-scrollbar { width: 10px; height: 10px; }
 .iwb-root ::-webkit-scrollbar-thumb { background: var(--iwb-border-strong); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
 .iwb-root ::-webkit-scrollbar-thumb:hover { background: var(--iwb-muted); border: 2px solid transparent; background-clip: content-box; }
@@ -79991,23 +81472,36 @@ var CSS2 = `
 
 .iwb-topbar {
   height: 36px; flex: 0 0 36px; display: flex; align-items: center; gap: 8px;
-  padding: 0 10px; border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
+  padding: 0 10px; border-bottom: 1px solid var(--iwb-border); background: var(--iwb-surface-raised);
+  /* The bar is the lid of the workbench: it casts a soft shadow on the body
+     below it, so the body reads as "inside" and the bar as "on top". */
+  box-shadow: 0 1px 0 var(--iwb-border), 0 3px 10px color-mix(in srgb, #000 16%, transparent);
   position: relative; z-index: 6;
 }
 .iwb-topbar button { position: relative; z-index: 7; }
 .iwb-project-select {
   display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px;
-  border-radius: 6px; max-width: 320px; min-width: 0; cursor: pointer;
+  border-radius: var(--iwb-radius-sm); max-width: 320px; min-width: 0; cursor: pointer;
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease);
 }
-.iwb-project-select:hover { background: rgba(127, 127, 127, .12); }
+.iwb-project-select:hover { background: var(--iwb-surface-hover); }
 .iwb-project-select .iwb-project-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-project-select .iwb-project-path { color: var(--iwb-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-branch-chip {
-  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
-  border: 1px solid var(--iwb-border); border-radius: 999px; color: var(--iwb-muted); font-size: 11.5px;
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+  border-radius: var(--iwb-radius-pill); color: var(--iwb-muted); font-size: 11.5px;
   max-width: 240px; overflow: hidden;
+  /* The chip is PART of the bar, not an object lying on it. A sheen and a
+     shadow made it read as a pasted-on sticker from another layer; a tint of
+     the brand colour and a hairline of its own say the same thing without
+     the seam. */
+  background: color-mix(in srgb, var(--iwb-accent) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--iwb-accent) 24%, transparent);
 }
-.iwb-branch-chip .iwb-branch-name { color: var(--iwb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iwb-branch-chip .iwb-branch-name {
+  color: var(--iwb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--iwb-mono); font-size: 11px; letter-spacing: -.01em;
+}
 .iwb-ahead { color: var(--iwb-success); font-variant-numeric: tabular-nums; }
 .iwb-behind { color: var(--iwb-warn); font-variant-numeric: tabular-nums; }
 /* The badge is a button (PUSH-02): it keeps the colour of the badge it
@@ -80015,28 +81509,6 @@ var CSS2 = `
 .iwb-ahead-btn { background: transparent; border: 0; padding: 0 2px; cursor: pointer; }
 .iwb-ahead-btn:hover { text-decoration: underline; }
 .iwb-top-spacer { flex: 1; }
-.iwb-iconbtn {
-  width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
-  color: var(--iwb-muted);
-}
-.iwb-iconbtn:hover { background: rgba(127, 127, 127, .14); color: var(--iwb-fg); }
-.iwb-iconbtn:disabled { opacity: .4; cursor: default; }
-.iwb-iconbtn.iwb-on { color: var(--iwb-accent); }
-.iwb-textbtn {
-  height: 26px; padding: 0 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid var(--iwb-border); color: var(--iwb-fg); background: var(--iwb-panel-2);
-}
-.iwb-textbtn:hover { border-color: var(--iwb-border-strong); }
-/* The primary button sits on the brand colour, so its text is the host's
-   "on brand" label - a pale brand colour would make white text unreadable. */
-.iwb-textbtn.iwb-primary { background: var(--iwb-accent); border-color: transparent; color: var(--iwb-on-accent); }
-.iwb-textbtn.iwb-primary:hover { filter: brightness(1.08); }
-.iwb-textbtn:disabled { opacity: .45; cursor: default; }
-.iwb-textbtn.iwb-danger { color: var(--iwb-error); }
-/* The solid danger button sits on the error colour, not on the brand colour,
-   so it keeps its own white text. */
-.iwb-textbtn.iwb-danger-solid { background: var(--iwb-error); color: #fff; border-color: transparent; }
-.iwb-textbtn.iwb-small { height: 22px; padding: 0 8px; font-size: 11.5px; }
 
 .iwb-body { flex: 1; min-height: 0; display: flex; }
 .iwb-stripe {
@@ -80045,11 +81517,12 @@ var CSS2 = `
 }
 .iwb-stripe-spacer { flex: 1; }
 .iwb-stripe-btn {
-  position: relative; width: 34px; height: 34px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  position: relative; width: 34px; height: 34px; border-radius: var(--iwb-radius-md); display: flex; align-items: center; justify-content: center;
   color: var(--iwb-muted);
 }
-.iwb-stripe-btn:hover { background: rgba(127, 127, 127, .12); color: var(--iwb-fg); }
-.iwb-stripe-btn.iwb-on { color: var(--iwb-accent); background: rgba(76, 154, 255, .13); }
+.iwb-stripe-btn:hover { background: var(--iwb-surface-hover); color: var(--iwb-fg); transform: translateY(-.5px); }
+.iwb-stripe-btn:active { transform: translateY(0); background: var(--iwb-surface-active); }
+.iwb-stripe-btn.iwb-on { color: var(--iwb-accent); background: var(--iwb-surface-selected); box-shadow: 0 0 0 1px var(--iwb-surface-glow); }
 .iwb-stripe-btn.iwb-on::before {
   content: ''; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--iwb-accent);
 }
@@ -80066,23 +81539,29 @@ var CSS2 = `
 .iwb-left {
   position: relative; flex: 0 0 auto; width: var(--iwb-left-width, 300px);
   min-width: 200px; max-width: 640px; display: flex; flex-direction: column;
-  background: var(--iwb-panel); border-right: 1px solid var(--iwb-border);
+  background: var(--iwb-surface-raised); border-right: 1px solid var(--iwb-border);
 }
 .iwb-left-resizer {
   position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; z-index: 5;
 }
-.iwb-left-resizer:hover { background: rgba(76, 154, 255, .25); }
+.iwb-left-resizer:hover { background: color-mix(in srgb, var(--iwb-accent) 25%, transparent); }
 .iwb-panel-header {
   height: 32px; flex: 0 0 32px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 12px;
-  border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
+  border-bottom: 1px solid var(--iwb-border); background: var(--iwb-surface-raised);
 }
-.iwb-panel-title { font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+/* The title of a tool window: small, spaced out, and a step quieter than the
+   content below it. It is a LABEL, not a heading - the hierarchy of the
+   window is carried by the content, not by the bar. */
+.iwb-panel-title {
+  font-size: var(--iwb-text-title); font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--iwb-muted);
+}
 .iwb-panel-sub { color: var(--iwb-muted); font-size: 11px; }
 .iwb-project-sub-btn {
   display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 64%; padding: 2px 5px;
   border-radius: 5px; color: var(--iwb-muted); font-size: 11px; text-align: left;
 }
-.iwb-project-sub-btn:hover { background: rgba(127, 127, 127, .12); color: var(--iwb-fg); }
+.iwb-project-sub-btn:hover { background: var(--iwb-surface-hover); color: var(--iwb-fg); }
 .iwb-project-workspace-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 110px; }
 .iwb-project-sep { opacity: .55; }
 .iwb-project-sub-name { color: var(--iwb-fg); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -80111,16 +81590,19 @@ var CSS2 = `
 .iwb-side-right .iwb-left-resizer { right: auto; left: -3px; }
 .iwb-tabbar {
   height: 34px; flex: 0 0 34px; display: flex; align-items: stretch; border-bottom: 1px solid var(--iwb-border);
-  background: var(--iwb-panel); overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  background: var(--iwb-surface-raised); overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
 }
 .iwb-tabbar::-webkit-scrollbar { height: 0; }
 .iwb-tab {
   display: flex; align-items: center; gap: 6px; padding: 0 8px 0 10px; min-width: 90px; max-width: 220px;
   border-right: 1px solid var(--iwb-border); color: var(--iwb-muted); position: relative; cursor: pointer; flex: 0 0 auto;
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease), color var(--iwb-dur-fast) var(--iwb-ease);
 }
-.iwb-tab:hover { background: rgba(127, 127, 127, .07); }
-.iwb-tab.iwb-active { background: var(--iwb-bg); color: var(--iwb-fg); }
-.iwb-tab.iwb-active::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--iwb-accent); }
+.iwb-tab:hover { background: var(--iwb-surface-hover); }
+/* The active tab is the sheet in front of the bar: it takes the colour of
+   the editor and carries a hairline of the brand colour on its top edge. */
+.iwb-tab.iwb-active { background: var(--iwb-surface-base); color: var(--iwb-fg); }
+.iwb-tab.iwb-active::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--iwb-accent); box-shadow: 0 0 8px var(--iwb-surface-glow); }
 .iwb-tab .iwb-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
 .iwb-tab.iwb-preview .iwb-tab-name { font-style: italic; }
 .iwb-tab .iwb-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--iwb-muted); flex: 0 0 6px; }
@@ -80132,7 +81614,7 @@ var CSS2 = `
   color: var(--iwb-muted); opacity: 0; margin-left: auto; flex: 0 0 18px;
 }
 .iwb-tab:hover .iwb-tab-close, .iwb-tab.iwb-active .iwb-tab-close { opacity: 1; }
-.iwb-tab .iwb-tab-close:hover { background: rgba(127, 127, 127, .2); color: var(--iwb-fg); }
+.iwb-tab .iwb-tab-close:hover { background: var(--iwb-surface-active); color: var(--iwb-fg); }
 .iwb-tabbar-actions { display: flex; align-items: center; gap: 2px; padding: 0 6px; margin-left: auto; position: sticky; right: 0; background: var(--iwb-panel); }
 
 .iwb-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; overflow: hidden; }
@@ -80146,7 +81628,7 @@ var CSS2 = `
 .iwb-html-action {
   width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
 }
-.iwb-html-action:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .14); }
+.iwb-html-action:hover { color: var(--iwb-fg); background: var(--iwb-surface-active); }
 .iwb-html-action.iwb-chrome { color: #4285f4; }
 .iwb-html-action.iwb-chrome:hover { color: #4285f4; filter: brightness(1.12); }
 .iwb-editor-toolbar {
@@ -80211,12 +81693,21 @@ var CSS2 = `
 .iwb-editor-toolbar[data-overflow='true'] .iwb-breadcrumb .iwb-crumb-mid { display: none; }
 .iwb-editor-toolbar[data-overflow='true'] .iwb-breadcrumb .iwb-crumb-more { display: inline-flex; }
 .iwb-editor-toolbar .iwb-spacer { flex: 0 0 auto; }
+/* The segmented control: a sunken track with the chosen segment lifted out
+   of it. The old one was a hairline box with a coloured fill - the fill had
+   to carry the whole meaning, and a coloured fill on a 10px label is hard to
+   read. */
 .iwb-seg {
-  display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 6px; overflow: hidden; background: var(--iwb-panel);
+  display: inline-flex; border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-sm); overflow: hidden;
+  background: var(--iwb-surface-sunken); padding: 1px; gap: 1px;
 }
-.iwb-seg button { height: 22px; padding: 0 8px; font-size: 11.5px; color: var(--iwb-muted); }
-.iwb-seg button.iwb-on { background: var(--iwb-active-bg, rgba(76,154,255,.16)); color: var(--iwb-fg); }
-.iwb-seg button + button { border-left: 1px solid var(--iwb-border); }
+.iwb-seg button {
+  height: 22px; padding: 0 9px; font-size: 11.5px; color: var(--iwb-muted); border-radius: var(--iwb-radius-xs);
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease), color var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-seg button:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
+.iwb-seg button.iwb-on { background: var(--iwb-surface-raised); color: var(--iwb-fg); box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm); }
+.iwb-seg button + button { border-left: 0; }
 
 .iwb-code {
   flex: 1; min-height: 0; overflow: auto; font-family: var(--iwb-mono); font-size: 12.5px; line-height: var(--iwb-line, 20px);
@@ -80224,7 +81715,7 @@ var CSS2 = `
 }
 .iwb-code-inner { position: relative; min-width: 100%; }
 .iwb-code-line { display: flex; align-items: flex-start; height: var(--iwb-line, 20px); white-space: pre; }
-.iwb-code-line:hover { background: rgba(127, 127, 127, .055); }
+.iwb-code-line:hover { background: var(--iwb-surface-hover); }
 .iwb-ln {
   flex: 0 0 var(--iwb-gutter, 52px); width: var(--iwb-gutter, 52px); text-align: right; padding-right: 12px;
   color: var(--iwb-muted); opacity: .65; font-variant-numeric: tabular-nums; user-select: none;
@@ -80291,7 +81782,7 @@ var CSS2 = `
   height: 22px; min-width: 44px; padding: 0 4px; border-radius: 5px; color: var(--iwb-fg);
   font-variant-numeric: tabular-nums; font-size: 11px;
 }
-.iwb-pdf-zoom:hover { background: rgba(127, 127, 127, .14); }
+.iwb-pdf-zoom:hover { background: var(--iwb-surface-active); }
 .iwb-pdf-zoom.iwb-on { color: var(--iwb-accent); }
 .iwb-pdf-sep { width: 1px; height: 15px; background: var(--iwb-border); margin: 0 3px; flex: 0 0 auto; }
 .iwb-pdf-grow { flex: 1 1 auto; min-width: 0; }
@@ -80353,27 +81844,92 @@ var CSS2 = `
   display: block; width: 100%; text-align: left; padding: 4px 8px; border-radius: 5px;
   color: var(--iwb-fg); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.iwb-outline-item:hover { background: rgba(127, 127, 127, .14); }
-.iwb-outline-item.iwb-active { background: rgba(76, 154, 255, .16); color: var(--iwb-accent); }
+.iwb-outline-item:hover { background: var(--iwb-surface-active); }
+.iwb-outline-item.iwb-active { background: var(--iwb-surface-selected); color: var(--iwb-accent); }
 .iwb-outline-empty { padding: 14px; color: var(--iwb-muted); font-size: 11.5px; text-align: center; }
 
-.iwb-welcome { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px; overflow: auto; }
-.iwb-welcome-card { max-width: 560px; width: 100%; }
-.iwb-welcome-title { font-size: 26px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 6px; }
-.iwb-welcome-sub { color: var(--iwb-muted); margin: 0 0 22px; font-size: 13px; }
-.iwb-welcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-.iwb-welcome-action {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--iwb-border);
-  border-radius: 8px; background: var(--iwb-panel); color: var(--iwb-fg); text-align: left;
+/* \u2500\u2500 the empty state (PRD-v8) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The empty workbench used to read like a README: a title, a sentence and
+   four rows of shortcut. It is now the FRONT DOOR of the workbench - a mark,
+   one sentence, and the four tool windows as CARDS you can walk into.
+
+   The mark sits in a plate of its own and a soft glow sits behind it: the
+   window is empty, and an empty window that is flat reads as "nothing is
+   here" instead of "nothing is open YET". */
+.iwb-welcome {
+  flex: 1; min-height: 0; display: flex; overflow: auto; padding: 28px 32px;
+  position: relative;
 }
-.iwb-welcome-action:hover { border-color: var(--iwb-border-strong); background: var(--iwb-panel-2); }
-.iwb-welcome-action .iwb-kbd { margin-left: auto; }
-.iwb-welcome-meta { display: flex; gap: 16px; color: var(--iwb-muted); font-size: 12px; border-top: 1px solid var(--iwb-border); padding-top: 14px; }
-.iwb-welcome-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--iwb-border); border-radius: 7px; color: var(--iwb-muted); font-size: 12px; }
+.iwb-welcome::before {
+  content: ''; position: absolute; left: 50%; top: 32%; pointer-events: none;
+  width: 560px; height: 340px; transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--iwb-accent) 15%, transparent), transparent 68%);
+}
+/* The card is centred by its OWN margins, not by the alignment of the
+   parent: a centred flex child that does not fit is clipped at the TOP, and
+   the mark - the first thing the reader sees - is what disappears. With the
+   margins the card is centred when there is room and starts at the top when
+   there is not. */
+.iwb-welcome-card {
+  position: relative; margin: auto; max-width: 680px; width: 100%;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+}
+.iwb-welcome-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 72px; height: 72px; margin-bottom: 20px; border-radius: 22px;
+  color: var(--iwb-accent);
+  background: var(--iwb-sheen), var(--iwb-surface-raised);
+  border: 1px solid var(--iwb-border);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-md), 0 0 0 6px color-mix(in srgb, var(--iwb-accent) 8%, transparent);
+}
+.iwb-welcome-title {
+  margin: 0 0 8px; font-size: 26px; font-weight: 650; letter-spacing: -.02em; line-height: 1.15;
+}
+.iwb-welcome-sub {
+  margin: 0 0 26px; color: var(--iwb-muted); font-size: 13px; line-height: 1.6; max-width: 46ch;
+}
+.iwb-welcome-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  width: 100%; margin-bottom: 22px;
+}
+/* A card, not a row: the four windows are the doors of the workbench, and a
+   door has a face you can read at a glance. */
+.iwb-welcome-action {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  padding: 14px 14px 12px; border-radius: var(--iwb-radius-lg);
+  border: 1px solid var(--iwb-border); background: var(--iwb-surface-raised);
+  color: var(--iwb-fg); text-align: left;
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm);
+  transition: border-color var(--iwb-dur-fast) var(--iwb-ease), background-color var(--iwb-dur-fast) var(--iwb-ease), transform var(--iwb-dur-fast) var(--iwb-ease), box-shadow var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-welcome-action:hover {
+  border-color: color-mix(in srgb, var(--iwb-accent) 42%, var(--iwb-border));
+  background: var(--iwb-panel-2);
+  transform: translateY(-2px); box-shadow: var(--iwb-highlight), var(--iwb-shadow-md);
+}
+.iwb-welcome-action-icon { color: var(--iwb-accent); display: inline-flex; }
+.iwb-welcome-action-name { font-size: 13px; font-weight: 600; letter-spacing: .01em; }
+.iwb-welcome-action-key {
+  font-family: var(--iwb-mono); font-size: 10.5px; color: var(--iwb-muted); letter-spacing: .02em;
+}
+.iwb-welcome-meta {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  color: var(--iwb-muted); font-size: 12px; border-top: 1px solid var(--iwb-border);
+  padding-top: 16px; width: 100%;
+}
+.iwb-welcome-meta-label { color: var(--iwb-muted); }
+.iwb-welcome-meta-label::after { content: ' \xB7'; margin-left: 6px; color: var(--iwb-muted); opacity: .6; }
+.iwb-welcome-meta-value { font-family: var(--iwb-mono); color: var(--iwb-fg); }
+.iwb-welcome-meta-path { font-family: var(--iwb-mono); font-size: 11.5px; opacity: .8; }
+.iwb-welcome-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; padding: 8px 10px; border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-md); color: var(--iwb-muted); font-size: 12px; }
 .iwb-commit-hint { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 11.5px; background: var(--iwb-panel-2); }
+/* The key cap: a chip that is PRESSED INTO the surface, not a little 3D
+   key drawn with a fat bottom border - that border was the most "retro"
+   detail of the old workbench. */
 .iwb-kbd {
-  display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 4px;
-  border: 1px solid var(--iwb-border-strong); border-bottom-width: 2px; background: var(--iwb-panel-2);
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--iwb-radius-xs);
+  border: 1px solid var(--iwb-border); background: var(--iwb-surface-sunken);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 18%, transparent);
   color: var(--iwb-muted); font-size: 10.5px; font-family: var(--iwb-mono); white-space: nowrap;
 }
 
@@ -80387,7 +81943,7 @@ var CSS2 = `
 .iwb-bottom-resizer {
   position: absolute; top: -3px; left: 0; right: 0; height: 6px; cursor: row-resize; z-index: 5;
 }
-.iwb-bottom-resizer:hover { background: rgba(76, 154, 255, .22); }
+.iwb-bottom-resizer:hover { background: color-mix(in srgb, var(--iwb-accent) 22%, transparent); }
 .iwb-bottom-tabs {
   height: 30px; flex: 0 0 30px; display: flex; align-items: stretch; gap: 2px; padding: 0 8px 0 44px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
@@ -80396,7 +81952,7 @@ var CSS2 = `
   display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 6px 6px 0 0;
   color: var(--iwb-muted); font-size: 12px; border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
-.iwb-bottom-tab:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .07); }
+.iwb-bottom-tab:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
 .iwb-bottom-tab.iwb-on { color: var(--iwb-fg); border-bottom-color: var(--iwb-accent); }
 .iwb-bottom-tab .iwb-badge { position: static; margin-left: 2px; }
 /* The repository picker in the Terminal/Git dock header. It is a chip of its
@@ -80407,10 +81963,10 @@ var CSS2 = `
 .iwb-bottom-tabs .iwb-dock-repo {
   align-self: center; gap: 7px; height: 22px; max-width: 260px; margin-left: 14px;
   padding: 0 11px; border-radius: 11px;
-  background: rgba(127, 127, 127, .07); color: var(--iwb-fg);
+  background: var(--iwb-surface-hover); color: var(--iwb-fg);
 }
 .iwb-bottom-tabs .iwb-dock-repo:hover:not(:disabled) {
-  border-color: var(--iwb-border-strong); background: rgba(127, 127, 127, .14);
+  border-color: var(--iwb-border-strong); background: var(--iwb-surface-active);
 }
 .iwb-bottom-tabs .iwb-dock-repo:disabled { opacity: .5; cursor: default; }
 .iwb-bottom-tabs .iwb-dock-repo-dot {
@@ -80426,6 +81982,7 @@ var CSS2 = `
 .iwb-statusbar {
   height: 22px; flex: 0 0 22px; display: flex; align-items: center; gap: 12px; padding: 0 10px;
   border-top: 1px solid var(--iwb-border); background: var(--iwb-sidebar); color: var(--iwb-muted); font-size: 11px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 5%, transparent);
 }
 .iwb-statusbar .iwb-spacer { flex: 1; }
 .iwb-status-item { display: inline-flex; align-items: center; gap: 4px; }
@@ -80443,17 +82000,19 @@ var CSS2 = `
   display: flex; align-items: center; gap: 5px; height: 22px; padding-right: 8px; white-space: nowrap;
   cursor: pointer; position: relative;
 }
-.iwb-tree-row:hover { background: rgba(127, 127, 127, .1); }
-.iwb-tree-row.iwb-selected { background: rgba(76, 154, 255, .18); }
+.iwb-tree-row:hover { background: var(--iwb-surface-hover); }
+/* The selected row is marked by a hairline of the brand colour on its left
+   edge, not only by a tint: a tint alone is easy to lose in a long list. */
+.iwb-tree-row.iwb-selected { background: var(--iwb-surface-selected); box-shadow: inset 2px 0 0 var(--iwb-accent); }
 .iwb-tree:focus { outline: none; }
-.iwb-tree:focus-visible { outline: 1px solid rgba(76, 154, 255, .35); outline-offset: -1px; }
+.iwb-tree:focus-visible { outline: 1px solid color-mix(in srgb, var(--iwb-accent) 35%, transparent); outline-offset: -1px; }
 .iwb-tree-twisty { width: 16px; flex: 0 0 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--iwb-muted); }
 /* Only a directory twisty is a control; a file row keeps an empty spacer, so
    the pointer is limited to the rows that can actually be toggled. */
 .iwb-tree-twisty.iwb-tree-twisty-click,
 .iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty { cursor: pointer; border-radius: 3px; }
 .iwb-tree-twisty.iwb-tree-twisty-click:hover,
-.iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .16); }
+.iwb-tree-row:has(> .iwb-tree-name.iwb-dir) > .iwb-tree-twisty:hover { color: var(--iwb-fg); background: var(--iwb-surface-active); }
 /* The host's file glyph is an inline SVG in a flex row: keep it from being
    squeezed when a long name squeezes the row. */
 .iwb-file-icon { flex: 0 0 auto; }
@@ -80469,7 +82028,7 @@ var CSS2 = `
 .iwb-tree-row.iwb-git-ignored { opacity: .65; }
 .iwb-tree-row.iwb-excluded { background: var(--iwb-excluded-bg); }
 .iwb-tree-row.iwb-excluded .iwb-tree-name { color: var(--iwb-git-ignored); }
-.iwb-tree-row.iwb-drop-target { outline: 1px solid var(--iwb-accent); outline-offset: -1px; background: rgba(76, 154, 255, .12); }
+.iwb-tree-row.iwb-drop-target { outline: 1px solid var(--iwb-accent); outline-offset: -1px; background: var(--iwb-surface-selected-soft); }
 .iwb-rename-input {
   flex: 1; min-width: 0; height: 18px; padding: 0 4px; border: 1px solid var(--iwb-accent); border-radius: 3px;
   background: var(--iwb-panel-2); color: var(--iwb-fg); font-size: 12px; outline: none;
@@ -80514,7 +82073,7 @@ var CSS2 = `
   overflow: hidden; text-overflow: ellipsis; cursor: pointer;
 }
 .iwb-tree-sticky-item:last-child { flex: 0 0 auto; font-weight: 600; }
-.iwb-tree-sticky-item:hover { color: var(--iwb-accent); background: rgba(127, 127, 127, .14); }
+.iwb-tree-sticky-item:hover { color: var(--iwb-accent); background: var(--iwb-surface-active); }
 .iwb-tree-sticky-sep { opacity: .55; flex: 0 0 auto; }
 
 .iwb-filter {
@@ -80552,18 +82111,21 @@ var CSS2 = `
 .iwb-link-actions .iwb-textbtn { height: auto; min-height: 28px; padding: 5px 14px; white-space: normal; text-align: center; }
 .iwb-error-box { margin: 8px; padding: 8px 10px; border: 1px solid rgba(226, 104, 111, .4); border-radius: 6px; background: rgba(226, 104, 111, .08); color: var(--iwb-error); font-size: 11.5px; white-space: pre-wrap; word-break: break-word; user-select: text; }
 
+/* The menu floats over the workbench: it has to look like it is ABOVE the
+   page, not painted on it. A soft ambient shadow and a hairline of light on
+   its top edge do that - a hard border alone reads as a panel. */
 .iwb-menu {
-  position: fixed; z-index: 40; padding: 4px; border-radius: 8px;
-  border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .38);
+  position: fixed; z-index: 40; padding: 4px; border-radius: var(--iwb-radius-md);
+  border: 1px solid var(--iwb-border-strong); background: var(--iwb-surface-overlay);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-lg);
   max-height: calc(100vh - 12px); overflow-y: auto; overflow-x: hidden;
 }
 .iwb-menu-sub { z-index: 41; }
 .iwb-menu .iwb-menu-item {
-  display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 6px 5px 4px; border-radius: 5px;
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 6px 5px 4px; border-radius: var(--iwb-radius-xs);
   text-align: left; font-size: 12px; color: var(--iwb-fg); white-space: nowrap;
 }
-.iwb-menu .iwb-menu-item:hover:not(:disabled) { background: rgba(127, 127, 127, .16); }
+.iwb-menu .iwb-menu-item:hover:not(:disabled) { background: var(--iwb-surface-active); }
 .iwb-menu .iwb-menu-item:disabled { opacity: .4; }
 .iwb-menu .iwb-menu-item.iwb-menu-danger { color: var(--iwb-error); }
 .iwb-menu-check { width: 12px; flex: 0 0 12px; text-align: center; color: var(--iwb-accent); }
@@ -80575,11 +82137,20 @@ var CSS2 = `
 .iwb-menu .iwb-menu-label { padding: 5px 8px; color: var(--iwb-muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
 
 .iwb-field { display: flex; flex-direction: column; gap: 5px; margin: 10px 0; font-size: 12px; color: var(--iwb-muted); }
+/* An input is a well the text sits in: it is SUNKEN, not painted on the
+   surface - a soft inner shadow at the top says "this is below the page".
+   The focus ring is the brand colour, so the field that is being typed into
+   is the one that glows. */
 .iwb-field input, .iwb-field select {
-  height: 30px; padding: 0 9px; border-radius: 6px; border: 1px solid var(--iwb-border);
+  height: 30px; padding: 0 9px; border-radius: var(--iwb-radius-sm); border: 1px solid var(--iwb-border);
   background: var(--iwb-panel-2); color: var(--iwb-fg); font-size: 12.5px; outline: none;
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 16%, transparent);
+  transition: border-color var(--iwb-dur-fast) var(--iwb-ease), box-shadow var(--iwb-dur-fast) var(--iwb-ease);
 }
-.iwb-field input:focus, .iwb-field select:focus { border-color: var(--iwb-accent); }
+.iwb-field input:focus, .iwb-field select:focus {
+  border-color: var(--iwb-accent);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 16%, transparent), 0 0 0 3px var(--iwb-surface-glow);
+}
 
 .iwb-commit { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .iwb-commit-message { padding: 8px; border-bottom: 1px solid var(--iwb-border); }
@@ -80602,16 +82173,16 @@ var CSS2 = `
   background: var(--iwb-panel); z-index: 2;
 }
 .iwb-group-header .iwb-count {
-  min-width: 16px; height: 16px; padding: 0 5px; border-radius: 999px; background: rgba(127, 127, 127, .18);
+  min-width: 16px; height: 16px; padding: 0 5px; border-radius: 999px; background: var(--iwb-surface-active);
   color: var(--iwb-fg); font-size: 10px; display: inline-flex; align-items: center; justify-content: center;
 }
 .iwb-group-header .iwb-spacer { flex: 1; }
 .iwb-file-row {
   display: flex; align-items: center; gap: 6px; height: 23px; padding: 0 8px 0 12px; cursor: pointer; font-size: 12px;
 }
-.iwb-file-row:hover { background: rgba(127, 127, 127, .1); }
-.iwb-file-row.iwb-active { background: rgba(76, 154, 255, .16); }
-.iwb-file-row.iwb-selected { background: rgba(76, 154, 255, .16); }
+.iwb-file-row:hover { background: var(--iwb-surface-hover); }
+.iwb-file-row.iwb-active { background: var(--iwb-surface-selected); }
+.iwb-file-row.iwb-selected { background: var(--iwb-surface-selected); box-shadow: inset 2px 0 0 var(--iwb-accent); }
 .iwb-file-row.iwb-file-untracked .iwb-file-name { color: var(--iwb-git-untracked); }
 .iwb-file-row.iwb-file-conflict .iwb-file-name { color: var(--iwb-git-conflict); font-weight: 600; }
 .iwb-file-row .iwb-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -80619,7 +82190,7 @@ var CSS2 = `
 .iwb-file-row .iwb-file-status { color: var(--iwb-muted); font-size: 10px; width: 12px; text-align: center; font-family: var(--iwb-mono); }
 .iwb-group-empty { padding: 8px 12px; color: var(--iwb-muted); font-size: 11.5px; font-style: italic; }
 .iwb-commit-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--iwb-border); border-bottom: 1px solid var(--iwb-border); }
-.iwb-changelist-head { height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--iwb-muted); font-size: 11px; background: rgba(127, 127, 127, .06); }
+.iwb-changelist-head { height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--iwb-muted); font-size: 11px; background: var(--iwb-surface-hover); }
 .iwb-changelist-head .iwb-count { font-size: 10px; }
 .iwb-dir-heading { height: 22px; display: flex; align-items: center; padding: 0 10px 0 22px; color: var(--iwb-muted); font-size: 11px; }
 .iwb-file-row .iwb-file-stat { margin-left: auto; display: flex; gap: 5px; font-size: 10.5px; font-variant-numeric: tabular-nums; }
@@ -80681,18 +82252,18 @@ var CSS2 = `
    no second column that could be pushed around, so the line overflows
    horizontally into the shared scroll surface instead of being shrunk. */
 .iwb-diff-row .iwb-diff-text { min-width: max-content; }
-.iwb-diff-row.iwb-selected { outline: 1px solid rgba(76, 154, 255, .55); background: rgba(76, 154, 255, .22) !important; }
+.iwb-diff-row.iwb-selected { outline: 1px solid color-mix(in srgb, var(--iwb-accent) 55%, transparent); background: color-mix(in srgb, var(--iwb-accent) 22%, transparent) !important; }
 .iwb-diff-row.iwb-diff-find, .iwb-diff-side.iwb-diff-find { outline: 1px solid rgba(215,162,74,.65); outline-offset: -1px; }
-.iwb-diff-row.iwb-diff-find-active, .iwb-diff-side.iwb-diff-find-active { outline: 2px solid var(--iwb-accent); outline-offset: -2px; background: rgba(76,154,255,.2); }
+.iwb-diff-row.iwb-diff-find-active, .iwb-diff-side.iwb-diff-find-active { outline: 2px solid var(--iwb-accent); outline-offset: -2px; background: var(--iwb-surface-selected); }
 .iwb-word-add { background: rgba(79, 180, 119, .38); border-radius: 2px; }
 .iwb-word-del { background: rgba(226, 104, 111, .38); border-radius: 2px; }
-.iwb-diff-hunk { display: flex; align-items: center; height: 22px; background: rgba(127, 127, 127, .09); color: var(--iwb-muted); font-size: 11.5px; }
+.iwb-diff-hunk { display: flex; align-items: center; height: 22px; background: var(--iwb-surface-hover); color: var(--iwb-muted); font-size: 11.5px; }
 .iwb-diff-collapsed {
   display: flex; align-items: center; justify-content: center; height: 20px; cursor: pointer;
-  color: var(--iwb-muted); font-size: 11px; background: rgba(127, 127, 127, .07);
+  color: var(--iwb-muted); font-size: 11px; background: var(--iwb-surface-hover);
   border-top: 1px dashed var(--iwb-border); border-bottom: 1px dashed var(--iwb-border);
 }
-.iwb-diff-collapsed:hover { color: var(--iwb-fg); background: rgba(127, 127, 127, .14); }
+.iwb-diff-collapsed:hover { color: var(--iwb-fg); background: var(--iwb-surface-active); }
 .iwb-diff-hunk .iwb-hunk-text { padding: 0 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .iwb-diff-hunk .iwb-hunk-actions { display: none; padding-right: 6px; }
 .iwb-diff-hunk:hover .iwb-hunk-actions { display: flex; }
@@ -80714,13 +82285,31 @@ var CSS2 = `
 .iwb-diff-side-cell { display: flex; flex: 1 1 auto; height: 20px; min-width: 0; white-space: pre; overflow: hidden; border-right: 1px solid var(--iwb-border); }
 .iwb-diff-side-cell.iwb-add { background: rgba(79, 180, 119, .12); }
 .iwb-diff-side-cell.iwb-del { background: rgba(226, 104, 111, .12); }
-.iwb-diff-side-cell.iwb-blank { background: rgba(127, 127, 127, .05); }
+.iwb-diff-side-cell.iwb-blank { background: var(--iwb-surface-hover); }
 .iwb-diff-side .iwb-diff-num { width: 44px; flex: 0 0 44px; }
 .iwb-diff-side-head { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; color: var(--iwb-muted); font-size: 11px; background: var(--iwb-panel); border-bottom: 1px solid var(--iwb-border); }
 .iwb-binary { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--iwb-muted); }
 
 .iwb-git { display: flex; flex-direction: column; height: 100%; min-height: 0; flex: 1 1 auto; width: 100%; min-width: 0; }
-.iwb-git-filters { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--iwb-border); flex-wrap: wrap; }
+/* The filter row reads as TWO clusters (PRD-v8): the SCOPE says WHERE the
+   history comes from (which repository, which branch), the FILTERS say what
+   of it is shown. One strip of six unrelated controls told the reader
+   nothing about which was which. */
+.iwb-git-filters {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  border-bottom: 1px solid var(--iwb-border); flex-wrap: wrap;
+}
+.iwb-git-scope {
+  display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding-right: 10px; border-right: 1px solid var(--iwb-border);
+}
+.iwb-git-filter-fields {
+  display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0;
+}
+/* The scope control is a segmented switch: it names both options and marks
+   the chosen one, so it can never be mistaken for a label. */
+.iwb-git-scope .iwb-seg { flex: 0 0 auto; }
+.iwb-git-scope .iwb-seg button { white-space: nowrap; }
 .iwb-path-chip {
   display: inline-flex; align-items: center; gap: 4px; max-width: 260px; height: 22px; padding: 0 4px 0 8px;
   border: 1px solid var(--iwb-border-strong); border-radius: 999px; background: var(--iwb-panel-2);
@@ -80728,7 +82317,7 @@ var CSS2 = `
 }
 .iwb-path-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--iwb-mono); }
 .iwb-path-chip-clear { width: 16px; height: 16px; border-radius: 50%; color: var(--iwb-muted); font-size: 13px; line-height: 1; }
-.iwb-path-chip-clear:hover { background: rgba(127, 127, 127, .2); color: var(--iwb-fg); }
+.iwb-path-chip-clear:hover { background: var(--iwb-surface-active); color: var(--iwb-fg); }
 .iwb-select, .iwb-input {
   height: 24px; border-radius: 5px; border: 1px solid var(--iwb-border); background: var(--iwb-panel-2);
   padding: 0 7px; font-size: 11.5px; outline: none; color: var(--iwb-fg);
@@ -80757,8 +82346,8 @@ var CSS2 = `
 .iwb-git-scroll { flex: 1; min-height: 0; overflow: auto; position: relative; }
 .iwb-git-rows { position: relative; }
 .iwb-git-row { position: absolute; left: 0; right: 0; cursor: pointer; font-size: 12px; }
-.iwb-git-row:hover { background: rgba(127, 127, 127, .09); }
-.iwb-git-row.iwb-selected { background: rgba(76, 154, 255, .16); }
+.iwb-git-row:hover { background: var(--iwb-surface-hover); }
+.iwb-git-row.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-git-row.iwb-compare { box-shadow: inset 2px 0 0 var(--iwb-warn); background: rgba(215, 162, 74, .12); }
 .iwb-compare-chip {
   display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 4px 0 8px;
@@ -80787,7 +82376,7 @@ var CSS2 = `
   display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 2px 6px; border-radius: 4px;
   font-size: 11.5px; color: var(--iwb-fg);
 }
-.iwb-git-file:hover { background: rgba(127, 127, 127, .14); }
+.iwb-git-file:hover { background: var(--iwb-surface-active); }
 .iwb-git-file-name { font-family: var(--iwb-mono); }
 
 .iwb-term { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -80796,8 +82385,8 @@ var CSS2 = `
   display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 5px;
   color: var(--iwb-muted); font-size: 11.5px; cursor: pointer; white-space: nowrap;
 }
-.iwb-term-tab:hover { background: rgba(127, 127, 127, .12); }
-.iwb-term-tab.iwb-on { color: var(--iwb-fg); background: rgba(76, 154, 255, .16); }
+.iwb-term-tab:hover { background: var(--iwb-surface-hover); }
+.iwb-term-tab.iwb-on { color: var(--iwb-fg); background: var(--iwb-surface-selected); }
 .iwb-term-tab .iwb-term-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--iwb-success); }
 .iwb-term-tab .iwb-term-dot.iwb-exited { background: var(--iwb-muted); }
 .iwb-term-panes { flex: 1; min-height: 0; position: relative; }
@@ -80849,35 +82438,73 @@ var CSS2 = `
   container-name: iwb-settings;
   width: 100%;
   max-width: 720px;
-  padding: 8px 0;
+  padding: 0;
   color: var(--iwb-fg);
   font-family: var(--iwb-font);
-  font-size: 14px;
+  font-size: var(--iwb-text-body);
   line-height: 1.45;
+  /* The component tokens of the page. They are built from the semantic
+     tokens of the theme - the page never names a colour or a length of its
+     own (design-system: primitive -> semantic -> component). */
+  --iwb-settings-header-height: 96px;
+  --iwb-settings-row-pad: var(--iwb-space-3);
+  --iwb-settings-row-gap: var(--iwb-space-4);
+  --iwb-settings-group-gap: var(--iwb-space-5);
+  --iwb-settings-read-measure: 65ch;
+  /* The height of the panel of the rows. It is a height and not a minimum:
+     the window must not change its size when another category is picked. */
+  --iwb-settings-panel-height: min(50vh, 520px);
+}
+.iwb-settings-compact {
+  --iwb-settings-row-pad: var(--iwb-space-2);
+  --iwb-settings-row-gap: var(--iwb-space-3);
+  --iwb-settings-group-gap: var(--iwb-space-4);
+  --iwb-settings-panel-height: min(44vh, 420px);
 }
 .iwb-settings *, .iwb-settings *::before, .iwb-settings *::after { box-sizing: border-box; }
 .iwb-settings :where(button, input, select) { font: inherit; color: inherit; }
 .iwb-settings :where(button) { background: none; border: 0; padding: 0; cursor: pointer; }
 .iwb-settings-group { margin: 0; }
 .iwb-settings-group + .iwb-settings-group {
-  margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--iwb-divider);
+  margin-top: var(--iwb-settings-group-gap);
+  padding-top: var(--iwb-space-4);
+  border-top: 1px solid var(--iwb-divider);
 }
 .iwb-settings-group-title {
-  margin: 0; color: var(--iwb-fg); font-size: 15px; font-weight: 600; line-height: 24px;
-  letter-spacing: 0; text-transform: none;
+  margin: 0; color: var(--iwb-fg); font-size: var(--iwb-text-title); font-weight: 600;
+  line-height: 1.6; letter-spacing: 0; text-transform: none;
 }
-.iwb-settings-group-desc { margin: 2px 0 0; max-width: 560px; color: var(--iwb-muted); font-size: 12px; line-height: 18px; }
-.iwb-settings-rows { display: flex; flex-direction: column; margin-top: 4px; }
+.iwb-settings-group-desc {
+  margin: 2px 0 0; max-width: var(--iwb-settings-read-measure);
+  color: var(--iwb-muted); font-size: var(--iwb-text-label); line-height: 1.5;
+}
+.iwb-settings-rows { display: flex; flex-direction: column; margin-top: var(--iwb-space-1); }
+/* The row is a grid, not a fixed-height box: the height of a row follows its
+   content, so a long explanation is never cut off (ui-ux-pro-max: text
+   reflow and spacing - the line height is content driven). */
 .iwb-settings-row {
-  display: flex; align-items: center; gap: 24px; min-height: 48px; padding: 12px 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start;
+  gap: 2px var(--iwb-settings-row-gap);
+  padding: var(--iwb-settings-row-pad) 0;
   border-bottom: .5px solid var(--iwb-divider);
+  scroll-margin-top: var(--iwb-settings-header-height);
 }
 .iwb-settings-rows > .iwb-settings-row:last-child { border-bottom: 0; }
-.iwb-settings-label { flex: 1 1 auto; min-width: 0; }
-.iwb-settings-title { color: var(--iwb-fg); font-size: 14px; line-height: 22px; }
-.iwb-settings-hint { margin-top: 2px; color: var(--iwb-muted); font-size: 12px; line-height: 18px; }
+.iwb-settings-row-failed { border-left: 2px solid var(--iwb-error); padding-left: var(--iwb-space-2); }
+.iwb-settings-label { grid-column: 1; min-width: 0; }
+.iwb-settings-title {
+  display: inline-block; color: var(--iwb-fg); font-size: var(--iwb-text-body);
+  line-height: 1.55; cursor: default;
+}
+/* The explanation is the description of the control. Its measure is bounded
+   in characters, not in pixels, so it reflows with the width of the page. */
+.iwb-settings-hint {
+  margin-top: 2px; max-width: var(--iwb-settings-read-measure);
+  color: var(--iwb-muted); font-size: var(--iwb-text-label); line-height: 1.5;
+}
 .iwb-settings-control {
-  flex: 0 0 auto; margin-left: auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  grid-column: 2; grid-row: 1; justify-self: end;
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--iwb-space-2);
 }
 /* The inputs of the settings page are painted by ONE rule: a control whose
    wrapper is missing from the selector list falls back to the browser's own
@@ -80943,10 +82570,131 @@ var CSS2 = `
   /* Keep the save feedback visible while a long settings page scrolls. */
   position: sticky; bottom: 0; z-index: 2; background: var(--iwb-bg);
 }
-.iwb-settings-saved { margin-left: auto; color: var(--iwb-success); font-size: 12px; }
-@container iwb-settings (max-width: 520px) {
-  .iwb-settings-row { flex-wrap: wrap; gap: 8px 16px; padding: 12px 0; }
-  .iwb-settings-control { width: 100%; justify-content: flex-start; }
+.iwb-settings-saved { margin-left: auto; color: var(--iwb-success); font-size: var(--iwb-text-label); }
+.iwb-settings-saved-failed { color: var(--iwb-error); }
+
+/* \u2500\u2500 the header of the page \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The filter comes first (the workspace design system asks for a prominent
+   search bar) and it sticks to the top of the scroll container, so it is
+   always at hand while the user looks for a setting. */
+.iwb-settings-header {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; flex-direction: column; gap: var(--iwb-space-2);
+  padding: var(--iwb-space-3) 0 var(--iwb-space-2);
+  background: var(--iwb-bg);
+  border-bottom: 1px solid var(--iwb-divider);
+}
+.iwb-settings-search { display: flex; align-items: center; gap: var(--iwb-space-2); }
+.iwb-settings-filter {
+  flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 10px;
+  color: var(--iwb-fg); background: var(--iwb-bg);
+  border: 1px solid var(--iwb-border-strong); border-radius: var(--iwb-radius-sm);
+  font-size: var(--iwb-text-body); outline: none;
+  transition: border-color var(--iwb-dur-fast) var(--iwb-ease), box-shadow var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-settings-filter::placeholder { color: var(--iwb-muted); }
+.iwb-settings-filter:hover { border-color: var(--iwb-muted); }
+.iwb-settings-filter:focus-visible { border-color: var(--iwb-accent); box-shadow: 0 0 0 1px var(--iwb-accent); }
+.iwb-settings-count {
+  flex: 0 0 auto; color: var(--iwb-muted); font-size: var(--iwb-text-label);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.iwb-settings-header-row { display: flex; align-items: center; gap: var(--iwb-space-2); }
+.iwb-settings-header-row .iwb-settings-search { flex: 1 1 auto; min-width: 0; }
+/* The reset is a destructive action: its label never wraps (a wrapped button
+   reads as two words), and it never shrinks. */
+.iwb-settings-header-row .iwb-settings-reset,
+.iwb-settings-header-row .iwb-textbtn { flex: 0 0 auto; white-space: nowrap; }
+/* The category bar is ONE row that SCROLLS. Ten chips wrapped into a pile
+   read as noise in a narrow sidebar, and a chip that is cropped away is a
+   category the user cannot find - so the bar is dragged instead of wrapped
+   (the chips keep their own room, and the bar scrolls sideways). */
+.iwb-settings-tabs {
+  display: flex; flex-wrap: nowrap; gap: var(--iwb-space-2);
+  flex: 1 1 auto; min-width: 0;
+  overflow-x: auto; overflow-y: hidden;
+  padding-bottom: var(--iwb-space-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--iwb-border-strong) transparent;
+}
+.iwb-settings-tabs::-webkit-scrollbar { height: 6px; }
+.iwb-settings-tabs::-webkit-scrollbar-track { background: transparent; }
+.iwb-settings-tabs::-webkit-scrollbar-thumb {
+  background: var(--iwb-border-strong); border-radius: 3px;
+}
+.iwb-settings-tabs::-webkit-scrollbar-thumb:hover { background: var(--iwb-muted); }
+/* A chip has room of its own: a category is a place, not a word in a list. */
+.iwb-settings-tab {
+  display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  height: 32px; padding: 0 14px;
+  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-sm);
+  color: var(--iwb-muted); background: var(--iwb-panel-2);
+  font-size: var(--iwb-text-body);
+  white-space: nowrap;
+  transition: color var(--iwb-dur-fast) var(--iwb-ease), background var(--iwb-dur-fast) var(--iwb-ease), border-color var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-settings-tab:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
+.iwb-settings-tab:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 2px; }
+.iwb-settings-tab[aria-selected="true"] {
+  color: var(--iwb-fg); background: var(--iwb-surface-selected); border-color: var(--iwb-accent);
+  font-weight: 600;
+}
+.iwb-settings-tab-count { color: var(--iwb-muted); font-size: var(--iwb-text-label); font-variant-numeric: tabular-nums; }
+.iwb-settings-tab[aria-selected="true"] .iwb-settings-tab-count { color: var(--iwb-fg); }
+/* The panel has a HEIGHT, not a minimum: the categories hold a different
+   number of rows, and a panel that follows its content makes the whole
+   window jump every time another category is picked. The rows scroll
+   inside the panel instead. */
+.iwb-settings-panel {
+  height: var(--iwb-settings-panel-height);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: var(--iwb-space-4); scroll-margin-top: var(--iwb-settings-header-height);
+}
+.iwb-settings-panel:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 2px; }
+
+/* The honest states of a row. The colour is the only thing that changes, and
+   it is a state colour of the theme - the page itself stays quiet. */
+.iwb-settings-badges { display: flex; flex-wrap: wrap; align-items: center; gap: var(--iwb-space-1); margin-top: 4px; }
+.iwb-settings-badge {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px;
+  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-xs);
+  color: var(--iwb-muted); background: var(--iwb-panel-2);
+  font-size: 10.5px; line-height: 1; white-space: nowrap;
+}
+.iwb-settings-badge-changed { color: var(--iwb-accent); }
+.iwb-settings-badge-deferred { color: var(--iwb-warn); }
+.iwb-settings-badge-danger { color: var(--iwb-error); }
+.iwb-settings-badge-failed { color: var(--iwb-error); }
+.iwb-settings-reset-row {
+  height: 18px; padding: 0 6px; border: 1px solid var(--iwb-border);
+  border-radius: var(--iwb-radius-xs); color: var(--iwb-muted); background: transparent;
+  font-size: 10.5px; line-height: 1; white-space: nowrap;
+  transition: color var(--iwb-dur-fast) var(--iwb-ease), border-color var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-settings-reset-row:hover { color: var(--iwb-fg); border-color: var(--iwb-muted); }
+.iwb-settings-reset-row:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 1px; }
+.iwb-settings-reset-confirm {
+  display: inline-flex; align-items: center; gap: var(--iwb-space-1); flex: 0 0 auto;
+  color: var(--iwb-warn); font-size: var(--iwb-text-label); white-space: nowrap;
+}
+
+/* The empty state of the filter is a dead end only when it says nothing: it
+   names the word that found nothing, it says what to try, and it offers the
+   way out (ui-ux-pro-max: no results - a dead end is not an answer). */
+.iwb-settings-empty { padding: var(--iwb-space-5) 0; text-align: center; }
+.iwb-settings-empty-title { margin: 0; color: var(--iwb-fg); font-size: var(--iwb-text-body); }
+.iwb-settings-empty-query {
+  padding: 1px 5px; border-radius: var(--iwb-radius-xs); background: var(--iwb-panel-2);
+  color: var(--iwb-fg); font-family: var(--iwb-mono);
+}
+.iwb-settings-empty-hint { margin: var(--iwb-space-1) 0 var(--iwb-space-3); color: var(--iwb-muted); font-size: var(--iwb-text-label); }
+
+@container iwb-settings (max-width: 560px) {
+  /* A narrow page (the modal of the workbench is about 460 px wide): the
+     control moves under its label, so the explanation keeps its measure and
+     the row stays as tall as its content. */
+  .iwb-settings-row { grid-template-columns: minmax(0, 1fr); }
+  .iwb-settings-control { grid-column: 1; grid-row: auto; justify-self: start; }
   .iwb-settings-control input[type="text"] { width: 100%; }
   .iwb-settings-control select { width: 100%; }
   .iwb-settings-shortcut { min-width: 132px; }
@@ -80962,8 +82710,8 @@ var CSS2 = `
    dim also keeps the two layers from stacking into a black screen. */
 .iwb-modal-backdrop.iwb-confirm-backdrop { z-index: 55; background: rgba(0, 0, 0, .6); }
 .iwb-modal {
-  width: min(440px, calc(100% - 40px)); border-radius: 10px; border: 1px solid var(--iwb-border-strong);
-  background: var(--iwb-overlay); box-shadow: 0 24px 60px rgba(0, 0, 0, .45); padding: 16px 18px;
+  width: min(440px, calc(100% - 40px)); border-radius: var(--iwb-radius-lg); border: 1px solid var(--iwb-border-strong);
+  background: var(--iwb-surface-overlay); box-shadow: var(--iwb-highlight), var(--iwb-shadow-lg); padding: 16px 18px;
 }
 .iwb-modal h2 { font-size: 15px; margin: 0 0 8px; }
 .iwb-modal p { margin: 0 0 16px; color: var(--iwb-muted); font-size: 12.5px; white-space: pre-wrap; user-select: text; }
@@ -81014,6 +82762,25 @@ var CSS2 = `
    follows the host theme like the rest of the workbench. */
 .iwb-new-entry-modal { width: min(480px, calc(100% - 40px)); }
 .iwb-new-entry-title { margin: 0 0 12px; font-size: 15px; }
+/* The kind of the entry (PRD-v8 NEW-01): a switch, not a guess. The shortcut
+   used to open a dialog that could only create a file, so "I wanted a
+   directory" ended up as a file with a directory's name. The kind is the
+   first thing the dialog says, and it can be changed without leaving it. */
+.iwb-new-entry-kind {
+  display: inline-flex; align-items: center; gap: 2px; margin: 0 0 14px; padding: 2px;
+  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-md);
+  background: var(--iwb-surface-sunken);
+}
+.iwb-new-entry-kind button {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 12px;
+  border-radius: var(--iwb-radius-sm); color: var(--iwb-muted); font-size: 12px;
+  transition: background-color var(--iwb-dur-fast) var(--iwb-ease), color var(--iwb-dur-fast) var(--iwb-ease);
+}
+.iwb-new-entry-kind button:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
+.iwb-new-entry-kind button.iwb-on {
+  color: var(--iwb-fg); background: var(--iwb-surface-raised);
+  box-shadow: var(--iwb-highlight), var(--iwb-shadow-sm);
+}
 /* The frame of the target folder. */
 .iwb-new-entry-path {
   display: flex; flex-direction: column; gap: 7px;
@@ -81046,8 +82813,8 @@ var CSS2 = `
   height: 34px; font-size: 13.5px; border-color: var(--iwb-border-strong);
 }
 .iwb-toast {
-  position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: 8px;
-  border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay); box-shadow: 0 10px 30px rgba(0,0,0,.4);
+  position: absolute; right: 14px; bottom: 34px; max-width: 420px; padding: 9px 12px; border-radius: var(--iwb-radius-md);
+  border: 1px solid var(--iwb-border-strong); background: var(--iwb-surface-overlay); box-shadow: var(--iwb-highlight), var(--iwb-shadow-lg);
   font-size: 12px; z-index: 60; display: flex; gap: 8px; align-items: flex-start;
 }
 .iwb-toast.iwb-error { border-color: rgba(226, 104, 111, .55); }
@@ -81058,7 +82825,7 @@ var CSS2 = `
 .iwb-root-picker { display: flex; flex-direction: column; gap: 8px; }
 .iwb-root-list { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow: auto; }
 .iwb-root-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--iwb-border); text-align: left; }
-.iwb-root-item:hover { background: rgba(127, 127, 127, .1); }
+.iwb-root-item:hover { background: var(--iwb-surface-hover); }
 .iwb-root-item .iwb-root-path { color: var(--iwb-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
 .iwb-project-picker { width: min(620px, calc(100% - 40px)); max-height: min(80vh, 720px); display: flex; flex-direction: column; }
 .iwb-modal-hint { color: var(--iwb-muted); font-size: 12px; margin: -2px 0 12px; }
@@ -81068,8 +82835,8 @@ var CSS2 = `
   display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 8px; border-radius: 7px;
   border: 1px solid transparent; text-align: left;
 }
-.iwb-project-choice:hover { background: rgba(127, 127, 127, .1); }
-.iwb-project-choice.iwb-current { border-color: var(--iwb-border-strong); background: rgba(76, 154, 255, .07); }
+.iwb-project-choice:hover { background: var(--iwb-surface-hover); }
+.iwb-project-choice.iwb-current { border-color: var(--iwb-border-strong); background: var(--iwb-surface-selected-soft); }
 .iwb-project-choice-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 18px; color: var(--iwb-muted); }
 .iwb-project-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .iwb-project-choice-text b { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -81106,17 +82873,17 @@ var CSS2 = `
   width: 24px; height: 24px; border-radius: 5px; color: var(--iwb-muted); display: inline-flex;
   align-items: center; justify-content: center; font-size: 13px;
 }
-.iwb-find-btn:hover:not(:disabled) { background: rgba(127,127,127,.14); color: var(--iwb-fg); }
+.iwb-find-btn:hover:not(:disabled) { background: var(--iwb-surface-active); color: var(--iwb-fg); }
 .iwb-find-btn:disabled { opacity: .35; }
 .iwb-find-flag {
   min-width: 26px; height: 22px; padding: 0 5px; border-radius: 4px; border: 1px solid transparent;
   color: var(--iwb-muted); font-family: var(--iwb-mono); font-size: 10.5px;
 }
-.iwb-find-flag:hover { background: rgba(127,127,127,.14); color: var(--iwb-fg); }
-.iwb-find-flag.iwb-on { border-color: var(--iwb-accent); color: var(--iwb-accent); background: rgba(76,154,255,.12); }
+.iwb-find-flag:hover { background: var(--iwb-surface-active); color: var(--iwb-fg); }
+.iwb-find-flag.iwb-on { border-color: var(--iwb-accent); color: var(--iwb-accent); background: var(--iwb-surface-selected-soft); }
 .iwb-dom-findbar { position: absolute; top: 0; left: 0; right: 0; z-index: 14; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
 ::highlight(iwb-dom-find) { background-color: rgba(215, 162, 74, .38); }
-::highlight(iwb-dom-find-active) { background-color: rgba(76, 154, 255, .55); color: inherit; }
+::highlight(iwb-dom-find-active) { background-color: color-mix(in srgb, var(--iwb-accent) 55%, transparent); color: inherit; }
 /* Editor-owned dialogs center on the *document* window, not on the whole
    workbench root: the backdrop is scoped to the editor pane so the top bar
    and the status bar stay untouched. */
@@ -81162,7 +82929,7 @@ var CSS2 = `
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 9px;
   border-radius: 5px; text-align: left; font-size: 12px; color: var(--iwb-fg);
 }
-.iwb-search-popup-file:hover { background: rgba(127, 127, 127, .1); }
+.iwb-search-popup-file:hover { background: var(--iwb-surface-hover); }
 .iwb-search-popup-file.iwb-selected { background: color-mix(in srgb, var(--iwb-accent) 20%, transparent); }
 .iwb-search-popup-file-name { flex: 0 0 auto; white-space: nowrap; }
 .iwb-search-popup-file-dir { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--iwb-muted); font-size: 10.5px; }
@@ -81202,19 +82969,28 @@ var CSS2 = `
 .iwb-quick-input { flex: 1; min-width: 80px; height: 30px; padding: 0 7px; border: 0; background: transparent; color: var(--iwb-fg); outline: none; font-size: 14px; user-select: text; }
 .iwb-quick-list { overflow: auto; padding: 4px; min-height: 40px; }
 .iwb-quick-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 27px; padding: 0 9px; border-radius: 5px; text-align: left; }
-.iwb-quick-row.iwb-selected { background: rgba(76,154,255,.2); }
+.iwb-quick-row.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-quick-name { font-size: 12.5px; white-space: nowrap; }
 .iwb-quick-dir { color: var(--iwb-muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-quick-empty { padding: 18px; text-align: center; color: var(--iwb-muted); font-size: 12px; }
 .iwb-quick-foot { padding: 6px 10px; border-top: 1px solid var(--iwb-border); color: var(--iwb-muted); font-size: 10.5px; }
 
 /* \u2500\u2500 Project filter modes / opened-vs-selected \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-.iwb-filter-mode { display: inline-flex; border: 1px solid var(--iwb-border); border-radius: 4px; overflow: hidden; flex: 0 0 auto; }
-.iwb-filter-mode button { height: 20px; padding: 0 6px; color: var(--iwb-muted); font-size: 10.5px; }
-.iwb-filter-mode button.iwb-on { background: rgba(76,154,255,.18); color: var(--iwb-fg); }
-.iwb-filter-mode button + button { border-left: 1px solid var(--iwb-border); }
+.iwb-filter-mode { display: inline-flex; border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-sm); overflow: hidden; flex: 0 0 auto; background: var(--iwb-surface-sunken); padding: 1px; gap: 1px; }
+.iwb-filter-mode button { height: 20px; padding: 0 7px; color: var(--iwb-muted); font-size: 11px; border-radius: var(--iwb-radius-xs); }
+.iwb-filter-mode button:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
+.iwb-filter-mode button.iwb-on { background: var(--iwb-surface-raised); color: var(--iwb-fg); box-shadow: var(--iwb-highlight); }
+.iwb-filter-mode button + button { border-left: 0; }
 .iwb-filter-hint { padding: 0 12px 5px; color: var(--iwb-muted); font-size: 10.5px; }
 .iwb-error-text { color: var(--iwb-error); }
+/* The paste that is running: the copy of a big folder takes a while, and the
+   reader has to see that the tree is busy - and to be able to stop it. */
+.iwb-tree-busy {
+  display: flex; align-items: center; gap: 8px; padding: 3px 8px 4px 12px;
+  border-bottom: 1px solid var(--iwb-border); background: var(--iwb-surface-sunken);
+}
+.iwb-tree-busy-label { color: var(--iwb-muted); font-size: 10.5px; }
+.iwb-tree-busy .iwb-textbtn { margin-left: auto; }
 .iwb-tree-row.iwb-opened .iwb-tree-name { color: var(--iwb-accent); font-weight: 600; }
 .iwb-tree-row.iwb-opened::before {
   content: ''; position: absolute; left: 0; top: 2px; bottom: 2px; width: 2px; border-radius: 2px;
@@ -81224,22 +83000,43 @@ var CSS2 = `
 
 /* \u2500\u2500 Git Drawer \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .iwb-branch-switch {
-  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 7px; border-radius: 5px;
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 7px; border-radius: var(--iwb-radius-sm);
   border: 1px solid var(--iwb-border); color: var(--iwb-fg); font-size: 11.5px; max-width: 210px;
+  white-space: nowrap;
 }
-.iwb-branch-switch:hover { border-color: var(--iwb-border-strong); background: rgba(127,127,127,.08); }
-.iwb-branch-caret { color: var(--iwb-muted); font-size: 9px; }
+.iwb-branch-switch:hover { border-color: var(--iwb-border-strong); background: var(--iwb-surface-hover); }
+/* The branch of the history is the longest name in the row, and it used to
+   WRAP onto a second line - which made the whole filter row taller and
+   looked broken. It takes the room the second repository switcher used to
+   take, and it gives the room back with an ellipsis. */
+.iwb-branch-pick {
+  flex: 1 1 auto; min-width: 120px; max-width: 46%;
+  background: var(--iwb-surface-raised);
+}
+.iwb-branch-pick-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--iwb-mono); font-size: 11.5px; letter-spacing: -.01em;
+}
+.iwb-branch-caret { color: var(--iwb-muted); font-size: 9px; display: inline-flex; align-items: center; }
 .iwb-branch-popover {
-  position: fixed; z-index: 42; width: 260px; padding: 6px; border-radius: 8px;
+  position: fixed; z-index: 42; width: min(340px, calc(100vw - 24px)); padding: 6px; border-radius: 8px;
   border: 1px solid var(--iwb-border-strong); background: var(--iwb-overlay);
   box-shadow: 0 14px 36px rgba(0,0,0,.4);
 }
 .iwb-branch-list { max-height: 280px; overflow: auto; margin-top: 5px; }
 .iwb-branch-row {
-  display: flex; align-items: center; gap: 6px; width: 100%; height: 25px; padding: 0 6px;
+  display: flex; align-items: center; gap: 6px; width: 100%; min-height: 25px; padding: 0 6px;
   border-radius: 4px; text-align: left; font-size: 12px;
 }
-.iwb-branch-row.iwb-selected { background: rgba(76,154,255,.2); }
+/* The name of a branch is longer than the row. Without the ellipsis it wraps
+   onto a second line, and the second line falls out of the row - onto the row
+   below it, so the two names lie on top of each other. The row grows instead
+   of clipping (min-height), and the name takes what is left of the row. */
+.iwb-branch-row .iwb-branch-name {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.iwb-branch-row.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-branch-check { width: 12px; flex: 0 0 12px; color: var(--iwb-accent); }
 .iwb-git-main { flex: 1; min-height: 0; display: flex; position: relative; }
 .iwb-git-table { flex: 1; min-width: 0; }
@@ -81252,7 +83049,7 @@ var CSS2 = `
 }
 .iwb-git-drawer-backdrop { position: absolute; inset: 0; z-index: 11; background: rgba(0,0,0,.42); }
 .iwb-git-drawer-resizer { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 13; }
-.iwb-git-drawer-resizer:hover { background: rgba(76,154,255,.28); }
+.iwb-git-drawer-resizer:hover { background: color-mix(in srgb, var(--iwb-accent) 28%, transparent); }
 .iwb-git-drawer-head {
   display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 5px 6px 5px 10px;
   border-bottom: 1px solid var(--iwb-border); background: var(--iwb-panel);
@@ -81276,8 +83073,8 @@ var CSS2 = `
   display: flex; align-items: center; gap: 5px; width: 100%; min-height: 23px; padding: 0 5px;
   border-radius: 4px; text-align: left; font-size: 11.5px;
 }
-.iwb-git-drawer-file:hover { background: rgba(127,127,127,.12); }
-.iwb-git-drawer-file.iwb-selected { background: rgba(76,154,255,.16); }
+.iwb-git-drawer-file:hover { background: var(--iwb-surface-hover); }
+.iwb-git-drawer-file.iwb-selected { background: var(--iwb-surface-selected); }
 .iwb-git-drawer-file .iwb-git-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iwb-git-drawer-file .iwb-additions, .iwb-git-drawer-file .iwb-deletions { margin-left: 0; font-size: 10px; }
 /* Changed files render as a collapsible directory tree. */
@@ -81286,8 +83083,8 @@ var CSS2 = `
   display: flex; align-items: center; gap: 5px; width: 100%; min-height: 23px; padding: 0 5px;
   border-radius: 4px; text-align: left; font-size: 11.5px;
 }
-.iwb-git-tree-dir:hover { background: rgba(127,127,127,.12); }
-.iwb-git-tree-caret { width: 10px; flex: 0 0 10px; color: var(--iwb-muted); font-size: 9px; text-align: center; }
+.iwb-git-tree-dir:hover { background: var(--iwb-surface-hover); }
+.iwb-git-tree-caret { width: 10px; flex: 0 0 10px; color: var(--iwb-muted); font-size: 9px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
 .iwb-git-tree-dir-name {
   font-family: var(--iwb-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -81330,11 +83127,17 @@ var CSS2 = `
    CodeMirror draws the fold markers and the placeholder of a collapsed range;
    the workbench only gives them the theme's colours, so they follow the host
    theme like every other part of the editor. The class names are CodeMirror's
-   own - foldGutter() installs the gutter as .cm-foldGutter. */
-.cm-foldGutter { color: var(--iwb-muted); }
-.cm-foldGutter .cm-gutterElement { padding: 0 2px; cursor: pointer; }
-.cm-foldGutter .cm-gutterElement:hover { color: var(--iwb-fg); }
-.cm-foldPlaceholder {
+   own - foldGutter() installs the gutter as .cm-foldGutter.
+
+   The rules are bound to the workbench with :where(.iwb-root): the host draws
+   a CodeMirror of its own (its chat input is one), and an unscoped rule of
+   the plugin would restyle it. The pseudo-class weighs nothing, so the
+   specificity of the rule is the one it had - the workbench looks exactly the
+   way it looked. */
+:where(.iwb-root) .cm-foldGutter { color: var(--iwb-muted); }
+:where(.iwb-root) .cm-foldGutter .cm-gutterElement { padding: 0 2px; cursor: pointer; }
+:where(.iwb-root) .cm-foldGutter .cm-gutterElement:hover { color: var(--iwb-fg); }
+:where(.iwb-root) .cm-foldPlaceholder {
   color: var(--iwb-muted);
   background: color-mix(in srgb, var(--iwb-accent) 14%, transparent);
   border: none; border-radius: 3px; padding: 0 4px; margin: 0 2px; font-size: .92em;
@@ -81385,6 +83188,28 @@ var CSS2 = `
   .iwb-bottom { max-height: 60%; min-height: 100px; }
   .iwb-bottom-tabs { padding-left: 8px; }
   .iwb-bottom-body { padding-left: 0; }
+}
+
+/* \u2500\u2500 the glass of the floating layers (PRD-v8 \xA72.3.5) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+   The layers that sit ABOVE the content become translucent: they catch the
+   light on their top edge, they blur what is behind them, and they cast a
+   wide, soft shadow. A browser that cannot do the blur keeps the opaque
+   surface - the effect is an addition, never a requirement. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .iwb-menu,
+  .iwb-modal,
+  .iwb-toast,
+  .iwb-outline,
+  .iwb-html-actions {
+    background: var(--iwb-glass);
+    -webkit-backdrop-filter: var(--iwb-glass-blur);
+    backdrop-filter: var(--iwb-glass-blur);
+  }
+  .iwb-menu { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
+  .iwb-modal { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
+  .iwb-toast { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
+  .iwb-outline { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
+  .iwb-html-actions { box-shadow: var(--iwb-glass-edge), var(--iwb-glass-shadow); }
 }
 `;
 
@@ -81863,7 +83688,7 @@ function ChangesReviewBridge({ store, tab: tab3, ctx, suppressSelf }) {
   );
 }
 function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, suppressSelf, renderSlot }) {
-  const { tab: tab3, sidebar } = useTabInfo();
+  const { tab: tab3 } = useTabInfo();
   const store = getStore(sessionId);
   const mountedId = useMountedSession(ctx);
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === "function";
@@ -81885,7 +83710,7 @@ function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, s
     return import_react21.default.createElement(ChangesReviewBridge, { store, tab: tab3, ctx, suppressSelf });
   }
   if (!isMounted) return null;
-  return import_react21.default.createElement(Workbench, { store, visible: tab3.visible, fullscreen: sidebar.fullscreen, renderSlot });
+  return import_react21.default.createElement(Workbench, { store, visible: tab3.visible, renderSlot });
 }
 function BoundSettings({ store }) {
   const state = useWorkbench(store);
@@ -82184,17 +84009,6 @@ function apply(ctx) {
     order: 80,
     label: () => t3("chat.sendToChat")
   }, (props) => import_react21.default.createElement(ChatInputBridge, props))), "dsh-ide-workbench: composer chat bridge");
-  ctx.effect(() => ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
-    name: "sidebar.footer.action",
-    id: PANEL_ID,
-    order: 20,
-    label: () => t3("panelLabel")
-  }, () => import_react21.default.createElement(
-    import_react21.default.Fragment,
-    null,
-    import_react21.default.createElement(Styles),
-    import_react21.default.createElement(OpenButton, { open, t: t3 })
-  ))), "dsh-ide-workbench: sidebar footer entry");
   ctx.effect(() => {
     const mounted = ctx.sidebarRight?.mounted;
     if (typeof mounted?.subscribe !== "function" || typeof mounted.getSnapshot !== "function") {

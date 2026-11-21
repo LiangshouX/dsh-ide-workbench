@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   appendIgnore, createEntry, deleteEntries, duplicateEntry, moveEntries, renameEntry, validateEntryName,
+  copyTree, createCopyBudget, COPY_BYTE_BUDGET, COPY_ENTRY_BUDGET,
 } from '../src/host/fileops.js'
 
 async function sandbox() {
@@ -155,4 +156,106 @@ test('appendIgnore adds one anchored line and stays idempotent', async () => {
   } finally {
     await rm(root, { recursive: true, force: true })
   }
+})
+
+// ── the copy of a paste: bounded, stoppable, honest ─────────────────────
+
+test('copyTree copies a whole folder tree', async () => {
+  const root = await sandbox()
+  try {
+    await mkdir(join(root, 'src', 'deep'), { recursive: true })
+    await writeFile(join(root, 'src', 'a.txt'), 'a')
+    await writeFile(join(root, 'src', 'deep', 'b.txt'), 'b')
+    const copied = await copyTree(join(root, 'src'), join(root, 'copy'), { budget: createCopyBudget() })
+    assert.equal(copied.truncated, false)
+    assert.equal(copied.failures.length, 0)
+    assert.equal(await readFile(join(root, 'copy', 'a.txt'), 'utf8'), 'a')
+    assert.equal(await readFile(join(root, 'copy', 'deep', 'b.txt'), 'utf8'), 'b')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('the copy stops at the budget and says so', async () => {
+  const root = await sandbox()
+  try {
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'a.txt'), 'a')
+    await writeFile(join(root, 'src', 'b.txt'), 'b')
+    await writeFile(join(root, 'src', 'c.txt'), 'c')
+    // A budget of two entries: the copy cannot go on for ever.
+    const copied = await copyTree(join(root, 'src'), join(root, 'copy'), {
+      budget: createCopyBudget({ maxEntries: 2 }),
+    })
+    assert.equal(copied.truncated, true, 'the copy says that it did not finish')
+    assert.ok(copied.entries <= 2, 'the budget is respected')
+    // The file that did not fit is NAMED: the user has to know which entry
+    // is missing, not only that something is.
+    assert.equal(copied.failures.length, 1)
+    assert.match(copied.failures[0].message, /budget/)
+    assert.ok(copied.failures[0].path.endsWith('c.txt'), 'the missing file is named')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('a file that does not fit in the budget is not copied in half', async () => {
+  const root = await sandbox()
+  try {
+    await writeFile(join(root, 'big.txt'), 'x'.repeat(100))
+    // A budget of ten bytes: the file does not fit, so it is not copied at
+    // all. A half-copied file would be a broken file.
+    const copied = await copyTree(join(root, 'big.txt'), join(root, 'copy.txt'), {
+      budget: createCopyBudget({ maxBytes: 10 }),
+    })
+    assert.equal(copied.truncated, true)
+    assert.equal(copied.entries, 0)
+    assert.equal(existsSync(join(root, 'copy.txt')), false, 'no half-copied file is left behind')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('a copy can be stopped through its signal', async () => {
+  const root = await sandbox()
+  try {
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'a.txt'), 'a')
+    const controller = new AbortController()
+    controller.abort()
+    await assert.rejects(
+      () => copyTree(join(root, 'src'), join(root, 'copy'), { budget: createCopyBudget(), signal: controller.signal }),
+      /cancelled/,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('moveEntries reports a copy that hit the budget', async () => {
+  const root = await sandbox()
+  try {
+    await mkdir(join(root, 'dest'), { recursive: true })
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'a.txt'), 'a')
+    const result = await moveEntries(root, {
+      paths: [join(root, 'src')],
+      target: join(root, 'dest'),
+      copy: true,
+      conflict: 'rename',
+      budget: { maxEntries: 0 },
+    })
+    assert.equal(result.truncated, true, 'the answer says that the copy did not finish')
+    assert.equal(result.results[0].truncated, true)
+    assert.equal(result.results[0].ok, true, 'what was copied is still reported')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('the budgets of a paste are bounded, and the byte budget is not zero', () => {
+  // A byte budget of zero would refuse every file - and `4 << 30` is zero,
+  // because a JavaScript shift works on 32 bits.
+  assert.ok(COPY_ENTRY_BUDGET > 0, 'the entry budget is a real number')
+  assert.ok(COPY_BYTE_BUDGET > 1024 * 1024 * 1024, 'the byte budget is more than a gigabyte')
 })

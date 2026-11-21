@@ -6,7 +6,9 @@
  * eye could not tell "where the entry lands" from "what the entry is
  * called". The layout is a hierarchy now:
  *
- *   - the PATH comes first, in a frame of its own: it is the context of the
+ *   - the KIND comes first (PRD-v8 NEW-01): a file or a directory is a
+ *     switch, so the dialog never guesses what is being created;
+ *   - the PATH comes next, in a frame of its own: it is the context of the
  *     entry, so it is read before anything else;
  *   - the NAME follows as the primary input, and it keeps the focus;
  *   - the TEMPLATE (files only) comes after it;
@@ -124,6 +126,7 @@ function renderDialog(dialog, handlers = {}) {
     onPathChange() {},
     onPathFocus() {},
     onTemplateChange() {},
+    onKindChange() {},
     onSubmit() {},
     onCancel() {},
     ...handlers,
@@ -157,6 +160,7 @@ test('the path block comes before the name field', async () => {
   const blocks = childrenOf(modal).map(element => classOf(element))
   assert.deepEqual(blocks, [
     'iwb-new-entry-title',
+    'iwb-new-entry-kind',
     'iwb-new-entry-path',
     'iwb-field iwb-new-entry-name',
     'iwb-field iwb-new-entry-template',
@@ -224,6 +228,37 @@ test('the layout did not change the behaviour of the dialog', async () => {
     && element.type === 'input')
   assert.ok(nameInput !== undefined, 'the name box is rendered')
   assert.equal(nameInput.props.autoFocus, true, 'the name keeps the focus')
+})
+
+test('the dialog says which kind it creates, and the kind can be changed', async () => {
+  // PRD-v8 NEW-01: the shortcut opened a dialog that could only create a
+  // file, so "I wanted a directory" ended up as a file with a directory's
+  // name. The kind is now a switch in the dialog itself.
+  const file = await fileDialog()
+  const kinds = []
+  const { elements } = renderDialog(file, { onKindChange: value => kinds.push(value) })
+
+  const group = elements.find(element => classOf(element) === 'iwb-new-entry-kind')
+  assert.ok(group !== undefined, 'the dialog has a kind switch')
+  assert.equal(group.props.role, 'radiogroup', 'the switch is a radio group')
+
+  const radios = childrenOf(group).filter(element => element?.props?.role === 'radio')
+  assert.equal(radios.length, 2, 'the switch offers a file and a directory')
+
+  // The chosen kind is the one that is checked.
+  assert.equal(radios[0].props['aria-checked'], 'true', 'a file dialog checks the file')
+  assert.equal(radios[1].props['aria-checked'], 'false', 'a file dialog does not check the directory')
+
+  // The other kind changes the dialog.
+  radios[1].props.onClick()
+  assert.deepEqual(kinds, [true], 'the directory was asked for')
+
+  const dir = await dirDialog()
+  const dirRadios = childrenOf(
+    renderDialog(dir).elements.find(element => classOf(element) === 'iwb-new-entry-kind'),
+  ).filter(element => element?.props?.role === 'radio')
+  assert.equal(dirRadios[0].props['aria-checked'], 'false', 'a directory dialog does not check the file')
+  assert.equal(dirRadios[1].props['aria-checked'], 'true', 'a directory dialog checks the directory')
 })
 
 test('the template belongs to the files only', async () => {

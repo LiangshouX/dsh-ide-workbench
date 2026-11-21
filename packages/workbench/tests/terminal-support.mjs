@@ -42,9 +42,11 @@ export async function loadTerminalModule() {
           export {
             THEME_DARK, THEME_LIGHT,
             TERMINAL_PALETTE_DARK, TERMINAL_PALETTE_LIGHT, TERMINAL_PALETTES,
+            TERMINAL_SCROLLBACK,
             relativeLuminance, resolveHostTheme, readThemeEnvironment, readHostTheme,
             readHostThemeService, subscribeHostThemeService,
             watchHostTheme, applyTerminalTheme, createImeGuard, terminalSlice,
+            truncatedNotice, createTruncationNotice,
           } from './src/client/TerminalPanel.jsx'
         `,
         resolveDir: root,

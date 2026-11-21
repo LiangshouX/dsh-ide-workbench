@@ -12,9 +12,53 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { wsUrl, call } from './api.js'
-import { FileTypeIcon, IconPlus, IconTerminal } from './icons.jsx'
+import { FileTypeIcon, IconClose, IconPlus, IconTerminal } from './icons.jsx'
 import { dirName } from './util.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
+
+/**
+ * The number of lines the terminal keeps in its scrollback.
+ *
+ * xterm keeps 1000 lines by default, and a session that prints a lot
+ * (a build, a `cat`) pushes the rest out of the buffer - but the buffer
+ * itself grows until the renderer is out of memory. The scrollback is
+ * therefore bounded on purpose (PRD-v8 TERM-04).
+ */
+export const TERMINAL_SCROLLBACK = 5000
+
+/**
+ * The notice the terminal prints when the host stopped forwarding output.
+ *
+ * The host caps the output of a session and says so once (PRD-v8 TERM-03):
+ * a terminal that simply went quiet would look like a shell that had died.
+ *
+ * @param {{ bytes?: number, limit?: number }} frame the frame of the host
+ * @returns {string} the line to write into the terminal
+ */
+export function truncatedNotice(frame) {
+  const limit = Number(frame?.limit)
+  const size = Number.isFinite(limit) && limit > 0
+    ? (limit >= 1024 * 1024 ? `${Math.round(limit / (1024 * 1024))} MiB` : `${Math.trunc(limit)} B`)
+    : 'the cap'
+  return `\r\n\x1b[93m[output truncated after ${size}]\x1b[0m\r\n`
+}
+
+/**
+ * One guard against a repeated truncation notice.
+ *
+ * The host sends the frame once, but a socket that reconnects may deliver it
+ * again, and a notice that appears twice is a lie about the output.
+ *
+ * @returns {(frame: { bytes?: number, limit?: number }) => string|null} the notice, or null when it was already printed
+ */
+export function createTruncationNotice() {
+  let printed = false
+  return (frame) => {
+    if (printed) return null
+    printed = true
+    return truncatedNotice(frame)
+  }
+}
 
 /**
  * Fields of the workbench state the terminal panel renders.
@@ -506,6 +550,9 @@ function TerminalView({ store, session, active, visible }) {
       fontSize: store.state.settings?.terminal?.fontSize ?? 13,
       fontFamily: '"JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, monospace',
       allowProposedApi: true,
+      // The scrollback is bounded: a session that prints a lot must not grow
+      // the buffer of the renderer without an end (PRD-v8 TERM-04).
+      scrollback: TERMINAL_SCROLLBACK,
       theme: { ...TERMINAL_PALETTES[theme] },
     })
     const fit = new FitAddon()
@@ -521,6 +568,9 @@ function TerminalView({ store, session, active, visible }) {
       const socket = socketRef.current
       if (socket !== null && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame))
     }
+    // The notice of a truncated output belongs to the session: it is printed
+    // once, however often the frame arrives.
+    const noticeOf = createTruncationNotice()
 
     // The theme of the host is observed in two places: the theme service of
     // the host, when the plugin can see it, and the document, where the host
@@ -610,6 +660,12 @@ function TerminalView({ store, session, active, visible }) {
           setError(null)
         } else if (frame.type === 'data') {
           terminal.write(typeof frame.data === 'string' ? frame.data : '')
+        } else if (frame.type === 'truncated') {
+          // The host stopped forwarding the output of this session: the user
+          // has to know why the terminal went quiet. The notice is printed
+          // once, even if the frame arrives twice.
+          const notice = noticeOf(frame)
+          if (notice !== null) terminal.write(notice)
         } else if (frame.type === 'exit') {
           store.patchTerminal(session.key, { status: 'exited', exitCode: frame.exitCode })
           terminal.write(`\r\n\x1b[90m[process exited${frame.exitCode !== null ? `: ${frame.exitCode}` : ''}]\x1b[0m\r\n`)
@@ -768,7 +824,7 @@ export function TerminalPanel({ store, state, visible = true }) {
         React.createElement('button', {
           type: 'button', className: 'iwb-iconbtn', style: { width: 16, height: 16 }, title: t('terminal.close'),
           onClick: event => { event.stopPropagation(); void store.closeTerminal(session.key) },
-        }, React.createElement('span', { style: { fontSize: 13, lineHeight: 1 } }, '×')),
+        }, React.createElement(IconClose, { width: 11, height: 11 })),
       )),
       React.createElement('button', {
         type: 'button', className: 'iwb-iconbtn', title: t('terminal.new'), onClick: () => store.addTerminal(),

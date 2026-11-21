@@ -7,13 +7,12 @@
  * behind a dynamic import - a session that never opens a PDF never pays for
  * the parser.
  *
- * The host inlines the PDF bytes as base64 (`fs.read` answers JSON), so the
- * viewer decodes them here and hands the `Uint8Array` to the worker, which
- * takes ownership of the buffer.
+ * The bytes of the document are fetched from the binary route of the host
+ * and arrive as bytes; the engine hands them to the worker, which takes
+ * ownership of the buffer.
  */
 import * as pdfjs from 'pdfjs-dist/build/pdf.min.mjs'
 import workerSource from 'virtual:pdf-worker'
-import { decodePdfBase64 } from './pdf-view.js'
 
 /** How long a worker may take before the viewer gives up on it. */
 const WORKER_START_TIMEOUT_MS = 15_000
@@ -92,11 +91,12 @@ async function startWorker() {
  * The returned object owns everything the document needs; `destroy()` must
  * be called when the tab goes away (or the component unmounts), otherwise the
  * worker and the document stay in memory.
- * @param {string} data base64 bytes of the PDF
+ *
+ * @param {Uint8Array} bytes the bytes of the PDF
  * @param {{ onProgress?: (progress: { loaded: number, total: number }) => void }} [options]
  */
-export async function openPdf(data, options = {}) {
-  const bytes = decodePdfBase64(data)
+export async function openPdf(bytes, options = {}) {
+  if (!(bytes instanceof Uint8Array)) throw new Error('the PDF payload is not a byte array')
   const { worker, bridge, url } = await startWorker()
   let loadingTask
   try {

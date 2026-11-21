@@ -109,6 +109,7 @@ function baseState() {
     activeId: '',
     treeFocusTick: 0,
     clipboard: null,
+    pasteBusy: false,
     gitRepoRoot: '',
     localeTick: 0,
     // Fields the panel does NOT read — a change here must not re-render it.
@@ -138,6 +139,7 @@ function baseStore(state) {
     setFilterMode: () => {},
     setFileClipboard: () => {},
     pasteEntries: () => {},
+    cancelPaste: () => {},
     duplicateEntries: () => {},
     requestDelete: () => {},
     renameEntry: () => {},
@@ -197,7 +199,7 @@ test('the slice selector returns exactly the fields the panel reads', async () =
   const expected = [
     'dirs', 'expanded', 'root', 'filter', 'filterMode', 'fileIndex', 'fileIndexLoading',
     'fileIndexError', 'status', 'settings', 'selectedPath', 'selectedPaths', 'tabs',
-    'activeId', 'treeFocusTick', 'clipboard', 'gitRepoRoot',
+    'activeId', 'treeFocusTick', 'clipboard', 'pasteBusy', 'gitRepoRoot',
   ]
   assert.deepEqual(Object.keys(slice).sort(), [...expected].sort())
 

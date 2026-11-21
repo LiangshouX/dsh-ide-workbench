@@ -15,22 +15,23 @@
  * admitted through the public Connection service (the same fence `/api` uses).
  */
 import { randomUUID } from 'node:crypto'
-import { stat, unlink } from 'node:fs/promises'
-import { dirname, relative, sep } from 'node:path'
+import { readFile, stat, unlink } from 'node:fs/promises'
+import { dirname, extname, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
 import { runGit, repoRootOf, status as gitStatus, diff as gitDiff, diffRev as gitDiffRev, diffRefs as gitDiffRefs, stage as gitStage, unstage as gitUnstage, discard as gitDiscard, applyPatch as gitApplyPatch, commit as gitCommit, push as gitPush, log as gitLog, branches as gitBranches, checkout as gitCheckout, revert as gitRevert, commitDetail, commitFileDiff, showFile, recentMessages, blame as gitBlame } from './host/git.js'
-import { SettingsStore, setProfileBase, settingsFile } from './host/settings-store.js'
+import { SettingsStore, setProfileBase, settingsFile, terminalOutputLimit } from './host/settings-store.js'
 import { openInIdea, openInIde } from './host/idea.js'
 import { openExternalUrl } from './host/shell.js'
 import {
-  canonicalRoot, listDirectory, listProjectCandidates, readFileForPreview, resolveInside,
+  canonicalRoot, listDirectory, listProjectCandidates, MAX_PDF_BYTES, readFileForPreview, resolveInside,
   revealInExplorer, runCommand, samePath, shellArgv, shellCandidates, terminalEnv, toRelative, writeFileText,
 } from './host/workspace.js'
 import {
   appendIgnore, createEntry, deleteEntries, duplicateEntry, moveEntries, renameEntry,
 } from './host/fileops.js'
 import { listFiles, searchFiles } from './host/search.js'
+import { StatusCache } from './host/status-cache.js'
 import { guardEmitter } from './host/guard.js'
 import {
   ApiError, optionalBoolean, optionalInteger, readJsonBody, requireString, stringArray,
@@ -46,6 +47,15 @@ export const inject = ['webServer', 'connection', 'subprocess', 'workspaceRegist
 
 const API_PREFIX = '/ide-workbench/api/'
 const WS_PATH = '/ide-workbench/ws/terminal'
+/**
+ * The prefix of the binary route.
+ *
+ * The bytes of a document do not travel through the JSON API: a PDF of
+ * 20 MiB becomes a string of 27 MiB in a JSON answer, and the answer is
+ * parsed into the store of the renderer (PRD-v8 PDF-01). The binary route
+ * serves the bytes as bytes.
+ */
+const RAW_PREFIX = '/ide-workbench/raw'
 
 /**
  * The directory of the plugin's own sources.
@@ -97,6 +107,30 @@ function originOf(req) {
 }
 
 /**
+ * Cut one chunk of output to the bytes that still fit into a budget.
+ *
+ * The cut is made on a boundary of the UTF-8 encoding: a character that
+ * would be cut in half is dropped as a whole, so the client never receives
+ * a broken character (a replacement character is three bytes, and it would
+ * push the session over its budget again).
+ *
+ * @param {Buffer} bytes the chunk
+ * @param {number} room how many bytes may still be sent
+ * @returns {Buffer} the part that fits
+ */
+function sliceUtf8(bytes, room) {
+  if (room <= 0) return Buffer.alloc(0)
+  if (bytes.length <= room) return bytes
+  let end = room
+  // The byte at `end` is the first one that does not fit: when it is a
+  // continuation byte, the character it belongs to was cut in half.
+  let start = end
+  while (start > 0 && (bytes[start] & 0xC0) === 0x80) start -= 1
+  if (start < end) end = start
+  return bytes.subarray(0, end)
+}
+
+/**
  * Mount the plugin.
  * @param {any} ctx cordis host context
  */
@@ -113,6 +147,17 @@ export function apply(ctx) {
   const settings = new SettingsStore(ctx)
   /** Live terminal handles by session id, for the activity endpoint and unload. */
   const terminals = new Map()
+
+  /**
+   * The cached status of the repositories, and the watch on their work trees.
+   *
+   * The client polls the git status every two seconds. The poll runs in the
+   * HOST process - the process of DSH itself - so every tick that runs a git
+   * subprocess is a tick the host pays for. The cache lets the host answer
+   * "nothing changed" without running git at all, and the watch tells it when
+   * the answer changed.
+   */
+  const statusCache = new StatusCache()
 
   /**
    * The root of the project the user is working in.
@@ -402,12 +447,12 @@ export function apply(ctx) {
       })
     },
 
-    'fs.duplicate': async (payload) => {
+    'fs.duplicate': async (payload, request) => {
       const root = await canonicalRoot(payload.root)
-      return duplicateEntry(root, { path: requireString(payload, 'path') })
+      return duplicateEntry(root, { path: requireString(payload, 'path'), signal: request?.signal })
     },
 
-    'fs.move': async (payload) => {
+    'fs.move': async (payload, request) => {
       const root = await canonicalRoot(payload.root)
       const conflict = ['error', 'skip', 'rename', 'overwrite'].includes(payload.conflict)
         ? payload.conflict
@@ -417,6 +462,9 @@ export function apply(ctx) {
         target: requireString(payload, 'target'),
         copy: optionalBoolean(payload, 'copy', false),
         conflict,
+        // The signal of the request: a paste the user cancels must stop the
+        // copy in the host, not only the answer on its way back.
+        signal: request?.signal,
       })
     },
 
@@ -442,20 +490,47 @@ export function apply(ctx) {
 
     // ── git ──────────────────────────────────────────────────────────────
     'git.status': async (payload) => {
-      const env = await repoEnv(payload)
       const current = await settings.get()
-      // The ignored entries are always asked for - the client setting only
-      // decides whether they are shown - and the per-file line counts are
-      // only computed for the Commit window. The levels above an ignored
-      // directory are only needed when the ignored entries are shown, and
-      // they cost one `git ls-files` call.
-      const snapshot = await gitStatus(env, {
-        ignored: current.project.showIgnored === true,
-        levels: current.project.showIgnored === true,
-        numstat: payload?.numstat === true,
-      })
+      const ignored = current.project.showIgnored === true
+      const numstat = payload?.numstat === true
+      // The options are part of the identity of a snapshot: a client that
+      // asks for the line counts needs a snapshot that carries them.
+      const options = `${numstat ? 'n' : '-'}${ignored ? 'i' : '-'}`
+      const entry = statusCache.entry(typeof payload?.root === 'string' ? payload.root : '')
+      // The cheap path: the client holds the snapshot of the host and the
+      // work tree did not change since. The snapshot does not travel again -
+      // in a repository with a large untracked tree it is megabytes of JSON
+      // that the browser parses on its main thread.
+      if (statusCache.isCurrent(entry, payload?.since, options)) {
+        return { unchanged: true, revision: entry.revision }
+      }
+      const env = await repoEnv(payload)
+      // The watch is on the work tree of the repository: it is what tells the
+      // host that the snapshot has to be taken again. It is established
+      // BEFORE the snapshot is taken, so a change that happens while git
+      // reads the tree is seen by the next request.
+      statusCache.watchTree(entry, env.root, env.isRepo === true)
+      // The number of changes the snapshot starts from: a change that arrives
+      // while git reads the work tree keeps the entry stale instead of being
+      // swallowed by the snapshot that did not see it.
+      const seen = statusCache.changesOf(entry)
+      let snapshot
+      try {
+        snapshot = await gitStatus(env, {
+          ignored,
+          levels: ignored,
+          numstat,
+        })
+      } catch (error) {
+        // A failed call leaves no snapshot: the next request has to try
+        // again, or the client would keep the error for ever.
+        statusCache.invalidate(entry)
+        throw error
+      }
+      const revision = statusCache.publish(entry, options, seen)
       return {
         ...snapshot,
+        revision,
         root: env.workspaceRoot,
         workspaceRoot: env.workspaceRoot,
         repoRoot: snapshot.root ?? null,
@@ -795,6 +870,82 @@ export function apply(ctx) {
     },
   }), 'dsh-ide-workbench: JSON API')
 
+  // ── the binary route ───────────────────────────────────────────────────
+  /**
+   * The path a raw request asks for.
+   *
+   * The path may travel in the query (`?path=…`) or behind the prefix
+   * (`/ide-workbench/raw/docs/report.pdf`); the query wins, because it is
+   * the form the client builds.
+   *
+   * @param {URL} url the URL of the request
+   * @returns {string} the path, '' when the request asks for none
+   */
+  const rawPathOf = (url) => {
+    const asked = url.searchParams.get('path')
+    if (asked !== null && asked !== '') return asked
+    if (!url.pathname.startsWith(RAW_PREFIX)) return ''
+    const rest = url.pathname.slice(RAW_PREFIX.length).replace(/^\/+/, '')
+    if (rest === '') return ''
+    try {
+      return decodeURIComponent(rest)
+    } catch {
+      throw new ApiError('bad-request', 'the path of the request is not valid')
+    }
+  }
+
+  /**
+   * Serve the bytes of one document of the workspace.
+   *
+   * The route answers bytes, not JSON: the PDF of the viewer travels here
+   * (PRD-v8 PDF-02). It passes the same fence as the JSON API and the same
+   * workspace fence - a path outside of the root is refused, and so is
+   * everything that is not a PDF.
+   */
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'prefix',
+    path: RAW_PREFIX,
+    handler: async (req, res) => {
+      if (!fence(req)) {
+        writeError(res, new ApiError('forbidden', 'forbidden', 403))
+        return
+      }
+      if (req.method !== 'GET') {
+        writeError(res, new ApiError('method-error', 'method not allowed', 405))
+        return
+      }
+      try {
+        const url = new URL(req.url ?? '/', 'http://dsh.internal')
+        const root = await canonicalRoot(url.searchParams.get('root'))
+        const absolute = resolveInside(root, rawPathOf(url))
+        let info
+        try {
+          info = await stat(absolute)
+        } catch {
+          throw new ApiError('not-found', 'file not found', 404)
+        }
+        if (!info.isFile()) throw new ApiError('bad-request', 'the path is not a file', 400)
+        if (extname(absolute).toLowerCase() !== '.pdf') {
+          throw new ApiError('bad-request', 'the binary route serves PDF documents only', 400)
+        }
+        if (info.size > MAX_PDF_BYTES) {
+          throw new ApiError('too-large', `the document exceeds the ${MAX_PDF_BYTES} byte limit`, 413)
+        }
+        const bytes = await readFile(absolute)
+        // The client may be gone: an answer to nobody is not written.
+        if (res.writableEnded === true || res.destroyed === true) return
+        res.writeHead(200, {
+          'content-type': 'application/pdf',
+          'content-length': String(bytes.length),
+          'cache-control': 'no-store',
+        })
+        res.end(bytes)
+      } catch (error) {
+        writeError(res, error)
+      }
+    },
+  }), 'dsh-ide-workbench: binary route')
+
   // ── Terminal WebSocket ─────────────────────────────────────────────────
   const wss = new WebSocketServer({ noServer: true })
   // The WebSocket server is a source of errors of its own. An 'error' event
@@ -840,10 +991,44 @@ export function apply(ctx) {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame))
       }
       send({ type: 'ready', info: { id: sessionId, shell: { id: shell.id, label: shell.label, path: shell.path }, cwd, root } })
+      // The output of a session is capped (PRD-v8 TERM-01): `cat` of a big
+      // file used to stream an unbounded number of bytes into the renderer
+      // of the IDE. The cap counts the BYTES that were sent - the UTF-8
+      // length of the text, not the length of the string - and the session
+      // survives it: only the output stops, the shell keeps running and its
+      // exit is still reported.
+      const limit = terminalOutputLimit(current)
+      let sentBytes = 0
+      let truncated = false
+      const sendTruncated = () => {
+        if (truncated) return
+        truncated = true
+        send({ type: 'truncated', bytes: sentBytes, limit })
+      }
       handle.output.setEncoding('utf8')
       handle.output.on('data', (chunk) => {
+        if (truncated) return
         const text = typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8')
-        if (text !== '') send({ type: 'data', data: text })
+        if (text === '') return
+        const size = Buffer.byteLength(text, 'utf8')
+        const room = limit - sentBytes
+        if (room <= 0) {
+          sendTruncated()
+          return
+        }
+        if (size <= room) {
+          sentBytes += size
+          send({ type: 'data', data: text })
+          return
+        }
+        // The chunk does not fit any more: the part that fits is sent, the
+        // rest is dropped, and the user is told that the output stopped.
+        const part = sliceUtf8(Buffer.from(text, 'utf8'), room)
+        if (part.length > 0) {
+          sentBytes += part.length
+          send({ type: 'data', data: part.toString('utf8') })
+        }
+        sendTruncated()
       })
       handle.output.on('error', (error) => {
         send({ type: 'error', message: error instanceof Error ? error.message : String(error) })
@@ -935,6 +1120,9 @@ export function apply(ctx) {
       terminals.delete(id)
       void handle.terminate().catch(() => {})
     }
+    // The watch on the work trees belongs to the plugin: it closes with it,
+    // and no handle of the host process outlives the plugin.
+    statusCache.clear()
   }, 'dsh-ide-workbench: teardown')
 
   ctx.effect(() => {

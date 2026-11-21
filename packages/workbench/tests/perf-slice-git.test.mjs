@@ -310,8 +310,9 @@ test('the repository picker still lists the candidate repositories', async () =>
   assert.match(html, /iwb-repo-popover/)
   assert.match(html, /demo/)
   assert.match(html, /repo-a/)
-  // The current repository is marked.
-  assert.equal((html.match(/iwb-branch-check">✓/g) ?? []).length, 1)
+  // The current repository is marked. The mark is an SVG (PRD-v8 ICO-01):
+  // a Unicode tick renders differently in every font.
+  assert.equal((html.match(/iwb-branch-check"><svg/g) ?? []).length, 1)
 })
 
 test('the commit groups still render their files and checkboxes', async () => {

@@ -19,7 +19,7 @@
  *     user sees the code before opening anything.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { FileTypeIcon, IconSearch } from './icons.jsx'
+import { FileTypeIcon, IconClose, IconSearch } from './icons.jsx'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 
 /**
@@ -259,7 +259,7 @@ export function SearchPopup({ store }) {
         React.createElement('button', {
           type: 'button', className: 'iwb-iconbtn', title: t('common.close'), 'aria-label': t('common.close'),
           onClick: () => store.closeSearchPopup(),
-        }, React.createElement('span', { style: { fontSize: 15, lineHeight: 1 } }, '×')),
+        }, React.createElement(IconClose, { width: 13, height: 13 })),
       ),
       React.createElement('div', { className: 'iwb-search-popup-meta' },
         search?.loading === true
@@ -277,7 +277,11 @@ export function SearchPopup({ store }) {
         search?.error !== null && search?.error !== undefined && query !== ''
           ? React.createElement('div', { className: 'iwb-search-error' }, search.error)
           : (files.length === 0 && query !== '' && search?.loading !== true
-            ? React.createElement('div', { className: 'iwb-quick-empty' }, t('search.noResults'))
+            ? React.createElement('div', { className: 'iwb-quick-empty' },
+                // An answer that was cut short is not an answer without
+                // matches: the search says that it is partial, and it must
+                // not claim that the project has nothing (FIND-03).
+                search?.truncated === true ? t('search.truncated') : t('search.noResults'))
             : files.map((file, index) => React.createElement('button', {
               key: file.path,
               type: 'button',

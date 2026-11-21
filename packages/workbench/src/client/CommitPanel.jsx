@@ -9,7 +9,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ContextMenu } from './ui.jsx'
-import { FileTypeIcon, IconRefresh } from './icons.jsx'
+import { FileTypeIcon, IconClose, IconPlus, IconRefresh } from './icons.jsx'
 import { headerState, groupByChangelist, groupByDirectory, changelistOf, DEFAULT_CHANGELIST } from './commit-model.js'
 import { dirName } from './util.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
@@ -381,7 +381,7 @@ export function CommitPanel({ store, state }) {
       React.createElement('button', {
         type: 'button', className: 'iwb-textbtn iwb-small', title: t('commit.newChangelist'),
         onClick: () => setDialog({ kind: 'changelist', name: '', paths: [] }),
-      }, '+'),
+      }, React.createElement(IconPlus, { width: 12, height: 12 })),
       activeList !== DEFAULT_CHANGELIST
         ? React.createElement('button', {
             type: 'button', className: 'iwb-textbtn iwb-small iwb-danger', title: t('commit.deleteChangelist'),
@@ -396,7 +396,7 @@ export function CommitPanel({ store, state }) {
                 },
               ],
             ),
-          }, '×')
+          }, React.createElement(IconClose, { width: 12, height: 12 }))
         : null,
       React.createElement('span', { className: 'iwb-spacer' }),
       React.createElement('button', {

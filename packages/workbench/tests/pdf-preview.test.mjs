@@ -14,13 +14,13 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MAX_PDF_BYTES, readFileForPreview } from '../src/host/workspace.js'
 import {
-  PDF_MAX_SCALE, PDF_MIN_SCALE, clampPdfScale, decodePdfBase64, isPdfPath, pdfFitScale,
+  PDF_MAX_SCALE, PDF_MIN_SCALE, clampPdfScale, fetchPdfBytes, isPdfPath, pdfFitScale,
   pdfOutputScale, pdfPageAtOffset, pdfPercent, pdfVisibleRange, pdfZoomStep,
 } from '../src/client/pdf-view.js'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-test('the host serves a PDF as bytes instead of calling it binary', async (t) => {
+test('the host answers the metadata of a PDF instead of calling it binary', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'iwb-pdf-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   // "%PDF-1.7" plus a NUL byte: the old heuristic called this file binary.
@@ -31,7 +31,10 @@ test('the host serves a PDF as bytes instead of calling it binary', async (t) =>
   assert.equal(preview.mime, 'application/pdf')
   assert.equal(preview.size, bytes.length)
   assert.equal(preview.path, 'report.PDF')
-  assert.deepEqual(Buffer.from(decodePdfBase64(preview.data)), bytes)
+  // The bytes do not travel through the JSON API: they are served by the
+  // binary route of the plugin (PRD-v8 PDF-01).
+  assert.equal('data' in preview, false, 'the answer of the read carries no bytes')
+  assert.equal('dataUrl' in preview, false, 'the answer of the read carries no bytes')
 })
 
 test('a PDF above the inline cap is handed to the external viewer', async (t) => {
@@ -63,11 +66,17 @@ test('the PDF path test is extension-only and case-insensitive', () => {
   assert.equal(isPdfPath(undefined), false)
 })
 
-test('the base64 payload decodes to the exact bytes', () => {
+test('the bytes of the document come from the binary route, as bytes', async () => {
   const bytes = Uint8Array.from([0, 1, 2, 250, 251, 252, 253, 254, 255])
-  const encoded = Buffer.from(bytes).toString('base64')
-  assert.deepEqual(Array.from(decodePdfBase64(encoded)), Array.from(bytes))
-  assert.throws(() => decodePdfBase64(''), /empty PDF payload/)
+  const asked = []
+  const result = await fetchPdfBytes('http://dsh.internal/ide-workbench/raw?root=r&path=a.pdf', {
+    fetch: async (url) => {
+      asked.push(url)
+      return { ok: true, status: 200, arrayBuffer: async () => bytes.buffer }
+    },
+  })
+  assert.deepEqual(Array.from(result), Array.from(bytes), 'the bytes arrive unchanged')
+  assert.equal(asked.length, 1, 'the document is fetched once')
 })
 
 test('fit width keeps the page inside the pane and inside the zoom range', () => {
@@ -140,4 +149,8 @@ test('the engine is loaded on demand, never with the workbench bundle', async ()
   assert.match(engine, /new Worker\(url, \{ type: 'module'/)
   assert.match(engine, /worker\.terminate\(\)/)
   assert.match(engine, /URL\.revokeObjectURL\(url\)/)
+  // The bytes are handed to PDF.js as they are: there is no base64 of the
+  // document left in the client (PRD-v8 PDF-04).
+  assert.match(engine, /getDocument\(\{/)
+  assert.doesNotMatch(engine, /atob|base64|decodePdfBase64/)
 })

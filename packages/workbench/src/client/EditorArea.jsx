@@ -15,10 +15,10 @@ import { PdfViewer } from './PdfViewer.jsx'
 import { isPdfPath } from './pdf-view.js'
 import { DiffView } from './DiffView.jsx'
 import { FindBar } from './FindBar.jsx'
-import { ConfirmModal, ContextMenu, Kbd } from './ui.jsx'
+import { ChevronDown, ConfirmModal, ContextMenu, Kbd } from './ui.jsx'
 import {
   FileTypeIcon, IconChrome, IconClose, IconCode, IconEdit, IconEye, IconGlobe, IconLock,
-  IconMore, IconOutline, IconPin, IconRestore, IconSave, StripeIcon,
+  IconMore, IconOutline, IconPin, IconRestore, IconSave, StripeIcon, WorkbenchMark,
 } from './icons.jsx'
 import { baseName, findSeed, selectedText, shortEncoding } from './util.js'
 import { openInIdeMenu } from './ide-menu.js'
@@ -63,31 +63,39 @@ function Welcome({ store, slice }) {
   const t = store.t
   const branch = slice.status?.branch
   const repoProjects = (slice.projects ?? []).filter(project => project.isRepo === true && project.path !== slice.root)
-  const Shortcut = ({ shortcut, children }) => React.createElement(Kbd, null, shortcut)
   const actions = [
     { key: 'project', icon: 'project', title: t('welcome.project'), shortcut: slice.shortcuts?.project ?? 'Alt+1', onClick: () => store.showTool('project') },
     { key: 'commit', icon: 'commit', title: t('welcome.commit'), shortcut: slice.shortcuts?.commit ?? 'Alt+0', onClick: () => store.showTool('commit') },
     { key: 'git', icon: 'git', title: t('welcome.git'), shortcut: slice.shortcuts?.git ?? 'Alt+9', onClick: () => store.showTool('git') },
     { key: 'terminal', icon: 'terminal', title: t('welcome.terminal'), shortcut: slice.shortcuts?.terminal ?? 'Alt+F12', onClick: () => store.showTool('terminal') },
   ]
+  // The empty workbench used to read like a README: a title, a sentence and
+  // four rows of shortcut. It is now the FRONT DOOR - a mark, a sentence, and
+  // the four tool windows as cards you can walk into.
   return React.createElement('div', { className: 'iwb-welcome' },
     React.createElement('div', { className: 'iwb-welcome-card' },
+      React.createElement('div', { className: 'iwb-welcome-mark' },
+        React.createElement(WorkbenchMark, { size: 44 })),
       React.createElement('h1', { className: 'iwb-welcome-title' }, t('welcome.title')),
       React.createElement('p', { className: 'iwb-welcome-sub' }, t('welcome.subtitle')),
       React.createElement('div', { className: 'iwb-welcome-grid' },
         actions.map(action => React.createElement('button', {
           key: action.key, type: 'button', className: 'iwb-welcome-action', onClick: action.onClick,
         },
-          React.createElement(StripeIcon, { tool: action.icon, size: 17 }),
-          React.createElement('span', null, action.title),
-          React.createElement(Shortcut, { shortcut: action.shortcut, children: action.shortcut }),
+          React.createElement('span', { className: 'iwb-welcome-action-icon' },
+            React.createElement(StripeIcon, { tool: action.icon, size: 22 })),
+          React.createElement('span', { className: 'iwb-welcome-action-name' }, action.title),
+          React.createElement('span', { className: 'iwb-welcome-action-key' }, action.shortcut),
         )),
       ),
       React.createElement('div', { className: 'iwb-welcome-meta' },
         slice.status?.isRepo === true
-          ? React.createElement('span', null, `${t('welcome.branch')}: ${slice.status.detached === true ? t('git.detached') : (branch ?? 'HEAD')}`)
-          : React.createElement('span', null, t('welcome.noRepo')),
-        React.createElement('span', null, slice.root),
+          ? React.createElement('span', null,
+              React.createElement('span', { className: 'iwb-welcome-meta-label' }, t('welcome.branch')),
+              React.createElement('span', { className: 'iwb-welcome-meta-value' },
+                slice.status.detached === true ? t('git.detached') : (branch ?? 'HEAD')))
+          : React.createElement('span', { className: 'iwb-welcome-meta-label' }, t('welcome.noRepo')),
+        React.createElement('span', { className: 'iwb-welcome-meta-path' }, slice.root),
       ),
       slice.status?.isRepo !== true && repoProjects.length > 0
         ? React.createElement('div', { className: 'iwb-welcome-hint' },
@@ -151,7 +159,9 @@ function FilePreview({ store, slice, tab, onEditorReady, onFindRequest, onFindIn
     return React.createElement(PdfViewer, {
       key: `${tab.id}:${payload.mtimeMs ?? 0}`,
       t,
-      data: payload.data,
+      // The bytes come from the binary route of the host: the read answers
+      // the metadata of the document only (PRD-v8 PDF-01).
+      url: store.rawUrl(tab.path),
       size: payload.size,
       name: tab.name,
       onOpenExternal: () => { void store.openInDefaultBrowser(tab.path) },
@@ -462,7 +472,7 @@ function EditorToolbar({ store, tab }) {
               React.createElement('button', {
                 type: 'button', className: 'iwb-textbtn iwb-small',
                 onClick: anchor,
-              }, t('commit.showDiffWith'), ' ▾'),
+              }, t('commit.showDiffWith'), ' ', React.createElement(ChevronDown, { size: 10 })),
               React.createElement('button', {
                 type: 'button', className: 'iwb-textbtn iwb-small', title: t('commit.jumpToSource'),
                 onClick: () => store.jumpToSource(tab.rel),
@@ -557,7 +567,7 @@ function EditorToolbar({ store, tab }) {
         : null,
       isText && markdown && !editing && view === 'preview'
         ? React.createElement('button', {
-            type: 'button', className: `iwb-iconbtn ${tab.outlineOpen === true ? 'iwb-on' : ''}`, title: t('editor.outline'),
+            type: 'button', className: `iwb-iconbtn iwb-outline-toggle ${tab.outlineOpen === true ? 'iwb-on' : ''}`, title: t('editor.outline'),
             onClick: () => store.updateActiveTab({ outlineOpen: tab.outlineOpen !== true }),
           }, React.createElement(IconOutline, { width: 14, height: 14 }))
         : null,

@@ -91,6 +91,15 @@ test('the preview shows the context the host sends with every hit', () => {
   assert.match(popup, /t\('search\.popup\.binary'\)/)
 })
 
+test('an answer that was cut short does not claim that the project has nothing', () => {
+  // The host says that the answer is partial (`truncated`): the popup must
+  // not turn a partial answer into "no matches" - that is what makes a search
+  // look broken (FIND-03).
+  assert.match(popup, /search\?\.truncated === true \? t\('search\.truncated'\) : t\('search\.noResults'\)/)
+  // The warning is in the head of the popup as well.
+  assert.match(popup, /search\?\.truncated === true \? React\.createElement\('span', \{ className: 'iwb-search-warn' \}, t\('search\.truncated'\)\)/)
+})
+
 test('the popup has its own stylesheet and it is the core that owns it', () => {
   for (const marker of [
     '.iwb-search-popup-backdrop',

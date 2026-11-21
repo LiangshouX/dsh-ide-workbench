@@ -138,6 +138,52 @@ export function clampPan(pan, imageSize, viewportSize) {
 }
 
 /**
+ * The state of a drag gesture.
+ *
+ * The state carries the pan of the BEGINNING of the gesture, and that pan
+ * never changes while the drag lasts: every displacement is measured from
+ * it. A drag that overwrote it with its own result would measure the next
+ * displacement from the previous one - which is the accumulation that made
+ * the picture run away.
+ *
+ * @param {{ zoom?: number, pan?: { x: number, y: number } }} view the view at
+ *   the moment the drag starts
+ * @param {{ x: number, y: number }} pointer the pointer at that moment
+ * @returns {object} the state of the drag
+ */
+export function beginDrag(view, pointer) {
+  const zoom = Number(view?.zoom)
+  const pan = view?.pan ?? { x: 0, y: 0 }
+  return {
+    x: Number(pointer?.x) || 0,
+    y: Number(pointer?.y) || 0,
+    origin: { x: Number(pan.x) || 0, y: Number(pan.y) || 0 },
+    zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1,
+  }
+}
+
+/**
+ * The pan of a drag at one moment.
+ *
+ * @param {object} drag the state of the drag (see `beginDrag`)
+ * @param {{ x: number, y: number }} pointer the pointer right now
+ * @param {{ width: number, height: number }} imageSize the size of the
+ *   picture as it is drawn (already scaled by the zoom)
+ * @param {{ width: number, height: number }} viewportSize the size of the view
+ * @returns {{ x: number, y: number }} the clamped pan of the drag
+ */
+export function dragPan(drag, pointer, imageSize, viewportSize) {
+  if (drag === null || drag === undefined) return { x: 0, y: 0 }
+  return panFromDrag(
+    { x: drag.x, y: drag.y, pan: drag.origin },
+    pointer,
+    drag.zoom,
+    imageSize,
+    viewportSize,
+  )
+}
+
+/**
  * The percentage the caption prints.
  * @param {number} zoom the zoom (1 = the fitted size)
  * @returns {string} e.g. `110%`
@@ -146,4 +192,42 @@ export function zoomPercent(zoom) {
   const value = Number(zoom)
   if (!Number.isFinite(value)) return '100%'
   return `${Math.round(value * 100)}%`
+}
+
+/**
+ * The pan of a drag gesture.
+ *
+ * The pan of a drag is **absolute, not accumulated**: it is the pan of the
+ * moment the drag started, plus the displacement of the pointer since then.
+ *
+ * The difference is the whole bug. An accumulating pan adds the WHOLE
+ * distance travelled so far to a pan that already contains it, so the picture
+ * runs away quadratically: a couple of small pointer moves are enough to slam
+ * it against the clamp, and the user sees the picture jump to the edge
+ * instead of following the mouse. The absolute form is the only one that
+ * keeps the picture under the pointer.
+ *
+ * @param {{ x: number, y: number, pan: { x: number, y: number } }} origin
+ *   the pointer and the pan at the moment the drag started
+ * @param {{ x: number, y: number }} pointer the pointer right now
+ * @param {number} zoom the zoom of the picture (it does not change while dragging)
+ * @param {{ width: number, height: number }} imageSize the size of the
+ *   picture as it is drawn (already scaled by the zoom)
+ * @param {{ width: number, height: number }} viewportSize the size of the view
+ * @returns {{ x: number, y: number }} the clamped pan of the drag
+ */
+export function panFromDrag(origin, pointer, zoom, imageSize, viewportSize) {
+  const start = origin === null || origin === undefined ? null : origin
+  const base = start === null || start.pan === null || start.pan === undefined
+    ? { x: 0, y: 0 }
+    : start.pan
+  const at = pointer === null || pointer === undefined ? { x: 0, y: 0 } : pointer
+  const from = start === null ? { x: 0, y: 0 } : start
+  const factor = Number.isFinite(Number(zoom)) && Number(zoom) > 0 ? Number(zoom) : 1
+  const image = imageSize === null || imageSize === undefined ? { width: 0, height: 0 } : imageSize
+  return clampPan(
+    { x: base.x + (at.x - from.x), y: base.y + (at.y - from.y) },
+    { width: image.width * factor, height: image.height * factor },
+    viewportSize,
+  )
 }

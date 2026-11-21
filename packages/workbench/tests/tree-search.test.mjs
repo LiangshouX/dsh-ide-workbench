@@ -16,6 +16,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { WorkbenchStore } from '../src/client/store.js'
 import {
   buildNameIndex,
   buildPathIndex,
@@ -321,4 +322,48 @@ test('the file list of a project of fifty thousand files does not allocate per k
 
   // The index is built ONCE per index identity, never per keystroke.
   assert.ok(build < 2_000, `the path index took ${build.toFixed(1)} ms`)
+})
+
+/* ── the expansion of the chain: the folders of the matches ─────────────── */
+
+/** A store that answers nothing itself - the test replaces what it needs. */
+function fakeStore() {
+  const ctx = { locale: { subscribe: () => () => {} } }
+  const store = new WorkbenchStore(ctx, key => key)
+  store.state = {
+    ...store.state,
+    workspaceRoot: 'C:\\work\\demo',
+    root: 'C:\\work\\demo',
+    phase: 'ready',
+    settings: { editor: { openMode: 'auto', editableMaxBytes: 1 << 20 }, shortcuts: {} },
+  }
+  return store
+}
+
+/** Wait a moment, so a load takes a measurable amount of time. */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+test('the tree search expands the folders of the matches with a bounded number of requests', async () => {
+  const store = fakeStore()
+  let running = 0
+  let peak = 0
+  let loaded = 0
+  store.loadDir = async () => {
+    running += 1
+    peak = Math.max(peak, running)
+    await sleep(5)
+    running -= 1
+    loaded += 1
+  }
+  // A common prefix matches hundreds of files, and every match may live in
+  // its own folder: hundreds of parallel directory listings drown the host
+  // on every keystroke.
+  const dirs = Array.from({ length: 200 }, (_, index) => `C:\\work\\demo\\folder-${index}`)
+  await store.expandPaths(dirs)
+  // Every folder is expanded - but not all at the same time.
+  assert.equal(loaded, 200)
+  assert.ok(peak <= 8, `the folders are expanded with a bounded concurrency (the peak was ${peak})`)
+  store.persist.cancel()
 })

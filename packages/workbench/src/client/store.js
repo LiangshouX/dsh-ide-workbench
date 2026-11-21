@@ -6,7 +6,7 @@
  * not for the lifetime of the rendered panel, so switching back to the
  * Conversation and returning keeps tabs, expanded folders and layout.
  */
-import { call as hostCall } from './api.js'
+import { call as hostCall, rawUrl as hostRawUrl } from './api.js'
 import { isMarkdownFile } from './file-types.js'
 import {
   DEFAULT_CHANGELIST, assignChangelist, changelistOf, isEntryChecked, splitCommitGroups, checkedPathsOf,
@@ -20,6 +20,9 @@ import {
   composeCodeReference, formatFileMention, insertChatText,
 } from './chat-bridge.js'
 import { isPathWithin, relativePathWithin, sameScopePath, sessionCwdOf } from './workspace-scope.js'
+// The rules of the tree clipboard: where a paste lands, and what may not be
+// pasted at all. The panel decides, the store obeys.
+import { pasteRefusal } from './tree-clipboard.js'
 // The language id of the open document, for the consumers of the editor seam.
 import { languageIdForPath } from './languages.js'
 // The editor seam of the client contract (PRD-v6 §4). The seam belongs to the
@@ -35,6 +38,16 @@ let sequence = 0
  * the tree paints before the workspace is read (PRD-v4 §1.2 PERF-07).
  */
 const RESTORED_TREE_DELAY_MS = 200
+
+/**
+ * How many folders the tree search may ask the host for at the same time.
+ *
+ * The tree search expands the chain of every match, and a common prefix can
+ * match hundreds of files in hundreds of folders. Hundreds of parallel
+ * directory listings drown the host on every keystroke, so the requests are
+ * spread over a few at a time (PRD-v8 FIND-05).
+ */
+const EXPAND_CONCURRENCY = 8
 
 /**
  * Development-only counters (PRD §1.3).
@@ -99,6 +112,23 @@ function joinPath(root, rel) {
 /** Human-readable message of any thrown value. */
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Whether a thrown value is the abort of a request the user cancelled.
+ *
+ * A cancelled paste is not a failure: the user asked for it, so it must not
+ * be reported as an error.
+ *
+ * @param {unknown} error the thrown value
+ * @returns {boolean}
+ */
+function isAborted(error) {
+  if (error === null || error === undefined) return false
+  const name = error.name
+  if (name === 'AbortError') return true
+  const code = error.code
+  return code === 'cancelled' || code === 'ABORT_ERR'
 }
 
 /**
@@ -343,6 +373,8 @@ function initialState() {
     selectedPaths: new Set(),
     anchorPath: '',
     clipboard: null,
+    /** True while a paste is copying in the host - the tree says so. */
+    pasteBusy: false,
     filter: '',
     /** 'files' = whole-project quick locate; 'tree' = expanded-tree filter. */
     filterMode: 'tree',
@@ -459,6 +491,26 @@ export class WorkbenchStore {
     /** Timer of the background listing of the restored folders (PERF-07). */
     this.restoredTimer = null
     this.polling = false
+    /**
+     * The controller of the paste that is running.
+     *
+     * The copy of a big folder happens in the host and may take a while: the
+     * user has to be able to stop it, and the abort has to reach the host
+     * that is doing the copying.
+     */
+    this.pasteController = null
+    /**
+     * The revision of the git snapshot the client holds.
+     *
+     * The host gives every snapshot a revision and answers "nothing changed"
+     * when the client names the one it already has. The revision is a token
+     * of the protocol and not a part of the state: keeping it out of the
+     * state is what lets an unchanged poll write NOTHING at all - a poll that
+     * writes wakes every subscriber of the workbench and re-renders the whole
+     * panel every two seconds.
+     * @type {number}
+     */
+    this.statusRevision = 0
     this.persist = debounce(() => { void this.#persist() }, 700)
     this.toastTimer = null
     /** Per-folder request generation, so a stale listing cannot win. */
@@ -522,8 +574,11 @@ export class WorkbenchStore {
    */
   #onVisibilityChange = () => {
     if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
-    // The work a poll tick would have done: the git status.
-    void this.pollStatus()
+    // The work a poll tick would have done: the git status. It is a FRESH
+    // one: the page was hidden, and a hidden page does not keep the cadence
+    // of the host - the watch of the host may also have missed a change that
+    // happened while the page was in the background.
+    void this.pollStatus({ fresh: true })
   }
 
   getSnapshot = () => this.state
@@ -1466,10 +1521,10 @@ export class WorkbenchStore {
     this.deactivate()
   }
 
-  async pollStatus() {
+  async pollStatus(options = {}) {
     if (!this.state.active || this.state.root === '' || this.polling) return
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
-    await this.refreshStatus({ silent: true })
+    await this.refreshStatus({ silent: true, ...options })
     await this.#checkActiveFileOnDisk()
   }
 
@@ -1527,9 +1582,28 @@ export class WorkbenchStore {
     this.polling = true
     // The status belongs to the repository the Git window reads (GIT-01).
     const root = this.gitRoot
+    // The BACKGROUND poll may take the snapshot the host already has: the
+    // host watches the work tree and answers "nothing changed" without
+    // running git and without shipping the snapshot again. Every explicit
+    // refresh (a stage, a commit, a window that opens) asks for a new one,
+    // because it wants the state of THIS moment and not the state of the
+    // last tick.
+    const background = options.silent === true && options.force !== true && options.fresh !== true
     try {
-      const status = await call('git.status', { root, numstat: this.#wantsNumstat() })
+      const status = await call('git.status', {
+        root,
+        numstat: this.#wantsNumstat(),
+        ...(background ? { since: this.statusRevision } : {}),
+      })
       if (this.gitRoot !== root) return
+      if (status !== null && typeof status === 'object' && status.unchanged === true) {
+        // The work tree did not change: the snapshot on the screen is still
+        // the truth. Nothing is written, so nothing is re-rendered - a poll
+        // that writes wakes every subscriber of the workbench, and the whole
+        // panel is rebuilt every two seconds for nothing.
+        if (typeof status.revision === 'number') this.statusRevision = status.revision
+        return
+      }
       const previous = this.state.status
       // The panels read the whole status object (`ProjectPanel`) or its entry
       // list (`CommitPanel`), so a brand new object on every poll woke them
@@ -1538,6 +1612,7 @@ export class WorkbenchStore {
       // the snapshot says the same thing: its identity is what the panel
       // slices compare.
       const changed = !sameGitStatus(previous, status)
+      if (typeof status.revision === 'number') this.statusRevision = status.revision
       this.set({
         status: changed ? status : previous,
         statusError: null,
@@ -1771,7 +1846,13 @@ export class WorkbenchStore {
    * The tree search has to show the whole chain of a target file, from the
    * project root down to the folder of the file. The `expanded` set is
    * committed once - so the panel re-renders one time and not once per level -
-   * and the folders themselves are then loaded in parallel.
+   * and the folders themselves are then loaded with a BOUNDED number of
+   * requests at a time.
+   *
+   * The bound matters: a common prefix can match hundreds of files, and every
+   * match may live in its own folder - hundreds of parallel directory
+   * listings would drown the host (and the tree) on every keystroke
+   * (PRD-v8 FIND-05). No folder is dropped: they are loaded in batches.
    * @param {string[]} dirs the absolute paths of the folders
    * @returns {Promise<void>}
    */
@@ -1790,7 +1871,36 @@ export class WorkbenchStore {
     if (pending.length === 0) return
     this.set({ expanded })
     this.persist()
-    await Promise.all(pending.map(path => this.loadDir(path)))
+    await this.#loadDirs(pending)
+  }
+
+  /**
+   * Load a few directories at a time.
+   *
+   * The tree search may hand over hundreds of folders; the host may only be
+   * asked for a few of them at the same time.
+   * @param {string[]} paths the absolute paths of the folders
+   * @returns {Promise<void>}
+   */
+  async #loadDirs(paths) {
+    const limit = EXPAND_CONCURRENCY
+    let cursor = 0
+    const workers = []
+    const size = Math.max(1, Math.min(limit, paths.length))
+    for (let worker = 0; worker < size; worker += 1) {
+      workers.push((async () => {
+        while (cursor < paths.length) {
+          const index = cursor
+          cursor += 1
+          try {
+            await this.loadDir(paths[index])
+          } catch {
+            // A folder that cannot be read is not a reason to stop the rest.
+          }
+        }
+      })())
+    }
+    await Promise.all(workers)
   }
 
   setFilterMode(mode) {
@@ -2028,6 +2138,28 @@ export class WorkbenchStore {
     return wide.startsWith(`${base}/`) ? wide.slice(base.length + 1) : wide
   }
 
+  /**
+   * The URL of the raw bytes of one file of the project.
+   *
+   * The path travels RELATIVE to the root: the host resolves the root
+   * itself, and a root that the host canonicalised (a symbolic link, a
+   * different case on Windows) would refuse an absolute path.
+   *
+   * The bytes themselves never reach the store: they live in the renderer
+   * while the document is open, and they are gone when the tab closes
+   * (PRD-v8 PDF-05).
+   *
+   * @param {string} path the absolute path of the file
+   * @returns {string} the absolute URL, '' when there is no project
+   */
+  rawUrl(path) {
+    const root = this.state.root
+    if (typeof root !== 'string' || root === '') return ''
+    const rel = this.relOf(path)
+    if (rel === '') return ''
+    return hostRawUrl(root, rel).href
+  }
+
   // ── file operations (JetBrains tree) ──────────────────────────────────
   setFileClipboard(paths, cut) {
     const list = (Array.isArray(paths) ? paths : []).filter(path => typeof path === 'string' && path !== '')
@@ -2035,12 +2167,64 @@ export class WorkbenchStore {
     if (list.length > 0) this.toast('success', this.t(cut === true ? 'project.cut' : 'project.copy'), `${list.length}`)
   }
 
-  async pasteEntries(target) {
+  /**
+   * Paste the clipboard into a folder.
+   *
+   * The destination is decided by the panel (see `tree-clipboard.js`): the
+   * folder the user selected, the folder the menu was opened on, the project
+   * root. This method only carries it out - and it refuses the two pastes
+   * that cannot work: a folder into itself, and a folder into one of its
+   * own subfolders. The user learns it at once, before anything is written.
+   *
+   * The copy of a big folder runs in the host and may be long, so the store
+   * says that it is busy (`pasteBusy`) and can stop the copy
+   * (`cancelPaste`): the tree has to stay alive, and the user has to be able
+   * to say "no".
+   *
+   * @param {string} target the absolute path of the folder
+   * @param {{ signal?: AbortSignal, entries?: Array<{ path: string, isDir?: boolean }> }} [options]
+   * @returns {Promise<boolean>} true when the entries were pasted
+   */
+  async pasteEntries(target, options = {}) {
     const clipboard = this.state.clipboard
-    if (clipboard === null || clipboard === undefined) return
+    if (clipboard === null || clipboard === undefined) return false
+    const list = Array.isArray(clipboard.paths) ? clipboard.paths : []
+    if (list.length === 0) return false
+    // The panel knows which entries are folders; the store falls back to the
+    // paths alone - and it knows the tree too, so a folder is a folder there
+    // as well.
+    const entries = Array.isArray(options.entries) && options.entries.length > 0
+      ? options.entries
+      : list.map(path => ({ path, isDir: this.state.dirs.has(path) }))
+    const refusal = pasteRefusal(entries, target)
+    if (refusal !== null) {
+      this.toast('error', this.t('project.pasteRefused'), this.t(
+        refusal === 'inside' ? 'project.pasteIntoSubfolder' : 'project.pasteIntoItself'))
+      return false
+    }
     const moved = clipboard.cut === true
-    await this.moveEntries(clipboard.paths, target, !moved)
-    if (moved) this.set({ clipboard: null })
+    // The controller of this paste: the cancel button aborts it, and the
+    // host stops the copy it is running.
+    const controller = new AbortController()
+    if (options.signal !== undefined && options.signal !== null) {
+      if (options.signal.aborted === true) controller.abort()
+      else options.signal.addEventListener('abort', () => controller.abort(), { once: true })
+    }
+    this.pasteController = controller
+    this.set({ pasteBusy: true })
+    try {
+      const done = await this.moveEntries(list, target, !moved, { signal: controller.signal })
+      if (moved && done === true) this.set({ clipboard: null })
+      return done
+    } finally {
+      this.pasteController = null
+      this.set({ pasteBusy: false })
+    }
+  }
+
+  /** Stop the paste that is running. */
+  cancelPaste() {
+    this.pasteController?.abort()
   }
 
   /**
@@ -2174,14 +2358,25 @@ export class WorkbenchStore {
   /**
    * Move or copy entries into a directory. Name conflicts auto-rename
    * (`name-copy`), matching JetBrains' duplicate behaviour.
+   *
+   * The copy of a big folder runs in the host and may be long: the panel
+   * shows what is going on and can stop it, and the answer reports what
+   * the copy did NOT do (a budget that ran out, an entry that could not be
+   * read) - a truncated copy is reported, never presented as a whole one.
+   *
+   * @param {string[]} paths the absolute paths of the entries
+   * @param {string} target the absolute path of the target folder
+   * @param {boolean} [copy] true to copy instead of move
+   * @param {{ signal?: AbortSignal }} [options]
+   * @returns {Promise<boolean>} true when at least one entry was moved
    */
-  async moveEntries(paths, target, copy = false) {
+  async moveEntries(paths, target, copy = false, options = {}) {
     const list = Array.isArray(paths) ? paths.filter(path => typeof path === 'string') : []
-    if (list.length === 0 || typeof target !== 'string' || target === '') return
+    if (list.length === 0 || typeof target !== 'string' || target === '') return false
     try {
       const result = await call('fs.move', {
         root: this.state.root, paths: list, target, copy, conflict: 'rename',
-      })
+      }, options.signal)
       const done = result.results.filter(item => item.ok === true)
       const failed = result.results.filter(item => item.ok !== true && item.skipped !== true)
       if (done.length > 0) {
@@ -2192,17 +2387,39 @@ export class WorkbenchStore {
           try { await this.loadDir(dir, { force: true }) } catch { /* the folder may be gone */ }
         }
         const first = this.#absoluteOf(done[0].target)
+        // The pasted entry is selected AND its folder is opened: the user
+        // has to SEE where it landed.
         this.setSelectedPath(first)
+        // The index of the project does not know the new entries yet, so the
+        // tree search would not find them. It is invalidated here and
+        // rebuilt by the next search - never eagerly, because a big project
+        // would pay for a full scan nobody asked for.
+        this.set({ fileIndexRoot: '' })
         await this.refreshStatus()
+      }
+      // The entries the copy could not take: they are reported, not hidden.
+      const broken = done.flatMap(item => (Array.isArray(item.failures) ? item.failures : []))
+      if (broken.length > 0) {
+        const count = this.t('project.pasteMissing').replace('{count}', String(broken.length))
+        this.toast('error', this.t('project.pastePartial'), [
+          count,
+          ...broken.slice(0, 5).map(item => `${item.path}: ${item.message ?? ''}`),
+        ].join('\n'))
+      } else if (result.truncated === true) {
+        this.toast('error', this.t('project.pastePartial'), this.t('project.pasteBudget'))
       }
       if (failed.length > 0) {
         this.toast('error', this.t('common.error'), failed.map(item => `${item.path}: ${item.message ?? item.code}`).join('\n'))
-      } else {
+      } else if (broken.length === 0 && result.truncated !== true) {
         this.toast('success', this.t('common.success'), `${done.length}`)
       }
       this.persist()
+      return done.length > 0
     } catch (error) {
+      // A cancelled paste is not an error: the user asked for it.
+      if (isAborted(error)) return false
       this.toast('error', this.t('common.error'), errorMessage(error))
+      return false
     }
   }
 
@@ -3388,15 +3605,30 @@ export class WorkbenchStore {
   }
 
   // ── git window ────────────────────────────────────────────────────────
+  /**
+   * Change the filters of the Git window.
+   *
+   * The branch scope, the author, the message and the date are applied on the
+   * client (see `git-layout.js`): the rows that are already loaded carry the
+   * refs, the author and the date of every commit, so answering them needs
+   * no subprocess. Only the path filter reaches git, because only git can
+   * limit the history of a path - and it is the only filter that reloads the
+   * log. (Reloading on every filter change was the "switching the branch
+   * lags" defect: a `git log` over the whole repository per keystroke.)
+   * @param {{ branch?: string, author?: string, query?: string, since?: string, path?: string }} patch
+   */
   setGitFilters(patch) {
+    const previous = this.state.git.filters
+    const next = { ...previous, ...patch }
+    const pathChanged = (next.path ?? '') !== (previous.path ?? '')
     this.patch('git', {
-      filters: { ...this.state.git.filters, ...patch },
-      selectedHash: null,
-      detail: null,
-      detailHash: null,
-      detailLoading: false,
+      filters: next,
+      // A reload replaces the rows, so the selection and the Drawer would
+      // point at a commit that may not be in the new page. A client-side
+      // filter keeps them: the Drawer stays open on the commit it shows.
+      ...(pathChanged ? { selectedHash: null, detail: null, detailHash: null, detailLoading: false } : {}),
     })
-    void this.loadLog(true)
+    if (pathChanged) void this.loadLog(true)
   }
 
   /** Project → Git | Show History: scope the log to one file or folder. */
@@ -3441,15 +3673,26 @@ export class WorkbenchStore {
         root: this.gitRoot,
         skip,
         count: pageSize,
-        ...this.state.git.filters,
+        // Only the path filter is a server-side one - git alone can limit the
+        // history of a path. The other filters (branch scope, author, message,
+        // date) are answered from the loaded rows on the client, so the log
+        // is fetched once and filtered many times.
+        path: this.state.git.filters.path ?? '',
       })
       if (token !== this.gitRequestToken) return
-      const commits = reset ? result.commits : [...this.state.git.commits, ...result.commits]
+      // The page holds two windows (the whole repository and the branch that
+      // is checked out), so the same commit can be in two pages: it is added
+      // once.
+      const known = new Set(this.state.git.commits.map(commit => commit.hash))
+      const fresh = result.commits.filter(commit => !known.has(commit.hash))
+      const commits = reset ? result.commits : [...this.state.git.commits, ...fresh]
       const selectedStillVisible = this.state.git.selectedHash === null
         || commits.some(commit => commit.hash === this.state.git.selectedHash)
       this.patch('git', {
         commits,
-        skip: skip + result.commits.length,
+        // The host skips a page per window, so the cursor advances by the page
+        // size and not by the number of rows the page happened to hold.
+        skip: skip + pageSize,
         hasMore: result.commits.length >= pageSize,
         loading: false,
         error: null,

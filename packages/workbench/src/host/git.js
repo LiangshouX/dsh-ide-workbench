@@ -44,13 +44,25 @@ export class GitError extends Error {
 
 /**
  * Run git and resolve with its captured output.
+ *
+ * Two options matter for the search (and for nothing else):
+ *
+ *   - `signal`: the request the call belongs to. A request that is gone must
+ *     not leave a `git grep` behind - the child is killed and the call
+ *     resolves with `aborted: true`. Without it every keystroke of the search
+ *     would leave another full scan of the work tree running (PRD-v8 FIND-03).
+ *   - `onLine`: the output is handed over line by line and NOT collected. A
+ *     scan that stops at the result cap must not read the rest of a
+ *     multi-megabyte output, and must not keep it in memory either.
+ *
  * @param {{ gitPath?: string, root: string }} env command environment
  * @param {string[]} args argv after the executable
- * @param {{ input?: string, timeoutMs?: number, allowFailure?: boolean, env?: Record<string, string> }} [options]
- * @returns {Promise<{ code: number, stdout: string, stderr: string }>}
+ * @param {{ input?: string, timeoutMs?: number, allowFailure?: boolean, env?: Record<string, string>,
+ *   signal?: AbortSignal, onLine?: (line: string) => boolean }} [options]
+ * @returns {Promise<{ code: number, stdout: string, stderr: string, aborted: boolean, stopped: boolean }>}
  */
 export function runGit(env, args, options = {}) {
-  const { input, timeoutMs = READ_TIMEOUT_MS, allowFailure = false } = options
+  const { input, timeoutMs = READ_TIMEOUT_MS, allowFailure = false, signal, onLine } = options
   const executable = env.gitPath && env.gitPath.trim() !== '' ? env.gitPath.trim() : 'git'
   const argv = [
     '-c', 'core.quotepath=false',
@@ -63,6 +75,12 @@ export function runGit(env, args, options = {}) {
     ...args,
   ]
   return new Promise((resolve, reject) => {
+    // The request is gone before the command even starts: the command must
+    // not start at all.
+    if (signal?.aborted === true) {
+      resolve({ code: -1, stdout: '', stderr: '', aborted: true, stopped: false })
+      return
+    }
     let child
     try {
       gitProcesses += 1
@@ -86,20 +104,64 @@ export function runGit(env, args, options = {}) {
     let stdout = ''
     let stderr = ''
     let settled = false
+    /** True when the request was aborted and the child was killed for it. */
+    let aborted = false
+    /** True when the caller stopped the reading and the child was killed. */
+    let stopped = false
     const timer = setTimeout(() => {
       if (settled) return
       settled = true
       child.kill()
       reject(new ApiError('git-timeout', `git ${args[0] ?? ''} timed out after ${timeoutMs}ms`, 504))
     }, timeoutMs)
+    const onAbort = () => {
+      if (settled) return
+      aborted = true
+      // The child is killed AND the call settles at once: the pipes of a
+      // killed child may stay open (a grandchild of git holds them), and the
+      // answer is not wanted any more - waiting for the pipes would keep the
+      // scan alive for the rest of the timeout.
+      settled = true
+      clearTimeout(timer)
+      child.kill()
+      resolve({ code: -1, stdout, stderr, aborted: true, stopped })
+    }
+    if (signal !== undefined && typeof signal.addEventListener === 'function') {
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
     child.stdout.setEncoding('utf8')
     child.stderr.setEncoding('utf8')
-    child.stdout.on('data', (chunk) => { stdout += chunk })
+    if (typeof onLine === 'function') {
+      // The streaming mode: the output is handed over line by line and never
+      // collected - a scan that stops at the cap must not keep the rest of a
+      // multi-megabyte output in memory.
+      let pending = ''
+      child.stdout.on('data', (chunk) => {
+        if (stopped || aborted) return
+        pending += chunk
+        let at = pending.indexOf('\n')
+        while (at !== -1) {
+          const line = pending.slice(0, at)
+          pending = pending.slice(at + 1)
+          if (onLine(line) === false) {
+            stopped = true
+            child.kill()
+            return
+          }
+          at = pending.indexOf('\n')
+        }
+      })
+    } else {
+      child.stdout.on('data', (chunk) => { stdout += chunk })
+    }
     child.stderr.on('data', (chunk) => { stderr += chunk })
     child.on('error', (error) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      if (signal !== undefined && typeof signal.removeEventListener === 'function') {
+        signal.removeEventListener('abort', onAbort)
+      }
       reject(new ApiError(
         error.code === 'ENOENT' ? 'git-unavailable' : 'git-error',
         error.code === 'ENOENT'
@@ -112,12 +174,21 @@ export function runGit(env, args, options = {}) {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      if (signal !== undefined && typeof signal.removeEventListener === 'function') {
+        signal.removeEventListener('abort', onAbort)
+      }
       const exit = code ?? -1
+      // An aborted request is not a failure: the answer is simply not wanted
+      // any more. A scan the caller stopped is not a failure either.
+      if (aborted === true || stopped === true) {
+        resolve({ code: -1, stdout, stderr, aborted, stopped })
+        return
+      }
       if (exit !== 0 && !allowFailure) {
         reject(new GitError(args, exit, stderr, stdout))
         return
       }
-      resolve({ code: exit, stdout, stderr })
+      resolve({ code: exit, stdout, stderr, aborted: false, stopped })
     })
     if (input !== undefined) {
       child.stdin.end(input)
@@ -597,6 +668,9 @@ export async function push(env) {
 const LOG_FIELD = '\x1f'
 const LOG_RECORD = '\x1e'
 
+/** The format of one commit record of the log stream. */
+const LOG_FORMAT = `--pretty=format:%H${LOG_FIELD}%h${LOG_FIELD}%P${LOG_FIELD}%an${LOG_FIELD}%ae${LOG_FIELD}%ai${LOG_FIELD}%D${LOG_FIELD}%s${LOG_RECORD}`
+
 /** Parse the custom `git log` record stream. */
 function parseLog(stdout) {
   const commits = []
@@ -621,35 +695,64 @@ function parseLog(stdout) {
 }
 
 /**
+ * One page of one walk of the history.
+ * @param {{ gitPath?: string, root: string }} env
+ * @param {string[]} args the arguments of the walk
+ * @param {{ allowFailure?: boolean }} [options]
+ * @returns {Promise<object[]>} the commits of that page
+ */
+async function logPage(env, args, options = {}) {
+  const { stdout } = await runGit(env, args, options)
+  return parseLog(stdout)
+}
+
+/**
  * One page of history.
+ *
+ * Without a branch the page holds TWO windows: the newest commits of the
+ * whole repository (`--all`) and the newest commits of the branch that is
+ * checked out (`HEAD`). The client filters the rows it has - the branch
+ * scope, the author, the message and the date (see `git-layout.js`) - and it
+ * can only answer the branch scope if the history of that branch is IN the
+ * page: the newest commits of the whole repository do not always include it
+ * (a branch that was not touched for a month has its tip far behind the
+ * newest commits, and the "current branch" scope would have nothing to show).
+ *
+ * The commits of HEAD that the `--all` window does not have are older than
+ * every commit of that window, so the two windows are concatenated and the
+ * page stays ordered from the newest to the oldest.
+ *
  * @param {{ gitPath?: string, root: string }} env
  * @param {{ skip?: number, count?: number, branch?: string, author?: string, query?: string,
- *   since?: string, regex?: boolean }} options
+ *   since?: string, regex?: boolean, path?: string }} options
  */
 export async function log(env, options = {}) {
   const count = Math.min(Math.max(options.count ?? 200, 1), 500)
   const skip = Math.max(options.skip ?? 0, 0)
-  const args = [
-    'log',
-    `--pretty=format:%H${LOG_FIELD}%h${LOG_FIELD}%P${LOG_FIELD}%an${LOG_FIELD}%ae${LOG_FIELD}%ai${LOG_FIELD}%D${LOG_FIELD}%s${LOG_RECORD}`,
-    '--date=iso',
-    '--topo-order',
-    `--max-count=${count}`,
-  ]
-  if (skip > 0) args.push(`--skip=${skip}`)
-  if (options.branch && options.branch !== '') args.push(options.branch)
-  else args.push('--all')
-  if (options.author && options.author !== '') args.push(`--author=${options.author}`)
+  const base = ['log', LOG_FORMAT, '--date=iso', '--topo-order', `--max-count=${count}`]
+  if (skip > 0) base.push(`--skip=${skip}`)
+  const filters = []
+  if (options.author && options.author !== '') filters.push(`--author=${options.author}`)
   if (options.query && options.query !== '') {
     // A literal query must not be interpreted as a regex: typing `[` in the
     // filter used to exit 128 and blank the whole history.
-    if (options.regex !== true) args.push('--fixed-strings')
-    args.push(`--grep=${options.query}`, '--regexp-ignore-case')
+    if (options.regex !== true) filters.push('--fixed-strings')
+    filters.push(`--grep=${options.query}`, '--regexp-ignore-case')
   }
-  if (options.since && options.since !== '') args.push(`--since=${options.since}`)
-  if (options.path && options.path !== '') args.push('--', options.path)
-  const { stdout } = await runGit(env, args)
-  return parseLog(stdout)
+  if (options.since && options.since !== '') filters.push(`--since=${options.since}`)
+  if (options.path && options.path !== '') filters.push('--', options.path)
+  const branch = typeof options.branch === 'string' && options.branch !== '' ? options.branch : ''
+  if (branch !== '') {
+    // A branch filter is a server-side one: git walks that branch itself.
+    return logPage(env, [...base, branch, ...filters])
+  }
+  const commits = await logPage(env, [...base, '--all', ...filters])
+  // The window of the checked out branch. A repository without commits (an
+  // unborn HEAD) has none, and that is not an error: the `--all` window is
+  // the answer then.
+  const head = await logPage(env, [...base, 'HEAD', ...filters], { allowFailure: true })
+  const seen = new Set(commits.map(commit => commit.hash))
+  return [...commits, ...head.filter(commit => !seen.has(commit.hash))]
 }
 
 /** Local branch names plus the current one. */

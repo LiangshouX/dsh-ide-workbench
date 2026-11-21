@@ -40,6 +40,10 @@ const PANEL_ID = 'ide-workbench'
  * every frame of every Session that draws the workbench (PRD-v5 PERF-04).
  * The stylesheet of the workbench itself is a module constant already
  * (`styles.js`), and this one follows the same pattern.
+ *
+ * The rules that name a class of CodeMirror are bound to the workbench in the
+ * stylesheet itself (`styles.js`): the host draws a CodeMirror of its own, and
+ * an unscoped rule of the plugin would restyle it.
  */
 export const WORKBENCH_CSS = `${xtermCss}\n${CSS}`
 
@@ -381,7 +385,7 @@ function ChangesReviewBridge({ store, tab, ctx, suppressSelf }) {
 }
 
 function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, suppressSelf, renderSlot }) {
-  const { tab, sidebar } = useTabInfo()
+  const { tab } = useTabInfo()
   const store = getStore(sessionId)
   const mountedId = useMountedSession(ctx)
   const hasMounted = typeof ctx.sidebarRight?.mounted?.getSnapshot === 'function'
@@ -413,7 +417,7 @@ function BoundWorkbench({ getStore, sessionId, useTabInfo, ctx, reportVisible, s
   if (!isMounted) return null
   // `renderSlot` is the face of the four child slots of the contract: the
   // workbench renders them and hands every occupant the contract as a prop.
-  return React.createElement(Workbench, { store, visible: tab.visible, fullscreen: sidebar.fullscreen, renderSlot })
+  return React.createElement(Workbench, { store, visible: tab.visible, renderSlot })
 }
 
 function BoundSettings({ store }) {
@@ -802,15 +806,23 @@ export function apply(ctx) {
     label: () => t('chat.sendToChat'),
   }, props => React.createElement(ChatInputBridge, props))), 'dsh-ide-workbench: composer chat bridge')
 
-  // The footer entry is the always-present fallback: it survives when a skin or
-  // a narrow header hides the session utilities, and it is visible on the
-  // session-less start page as well (where no right Sidebar can be opened yet).
-  ctx.effect(() => ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
-    name: 'sidebar.footer.action', id: PANEL_ID, order: 20,
-    label: () => t('panelLabel'),
-  }, () => React.createElement(React.Fragment, null,
-    React.createElement(Styles), React.createElement(OpenButton, { open, t }),
-  ))), 'dsh-ide-workbench: sidebar footer entry')
+  // PRD-v8 ENTRY-01: the entry in the FOOTER of the left Sidebar is gone.
+  //
+  // It used to be the "always-present fallback" of the workbench: a small
+  // icon above the avatar of the desktop shell. Three reasons took it away:
+  //
+  //   - it is the LEAST discoverable place of the three (a user never walks
+  //     to the avatar to open a workbench), and the two remaining entries
+  //     (the session header and the empty-session page) are the ones the
+  //     user is already looking at;
+  //   - the bottom of the left Sidebar belongs to the HOST (avatar, account,
+  //     settings). A plugin icon there is a sticker on somebody else's wall;
+  //   - the fallback argument does not hold: the session header entry is
+  //     rendered for every non-blank Session, and the hero entry covers the
+  //     blank one - there is no state left that only the footer covered.
+  //
+  // The keyboard paths (the tool-window shortcuts, F11 and the settings) are
+  // untouched: this removes a door, not a room.
 
   ctx.effect(() => {
     const mounted = ctx.sidebarRight?.mounted

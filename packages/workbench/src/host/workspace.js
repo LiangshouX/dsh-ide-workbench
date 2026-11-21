@@ -31,10 +31,10 @@ const MAX_IMAGE_BYTES = 8 << 20
 /**
  * PDF inline cap (bytes).
  *
- * The bytes travel to the browser as base64 (33% larger), and the viewer
- * holds one decoded copy per open tab, so the cap is lower than the one of an
- * image: a bigger document is handed to the OS/sidebar preview instead of
- * being pushed through the wire.
+ * The bytes travel as bytes (the binary route of the plugin), but the viewer
+ * holds one copy per open tab, and a document of this size already fills the
+ * heap of the renderer: a bigger one is handed to the OS/sidebar preview
+ * instead of being pushed through the wire.
  */
 export const MAX_PDF_BYTES = 32 << 20
 /** Per-directory listing cap. */
@@ -291,16 +291,17 @@ export async function readFileForPreview(root, path) {
   const relativePath = toRelative(root, absolute)
   if (ext === '.pdf') {
     // PDFs are binary by definition (the heuristic below would report one),
-    // but the browser viewer can render them: the bytes travel base64-encoded
-    // and the client feeds them to PDF.js.
+    // but the browser viewer can render them. The bytes do NOT travel
+    // through the JSON API: base64 inflates them by a third and the answer
+    // of the read ends up in the store of the renderer (PRD-v8 PDF-01). The
+    // route `/ide-workbench/raw` serves them as bytes; the read answers the
+    // metadata of the document.
     if (info.size > MAX_PDF_BYTES) {
       return { kind: 'too-large', size: info.size, mtimeMs: info.mtimeMs, path: relativePath }
     }
-    const bytes = await readFile(absolute)
     return {
       kind: 'pdf',
       mime: 'application/pdf',
-      data: bytes.toString('base64'),
       size: info.size,
       mtimeMs: info.mtimeMs,
       path: relativePath,
