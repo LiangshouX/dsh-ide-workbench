@@ -254,13 +254,21 @@ export function ShortcutCapture({
   useEffect(() => {
     if (active === false) setArmed(false)
   }, [active])
+  // The name of the chip must carry the text the chip SHOWS (WCAG 2.5.3).
+  // The chip shows the shortcut it holds, so a name that was only the hint
+  // never told a screen reader WHICH shortcut is bound - the one thing the
+  // chip is about.
+  const shown = armed ? pressText : value
+  const name = armed
+    ? pressText
+    : (typeof value === 'string' && value !== '' ? `${value} · ${hint}` : hint)
   return React.createElement('button', {
     type: 'button',
     className: `iwb-settings-shortcut ${armed ? 'iwb-capturing' : ''}`,
     onClick: () => { setArmed(true); onActivate?.(true) },
     title: hint,
-    'aria-label': hint,
-  }, armed ? pressText : value)
+    'aria-label': name,
+  }, shown)
 }
 
 export function Kbd({ children }) {

@@ -61324,6 +61324,8 @@ function ShortcutCapture({
   (0, import_react4.useEffect)(() => {
     if (active === false) setArmed(false);
   }, [active]);
+  const shown = armed ? pressText : value;
+  const name2 = armed ? pressText : typeof value === "string" && value !== "" ? `${value} \xB7 ${hint}` : hint;
   return import_react4.default.createElement("button", {
     type: "button",
     className: `iwb-settings-shortcut ${armed ? "iwb-capturing" : ""}`,
@@ -61332,8 +61334,8 @@ function ShortcutCapture({
       onActivate?.(true);
     },
     title: hint,
-    "aria-label": hint
-  }, armed ? pressText : value);
+    "aria-label": name2
+  }, shown);
 }
 function Kbd({ children }) {
   return import_react4.default.createElement("span", { className: "iwb-kbd" }, children);

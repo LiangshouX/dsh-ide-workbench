@@ -175,8 +175,18 @@ test('the shortcut rows carry a capture chip', async () => {
   const { renderSettingsPage } = await loadPage()
   const html = renderSettingsPage()
   assert.match(html, /iwb-settings-shortcut/, 'the shortcut rows carry a chip')
-  // The chip is a button with a name of its own.
-  assert.match(html, /<button type="button" class="iwb-settings-shortcut[^"]*"[^>]*aria-label="settings\.recordShortcutHint"/)
+  // The chip is a button with a name of its own - and the name carries the
+  // shortcut the chip SHOWS (WCAG 2.5.3): a name that was only the hint
+  // never told a screen reader which shortcut is bound.
+  assert.match(html, /aria-label="Alt\+1 · settings\.recordShortcutHint"/)
+  // Every chip of the page names the shortcut it holds.
+  const chips = [...html.matchAll(/aria-label="([^"]+) · settings\.recordShortcutHint"/g)]
+    .map(match => match[1])
+  assert.ok(chips.length >= 9, `the chips name their shortcut (${chips.length} chips)`)
+  // The shortcut the chip shows is in its name.
+  for (const shortcut of chips) {
+    assert.match(html, new RegExp(`>${shortcut.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}<`), `the chip of ${shortcut} shows it`)
+  }
 })
 
 test('a row that the user changed says so', async () => {
