@@ -44,13 +44,25 @@ export class GitError extends Error {
 
 /**
  * Run git and resolve with its captured output.
+ *
+ * Two options matter for the search (and for nothing else):
+ *
+ *   - `signal`: the request the call belongs to. A request that is gone must
+ *     not leave a `git grep` behind - the child is killed and the call
+ *     resolves with `aborted: true`. Without it every keystroke of the search
+ *     would leave another full scan of the work tree running (PRD-v8 FIND-03).
+ *   - `onLine`: the output is handed over line by line and NOT collected. A
+ *     scan that stops at the result cap must not read the rest of a
+ *     multi-megabyte output, and must not keep it in memory either.
+ *
  * @param {{ gitPath?: string, root: string }} env command environment
  * @param {string[]} args argv after the executable
- * @param {{ input?: string, timeoutMs?: number, allowFailure?: boolean, env?: Record<string, string> }} [options]
- * @returns {Promise<{ code: number, stdout: string, stderr: string }>}
+ * @param {{ input?: string, timeoutMs?: number, allowFailure?: boolean, env?: Record<string, string>,
+ *   signal?: AbortSignal, onLine?: (line: string) => boolean }} [options]
+ * @returns {Promise<{ code: number, stdout: string, stderr: string, aborted: boolean, stopped: boolean }>}
  */
 export function runGit(env, args, options = {}) {
-  const { input, timeoutMs = READ_TIMEOUT_MS, allowFailure = false } = options
+  const { input, timeoutMs = READ_TIMEOUT_MS, allowFailure = false, signal, onLine } = options
   const executable = env.gitPath && env.gitPath.trim() !== '' ? env.gitPath.trim() : 'git'
   const argv = [
     '-c', 'core.quotepath=false',
@@ -63,6 +75,12 @@ export function runGit(env, args, options = {}) {
     ...args,
   ]
   return new Promise((resolve, reject) => {
+    // The request is gone before the command even starts: the command must
+    // not start at all.
+    if (signal?.aborted === true) {
+      resolve({ code: -1, stdout: '', stderr: '', aborted: true, stopped: false })
+      return
+    }
     let child
     try {
       gitProcesses += 1
@@ -86,20 +104,64 @@ export function runGit(env, args, options = {}) {
     let stdout = ''
     let stderr = ''
     let settled = false
+    /** True when the request was aborted and the child was killed for it. */
+    let aborted = false
+    /** True when the caller stopped the reading and the child was killed. */
+    let stopped = false
     const timer = setTimeout(() => {
       if (settled) return
       settled = true
       child.kill()
       reject(new ApiError('git-timeout', `git ${args[0] ?? ''} timed out after ${timeoutMs}ms`, 504))
     }, timeoutMs)
+    const onAbort = () => {
+      if (settled) return
+      aborted = true
+      // The child is killed AND the call settles at once: the pipes of a
+      // killed child may stay open (a grandchild of git holds them), and the
+      // answer is not wanted any more - waiting for the pipes would keep the
+      // scan alive for the rest of the timeout.
+      settled = true
+      clearTimeout(timer)
+      child.kill()
+      resolve({ code: -1, stdout, stderr, aborted: true, stopped })
+    }
+    if (signal !== undefined && typeof signal.addEventListener === 'function') {
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
     child.stdout.setEncoding('utf8')
     child.stderr.setEncoding('utf8')
-    child.stdout.on('data', (chunk) => { stdout += chunk })
+    if (typeof onLine === 'function') {
+      // The streaming mode: the output is handed over line by line and never
+      // collected - a scan that stops at the cap must not keep the rest of a
+      // multi-megabyte output in memory.
+      let pending = ''
+      child.stdout.on('data', (chunk) => {
+        if (stopped || aborted) return
+        pending += chunk
+        let at = pending.indexOf('\n')
+        while (at !== -1) {
+          const line = pending.slice(0, at)
+          pending = pending.slice(at + 1)
+          if (onLine(line) === false) {
+            stopped = true
+            child.kill()
+            return
+          }
+          at = pending.indexOf('\n')
+        }
+      })
+    } else {
+      child.stdout.on('data', (chunk) => { stdout += chunk })
+    }
     child.stderr.on('data', (chunk) => { stderr += chunk })
     child.on('error', (error) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      if (signal !== undefined && typeof signal.removeEventListener === 'function') {
+        signal.removeEventListener('abort', onAbort)
+      }
       reject(new ApiError(
         error.code === 'ENOENT' ? 'git-unavailable' : 'git-error',
         error.code === 'ENOENT'
@@ -112,12 +174,21 @@ export function runGit(env, args, options = {}) {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      if (signal !== undefined && typeof signal.removeEventListener === 'function') {
+        signal.removeEventListener('abort', onAbort)
+      }
       const exit = code ?? -1
+      // An aborted request is not a failure: the answer is simply not wanted
+      // any more. A scan the caller stopped is not a failure either.
+      if (aborted === true || stopped === true) {
+        resolve({ code: -1, stdout, stderr, aborted, stopped })
+        return
+      }
       if (exit !== 0 && !allowFailure) {
         reject(new GitError(args, exit, stderr, stdout))
         return
       }
-      resolve({ code: exit, stdout, stderr })
+      resolve({ code: exit, stdout, stderr, aborted: false, stopped })
     })
     if (input !== undefined) {
       child.stdin.end(input)

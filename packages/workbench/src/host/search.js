@@ -14,6 +14,24 @@
  * concurrently, and with a bounded amount of memory in flight: a serial read
  * of every file was 94 % of the time of a search (5.2 s of 6.3 s on a
  * 20 000 file tree).
+ *
+ * The three paths answer the SAME question (PRD-v8 FIND-04): the same
+ * filters, the same excludes, the same hits. A query that answers
+ * differently depending on which path served it is what makes a search feel
+ * broken.
+ *
+ * The rules that keep a big repository from breaking the search:
+ *
+ *   - every path honours the abort of the request. The client aborts the
+ *     scan of the keystroke before on every keystroke; a scan that keeps
+ *     running would pile up one `git grep` per keystroke (FIND-03);
+ *   - a path that runs into its timeout is NOT an error: the next path takes
+ *     over, and an answer that is partial says so (FIND-03);
+ *   - a path that timed out never falls back to the SLOWER walk - the answer
+ *     it has is partial, and the walk would be slower than the path that
+ *     just timed out;
+ *   - the output of the fast paths is read line by line: a scan that stops at
+ *     the cap of the hits must not buffer a multi-megabyte stdout first.
  */
 import { open, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -21,7 +39,7 @@ import { ApiError } from './wire.js'
 import { runGit } from './git.js'
 import { toRelative } from './workspace.js'
 import {
-  buildScannerArgs, parseScanLine, resolveScannerBinary, runScanner,
+  buildScannerArgs, parseScanRecord, resolveScannerBinary, runScanner, SCANNER_TIMEOUT_MS,
 } from './scanner.js'
 
 /** Directories never walked by the fallback. */
@@ -29,12 +47,14 @@ const SKIP_DIRS = new Set([
   '.git', 'node_modules', 'dist', 'build', 'out', 'coverage', '.next', '.nuxt',
   '.cache', '.turbo', '.parcel-cache', 'target', 'vendor', '__pycache__',
 ])
-/** Pathspec excludes for the git grep fast path. */
-const DEFAULT_EXCLUDES = [
-  'dist/**', 'build/**', 'out/**', 'node_modules/**', 'coverage/**',
-  '.next/**', '.nuxt/**', '.cache/**', '.turbo/**', '.parcel-cache/**',
-  'target/**', 'vendor/**', '__pycache__/**',
-]
+/**
+ * The directories that are noise for a code search.
+ *
+ * They are the directories of `SKIP_DIRS`, and they are skipped at ANY depth:
+ * the walk skips them while it walks, the scanner skips them with a glob, and
+ * the git path skips them with a pathspec - so all three answer the same.
+ */
+const DEFAULT_EXCLUDES = [...SKIP_DIRS]
 /** A single source file larger than this is never searched. */
 const MAX_SEARCH_BYTES = 2 << 20
 /** Hard cap on the fallback walk. */
@@ -55,9 +75,27 @@ const MIN_PREVIEW_CHARS = 40
 const READ_CONCURRENCY = 32
 /** How many bytes of file content may be in flight at the same time. */
 const READ_BUDGET_BYTES = 32 << 20
+/** The budget of the whole search: the answer comes within it. */
+const SEARCH_TIMEOUT_MS = 30_000
+/**
+ * The timeout of the git fast path.
+ *
+ * `git grep --untracked` walks the whole work tree and is the slowest of the
+ * three paths (14-18x the tracked-only scan on a 20 000 file tree). The
+ * scanner is faster, so the git path gets the smaller share of the budget:
+ * a repository that is too big for it is answered by the scanner.
+ */
+const GIT_TIMEOUT_MS = 10_000
+/** The time the last-resort walk gets when the budget is already spent. */
+const MIN_WALK_MS = 5_000
 
 function isRepo(env) {
   return env?.isRepo === true || (typeof env?.repoRoot === 'string' && env.repoRoot !== '')
+}
+
+/** Was the failure the timeout of a git call? */
+function isGitTimeout(error) {
+  return error instanceof ApiError && error.code === 'git-timeout'
 }
 
 /** Repository-relative path → workspace-relative path. */
@@ -149,19 +187,188 @@ function comparePaths(left, right) {
 }
 
 /**
+ * The patterns of the caller, cleaned up.
+ *
+ * @param {unknown} value the raw value of the option
+ * @returns {string[]} the patterns, without the empty ones
+ */
+function normalizePatterns(value) {
+  if (!Array.isArray(value)) return []
+  const out = []
+  for (const pattern of value) {
+    if (typeof pattern !== 'string') continue
+    const trimmed = pattern.trim().split('\\').join('/')
+    if (trimmed === '') continue
+    out.push(trimmed)
+  }
+  return out
+}
+
+/** Does a pattern hold a wildcard? */
+function isGlob(pattern) {
+  return /[*?[\]]/.test(pattern)
+}
+
+/**
+ * The matcher of one glob.
+ *
+ * `*` stays inside one segment, `**` crosses the segments, `?` is one
+ * character. The matcher is built once per pattern and then used for every
+ * path of the search.
+ *
+ * @param {string} pattern the glob
+ * @returns {RegExp} the matcher of the glob
+ */
+function globMatcher(pattern) {
+  let source = '^'
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index]
+    if (char === '*') {
+      if (pattern[index + 1] === '*') {
+        if (pattern[index + 2] === '/') {
+          // `**/` may also match nothing at all.
+          source += '(?:.*/)?'
+          index += 2
+        } else {
+          source += '.*'
+          index += 1
+        }
+        continue
+      }
+      source += '[^/]*'
+      continue
+    }
+    if (char === '?') {
+      source += '[^/]'
+      continue
+    }
+    source += char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+  return new RegExp(`${source}$`)
+}
+
+/**
+ * Does a path match one pattern of the caller?
+ *
+ * A pattern is either a plain path prefix (`src`, `src/`) or a glob
+ * (`*.ts`, `src/**\/*.ts`, `**\/dist/**`).
+ *
+ * The plain prefix matches the path itself and the paths UNDER it - and
+ * nothing else: `src` must not match `src-old/a.ts`. The old rule was a
+ * plain `startsWith`, which matched `src-old/a.ts` as well - and a glob that
+ * looks supported but matches nothing is worse than a wrong answer.
+ *
+ * A glob without a separator is a FILE MASK: `*.ts` matches every file of
+ * the project whose name ends in `.ts`, at any depth - the way the user
+ * reads it.
+ *
+ * @param {string} path the workspace-relative path (forward slashes)
+ * @param {string} pattern the pattern of the caller
+ * @returns {boolean} whether the path matches
+ */
+export function matchesPattern(path, pattern) {
+  if (typeof path !== 'string' || path === '') return false
+  if (typeof pattern !== 'string' || pattern === '') return false
+  const value = pattern.split('\\').join('/')
+  if (!isGlob(value)) {
+    const prefix = value.replace(/\/+$/, '')
+    if (prefix === '') return true
+    return path === prefix || path.startsWith(`${prefix}/`)
+  }
+  const matcher = globMatcher(value)
+  if (value.includes('/')) return matcher.test(path)
+  // A file mask: the name of the file is what the mask talks about.
+  const slash = path.lastIndexOf('/')
+  return matcher.test(slash < 0 ? path : path.slice(slash + 1))
+}
+
+/**
+ * Does a path match any of the patterns?
+ *
+ * @param {string} path the workspace-relative path (forward slashes)
+ * @param {string[]} patterns the patterns of the caller
+ * @returns {boolean} whether the path matches one of them
+ */
+function matchesAny(path, patterns) {
+  for (const pattern of patterns) {
+    if (matchesPattern(path, pattern)) return true
+  }
+  return false
+}
+
+/**
+ * Is a path inside one of the directories that are noise?
+ *
+ * The walk skips such a DIRECTORY, so a file that is named `out` is not
+ * noise - only a directory below the path is.
+ *
+ * @param {string} path the workspace-relative path (forward slashes)
+ * @returns {boolean} whether the path is noise
+ */
+export function isNoisePath(path) {
+  if (typeof path !== 'string' || path === '') return false
+  const parts = path.split('/')
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    if (SKIP_DIRS.has(parts[index])) return true
+  }
+  return false
+}
+
+/**
+ * The filter of the paths of one search.
+ *
+ * The SAME filter is applied by the three paths: the noise directories, the
+ * include patterns and the exclude patterns. A query must not answer
+ * differently depending on which path served it (PRD-v8 FIND-04).
+ *
+ * @param {{include?: string[], exclude?: string[]}} options the options
+ * @returns {(path: string) => boolean} the filter
+ */
+function pathFilter(options) {
+  const include = normalizePatterns(options.include)
+  const exclude = normalizePatterns(options.exclude)
+  return (path) => {
+    if (isNoisePath(path)) return false
+    if (include.length > 0 && !matchesAny(path, include)) return false
+    if (exclude.length > 0 && matchesAny(path, exclude)) return false
+    return true
+  }
+}
+
+/**
  * List every project file (workspace-relative, forward slashes).
  * @param {{ root: string, workspaceRoot: string, prefix?: string, isRepo?: boolean }} env
- * @param {{maxFiles?: number}} [options] the cap of the walk
+ * @param {{maxFiles?: number, git?: Function, signal?: AbortSignal}} [options] the cap of the walk
  * @returns {Promise<{files: string[], tookMs: number, truncated: boolean}>}
  */
 export async function listFiles(env, options = {}) {
   const started = Date.now()
+  const maxFiles = Number.isSafeInteger(options.maxFiles) && options.maxFiles > 0
+    ? options.maxFiles
+    : MAX_FILES
   if (isRepo(env)) {
-    const result = await runGit(env, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { allowFailure: true })
-    if (result.code === 0) {
-      const files = [...new Set(result.stdout.split('\0').filter(Boolean).map(path => mapPath(env, path)))]
-        .sort(comparePaths)
-      return { files, tookMs: Date.now() - started, truncated: false }
+    const run = typeof options.git === 'function' ? options.git : runGit
+    try {
+      const result = await run(env, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+        allowFailure: true,
+        signal: options.signal,
+      })
+      if (result.code === 0) {
+        const all = [...new Set(result.stdout.split('\0').filter(Boolean).map(path => mapPath(env, path)))]
+          .sort(comparePaths)
+        // The index of a huge repository is capped - and the answer says so:
+        // a silent cap looks like a search that found nothing.
+        const truncated = all.length > maxFiles
+        return {
+          files: truncated ? all.slice(0, maxFiles) : all,
+          tookMs: Date.now() - started,
+          truncated,
+        }
+      }
+    } catch (error) {
+      // A git that times out is not an answer: the walk takes over. The file
+      // index is the base of the tree search - it must not fail with it.
+      if (!isGitTimeout(error)) throw error
     }
   }
   const walked = await walkFiles(env.workspaceRoot ?? env.root, options)
@@ -556,8 +763,10 @@ export function groupScanEntries(entries, mapPath) {
  * @param {string} query the search term
  * @param {{caseSensitive?: boolean, wholeWord?: boolean, regexp?: boolean,
  *   include?: string[], exclude?: string[], maxResults?: number,
- *   signal?: AbortSignal}} options
- * @returns {Promise<{files: Array<{path: string, matches: object[]}>, truncated: boolean}|null>}
+ *   signal?: AbortSignal, scanner?: string|false, scannerTimeoutMs?: number,
+ *   deadline?: number}} options
+ * @returns {Promise<{files: Array<{path: string, matches: object[]}>, truncated: boolean,
+ *   aborted?: boolean, timedOut?: boolean}|null>}
  *   `null` when the machine has no scanner
  */
 async function searchWithScanner(env, query, options) {
@@ -565,12 +774,13 @@ async function searchWithScanner(env, query, options) {
   // names (the tests run against a known binary). `false` forbids the
   // scanner, so the walk can be measured on its own.
   if (options.scanner === false) return null
+  // An aborted request has no reader left: the scan does not start.
+  if (options.signal?.aborted === true) return null
   const binary = typeof options.scanner === 'string' && options.scanner !== ''
     ? options.scanner
     : resolveScannerBinary()
   if (binary === null) return null
   const root = env.workspaceRoot ?? env.root
-  const pattern = buildPattern(query, options)
   const args = buildScannerArgs(query, {
     caseSensitive: options.caseSensitive,
     wholeWord: options.wholeWord,
@@ -586,8 +796,10 @@ async function searchWithScanner(env, query, options) {
   const result = await runScanner(binary, args, {
     cwd: root,
     signal: options.signal,
+    // The scanner never gets more than the rest of the budget of the search.
+    timeoutMs: scannerTimeout(options),
     onLine: (line) => {
-      const entry = parseScanLine(line, pattern)
+      const entry = parseScanRecord(line)
       if (entry === null) return true
       if (entry.kind === 'hit') {
         hits += 1
@@ -601,21 +813,42 @@ async function searchWithScanner(env, query, options) {
       return true
     },
   })
-  // A scanner that failed (a pattern it does not understand, a timeout) is
-  // not an answer: the walk takes over. A scan that was stopped at the cap
-  // IS an answer - the child was killed on purpose.
-  if (result.timedOut === true) return null
+  // The request is gone: the answer is not wanted any more, and the walk must
+  // not start either.
+  if (result.aborted === true) return { files: [], truncated: false, aborted: true }
+  const accept = pathFilter(options)
+  // A scanner that TIMED OUT has an answer - a partial one. It must not fall
+  // back to the walk: the walk is slower than the scanner that just ran into
+  // its timeout, so the fallback would make the search slower, not faster.
+  if (result.timedOut === true) {
+    const grouped = groupScanEntries(entries, scannerPath)
+    return { files: grouped.files.filter(file => accept(file.path)), truncated: true, timedOut: true }
+  }
+  // A scanner that failed (a pattern it does not understand) is not an
+  // answer: the walk takes over. A scan that was stopped at the cap IS an
+  // answer - the child was killed on purpose.
   if (!result.stopped && result.code !== 0 && result.code !== 1) return null
-  if (result.aborted) return null
-  const include = Array.isArray(options.include) ? options.include.filter(Boolean) : []
-  const exclude = Array.isArray(options.exclude) ? options.exclude.filter(Boolean) : []
   const grouped = groupScanEntries(entries, scannerPath)
-  const files = grouped.files.filter(file => {
-    if (include.length > 0 && !include.some(prefix => file.path.startsWith(prefix))) return false
-    if (exclude.some(prefix => file.path.startsWith(prefix))) return false
-    return true
-  })
+  const files = grouped.files.filter(file => accept(file.path))
   return { files, truncated }
+}
+
+/**
+ * The timeout of the scanner run.
+ *
+ * The scanner never gets more than the rest of the budget of the search: a
+ * scan that would answer after the budget is spent is a scan that answers
+ * too late.
+ *
+ * @param {{scannerTimeoutMs?: number, deadline?: number}} options the options
+ * @returns {number} the timeout in milliseconds
+ */
+function scannerTimeout(options) {
+  const own = Number.isSafeInteger(options.scannerTimeoutMs) && options.scannerTimeoutMs > 0
+    ? options.scannerTimeoutMs
+    : SCANNER_TIMEOUT_MS
+  if (typeof options.deadline !== 'number') return own
+  return Math.max(1, Math.min(own, options.deadline - Date.now()))
 }
 
 /**
@@ -623,25 +856,81 @@ async function searchWithScanner(env, query, options) {
  * @param {{root: string, workspaceRoot?: string, prefix?: string}} env
  * @param {string} query the search term
  * @param {{caseSensitive?: boolean, wholeWord?: boolean, regexp?: boolean,
- *   include?: string[], maxResults?: number}} options
- * @returns {Promise<{files: Array<{path: string, matches: object[]}>, truncated: boolean}|null>}
+ *   include?: string[], exclude?: string[], maxResults?: number,
+ *   signal?: AbortSignal, git?: Function, gitTimeoutMs?: number,
+ *   deadline?: number}} options
+ * @returns {Promise<{files: Array<{path: string, matches: object[]}>, truncated: boolean,
+ *   aborted?: boolean}|null>}
  */
 async function searchWithGit(env, query, options) {
   // An aborted request has no reader left: the scan does not start.
   if (options.signal?.aborted === true) return null
+  // A REGULAR EXPRESSION is not the dialect of `git grep -E`: the POSIX of git
+  // has no `\d` (it is a literal `d` there) and its classes are not the ones
+  // of the RegExp of JS. The git path would answer with the hits of another
+  // language - so it only serves the LITERAL searches, and the scanner (or
+  // the walk) answers the rest (FIND-04).
+  if (options.regexp === true) return null
   const base = ['grep', '--no-color', '-n', '-I', '--column', '--untracked']
+  // The path is separated from the rest of the line by a NUL byte: the parser
+  // then knows the path exactly, and the shape of the rest tells a hit from a
+  // context line - without asking the pattern.
+  base.push('-z')
   if (options.caseSensitive !== true) base.push('-i')
   if (options.wholeWord === true) base.push('-w')
   // The context comes with the hits: git grep prints the lines around a hit,
   // so the matched files do not have to be read again.
   base.push('-C', String(CONTEXT_LINES))
-  base.push(options.regexp === true ? '-E' : '-F', '-e', query, '--')
-  const include = Array.isArray(options.include) ? options.include.filter(Boolean) : []
-  if (include.length > 0) base.push(...include)
+  base.push('-F', '-e', query, '--')
   // Generated/vendor trees are noise for a code search. The fallback walk
-  // already skips them; keep the fast git path consistent.
-  else base.push(...DEFAULT_EXCLUDES.map(path => `:(exclude)${path}`))
-  const result = await runGit(env, base, { allowFailure: true })
+  // already skips them; keep the fast git path consistent - at ANY depth, the
+  // way the walk skips them.
+  base.push(...DEFAULT_EXCLUDES.map(name => `:(exclude,glob)**/${name}/**`))
+  // A plain prefix is a pathspec of git as well - a glob is not (the pathspec
+  // of git has a syntax of its own), so a glob is filtered in JS.
+  const include = normalizePatterns(options.include)
+  for (const pattern of include) {
+    if (!isGlob(pattern)) base.push(pattern)
+  }
+  const maxResults = options.maxResults ?? MAX_RESULTS
+  const entries = []
+  let hits = 0
+  let truncated = false
+  const run = typeof options.git === 'function' ? options.git : runGit
+  let result
+  try {
+    result = await run(env, base, {
+      allowFailure: true,
+      // The request of the client: an outdated scan must not keep a
+      // `git grep` running over the whole work tree (FIND-03).
+      signal: options.signal,
+      timeoutMs: gitTimeout(options),
+      // The output is read line by line: a scan that stops at the cap must
+      // not buffer a multi-megabyte stdout first.
+      onLine: (line) => {
+        const entry = parseScanRecord(line)
+        if (entry === null) return true
+        if (entry.kind === 'hit') {
+          hits += 1
+          if (hits > maxResults) {
+            truncated = true
+            return false
+          }
+        }
+        entries.push(entry)
+        return true
+      },
+    })
+  } catch (error) {
+    // A git that times out is not an answer - and it is not an error either:
+    // the next path takes over. A bad pattern is the input of the user and
+    // stays an error.
+    if (isGitTimeout(error)) return null
+    throw error
+  }
+  // The request is gone: the answer is not wanted any more, and the next path
+  // must not start either.
+  if (result?.aborted === true) return { files: [], truncated: false, aborted: true }
   if (result.code === 1) return { files: [], truncated: false } // no match
   if (result.code !== 0) {
     // A bad user regex is an input error; anything else may be an old git
@@ -651,25 +940,23 @@ async function searchWithGit(env, query, options) {
     }
     return null
   }
-  const pattern = buildPattern(query, options)
-  const maxResults = options.maxResults ?? MAX_RESULTS
-  const entries = []
-  let hits = 0
-  let truncated = false
-  for (const raw of result.stdout.split('\n')) {
-    const entry = parseScanLine(raw, pattern)
-    if (entry === null) continue
-    if (entry.kind === 'hit') {
-      hits += 1
-      if (hits > maxResults) {
-        truncated = true
-        break
-      }
-    }
-    entries.push(entry)
-  }
   const grouped = groupScanEntries(entries, path => mapPath(env, path))
-  return { files: grouped.files, truncated }
+  const accept = pathFilter(options)
+  return { files: grouped.files.filter(file => accept(file.path)), truncated }
+}
+
+/**
+ * The timeout of the git fast path.
+ *
+ * @param {{gitTimeoutMs?: number, deadline?: number}} options the options
+ * @returns {number} the timeout in milliseconds
+ */
+function gitTimeout(options) {
+  const own = Number.isSafeInteger(options.gitTimeoutMs) && options.gitTimeoutMs > 0
+    ? options.gitTimeoutMs
+    : GIT_TIMEOUT_MS
+  if (typeof options.deadline !== 'number') return own
+  return Math.max(1, Math.min(own, options.deadline - Date.now()))
 }
 
 /**
@@ -683,12 +970,21 @@ async function searchWithGit(env, query, options) {
  */
 async function searchWithWalk(env, query, options) {
   const pattern = buildPattern(query, options)
-  const index = await listFiles(env, { maxFiles: options.maxFiles })
+  const index = await listFiles(env, {
+    maxFiles: options.maxFiles,
+    git: options.git,
+    signal: options.signal,
+  })
   const files = index.files
-  const include = Array.isArray(options.include) ? options.include.filter(Boolean) : []
-  const exclude = Array.isArray(options.exclude) ? options.exclude.filter(Boolean) : []
+  const accept = pathFilter(options)
   const maxResults = options.maxResults ?? MAX_RESULTS
   const signal = options.signal
+  // The walk is the last resort: it gets the rest of the budget of the
+  // search - and a little more, because it is the only path that always
+  // answers.
+  const deadline = typeof options.deadline === 'number'
+    ? Math.max(options.deadline, Date.now() + MIN_WALK_MS)
+    : undefined
   const budget = new ByteBudget(Number.isSafeInteger(options.readBudgetBytes) && options.readBudgetBytes > 0
     ? options.readBudgetBytes
     : READ_BUDGET_BYTES)
@@ -707,8 +1003,14 @@ async function searchWithWalk(env, query, options) {
       stopped = true
       return
     }
-    if (include.length > 0 && !include.some(prefix => path.startsWith(prefix))) return
-    if (exclude.some(prefix => path.startsWith(prefix))) return
+    // The budget of the search is spent: the walk stops and the answer says
+    // that it is partial. A search that cannot answer in time must say so -
+    // never pretend that it found nothing.
+    if (deadline !== undefined && Date.now() > deadline) {
+      stopped = true
+      return
+    }
+    if (!accept(path)) return
     const absolute = join(env.workspaceRoot ?? env.root, path)
     const buffer = await read(absolute, budget, signal)
     if (buffer === null || buffer === undefined) return
@@ -724,9 +1026,15 @@ async function searchWithWalk(env, query, options) {
 
 /**
  * Search every project text file.
+ *
+ * The answer is honest about what it could not do: a path that ran into its
+ * timeout says so (`truncated`), and the search that was aborted answers
+ * nothing at all - the client drops it anyway.
+ *
  * @param {{ root: string, workspaceRoot: string, prefix?: string, isRepo?: boolean, gitPath?: string }} env
  * @param {{ query: string, caseSensitive?: boolean, wholeWord?: boolean, regexp?: boolean,
- *   include?: string[], exclude?: string[], maxResults?: number, signal?: AbortSignal }} options
+ *   include?: string[], exclude?: string[], maxResults?: number, signal?: AbortSignal,
+ *   timeoutMs?: number }} options
  * @returns {Promise<{files: object[], truncated: boolean, tookMs: number}>}
  */
 export async function searchFiles(env, options = {}) {
@@ -735,14 +1043,23 @@ export async function searchFiles(env, options = {}) {
   if (query === '') return { files: [], truncated: false, tookMs: 0 }
   buildPattern(query, options) // validate before crossing the git/fallback boundary
   const maxResults = Math.min(Math.max(options.maxResults ?? MAX_RESULTS, 1), MAX_RESULTS)
+  // The budget of the whole search: the fast paths share it, and the walk
+  // gets what is left (plus a little).
+  const budget = Number.isSafeInteger(options.timeoutMs) && options.timeoutMs > 0
+    ? options.timeoutMs
+    : SEARCH_TIMEOUT_MS
+  const deadline = started + budget
   let result = null
   // A repository answers with git grep: it knows the .gitignore rules, and
   // its output carries the context of a hit.
-  if (isRepo(env)) result = await searchWithGit(env, query, { ...options, maxResults })
+  if (isRepo(env)) result = await searchWithGit(env, query, { ...options, maxResults, deadline })
   // Every other workspace answers with the external scanner, and the walk is
   // the fallback of both.
-  if (result === null) result = await searchWithScanner(env, query, { ...options, maxResults })
-  if (result === null) result = await searchWithWalk(env, query, { ...options, maxResults })
+  if (result === null) result = await searchWithScanner(env, query, { ...options, maxResults, deadline })
+  if (result === null) result = await searchWithWalk(env, query, { ...options, maxResults, deadline })
+  if (result === null) result = { files: [], truncated: false }
+  // The request was aborted: the answer is not wanted any more.
+  if (result.aborted === true) return { files: [], truncated: false, tookMs: Date.now() - started }
   let files = result.files
   let truncated = result.truncated === true
   let seen = 0

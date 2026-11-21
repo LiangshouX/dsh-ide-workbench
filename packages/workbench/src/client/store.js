@@ -37,6 +37,16 @@ let sequence = 0
 const RESTORED_TREE_DELAY_MS = 200
 
 /**
+ * How many folders the tree search may ask the host for at the same time.
+ *
+ * The tree search expands the chain of every match, and a common prefix can
+ * match hundreds of files in hundreds of folders. Hundreds of parallel
+ * directory listings drown the host on every keystroke, so the requests are
+ * spread over a few at a time (PRD-v8 FIND-05).
+ */
+const EXPAND_CONCURRENCY = 8
+
+/**
  * Development-only counters (PRD §1.3).
  *
  * `process.env.NODE_ENV` is inlined to `"production"` by the client build, so
@@ -1771,7 +1781,13 @@ export class WorkbenchStore {
    * The tree search has to show the whole chain of a target file, from the
    * project root down to the folder of the file. The `expanded` set is
    * committed once - so the panel re-renders one time and not once per level -
-   * and the folders themselves are then loaded in parallel.
+   * and the folders themselves are then loaded with a BOUNDED number of
+   * requests at a time.
+   *
+   * The bound matters: a common prefix can match hundreds of files, and every
+   * match may live in its own folder - hundreds of parallel directory
+   * listings would drown the host (and the tree) on every keystroke
+   * (PRD-v8 FIND-05). No folder is dropped: they are loaded in batches.
    * @param {string[]} dirs the absolute paths of the folders
    * @returns {Promise<void>}
    */
@@ -1790,7 +1806,36 @@ export class WorkbenchStore {
     if (pending.length === 0) return
     this.set({ expanded })
     this.persist()
-    await Promise.all(pending.map(path => this.loadDir(path)))
+    await this.#loadDirs(pending)
+  }
+
+  /**
+   * Load a few directories at a time.
+   *
+   * The tree search may hand over hundreds of folders; the host may only be
+   * asked for a few of them at the same time.
+   * @param {string[]} paths the absolute paths of the folders
+   * @returns {Promise<void>}
+   */
+  async #loadDirs(paths) {
+    const limit = EXPAND_CONCURRENCY
+    let cursor = 0
+    const workers = []
+    const size = Math.max(1, Math.min(limit, paths.length))
+    for (let worker = 0; worker < size; worker += 1) {
+      workers.push((async () => {
+        while (cursor < paths.length) {
+          const index = cursor
+          cursor += 1
+          try {
+            await this.loadDir(paths[index])
+          } catch {
+            // A folder that cannot be read is not a reason to stop the rest.
+          }
+        }
+      })())
+    }
+    await Promise.all(workers)
   }
 
   setFilterMode(mode) {

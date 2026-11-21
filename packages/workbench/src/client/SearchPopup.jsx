@@ -277,7 +277,11 @@ export function SearchPopup({ store }) {
         search?.error !== null && search?.error !== undefined && query !== ''
           ? React.createElement('div', { className: 'iwb-search-error' }, search.error)
           : (files.length === 0 && query !== '' && search?.loading !== true
-            ? React.createElement('div', { className: 'iwb-quick-empty' }, t('search.noResults'))
+            ? React.createElement('div', { className: 'iwb-quick-empty' },
+                // An answer that was cut short is not an answer without
+                // matches: the search says that it is partial, and it must
+                // not claim that the project has nothing (FIND-03).
+                search?.truncated === true ? t('search.truncated') : t('search.noResults'))
             : files.map((file, index) => React.createElement('button', {
               key: file.path,
               type: 'button',

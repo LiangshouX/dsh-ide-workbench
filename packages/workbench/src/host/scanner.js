@@ -16,14 +16,25 @@
  * The output of ripgrep and of `git grep` has the same shape, so one parser
  * serves both:
  *
- *   `path:LINE:COLUMN:text`   a hit
- *   `path-LINE-text`           a line of the context around a hit
- *   `--`                       the separator between two files
+ *   `path\0LINE\0COLUMN\0text`    a hit of `git grep -z`
+ *   `path\0LINE\0text`            a context line of `git grep -z`
+ *   `path\0LINE:COLUMN:text`      a hit of `ripgrep --null`
+ *   `path\0LINE-text`             a context line of `ripgrep --null`
+ *
+ * The path is separated from the rest of the line by a NUL byte (`-z` of git,
+ * `--null` of ripgrep). That is what makes the parser exact: the path is
+ * never confused with the text of a line, and the SHAPE of the rest tells a
+ * hit from a context line - without asking the pattern.
+ *
+ * The old parser asked the pattern instead, and compared its byte offset with
+ * the column of the tool. The two engines disagree about a regular
+ * expression (`\d` is a digit class in the RegExp of JS and a literal `d` in
+ * the POSIX of `git grep -E`), and a hit whose offsets disagreed was
+ * silently demoted to a context line - or dropped. The same query then found
+ * results sometimes and not others, depending on which path served it.
  *
  * The column of a tool is a BYTE offset while the client counts characters,
- * so the column is computed again from the text of the line - and the byte
- * offset of the tool is used to tell a hit from a context line that happens
- * to look like one.
+ * so the column is computed again from the text of the line.
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -36,62 +47,71 @@ export const SCANNER_TIMEOUT_MS = 30_000
 /** The context lines the scanner prints around a hit. */
 export const SCANNER_CONTEXT_LINES = 5
 
-/** A hit of the scanner output. */
-const HIT_LINE = /^(.*):(\d+):(\d+):(.*)$/
-/** A context line of the scanner output. */
-const CONTEXT_LINE = /^(.*)-(\d+)-(.*)$/
 /** The line a scanner prints for a binary file. */
-const BINARY_LINE = /^(.*): binary file matches \(found .*byte around offset \d+\)$/
+const BINARY_FILE = 'binary file matches'
 
 /**
- * The first match of the pattern in one line.
+ * The column of a hit, in characters.
  *
- * The pattern is the one of the built-in walk, so the column of the hit is
- * the same in both paths (the client places the caret with it).
+ * The tool reports the byte offset of the match; the client counts
+ * characters. The bytes before the match are decoded, so a CJK character
+ * counts once - and not three times.
  *
- * @param {RegExp} pattern the search pattern
  * @param {string} text the text of the line
- * @returns {{column: number, byteOffset: number}|null} the match
+ * @param {number} byteColumn the column of the tool (one-based, in bytes)
+ * @returns {number} the column in characters (one-based)
  */
-function firstMatch(pattern, text) {
-  if (pattern === undefined || pattern === null) return null
-  pattern.lastIndex = 0
-  const match = pattern.exec(text)
-  if (match === null) return null
-  return {
-    // The column of the client: the characters before the match.
-    column: match.index + 1,
-    // The offset of the tool: the bytes before the match.
-    byteOffset: Buffer.byteLength(text.slice(0, match.index), 'utf8'),
-  }
+export function characterColumn(text, byteColumn) {
+  const bytes = Buffer.byteLength(text, 'utf8')
+  const offset = Math.min(Math.max(byteColumn - 1, 0), bytes)
+  const prefix = Buffer.from(text, 'utf8').subarray(0, offset).toString('utf8')
+  return prefix.length + 1
 }
 
 /**
- * Parse one line of a scanner output.
+ * Parse one record of a scanner output.
  *
- * @param {string} line the line, without its terminator
- * @param {RegExp} [pattern] the search pattern
+ * The record is one line of the output of the tool, with the path separated
+ * from the rest by a NUL byte.
+ *
+ * @param {string} record the record, without its terminator
  * @returns {{kind: 'hit'|'context'|'binary', path: string, line: number,
  *   column: number, text: string}|null} the entry, `null` for a separator
  */
-export function parseScanLine(line, pattern) {
-  if (line === '' || line === '--') return null
-  const binary = BINARY_LINE.exec(line)
-  if (binary !== null) return { kind: 'binary', path: binary[1], line: 1, column: 1, text: '' }
-  const hit = HIT_LINE.exec(line)
-  if (hit !== null) {
-    const text = hit[4]
-    const found = firstMatch(pattern, text)
-    // The byte offset of the tool tells a hit from a context line that looks
-    // like one (a log line with a timestamp, for example). When the pattern
-    // does not match the text at all, the line is a context line.
-    if (found !== null && found.byteOffset === Number(hit[3]) - 1) {
-      return { kind: 'hit', path: hit[1], line: Number(hit[2]), column: found.column, text }
-    }
+export function parseScanRecord(record) {
+  if (typeof record !== 'string' || record === '') return null
+  const nul = record.indexOf('\0')
+  // A separator (`--`) and a line without a path are not records.
+  if (nul <= 0) return null
+  const path = record.slice(0, nul)
+  const rest = record.slice(nul + 1)
+  if (rest === '') return null
+  // The binary file of `git grep`.
+  if (rest.startsWith(BINARY_FILE)) {
+    return { kind: 'binary', path, line: 1, column: 1, text: '' }
   }
-  const context = CONTEXT_LINE.exec(line)
+  // The shape of `git grep -z`: the fields are separated by NUL as well, so
+  // the number of them tells a hit from a context line.
+  if (rest.includes('\0')) {
+    const fields = rest.split('\0')
+    if (fields.length === 3) {
+      const text = fields[2]
+      return { kind: 'hit', path, line: Number(fields[0]), column: characterColumn(text, Number(fields[1])), text }
+    }
+    if (fields.length === 2) {
+      return { kind: 'context', path, line: Number(fields[0]), column: 1, text: fields[1] }
+    }
+    return null
+  }
+  // The shape of `ripgrep --null`: the line and the column of a hit are
+  // separated by a colon, the line of a context line by a dash.
+  const hit = /^(\d+):(\d+):([\s\S]*)$/.exec(rest)
+  if (hit !== null) {
+    return { kind: 'hit', path, line: Number(hit[1]), column: characterColumn(hit[3], Number(hit[2])), text: hit[3] }
+  }
+  const context = /^(\d+)-([\s\S]*)$/.exec(rest)
   if (context !== null) {
-    return { kind: 'context', path: context[1], line: Number(context[2]), column: 1, text: context[3] }
+    return { kind: 'context', path, line: Number(context[1]), column: 1, text: context[2] }
   }
   return null
 }
@@ -219,6 +239,10 @@ export function buildScannerArgs(query, options = {}) {
     '--no-heading',
     '--with-filename',
     '--context', String(options.contextLines ?? SCANNER_CONTEXT_LINES),
+    // The path is separated from the rest of the line by a NUL byte: the
+    // parser then knows the path exactly, and the shape of the rest tells a
+    // hit from a context line - without asking the pattern.
+    '--null',
     // A long line must not be cut: the client shows the whole hit. The value
     // belongs to the flag (`--flag=value`): ripgrep reads a separate word as
     // a file name.

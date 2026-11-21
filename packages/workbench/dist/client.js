@@ -57003,6 +57003,7 @@ function createEditorSeamForStore(store) {
 // src/client/store.js
 var sequence = 0;
 var RESTORED_TREE_DELAY_MS = 200;
+var EXPAND_CONCURRENCY = 8;
 if (false) {
   window.__iwbPerf = perfCounters;
 }
@@ -58390,7 +58391,13 @@ var WorkbenchStore = class {
    * The tree search has to show the whole chain of a target file, from the
    * project root down to the folder of the file. The `expanded` set is
    * committed once - so the panel re-renders one time and not once per level -
-   * and the folders themselves are then loaded in parallel.
+   * and the folders themselves are then loaded with a BOUNDED number of
+   * requests at a time.
+   *
+   * The bound matters: a common prefix can match hundreds of files, and every
+   * match may live in its own folder - hundreds of parallel directory
+   * listings would drown the host (and the tree) on every keystroke
+   * (PRD-v8 FIND-05). No folder is dropped: they are loaded in batches.
    * @param {string[]} dirs the absolute paths of the folders
    * @returns {Promise<void>}
    */
@@ -58408,7 +58415,34 @@ var WorkbenchStore = class {
     if (pending.length === 0) return;
     this.set({ expanded });
     this.persist();
-    await Promise.all(pending.map((path2) => this.loadDir(path2)));
+    await this.#loadDirs(pending);
+  }
+  /**
+   * Load a few directories at a time.
+   *
+   * The tree search may hand over hundreds of folders; the host may only be
+   * asked for a few of them at the same time.
+   * @param {string[]} paths the absolute paths of the folders
+   * @returns {Promise<void>}
+   */
+  async #loadDirs(paths) {
+    const limit = EXPAND_CONCURRENCY;
+    let cursor = 0;
+    const workers = [];
+    const size = Math.max(1, Math.min(limit, paths.length));
+    for (let worker = 0; worker < size; worker += 1) {
+      workers.push((async () => {
+        while (cursor < paths.length) {
+          const index = cursor;
+          cursor += 1;
+          try {
+            await this.loadDir(paths[index]);
+          } catch {
+          }
+        }
+      })());
+    }
+    await Promise.all(workers);
   }
   setFilterMode(mode) {
     const value = mode === "tree" ? "tree" : "files";
@@ -79579,7 +79613,14 @@ function SearchPopup({ store }) {
       import_react19.default.createElement(
         "div",
         { className: "iwb-search-popup-list" },
-        search2?.error !== null && search2?.error !== void 0 && query !== "" ? import_react19.default.createElement("div", { className: "iwb-search-error" }, search2.error) : files.length === 0 && query !== "" && search2?.loading !== true ? import_react19.default.createElement("div", { className: "iwb-quick-empty" }, t3("search.noResults")) : files.map((file, index) => import_react19.default.createElement(
+        search2?.error !== null && search2?.error !== void 0 && query !== "" ? import_react19.default.createElement("div", { className: "iwb-search-error" }, search2.error) : files.length === 0 && query !== "" && search2?.loading !== true ? import_react19.default.createElement(
+          "div",
+          { className: "iwb-quick-empty" },
+          // An answer that was cut short is not an answer without
+          // matches: the search says that it is partial, and it must
+          // not claim that the project has nothing (FIND-03).
+          search2?.truncated === true ? t3("search.truncated") : t3("search.noResults")
+        ) : files.map((file, index) => import_react19.default.createElement(
           "button",
           {
             key: file.path,

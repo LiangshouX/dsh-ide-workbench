@@ -16,7 +16,7 @@ import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  buildScannerArgs, parseScanLine, resolveScannerBinary, resetScannerCache, runScanner, scannerCandidates,
+  buildScannerArgs, characterColumn, parseScanRecord, resolveScannerBinary, resetScannerCache, runScanner, scannerCandidates,
 } from '../src/host/scanner.js'
 import { buildPattern, groupScanEntries, scannerPath, searchFiles } from '../src/host/search.js'
 
@@ -50,6 +50,9 @@ test('the scanner arguments mirror the walk', () => {
   assert.ok(args.includes('--glob'))
   assert.ok(args.includes('!**/node_modules/**'))
   assert.ok(args.includes('!**/dist/**'))
+  // The path is separated from the rest of the line by a NUL byte: the parser
+  // then knows the path exactly.
+  assert.ok(args.includes('--null'))
   // The context comes with the hits.
   assert.equal(args[args.indexOf('--context') + 1], '5')
   // The query is a value, never a flag - and the path is explicit: without
@@ -71,38 +74,47 @@ test('the scanner arguments follow the flags of the search', () => {
 // ── the parser ──────────────────────────────────────────────────────────────
 
 test('the parser knows a hit, a context line and the separator', () => {
-  const pattern = buildPattern('needle', {})
-  assert.deepEqual(parseScanLine('a.txt:3:5:the needle here', pattern), {
+  // The shape of `ripgrep --null`: the path is separated by a NUL byte, and
+  // the rest of the line tells a hit from a context line.
+  assert.deepEqual(parseScanRecord('a.txt\u00003:5:the needle here'), {
     kind: 'hit', path: 'a.txt', line: 3, column: 5, text: 'the needle here',
   })
-  assert.deepEqual(parseScanLine('a.txt-2-before', pattern), {
+  assert.deepEqual(parseScanRecord('a.txt\u00002-before'), {
     kind: 'context', path: 'a.txt', line: 2, column: 1, text: 'before',
   })
-  assert.equal(parseScanLine('--', pattern), null)
-  assert.equal(parseScanLine('', pattern), null)
+  // The shape of `git grep -z`: the fields are separated by NUL as well.
+  assert.deepEqual(parseScanRecord('a.txt\u00003\u00005\u0000the needle here'), {
+    kind: 'hit', path: 'a.txt', line: 3, column: 5, text: 'the needle here',
+  })
+  assert.deepEqual(parseScanRecord('a.txt\u00002\0before'), {
+    kind: 'context', path: 'a.txt', line: 2, column: 1, text: 'before',
+  })
+  // A separator and an empty line are not records.
+  assert.equal(parseScanRecord('--'), null)
+  assert.equal(parseScanRecord(''), null)
 })
 
 test('the parser knows a binary file', () => {
-  const pattern = buildPattern('needle', {})
-  const entry = parseScanLine('a.bin: binary file matches (found "\\0" byte around offset 0)', pattern)
+  const entry = parseScanRecord('a.bin\u0000binary file matches (found "\\0" byte around offset 0)')
   assert.equal(entry.kind, 'binary')
   assert.equal(entry.path, 'a.bin')
 })
 
 test('the column of a hit counts the characters, not the bytes', () => {
-  const pattern = buildPattern('needle', {})
   // Four CJK characters are twelve bytes: the tool reports the byte offset,
   // the client wants the character.
-  const entry = parseScanLine('a.txt:1:13:你好世界needle', pattern)
+  const entry = parseScanRecord('a.txt\u00001:13:你好世界needle')
   assert.equal(entry.kind, 'hit')
   assert.equal(entry.column, 5)
+  // The same for the shape of git.
+  assert.equal(parseScanRecord('a.txt\u00001\u000013\u0000你好世界needle').column, 5)
+  assert.equal(characterColumn('你好世界needle', 13), 5)
 })
 
 test('a context line that looks like a hit stays a context line', () => {
-  const pattern = buildPattern('error', {})
-  // A log line with a timestamp has the shape of a hit. The byte offset of
-  // the tool tells the two apart.
-  const entry = parseScanLine('app.log-10-2024:12:34: error at startup', pattern)
+  // A log line with a timestamp has the shape of a hit. The path is
+  // separated by a NUL byte, so the parser never has to guess.
+  const entry = parseScanRecord('app.log\u000010-2024:12:34: error at startup')
   assert.equal(entry.kind, 'context')
   assert.equal(entry.path, 'app.log')
   assert.equal(entry.line, 10)
@@ -209,8 +221,10 @@ for (const file of files.sort()) {
   for (const line of [...wanted].sort((a, b) => a - b)) {
     const hit = hits.find(entry => entry.line === line)
     const text = lines[line - 1] ?? ''
-    if (hit) process.stdout.write(rel + ':' + hit.line + ':' + hit.column + ':' + text + '\\n')
-    else process.stdout.write(rel + '-' + line + '-' + text + '\\n')
+    // The path is separated from the rest of the line by a NUL byte, the way
+    // ripgrep prints it with --null.
+    if (hit) process.stdout.write(rel + '\\0' + hit.line + ':' + hit.column + ':' + text + '\\n')
+    else process.stdout.write(rel + '\\0' + line + '-' + text + '\\n')
   }
 }
 `
@@ -227,13 +241,12 @@ for (const file of files.sort()) {
  * @returns {Promise<{files: object[], code: number, stderr: string}>} the answer
  */
 async function scanWith(binary, extraArgs, root, query) {
-  const pattern = buildPattern(query, {})
   const entries = []
   const args = buildScannerArgs(query, { excludes: [], contextLines: 5 })
   const result = await runScanner(binary, [...extraArgs, ...args], {
     cwd: root,
     onLine: (line) => {
-      const entry = parseScanLine(line, pattern)
+      const entry = parseScanRecord(line)
       if (entry !== null) entries.push(entry)
       return true
     },
