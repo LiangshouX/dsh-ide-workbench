@@ -32,8 +32,42 @@ import { ApiError } from './wire.js'
  * page takes). A version-4 document has no `ui.density`, the deep merge
  * fills it from DEFAULT_SETTINGS, and every other key of the user survives -
  * the same additive rule as version 4 followed.
+ *
+ * Version 6 REMOVES the keys that nothing reads. A setting that no code
+ * reads is worse than a missing one: the user changes it and nothing
+ * happens, and the page would offer it as if it worked. The keys are
+ * dropped from the defaults and taken out of a document that still carries
+ * them - the only destructive step this store ever takes, and the backup
+ * of the file (written on a version change) holds the old document.
  */
-export const SETTINGS_VERSION = 5
+export const SETTINGS_VERSION = 6
+
+/**
+ * The keys of the settings document that no code reads.
+ *
+ * Every key of this list was a default that nothing ever looked at: the
+ * workbench never read it, so changing it did nothing. They are removed
+ * instead of being left in the document as a promise the IDE cannot keep.
+ *
+ * The keys of the OTHER plugin are not here: they are taken out of the
+ * document of the core and written back to the file (see `FOREIGN_SECTION`).
+ *
+ * @type {ReadonlyArray<[string, string]>} the section and the key
+ */
+export const DEAD_SETTINGS = Object.freeze([
+  ['editor', 'wordWrap'],
+  ['git', 'diffStyle'],
+  ['git', 'structuralOnly'],
+  ['git', 'logPageSize'],
+  ['terminal', 'cwdMode'],
+  ['delete', 'confirm'],
+  ['ui', 'showStatusBar'],
+  ['shortcuts', 'compare'],
+  ['shortcuts', 'renameRefs'],
+  ['shortcuts', 'searchEverywhere'],
+  ['shortcuts', 'revertCommit'],
+  ['shortcuts', 'openEntry'],
+])
 
 /**
  * The keys of the settings document that belong to another plugin.
@@ -71,7 +105,6 @@ export const DEFAULT_SETTINGS = {
     path: '',
     colors: true,
     commitTemplate: '',
-    diffStyle: 'side',
     /**
      * Word-level highlighting of the changed lines of a diff (the 'Aa'
      * button). On by default (V6): reading the file with `!== false` keeps an
@@ -79,13 +112,10 @@ export const DEFAULT_SETTINGS = {
      * only the explicit `false` of the user who turned it off disables it.
      */
     wordLevel: true,
-    structuralOnly: false,
-    logPageSize: 200,
   },
   terminal: {
     /** 'auto' or a shell id from terminal.shells. */
     shell: 'auto',
-    cwdMode: 'root',
     copyOnSelect: false,
     fontSize: 13,
     /**
@@ -111,7 +141,6 @@ export const DEFAULT_SETTINGS = {
   },
   editor: {
     fontSize: 13,
-    wordWrap: false,
     sideBySide: true,
     highlight: true,
     /**
@@ -163,9 +192,8 @@ export const DEFAULT_SETTINGS = {
   changelists: {},
   /** Local-history retention policy. */
   history: { maxPerFile: 100, maxBytes: 209715200, maxDays: 90 },
-  delete: { useRecycleBin: true, confirm: true },
+  delete: { useRecycleBin: true },
   ui: {
-    showStatusBar: true,
     /**
      * The density of the settings page (PRD-v8 SET-03).
      *
@@ -183,22 +211,17 @@ export const DEFAULT_SETTINGS = {
     focusCommit: 'Ctrl+K',
     push: 'Ctrl+Shift+K',
     synchronize: 'Ctrl+Alt+Y',
-    compare: 'Ctrl+D',
     findInFiles: 'Ctrl+Shift+R',
     /** Fallback because some Electron shells swallow Ctrl+Shift+… combos. */
     findInFilesAlt: 'Ctrl+Alt+F',
     openCommitDetail: 'Ctrl+Alt+D',
     quickOpen: 'Ctrl+Shift+N',
     rename: 'F2',
-    renameRefs: 'Shift+F6',
     duplicate: 'F5',
     move: 'F6',
     delete: 'Delete',
     hideAll: 'Ctrl+Shift+F12',
-    searchEverywhere: 'Ctrl+Shift+A',
-    revertCommit: 'Ctrl+Alt+Z',
     jumpToSource: 'F4',
-    openEntry: 'Enter',
   },
   /** Selected IDE project root per workspace root. */
   projectRoots: {},
@@ -291,6 +314,30 @@ export function migrateLegacyShortcuts(value) {
 export const SETTINGS_DENSITIES = Object.freeze(['comfortable', 'compact'])
 
 /**
+ * Take the settings that nothing reads out of a document.
+ *
+ * The keys of `DEAD_SETTINGS` are not in the defaults any more, but a
+ * document written before they were removed still carries them. A key that
+ * nothing reads is a promise the IDE cannot keep, so it is dropped here -
+ * the backup of the file (written on a version change) keeps the old
+ * document.
+ *
+ * @param {any} value the merged settings document
+ * @returns {any} the same document, migrated in place
+ */
+export function dropDeadSettings(value) {
+  if (!isPlainObject(value)) return value
+  for (const [section, key] of DEAD_SETTINGS) {
+    const group = value[section]
+    if (!isPlainObject(group)) continue
+    delete group[key]
+    // A section that held nothing but a dead key is gone with it.
+    if (Object.keys(group).length === 0) delete value[section]
+  }
+  return value
+}
+
+/**
  * Migrate a settings document to the schema of this build.
  *
  * The migration is additive and never destructive: a key the document does
@@ -305,6 +352,7 @@ export const SETTINGS_DENSITIES = Object.freeze(['comfortable', 'compact'])
 export function migrateSettings(value) {
   if (!isPlainObject(value)) return value
   migrateLegacyShortcuts(value)
+  dropDeadSettings(value)
   if (!isPlainObject(value.ui)) {
     value.ui = { ...DEFAULT_SETTINGS.ui }
   } else if (!SETTINGS_DENSITIES.includes(value.ui.density)) {
@@ -490,6 +538,10 @@ export class SettingsStore {
     // failed must not leave a value behind that the next one would build on.
     const written = this.pending.then(async () => {
       const next = deepMerge(this.value, patch)
+      // A setting that nothing reads does not come back: a client that
+      // still knows it may write it, and the document must not keep a key
+      // the IDE cannot honour.
+      dropDeadSettings(next)
       await this.#write(structuredClone(next))
       // The disk has the value now: the memory may follow.
       this.value = next

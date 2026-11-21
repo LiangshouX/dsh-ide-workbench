@@ -69,12 +69,13 @@ test('the page shows every shortcut the workbench really reads', () => {
 
 test('the page shows no setting that nothing reads', () => {
   // A setting that no code reads would be worse than no setting: the user
-  // changes it and nothing happens.
+  // changes it and nothing happens. The list is the list of the keys that
+  // were removed from the document of the core.
   const dead = [
-    'editor.wordWrap', 'editor.sideBySide', 'git.diffStyle', 'git.wordLevel',
-    'git.structuralOnly', 'git.logPageSize', 'delete.confirm', 'ui.showStatusBar',
-    'terminal.cwdMode', 'shortcuts.compare', 'shortcuts.renameRefs',
-    'shortcuts.searchEverywhere', 'shortcuts.revertCommit', 'shortcuts.openEntry',
+    'editor.wordWrap', 'git.diffStyle', 'git.structuralOnly', 'git.logPageSize',
+    'delete.confirm', 'ui.showStatusBar', 'terminal.cwdMode',
+    'shortcuts.compare', 'shortcuts.renameRefs', 'shortcuts.searchEverywhere',
+    'shortcuts.revertCommit', 'shortcuts.openEntry',
   ]
   const keys = new Set(SETTING_DESCRIPTORS.map(descriptor => descriptor.key))
   for (const key of dead) {
