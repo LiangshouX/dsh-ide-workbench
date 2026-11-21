@@ -84,7 +84,10 @@ export async function call(method, payload = {}, signal) {
       signal,
     })
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    // The NAME is the contract of an abort, not its class: an abort that
+    // comes from another realm (an iframe) is not a DOMException of this
+    // one, and it must not be reported as a network failure.
+    if (error !== null && error !== undefined && error.name === 'AbortError') throw error
     throw new ApiError('network', error instanceof Error ? error.message : String(error))
   }
   let parsed = null

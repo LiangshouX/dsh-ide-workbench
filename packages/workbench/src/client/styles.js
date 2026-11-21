@@ -1847,6 +1847,14 @@ export const CSS = `/*__DSH_FONT_CSS__*/
 .iwb-filter-mode button + button { border-left: 0; }
 .iwb-filter-hint { padding: 0 12px 5px; color: var(--iwb-muted); font-size: 10.5px; }
 .iwb-error-text { color: var(--iwb-error); }
+/* The paste that is running: the copy of a big folder takes a while, and the
+   reader has to see that the tree is busy - and to be able to stop it. */
+.iwb-tree-busy {
+  display: flex; align-items: center; gap: 8px; padding: 3px 8px 4px 12px;
+  border-bottom: 1px solid var(--iwb-border); background: var(--iwb-surface-sunken);
+}
+.iwb-tree-busy-label { color: var(--iwb-muted); font-size: 10.5px; }
+.iwb-tree-busy .iwb-textbtn { margin-left: auto; }
 .iwb-tree-row.iwb-opened .iwb-tree-name { color: var(--iwb-accent); font-weight: 600; }
 .iwb-tree-row.iwb-opened::before {
   content: ''; position: absolute; left: 0; top: 2px; bottom: 2px; width: 2px; border-radius: 2px;

@@ -51611,6 +51611,14 @@ var en = {
   "project.cut": "Cut",
   "project.copy": "Copy",
   "project.paste": "Paste",
+  "project.pasteInto": "Paste into {folder}",
+  "project.pasting": "Copying\u2026",
+  "project.pasteRefused": "The paste was refused",
+  "project.pasteIntoItself": "A folder cannot be pasted into itself.",
+  "project.pasteIntoSubfolder": "A folder cannot be pasted into one of its own subfolders.",
+  "project.pastePartial": "The copy did not finish",
+  "project.pasteMissing": "{count} entries were not copied.",
+  "project.pasteBudget": "The copy stopped at the limit of this paste.",
   "project.duplicate": "Duplicate",
   "project.delete": "Delete",
   "project.rename": "Rename",
@@ -52169,6 +52177,14 @@ var zh = {
   "project.cut": "\u526A\u5207",
   "project.copy": "\u590D\u5236",
   "project.paste": "\u7C98\u8D34",
+  "project.pasteInto": "\u7C98\u8D34\u5230 {folder}",
+  "project.pasting": "\u6B63\u5728\u590D\u5236\u2026",
+  "project.pasteRefused": "\u7C98\u8D34\u88AB\u62D2\u7EDD",
+  "project.pasteIntoItself": "\u6587\u4EF6\u5939\u4E0D\u80FD\u7C98\u8D34\u5230\u5B83\u81EA\u5DF1\u91CC\u9762\u3002",
+  "project.pasteIntoSubfolder": "\u6587\u4EF6\u5939\u4E0D\u80FD\u7C98\u8D34\u5230\u5B83\u81EA\u5DF1\u7684\u5B50\u6587\u4EF6\u5939\u91CC\u9762\u3002",
+  "project.pastePartial": "\u590D\u5236\u6CA1\u6709\u5B8C\u6210",
+  "project.pasteMissing": "\u6709 {count} \u4E2A\u6761\u76EE\u6CA1\u6709\u590D\u5236\u3002",
+  "project.pasteBudget": "\u590D\u5236\u5728\u672C\u6B21\u7C98\u8D34\u7684\u4E0A\u9650\u5904\u505C\u4E0B\u4E86\u3002",
   "project.duplicate": "\u521B\u5EFA\u526F\u672C",
   "project.delete": "\u5220\u9664",
   "project.rename": "\u91CD\u547D\u540D",
@@ -52554,7 +52570,7 @@ async function call(method, payload = {}, signal) {
       signal
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if (error !== null && error !== void 0 && error.name === "AbortError") throw error;
     throw new ApiError("network", error instanceof Error ? error.message : String(error));
   }
   let parsed = null;
@@ -53212,6 +53228,65 @@ function shouldContinueIde(ctx, previous, next, visibleSession) {
   if (previous === "" || next === "" || previous === next) return false;
   if (visibleSession !== previous) return false;
   return sameWorkspace(ctx, previous, next);
+}
+
+// src/client/tree-clipboard.js
+function parentOf(path2) {
+  if (typeof path2 !== "string" || path2 === "") return "";
+  const index = Math.max(path2.lastIndexOf("/"), path2.lastIndexOf("\\"));
+  return index <= 0 ? path2 : path2.slice(0, index);
+}
+function isUnder(parent, child) {
+  if (typeof parent !== "string" || parent === "") return false;
+  if (typeof child !== "string" || child === "") return false;
+  if (child === parent) return true;
+  const separator = parent.includes("\\") ? "\\" : "/";
+  return child.startsWith(`${parent}${separator}`);
+}
+function commonParentOf(paths) {
+  const list = (Array.isArray(paths) ? paths : []).filter((path2) => typeof path2 === "string" && path2 !== "");
+  if (list.length === 0) return "";
+  let candidate = parentOf(list[0]);
+  for (const path2 of list.slice(1)) {
+    while (candidate !== "" && !isUnder(candidate, path2)) {
+      const next = parentOf(candidate);
+      if (next === candidate) break;
+      candidate = next;
+    }
+  }
+  return candidate;
+}
+function pasteTargetOf(root, selected, menuEntry, focusedEntry) {
+  const entries = (Array.isArray(selected) ? selected : []).filter((entry) => entry !== null && entry !== void 0);
+  if (entries.length === 1) {
+    const entry = entries[0];
+    if (entry.isDir === true) return entry.path;
+    return parentOf(entry.path);
+  }
+  if (entries.length > 1) {
+    const common = commonParentOf(entries.map((entry) => entry.path));
+    if (common !== "") return common;
+  }
+  if (menuEntry !== null && menuEntry !== void 0) {
+    if (menuEntry.isDir === true) return menuEntry.path;
+    return parentOf(menuEntry.path);
+  }
+  if (focusedEntry !== null && focusedEntry !== void 0) {
+    if (focusedEntry.isDir === true) return focusedEntry.path;
+    return parentOf(focusedEntry.path);
+  }
+  return typeof root === "string" ? root : "";
+}
+function pasteRefusal(entries, target) {
+  if (typeof target !== "string" || target === "") return "no-target";
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (entry === null || entry === void 0) continue;
+    const path2 = entry.path;
+    if (typeof path2 !== "string" || path2 === "") continue;
+    if (path2 === target) return "self";
+    if (entry.isDir === true && isUnder(path2, target)) return "inside";
+  }
+  return null;
 }
 
 // src/client/languages.js
@@ -57118,6 +57193,13 @@ function joinPath(root, rel) {
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
+function isAborted(error) {
+  if (error === null || error === void 0) return false;
+  const name2 = error.name;
+  if (name2 === "AbortError") return true;
+  const code2 = error.code;
+  return code2 === "cancelled" || code2 === "ABORT_ERR";
+}
 function sameGitStatus(previous, next) {
   if (previous === null || typeof previous !== "object") return false;
   if (next === null || typeof next !== "object") return false;
@@ -57243,6 +57325,8 @@ function initialState() {
     selectedPaths: /* @__PURE__ */ new Set(),
     anchorPath: "",
     clipboard: null,
+    /** True while a paste is copying in the host - the tree says so. */
+    pasteBusy: false,
     filter: "",
     /** 'files' = whole-project quick locate; 'tree' = expanded-tree filter. */
     filterMode: "tree",
@@ -57356,6 +57440,7 @@ var WorkbenchStore = class {
     this.pollTimer = null;
     this.restoredTimer = null;
     this.polling = false;
+    this.pasteController = null;
     this.statusRevision = 0;
     this.persist = debounce(() => {
       void this.#persist();
@@ -58787,12 +58872,57 @@ var WorkbenchStore = class {
     this.set({ clipboard: list.length === 0 ? null : { paths: list, cut: cut === true } });
     if (list.length > 0) this.toast("success", this.t(cut === true ? "project.cut" : "project.copy"), `${list.length}`);
   }
-  async pasteEntries(target) {
+  /**
+   * Paste the clipboard into a folder.
+   *
+   * The destination is decided by the panel (see `tree-clipboard.js`): the
+   * folder the user selected, the folder the menu was opened on, the project
+   * root. This method only carries it out - and it refuses the two pastes
+   * that cannot work: a folder into itself, and a folder into one of its
+   * own subfolders. The user learns it at once, before anything is written.
+   *
+   * The copy of a big folder runs in the host and may be long, so the store
+   * says that it is busy (`pasteBusy`) and can stop the copy
+   * (`cancelPaste`): the tree has to stay alive, and the user has to be able
+   * to say "no".
+   *
+   * @param {string} target the absolute path of the folder
+   * @param {{ signal?: AbortSignal, entries?: Array<{ path: string, isDir?: boolean }> }} [options]
+   * @returns {Promise<boolean>} true when the entries were pasted
+   */
+  async pasteEntries(target, options = {}) {
     const clipboard = this.state.clipboard;
-    if (clipboard === null || clipboard === void 0) return;
+    if (clipboard === null || clipboard === void 0) return false;
+    const list = Array.isArray(clipboard.paths) ? clipboard.paths : [];
+    if (list.length === 0) return false;
+    const entries = Array.isArray(options.entries) && options.entries.length > 0 ? options.entries : list.map((path2) => ({ path: path2, isDir: this.state.dirs.has(path2) }));
+    const refusal = pasteRefusal(entries, target);
+    if (refusal !== null) {
+      this.toast("error", this.t("project.pasteRefused"), this.t(
+        refusal === "inside" ? "project.pasteIntoSubfolder" : "project.pasteIntoItself"
+      ));
+      return false;
+    }
     const moved = clipboard.cut === true;
-    await this.moveEntries(clipboard.paths, target, !moved);
-    if (moved) this.set({ clipboard: null });
+    const controller = new AbortController();
+    if (options.signal !== void 0 && options.signal !== null) {
+      if (options.signal.aborted === true) controller.abort();
+      else options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+    this.pasteController = controller;
+    this.set({ pasteBusy: true });
+    try {
+      const done = await this.moveEntries(list, target, !moved, { signal: controller.signal });
+      if (moved && done === true) this.set({ clipboard: null });
+      return done;
+    } finally {
+      this.pasteController = null;
+      this.set({ pasteBusy: false });
+    }
+  }
+  /** Stop the paste that is running. */
+  cancelPaste() {
+    this.pasteController?.abort();
   }
   /**
    * Create one file or directory in the project tree.
@@ -58910,10 +59040,21 @@ var WorkbenchStore = class {
   /**
    * Move or copy entries into a directory. Name conflicts auto-rename
    * (`name-copy`), matching JetBrains' duplicate behaviour.
+   *
+   * The copy of a big folder runs in the host and may be long: the panel
+   * shows what is going on and can stop it, and the answer reports what
+   * the copy did NOT do (a budget that ran out, an entry that could not be
+   * read) - a truncated copy is reported, never presented as a whole one.
+   *
+   * @param {string[]} paths the absolute paths of the entries
+   * @param {string} target the absolute path of the target folder
+   * @param {boolean} [copy] true to copy instead of move
+   * @param {{ signal?: AbortSignal }} [options]
+   * @returns {Promise<boolean>} true when at least one entry was moved
    */
-  async moveEntries(paths, target, copy = false) {
+  async moveEntries(paths, target, copy = false, options = {}) {
     const list = Array.isArray(paths) ? paths.filter((path2) => typeof path2 === "string") : [];
-    if (list.length === 0 || typeof target !== "string" || target === "") return;
+    if (list.length === 0 || typeof target !== "string" || target === "") return false;
     try {
       const result = await call2("fs.move", {
         root: this.state.root,
@@ -58921,7 +59062,7 @@ var WorkbenchStore = class {
         target,
         copy,
         conflict: "rename"
-      });
+      }, options.signal);
       const done = result.results.filter((item) => item.ok === true);
       const failed = result.results.filter((item) => item.ok !== true && item.skipped !== true);
       if (done.length > 0) {
@@ -58936,16 +59077,30 @@ var WorkbenchStore = class {
         }
         const first = this.#absoluteOf(done[0].target);
         this.setSelectedPath(first);
+        this.set({ fileIndexRoot: "" });
         await this.refreshStatus();
+      }
+      const broken = done.flatMap((item) => Array.isArray(item.failures) ? item.failures : []);
+      if (broken.length > 0) {
+        const count2 = this.t("project.pasteMissing").replace("{count}", String(broken.length));
+        this.toast("error", this.t("project.pastePartial"), [
+          count2,
+          ...broken.slice(0, 5).map((item) => `${item.path}: ${item.message ?? ""}`)
+        ].join("\n"));
+      } else if (result.truncated === true) {
+        this.toast("error", this.t("project.pastePartial"), this.t("project.pasteBudget"));
       }
       if (failed.length > 0) {
         this.toast("error", this.t("common.error"), failed.map((item) => `${item.path}: ${item.message ?? item.code}`).join("\n"));
-      } else {
+      } else if (broken.length === 0 && result.truncated !== true) {
         this.toast("success", this.t("common.success"), `${done.length}`);
       }
       this.persist();
+      return done.length > 0;
     } catch (error) {
+      if (isAborted(error)) return false;
       this.toast("error", this.t("common.error"), errorMessage(error));
+      return false;
     }
   }
   /** Confirmation then deletion (recycle bin when enabled). */
@@ -60892,6 +61047,12 @@ function IconFile(props = {}) {
 function IconFolder(props = {}) {
   return svg2([path("M1.7 4.1h4.2l1.3 1.6h7.1v6.9H1.7z", { key: "a" })], props);
 }
+function IconCollapseTree(props = {}) {
+  return svg2([
+    path("M1.9 12.4V4.2h4.2l1.3 1.8h6.7v6.4z", { key: "a" }),
+    path("M5.6 10.6L8 8.2l2.4 2.4", { key: "b" })
+  ], props);
+}
 function IconPlus(props = {}) {
   return svg2([path("M8 3v10M3 8h10", props)]);
 }
@@ -61741,7 +61902,14 @@ var SHORTCUT_FALLBACK = {
   findInFiles: "Ctrl+Shift+R",
   quickOpen: "Ctrl+Shift+N"
 };
-function parentOf(path2) {
+function interpolate(text, values2) {
+  let out = typeof text === "string" ? text : "";
+  for (const [name2, value] of Object.entries(values2)) {
+    out = out.replaceAll(`{${name2}}`, String(value));
+  }
+  return out;
+}
+function parentOf2(path2) {
   const index = Math.max(path2.lastIndexOf("/"), path2.lastIndexOf("\\"));
   return index <= 0 ? path2 : path2.slice(0, index);
 }
@@ -61863,10 +62031,10 @@ function flatten2(state, showIgnored, ignored) {
 function visibleAncestorOf(path2, paths, root) {
   if (typeof path2 !== "string" || path2 === "") return null;
   const known = paths instanceof Set ? paths : new Set(Array.isArray(paths) ? paths : []);
-  let current = parentOf(path2);
-  while (current !== "" && current !== root && current !== parentOf(current)) {
+  let current = parentOf2(path2);
+  while (current !== "" && current !== root && current !== parentOf2(current)) {
     if (known.has(current)) return current;
-    current = parentOf(current);
+    current = parentOf2(current);
   }
   return null;
 }
@@ -62333,6 +62501,9 @@ function projectSlice(state) {
     activeId: state.activeId,
     treeFocusTick: state.treeFocusTick,
     clipboard: state.clipboard,
+    // True while a paste is copying in the host: the tree has to say that
+    // it is busy, and to offer the cancel.
+    pasteBusy: state.pasteBusy === true,
     // The repository the git status belongs to (GIT-01): its keys are
     // repository-relative, the tree rows are project-relative.
     gitRepoRoot: state.gitRepoRoot
@@ -62565,6 +62736,28 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const currentRel = currentEntry?.rel ?? "";
   const currentPaths = (0, import_react5.useMemo)(() => currentEntries.map((entry) => entry.path), [currentEntries]);
   const currentRels = (0, import_react5.useMemo)(() => currentEntries.map((entry) => entry.rel), [currentEntries]);
+  const focusedEntry = (0, import_react5.useMemo)(() => {
+    const path2 = slice.selectedPath;
+    if (typeof path2 !== "string" || path2 === "") return void 0;
+    const known = currentEntries.find((entry) => entry.path === path2);
+    if (known !== void 0) return known;
+    return { path: path2, isDir: slice.dirs.has(path2), name: baseName(path2), rel: path2 };
+  }, [currentEntries, slice.selectedPath, slice.dirs]);
+  const pasteTarget = (0, import_react5.useMemo)(
+    () => pasteTargetOf(slice.root, currentEntries, menu?.entry, focusedEntry),
+    [slice.root, currentEntries, menu?.entry, focusedEntry]
+  );
+  const clipboardEntries = (0, import_react5.useMemo)(() => {
+    const paths = Array.isArray(slice.clipboard?.paths) ? slice.clipboard.paths : [];
+    return paths.map((path2) => ({ path: path2, isDir: slice.dirs.has(path2) }));
+  }, [slice.clipboard, slice.dirs]);
+  const runPaste = (0, import_react5.useCallback)((target) => {
+    if (slice.clipboard === null || slice.clipboard === void 0) return;
+    void store.pasteEntries(target, { entries: clipboardEntries });
+  }, [store, slice.clipboard, clipboardEntries]);
+  const cancelPaste = (0, import_react5.useCallback)(() => {
+    store.cancelPaste();
+  }, [store]);
   (0, import_react5.useEffect)(() => {
     rowPathsRef.current = rowPaths;
     selectionRef.current = selection;
@@ -62574,8 +62767,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     if (menu === null) return [];
     const entry = menu.entry;
     const isDir = entry?.isDir === true;
-    const parentDir = entry === void 0 ? slice.root : isDir ? entry.path : parentOf(entry.path);
-    const pasteTarget = isDir ? entry.path : entry === void 0 ? slice.root : parentOf(entry.path);
+    const parentDir = entry === void 0 ? slice.root : isDir ? entry.path : parentOf2(entry.path);
     const shortcut = shortcutFor;
     const items = [
       { key: "quick-open", text: t3("quickOpen.title"), shortcut: shortcut("quickOpen"), action: () => store.openQuickOpen() },
@@ -62595,7 +62787,16 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       null,
       { key: "cut", text: t3("project.cut"), shortcut: shortcut("cut") || "Ctrl+X", disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, true) },
       { key: "copy", text: t3("project.copy"), shortcut: shortcut("copy") || "Ctrl+C", disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, false) },
-      { key: "paste", text: t3("project.paste"), shortcut: shortcut("paste") || "Ctrl+V", disabled: slice.clipboard === null, action: () => store.pasteEntries(pasteTarget) },
+      {
+        key: "paste",
+        text: t3("project.paste"),
+        shortcut: shortcut("paste") || "Ctrl+V",
+        disabled: slice.clipboard === null,
+        // The menu NAMES the folder the paste lands in: the user has to know
+        // where the entry will appear before it does.
+        title: interpolate(t3("project.pasteInto"), { folder: baseName(pasteTarget) || pasteTarget }),
+        action: () => runPaste(pasteTarget)
+      },
       null,
       { key: "duplicate", text: t3("project.duplicate"), shortcut: shortcut("duplicate"), disabled: currentPaths.length === 0, action: () => {
         void store.duplicateEntries(currentPaths);
@@ -62662,7 +62863,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       });
     }
     return items;
-  }, [menu, currentPaths.join("|"), currentRels.join("|"), shortcuts, slice.root, slice.gitRepoRoot, slice.status.isRepo, slice.clipboard]);
+  }, [menu, currentPaths.join("|"), currentRels.join("|"), shortcuts, slice.root, slice.gitRepoRoot, slice.status.isRepo, slice.clipboard, pasteTarget, runPaste]);
   const onRowClick = (0, import_react5.useCallback)((event, entry, quick) => {
     if (entry === void 0) return;
     scrollRef.current?.focus();
@@ -62728,7 +62929,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     if (event.altKey && key === "Insert") {
       event.preventDefault();
       const row = rows.find((item) => item.entry?.path === slice.selectedPath);
-      const parent = row === void 0 ? slice.root : row.entry.isDir ? row.entry.path : parentOf(row.entry.path);
+      const parent = row === void 0 ? slice.root : row.entry.isDir ? row.entry.path : parentOf2(row.entry.path);
       beginNew(parent, newEntryKindFor(event, lastKindRef.current));
       return;
     }
@@ -62780,13 +62981,12 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       store.clearSelection();
       return;
     }
-    if ((event.ctrlKey || event.metaKey) && (key === "c" || key === "x" || key === "v")) {
+    if ((event.ctrlKey || event.metaKey) && (key === "c" || key === "C" || key === "x" || key === "X" || key === "v" || key === "V")) {
       event.preventDefault();
-      if (key === "v") {
-        const pasteTarget = currentEntry?.isDir === true ? currentEntry.path : slice.selectedPath === "" ? slice.root : parentOf(slice.selectedPath);
-        void store.pasteEntries(pasteTarget);
+      if (key === "v" || key === "V") {
+        runPaste(pasteTarget);
       } else {
-        store.setFileClipboard(currentPaths, key === "x");
+        store.setFileClipboard(currentPaths, key === "x" || key === "X");
       }
     }
   };
@@ -63010,7 +63210,21 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
         onClick: () => {
           void store.sync();
         }
-      }, import_react5.default.createElement(IconRefresh, { width: 14, height: 14 }))
+      }, import_react5.default.createElement(IconRefresh, { width: 14, height: 14 })),
+      // Fold every folder of the tree (the IDE gesture of the Project
+      // window). The tree is one level deep afterwards, so the viewport
+      // goes back to the top - otherwise the reader looks at an empty box.
+      import_react5.default.createElement("button", {
+        type: "button",
+        className: "iwb-iconbtn",
+        title: t3("project.collapseAll"),
+        "aria-label": t3("project.collapseAll"),
+        onClick: () => {
+          store.collapseAll();
+          if (scrollRef.current !== null) scrollRef.current.scrollTop = 0;
+          setScrollTop(0);
+        }
+      }, import_react5.default.createElement(IconCollapseTree, { width: 14, height: 14 }))
     ),
     filterOpen || slice.filter !== "" || query !== "" ? import_react5.default.createElement(
       "div",
@@ -63054,6 +63268,18 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     filterMode === "tree" && searchActive && slice.fileIndexLoading !== true && slice.fileIndexError === null ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t3("project.filterTreeHint")) : null,
     searchActive && slice.fileIndexLoading === true ? import_react5.default.createElement("div", { className: "iwb-filter-hint" }, t3("project.filterIndexing")) : null,
     searchActive && slice.fileIndexError !== null ? import_react5.default.createElement("div", { className: "iwb-filter-hint iwb-error-text" }, t3("project.filterError")) : null,
+    // The paste that is running: the copy of a big folder takes a while, and
+    // the user has to see that the tree is busy - and to be able to stop it.
+    slice.pasteBusy ? import_react5.default.createElement(
+      "div",
+      { className: "iwb-tree-busy" },
+      import_react5.default.createElement("span", { className: "iwb-tree-busy-label" }, t3("project.pasting")),
+      import_react5.default.createElement("button", {
+        type: "button",
+        className: "iwb-textbtn iwb-small",
+        onClick: cancelPaste
+      }, t3("common.cancel"))
+    ) : null,
     import_react5.default.createElement("div", {
       className: "iwb-panel-body iwb-tree",
       ref: scrollRef,
@@ -63118,7 +63344,7 @@ function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
 
 // src/client/CommitPanel.jsx
 var import_react6 = __toESM(require("react"), 1);
-function interpolate(text, values2) {
+function interpolate2(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -63553,7 +63779,7 @@ ${entries.length}`,
     slice.statusTruncated ? import_react6.default.createElement(
       "div",
       { className: "iwb-commit-hint" },
-      interpolate(t3("commit.statusTruncated"), { count: slice.statusLimit ?? 0 })
+      interpolate2(t3("commit.statusTruncated"), { count: slice.statusLimit ?? 0 })
     ) : null,
     menu !== null ? import_react6.default.createElement(ContextMenu, { x: menu.x, y: menu.y, items: menuItems, onClose: () => setMenu(null) }) : null,
     dialog !== null ? import_react6.default.createElement(
@@ -80003,7 +80229,7 @@ function QuickOpen({ store, state }) {
 
 // src/client/SearchPopup.jsx
 var import_react19 = __toESM(require("react"), 1);
-function interpolate2(text, values2) {
+function interpolate3(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -80169,7 +80395,7 @@ function SearchPopup({ store }) {
       import_react19.default.createElement(
         "div",
         { className: "iwb-search-popup-meta" },
-        search2?.loading === true ? t3("search.searching") : query === "" ? t3("search.empty") : search2?.error !== null && search2?.error !== void 0 ? search2.error : interpolate2(t3("search.popup.matches"), { count: totals.matches, files: totals.files }),
+        search2?.loading === true ? t3("search.searching") : query === "" ? t3("search.empty") : search2?.error !== null && search2?.error !== void 0 ? search2.error : interpolate3(t3("search.popup.matches"), { count: totals.matches, files: totals.files }),
         search2?.truncated === true ? import_react19.default.createElement("span", { className: "iwb-search-warn" }, t3("search.truncated")) : null
       ),
       // The upper half: one row per file that matched. The matches of a file
@@ -80204,7 +80430,7 @@ function SearchPopup({ store }) {
           import_react19.default.createElement(
             "span",
             { className: "iwb-search-popup-file-count" },
-            interpolate2(t3("search.popup.matchCount"), { count: (file.matches ?? []).length })
+            interpolate3(t3("search.popup.matchCount"), { count: (file.matches ?? []).length })
           )
         ))
       ),
@@ -80272,7 +80498,7 @@ function label2(t3, key, fallback2) {
   const value = t3(key);
   return value === key || value === void 0 || value === null || value === "" ? fallback2 : value;
 }
-function interpolate3(text, values2) {
+function interpolate4(text, values2) {
   let out = typeof text === "string" ? text : "";
   for (const [name2, value] of Object.entries(values2)) {
     out = out.replaceAll(`{${name2}}`, String(value));
@@ -80327,7 +80553,7 @@ function TopBar({ store, state, onOpenSettings }) {
       ahead > 0 ? import_react20.default.createElement("button", {
         type: "button",
         className: "iwb-ahead iwb-ahead-btn",
-        title: interpolate3(t3("git.aheadTitle"), { upstream: upstream === "" ? t3("common.branch") : upstream, count: ahead }),
+        title: interpolate4(t3("git.aheadTitle"), { upstream: upstream === "" ? t3("common.branch") : upstream, count: ahead }),
         onClick: (event) => {
           event.stopPropagation();
           setPushMenu({ x: event.clientX, y: event.clientY + 8 });
@@ -80336,7 +80562,7 @@ function TopBar({ store, state, onOpenSettings }) {
       behind > 0 ? import_react20.default.createElement("button", {
         type: "button",
         className: "iwb-behind iwb-ahead-btn",
-        title: interpolate3(t3("git.behindTitle"), { count: behind }),
+        title: interpolate4(t3("git.behindTitle"), { count: behind }),
         onClick: (event) => {
           event.stopPropagation();
           setPushMenu({ x: event.clientX, y: event.clientY + 8 });
@@ -80385,12 +80611,12 @@ function TopBar({ store, state, onOpenSettings }) {
       y: pushMenu.y,
       onClose: () => setPushMenu(null),
       items: [
-        { label: interpolate3(t3("git.aheadTitle"), { upstream: upstream === "" ? t3("common.branch") : upstream, count: ahead }) },
+        { label: interpolate4(t3("git.aheadTitle"), { upstream: upstream === "" ? t3("common.branch") : upstream, count: ahead }) },
         { key: "push", text: t3("git.aheadPush"), disabled: ahead === 0, action: () => {
           void store.push();
         } },
         { key: "history", text: t3("git.aheadHistory"), action: () => store.showTool("git") },
-        ...behind > 0 ? [{ key: "behind", text: interpolate3(t3("git.behindTitle"), { count: behind }), disabled: true }] : []
+        ...behind > 0 ? [{ key: "behind", text: interpolate4(t3("git.behindTitle"), { count: behind }), disabled: true }] : []
       ]
     }) : null
   );
@@ -82757,6 +82983,14 @@ var CSS2 = `@font-face{font-family:'Inter';font-style:normal;font-weight:100 900
 .iwb-filter-mode button + button { border-left: 0; }
 .iwb-filter-hint { padding: 0 12px 5px; color: var(--iwb-muted); font-size: 10.5px; }
 .iwb-error-text { color: var(--iwb-error); }
+/* The paste that is running: the copy of a big folder takes a while, and the
+   reader has to see that the tree is busy - and to be able to stop it. */
+.iwb-tree-busy {
+  display: flex; align-items: center; gap: 8px; padding: 3px 8px 4px 12px;
+  border-bottom: 1px solid var(--iwb-border); background: var(--iwb-surface-sunken);
+}
+.iwb-tree-busy-label { color: var(--iwb-muted); font-size: 10.5px; }
+.iwb-tree-busy .iwb-textbtn { margin-left: auto; }
 .iwb-tree-row.iwb-opened .iwb-tree-name { color: var(--iwb-accent); font-weight: 600; }
 .iwb-tree-row.iwb-opened::before {
   content: ''; position: absolute; left: 0; top: 2px; bottom: 2px; width: 2px; border-radius: 2px;

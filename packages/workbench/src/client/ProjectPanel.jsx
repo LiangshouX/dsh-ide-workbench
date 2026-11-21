@@ -13,11 +13,12 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ContextMenu } from './ui.jsx'
-import { FileTypeIcon, IconChat, IconExternal, IconFile, IconFolder, IconGlobe, IconLocate, IconRefresh, IconSearch } from './icons.jsx'
+import { FileTypeIcon, IconChat, IconCollapseTree, IconExternal, IconFile, IconFolder, IconGlobe, IconLocate, IconRefresh, IconSearch } from './icons.jsx'
 import { openInIdeMenu } from './ide-menu.js'
 import { statusClass, stableAggregateStatus } from './git-colors.js'
 import { compactLabel, compactTree } from './compact-path.js'
 import { buildNameIndex, buildPathIndex, expandPathsOf, findByPrefix, findByText, visibleTreeRows } from './tree-search.js'
+import { pasteTargetOf } from './tree-clipboard.js'
 import { shallowEqual, useStoreSlice } from './hooks.js'
 import { relativePathWithin } from './workspace-scope.js'
 import { baseName, matchesShortcut } from './util.js'
@@ -55,6 +56,24 @@ const SHORTCUT_FALLBACK = {
   synchronize: 'Ctrl+Alt+Y',
   findInFiles: 'Ctrl+Shift+R',
   quickOpen: 'Ctrl+Shift+N',
+}
+
+/**
+ * Fill the `{placeholder}` slots of one text.
+ *
+ * The harness translate function does not interpolate, so the panel completes
+ * the name of the target folder itself.
+ *
+ * @param {string} text the text with the slots
+ * @param {Record<string, string|number>} values the values of the slots
+ * @returns {string}
+ */
+function interpolate(text, values) {
+  let out = typeof text === 'string' ? text : ''
+  for (const [name, value] of Object.entries(values)) {
+    out = out.replaceAll(`{${name}}`, String(value))
+  }
+  return out
 }
 
 /** Parent directory of a path (both separators). */
@@ -982,6 +1001,9 @@ export function projectSlice(state) {
     activeId: state.activeId,
     treeFocusTick: state.treeFocusTick,
     clipboard: state.clipboard,
+    // True while a paste is copying in the host: the tree has to say that
+    // it is busy, and to offer the cancel.
+    pasteBusy: state.pasteBusy === true,
     // The repository the git status belongs to (GIT-01): its keys are
     // repository-relative, the tree rows are project-relative.
     gitRepoRoot: state.gitRepoRoot,
@@ -1348,6 +1370,72 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
   const currentPaths = useMemo(() => currentEntries.map(entry => entry.path), [currentEntries])
   const currentRels = useMemo(() => currentEntries.map(entry => entry.rel), [currentEntries])
 
+  /**
+   * The entry the tree points at, even when the search hides its row.
+   *
+   * The tree search narrows the tree to the chain of a match, so the row the
+   * user picked may be gone - but the paste still has to know whether that
+   * path is a folder. A loaded folder is a key of the tree: that is how the
+   * tree knows one from a file.
+   */
+  const focusedEntry = useMemo(() => {
+    const path = slice.selectedPath
+    if (typeof path !== 'string' || path === '') return undefined
+    const known = currentEntries.find(entry => entry.path === path)
+    if (known !== undefined) return known
+    return { path, isDir: slice.dirs.has(path), name: baseName(path), rel: path }
+  }, [currentEntries, slice.selectedPath, slice.dirs])
+
+  /**
+   * The folder a paste lands in.
+   *
+   * ONE rule for the context menu and for the keyboard, so the two can never
+   * disagree: the selected folder receives the paste inside itself, a
+   * selected file in its own folder, a multi-selection in the folder the
+   * entries share, the entry of the context menu when nothing is selected,
+   * and the project root when there is no hint at all
+   * (`tree-clipboard.js`).
+   */
+  const pasteTarget = useMemo(
+    () => pasteTargetOf(slice.root, currentEntries, menu?.entry, focusedEntry),
+    [slice.root, currentEntries, menu?.entry, focusedEntry],
+  )
+
+  /**
+   * The entries of the clipboard, as the tree knows them.
+   *
+   * The store keeps the PATHS of the clipboard; the tree knows which of them
+   * are folders - and that is what decides whether a paste may be refused
+   * (a folder cannot be pasted into itself). The SELECTION says nothing
+   * about it: the entries that were copied may live somewhere else entirely.
+   *
+   * A folder the tree has listed is a key of the tree - that is how the tree
+   * tells a folder from a file, and the answer costs one lookup.
+   */
+  const clipboardEntries = useMemo(() => {
+    const paths = Array.isArray(slice.clipboard?.paths) ? slice.clipboard.paths : []
+    return paths.map(path => ({ path, isDir: slice.dirs.has(path) }))
+  }, [slice.clipboard, slice.dirs])
+
+  /**
+   * A paste of a big folder may take a while.
+   *
+   * The copy runs in the host, so the tree stays alive - but the user has to
+   * SEE that something is going on, and to be able to stop it. The state
+   * lives in the store: it is a fact of the clipboard, and the panel only
+   * shows it.
+   */
+  /** Paste the clipboard into the target folder. */
+  const runPaste = useCallback((target) => {
+    if (slice.clipboard === null || slice.clipboard === undefined) return
+    void store.pasteEntries(target, { entries: clipboardEntries })
+  }, [store, slice.clipboard, clipboardEntries])
+
+  /** Stop the paste that is running. */
+  const cancelPaste = useCallback(() => {
+    store.cancelPaste()
+  }, [store])
+
   // Refresh the values the stable row callbacks read.
   useEffect(() => {
     rowPathsRef.current = rowPaths
@@ -1360,7 +1448,6 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
     const entry = menu.entry
     const isDir = entry?.isDir === true
     const parentDir = entry === undefined ? slice.root : (isDir ? entry.path : parentOf(entry.path))
-    const pasteTarget = isDir ? entry.path : (entry === undefined ? slice.root : parentOf(entry.path))
     const shortcut = shortcutFor
     const items = [
       { key: 'quick-open', text: t('quickOpen.title'), shortcut: shortcut('quickOpen'), action: () => store.openQuickOpen() },
@@ -1376,7 +1463,16 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       null,
       { key: 'cut', text: t('project.cut'), shortcut: shortcut('cut') || 'Ctrl+X', disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, true) },
       { key: 'copy', text: t('project.copy'), shortcut: shortcut('copy') || 'Ctrl+C', disabled: currentPaths.length === 0, action: () => store.setFileClipboard(currentPaths, false) },
-      { key: 'paste', text: t('project.paste'), shortcut: shortcut('paste') || 'Ctrl+V', disabled: slice.clipboard === null, action: () => store.pasteEntries(pasteTarget) },
+      {
+        key: 'paste',
+        text: t('project.paste'),
+        shortcut: shortcut('paste') || 'Ctrl+V',
+        disabled: slice.clipboard === null,
+        // The menu NAMES the folder the paste lands in: the user has to know
+        // where the entry will appear before it does.
+        title: interpolate(t('project.pasteInto'), { folder: baseName(pasteTarget) || pasteTarget }),
+        action: () => runPaste(pasteTarget),
+      },
       null,
       { key: 'duplicate', text: t('project.duplicate'), shortcut: shortcut('duplicate'), disabled: currentPaths.length === 0, action: () => { void store.duplicateEntries(currentPaths) } },
       { key: 'delete', text: t('project.delete'), shortcut: shortcut('delete'), danger: true, disabled: currentPaths.length === 0, action: () => store.requestDelete(currentPaths) },
@@ -1417,7 +1513,7 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       })
     }
     return items
-  }, [menu, currentPaths.join('|'), currentRels.join('|'), shortcuts, slice.root, slice.gitRepoRoot, slice.status.isRepo, slice.clipboard])
+  }, [menu, currentPaths.join('|'), currentRels.join('|'), shortcuts, slice.root, slice.gitRepoRoot, slice.status.isRepo, slice.clipboard, pasteTarget, runPaste])
 
   const onRowClick = useCallback((event, entry, quick) => {
     if (entry === undefined) return
@@ -1519,15 +1615,14 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       return
     }
     if (key === 'Escape') { store.clearSelection(); return }
-    if ((event.ctrlKey || event.metaKey) && (key === 'c' || key === 'x' || key === 'v')) {
+    if ((event.ctrlKey || event.metaKey) && (key === 'c' || key === 'C' || key === 'x' || key === 'X' || key === 'v' || key === 'V')) {
       event.preventDefault()
-      if (key === 'v') {
-        const pasteTarget = currentEntry?.isDir === true
-          ? currentEntry.path
-          : (slice.selectedPath === '' ? slice.root : parentOf(slice.selectedPath))
-        void store.pasteEntries(pasteTarget)
+      if (key === 'v' || key === 'V') {
+        // The same rule as the context menu: the paste lands in the folder
+        // the user is looking at.
+        runPaste(pasteTarget)
       } else {
-        store.setFileClipboard(currentPaths, key === 'x')
+        store.setFileClipboard(currentPaths, key === 'x' || key === 'X')
       }
     }
   }
@@ -1769,6 +1864,18 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
         title: t('common.refresh'), 'aria-label': t('common.refresh'),
         onClick: () => { void store.sync() },
       }, React.createElement(IconRefresh, { width: 14, height: 14 })),
+      // Fold every folder of the tree (the IDE gesture of the Project
+      // window). The tree is one level deep afterwards, so the viewport
+      // goes back to the top - otherwise the reader looks at an empty box.
+      React.createElement('button', {
+        type: 'button', className: 'iwb-iconbtn',
+        title: t('project.collapseAll'), 'aria-label': t('project.collapseAll'),
+        onClick: () => {
+          store.collapseAll()
+          if (scrollRef.current !== null) scrollRef.current.scrollTop = 0
+          setScrollTop(0)
+        },
+      }, React.createElement(IconCollapseTree, { width: 14, height: 14 })),
     ),
     filterOpen || slice.filter !== '' || query !== ''
       ? React.createElement('div', { className: 'iwb-filter' },
@@ -1808,6 +1915,16 @@ export function ProjectPanel({ store, state: _state, initialScrollTop = 0 }) {
       : null,
     searchActive && slice.fileIndexError !== null
       ? React.createElement('div', { className: 'iwb-filter-hint iwb-error-text' }, t('project.filterError'))
+      : null,
+    // The paste that is running: the copy of a big folder takes a while, and
+    // the user has to see that the tree is busy - and to be able to stop it.
+    slice.pasteBusy
+      ? React.createElement('div', { className: 'iwb-tree-busy' },
+          React.createElement('span', { className: 'iwb-tree-busy-label' }, t('project.pasting')),
+          React.createElement('button', {
+            type: 'button', className: 'iwb-textbtn iwb-small',
+            onClick: cancelPaste,
+          }, t('common.cancel')))
       : null,
     React.createElement('div', {
       className: 'iwb-panel-body iwb-tree',

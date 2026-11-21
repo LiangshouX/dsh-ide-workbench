@@ -239,6 +239,21 @@ export function IconCollapseAll(props = {}) {
   ], props)
 }
 
+/**
+ * The "fold every folder" glyph: a folder with a chevron that points up.
+ *
+ * The tree of the Project window is the thing that is folded, so the glyph
+ * shows a folder - not a panel, and not the chevron of a disclosure arrow
+ * (which would read as "expand"). The chevron points UP because the folders
+ * of the tree fold upwards into their parent.
+ */
+export function IconCollapseTree(props = {}) {
+  return svg([
+    path('M1.9 12.4V4.2h4.2l1.3 1.8h6.7v6.4z', { key: 'a' }),
+    path('M5.6 10.6L8 8.2l2.4 2.4', { key: 'b' }),
+  ], props)
+}
+
 export function IconPlus(props = {}) {
   return svg([path('M8 3v10M3 8h10', props)])
 }

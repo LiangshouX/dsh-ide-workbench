@@ -20,6 +20,9 @@ import {
   composeCodeReference, formatFileMention, insertChatText,
 } from './chat-bridge.js'
 import { isPathWithin, relativePathWithin, sameScopePath, sessionCwdOf } from './workspace-scope.js'
+// The rules of the tree clipboard: where a paste lands, and what may not be
+// pasted at all. The panel decides, the store obeys.
+import { pasteRefusal } from './tree-clipboard.js'
 // The language id of the open document, for the consumers of the editor seam.
 import { languageIdForPath } from './languages.js'
 // The editor seam of the client contract (PRD-v6 §4). The seam belongs to the
@@ -109,6 +112,23 @@ function joinPath(root, rel) {
 /** Human-readable message of any thrown value. */
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Whether a thrown value is the abort of a request the user cancelled.
+ *
+ * A cancelled paste is not a failure: the user asked for it, so it must not
+ * be reported as an error.
+ *
+ * @param {unknown} error the thrown value
+ * @returns {boolean}
+ */
+function isAborted(error) {
+  if (error === null || error === undefined) return false
+  const name = error.name
+  if (name === 'AbortError') return true
+  const code = error.code
+  return code === 'cancelled' || code === 'ABORT_ERR'
 }
 
 /**
@@ -353,6 +373,8 @@ function initialState() {
     selectedPaths: new Set(),
     anchorPath: '',
     clipboard: null,
+    /** True while a paste is copying in the host - the tree says so. */
+    pasteBusy: false,
     filter: '',
     /** 'files' = whole-project quick locate; 'tree' = expanded-tree filter. */
     filterMode: 'tree',
@@ -469,6 +491,14 @@ export class WorkbenchStore {
     /** Timer of the background listing of the restored folders (PERF-07). */
     this.restoredTimer = null
     this.polling = false
+    /**
+     * The controller of the paste that is running.
+     *
+     * The copy of a big folder happens in the host and may take a while: the
+     * user has to be able to stop it, and the abort has to reach the host
+     * that is doing the copying.
+     */
+    this.pasteController = null
     /**
      * The revision of the git snapshot the client holds.
      *
@@ -2137,12 +2167,64 @@ export class WorkbenchStore {
     if (list.length > 0) this.toast('success', this.t(cut === true ? 'project.cut' : 'project.copy'), `${list.length}`)
   }
 
-  async pasteEntries(target) {
+  /**
+   * Paste the clipboard into a folder.
+   *
+   * The destination is decided by the panel (see `tree-clipboard.js`): the
+   * folder the user selected, the folder the menu was opened on, the project
+   * root. This method only carries it out - and it refuses the two pastes
+   * that cannot work: a folder into itself, and a folder into one of its
+   * own subfolders. The user learns it at once, before anything is written.
+   *
+   * The copy of a big folder runs in the host and may be long, so the store
+   * says that it is busy (`pasteBusy`) and can stop the copy
+   * (`cancelPaste`): the tree has to stay alive, and the user has to be able
+   * to say "no".
+   *
+   * @param {string} target the absolute path of the folder
+   * @param {{ signal?: AbortSignal, entries?: Array<{ path: string, isDir?: boolean }> }} [options]
+   * @returns {Promise<boolean>} true when the entries were pasted
+   */
+  async pasteEntries(target, options = {}) {
     const clipboard = this.state.clipboard
-    if (clipboard === null || clipboard === undefined) return
+    if (clipboard === null || clipboard === undefined) return false
+    const list = Array.isArray(clipboard.paths) ? clipboard.paths : []
+    if (list.length === 0) return false
+    // The panel knows which entries are folders; the store falls back to the
+    // paths alone - and it knows the tree too, so a folder is a folder there
+    // as well.
+    const entries = Array.isArray(options.entries) && options.entries.length > 0
+      ? options.entries
+      : list.map(path => ({ path, isDir: this.state.dirs.has(path) }))
+    const refusal = pasteRefusal(entries, target)
+    if (refusal !== null) {
+      this.toast('error', this.t('project.pasteRefused'), this.t(
+        refusal === 'inside' ? 'project.pasteIntoSubfolder' : 'project.pasteIntoItself'))
+      return false
+    }
     const moved = clipboard.cut === true
-    await this.moveEntries(clipboard.paths, target, !moved)
-    if (moved) this.set({ clipboard: null })
+    // The controller of this paste: the cancel button aborts it, and the
+    // host stops the copy it is running.
+    const controller = new AbortController()
+    if (options.signal !== undefined && options.signal !== null) {
+      if (options.signal.aborted === true) controller.abort()
+      else options.signal.addEventListener('abort', () => controller.abort(), { once: true })
+    }
+    this.pasteController = controller
+    this.set({ pasteBusy: true })
+    try {
+      const done = await this.moveEntries(list, target, !moved, { signal: controller.signal })
+      if (moved && done === true) this.set({ clipboard: null })
+      return done
+    } finally {
+      this.pasteController = null
+      this.set({ pasteBusy: false })
+    }
+  }
+
+  /** Stop the paste that is running. */
+  cancelPaste() {
+    this.pasteController?.abort()
   }
 
   /**
@@ -2276,14 +2358,25 @@ export class WorkbenchStore {
   /**
    * Move or copy entries into a directory. Name conflicts auto-rename
    * (`name-copy`), matching JetBrains' duplicate behaviour.
+   *
+   * The copy of a big folder runs in the host and may be long: the panel
+   * shows what is going on and can stop it, and the answer reports what
+   * the copy did NOT do (a budget that ran out, an entry that could not be
+   * read) - a truncated copy is reported, never presented as a whole one.
+   *
+   * @param {string[]} paths the absolute paths of the entries
+   * @param {string} target the absolute path of the target folder
+   * @param {boolean} [copy] true to copy instead of move
+   * @param {{ signal?: AbortSignal }} [options]
+   * @returns {Promise<boolean>} true when at least one entry was moved
    */
-  async moveEntries(paths, target, copy = false) {
+  async moveEntries(paths, target, copy = false, options = {}) {
     const list = Array.isArray(paths) ? paths.filter(path => typeof path === 'string') : []
-    if (list.length === 0 || typeof target !== 'string' || target === '') return
+    if (list.length === 0 || typeof target !== 'string' || target === '') return false
     try {
       const result = await call('fs.move', {
         root: this.state.root, paths: list, target, copy, conflict: 'rename',
-      })
+      }, options.signal)
       const done = result.results.filter(item => item.ok === true)
       const failed = result.results.filter(item => item.ok !== true && item.skipped !== true)
       if (done.length > 0) {
@@ -2294,17 +2387,39 @@ export class WorkbenchStore {
           try { await this.loadDir(dir, { force: true }) } catch { /* the folder may be gone */ }
         }
         const first = this.#absoluteOf(done[0].target)
+        // The pasted entry is selected AND its folder is opened: the user
+        // has to SEE where it landed.
         this.setSelectedPath(first)
+        // The index of the project does not know the new entries yet, so the
+        // tree search would not find them. It is invalidated here and
+        // rebuilt by the next search - never eagerly, because a big project
+        // would pay for a full scan nobody asked for.
+        this.set({ fileIndexRoot: '' })
         await this.refreshStatus()
+      }
+      // The entries the copy could not take: they are reported, not hidden.
+      const broken = done.flatMap(item => (Array.isArray(item.failures) ? item.failures : []))
+      if (broken.length > 0) {
+        const count = this.t('project.pasteMissing').replace('{count}', String(broken.length))
+        this.toast('error', this.t('project.pastePartial'), [
+          count,
+          ...broken.slice(0, 5).map(item => `${item.path}: ${item.message ?? ''}`),
+        ].join('\n'))
+      } else if (result.truncated === true) {
+        this.toast('error', this.t('project.pastePartial'), this.t('project.pasteBudget'))
       }
       if (failed.length > 0) {
         this.toast('error', this.t('common.error'), failed.map(item => `${item.path}: ${item.message ?? item.code}`).join('\n'))
-      } else {
+      } else if (broken.length === 0 && result.truncated !== true) {
         this.toast('success', this.t('common.success'), `${done.length}`)
       }
       this.persist()
+      return done.length > 0
     } catch (error) {
+      // A cancelled paste is not an error: the user asked for it.
+      if (isAborted(error)) return false
       this.toast('error', this.t('common.error'), errorMessage(error))
+      return false
     }
   }
 
