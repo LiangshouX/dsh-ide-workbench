@@ -447,12 +447,12 @@ export function apply(ctx) {
       })
     },
 
-    'fs.duplicate': async (payload) => {
+    'fs.duplicate': async (payload, request) => {
       const root = await canonicalRoot(payload.root)
-      return duplicateEntry(root, { path: requireString(payload, 'path') })
+      return duplicateEntry(root, { path: requireString(payload, 'path'), signal: request?.signal })
     },
 
-    'fs.move': async (payload) => {
+    'fs.move': async (payload, request) => {
       const root = await canonicalRoot(payload.root)
       const conflict = ['error', 'skip', 'rename', 'overwrite'].includes(payload.conflict)
         ? payload.conflict
@@ -462,6 +462,9 @@ export function apply(ctx) {
         target: requireString(payload, 'target'),
         copy: optionalBoolean(payload, 'copy', false),
         conflict,
+        // The signal of the request: a paste the user cancels must stop the
+        // copy in the host, not only the answer on its way back.
+        signal: request?.signal,
       })
     },
 
