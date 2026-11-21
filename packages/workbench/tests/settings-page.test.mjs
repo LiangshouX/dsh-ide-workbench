@@ -118,6 +118,18 @@ test('the page shows every setting of the model', async () => {
   assert.deepEqual([...shown].sort(), [...expected].sort())
 })
 
+test('the native page of DSH renders without a state of the store', async () => {
+  // The native page (the `settings.section` slot) hands the form the slices
+  // it reads and NO state. A form that reads the state crashes there, and
+  // the user gets a white screen in the settings of DSH.
+  const { renderNativeSettingsPage } = await loadPage()
+  const html = renderNativeSettingsPage()
+  assert.match(html, /iwb-settings-panel/, 'the native page renders the panel')
+  assert.ok(renderedSettings(html).length > 0, 'the native page renders the rows')
+  // The row that reads the live state of the store is on the page too.
+  assert.match(html, /settings\.toolWindowSide/, 'the row that reads the live state is there')
+})
+
 test('the page groups the rows under the categories of the model', async () => {
   const { renderSettingsPage } = await loadPage()
   const html = renderSettingsPage()

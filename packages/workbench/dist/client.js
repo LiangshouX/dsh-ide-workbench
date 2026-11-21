@@ -61727,10 +61727,8 @@ var SHORTCUT_FALLBACK = {
   duplicate: "F5",
   move: "F6",
   synchronize: "Ctrl+Alt+Y",
-  compare: "Ctrl+D",
   findInFiles: "Ctrl+Shift+R",
-  quickOpen: "Ctrl+Shift+N",
-  openEntry: "Enter"
+  quickOpen: "Ctrl+Shift+N"
 };
 function parentOf(path2) {
   const index = Math.max(path2.lastIndexOf("/"), path2.lastIndexOf("\\"));
@@ -79337,7 +79335,7 @@ var SettingsForm = import_react17.default.memo(function SettingsForm2({
   const t3 = store.t;
   const settings = settingsProp ?? state?.settings ?? {};
   const shells = shellsProp ?? state?.terminal?.shells ?? [];
-  const entrySide = state.settings?.layout?.entrySide === "left" ? "left" : DEFAULT_ENTRY_SIDE;
+  const entrySide = settings.layout?.entrySide === "left" ? "left" : DEFAULT_ENTRY_SIDE;
   const [draft, setDraft] = (0, import_react17.useState)(settings);
   const [saved, setSaved] = (0, import_react17.useState)(false);
   const [saving, setSaving] = (0, import_react17.useState)(false);
@@ -79523,10 +79521,12 @@ var SettingsForm = import_react17.default.memo(function SettingsForm2({
   }, [counts, filter, t3]);
   const selectTab = (0, import_react17.useCallback)((id2, focus = false) => {
     setCategory(id2);
-    if (focus) {
-      const node = tabRefs.current.get(id2);
-      if (node !== void 0 && node !== null) node.focus();
+    const node = tabRefs.current.get(id2);
+    if (node === void 0 || node === null) return;
+    if (typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
+    if (focus) node.focus();
   }, []);
   const onTabKeyDown = (0, import_react17.useCallback)((event) => {
     const keys2 = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
@@ -82178,16 +82178,20 @@ var CSS2 = `@font-face{font-family:'Inter';font-style:normal;font-weight:100 900
   /* The component tokens of the page. They are built from the semantic
      tokens of the theme - the page never names a colour or a length of its
      own (design-system: primitive -> semantic -> component). */
-  --iwb-settings-header-height: 88px;
+  --iwb-settings-header-height: 96px;
   --iwb-settings-row-pad: var(--iwb-space-3);
   --iwb-settings-row-gap: var(--iwb-space-4);
   --iwb-settings-group-gap: var(--iwb-space-5);
   --iwb-settings-read-measure: 65ch;
+  /* The height of the panel of the rows. It is a height and not a minimum:
+     the window must not change its size when another category is picked. */
+  --iwb-settings-panel-height: min(50vh, 520px);
 }
 .iwb-settings-compact {
   --iwb-settings-row-pad: var(--iwb-space-2);
   --iwb-settings-row-gap: var(--iwb-space-3);
   --iwb-settings-group-gap: var(--iwb-space-4);
+  --iwb-settings-panel-height: min(44vh, 420px);
 }
 .iwb-settings *, .iwb-settings *::before, .iwb-settings *::after { box-sizing: border-box; }
 .iwb-settings :where(button, input, select) { font: inherit; color: inherit; }
@@ -82333,25 +82337,51 @@ var CSS2 = `@font-face{font-family:'Inter';font-style:normal;font-weight:100 900
    reads as two words), and it never shrinks. */
 .iwb-settings-header-row .iwb-settings-reset,
 .iwb-settings-header-row .iwb-textbtn { flex: 0 0 auto; white-space: nowrap; }
-/* The category bar WRAPS: a chip is never cut off and never hidden
-   (ui-ux-pro-max: chip collection reflow - the collection wraps instead of
-   being cropped into one line). */
-.iwb-settings-tabs { display: flex; flex-wrap: wrap; gap: var(--iwb-space-1); flex: 1 1 auto; min-width: 0; }
+/* The category bar is ONE row that SCROLLS. Ten chips wrapped into a pile
+   read as noise in a narrow sidebar, and a chip that is cropped away is a
+   category the user cannot find - so the bar is dragged instead of wrapped
+   (the chips keep their own room, and the bar scrolls sideways). */
+.iwb-settings-tabs {
+  display: flex; flex-wrap: nowrap; gap: var(--iwb-space-2);
+  flex: 1 1 auto; min-width: 0;
+  overflow-x: auto; overflow-y: hidden;
+  padding-bottom: var(--iwb-space-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--iwb-border-strong) transparent;
+}
+.iwb-settings-tabs::-webkit-scrollbar { height: 6px; }
+.iwb-settings-tabs::-webkit-scrollbar-track { background: transparent; }
+.iwb-settings-tabs::-webkit-scrollbar-thumb {
+  background: var(--iwb-border-strong); border-radius: 3px;
+}
+.iwb-settings-tabs::-webkit-scrollbar-thumb:hover { background: var(--iwb-muted); }
+/* A chip has room of its own: a category is a place, not a word in a list. */
 .iwb-settings-tab {
-  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px;
-  border: 1px solid transparent; border-radius: var(--iwb-radius-sm);
-  color: var(--iwb-muted); background: transparent; font-size: var(--iwb-text-label);
+  display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  height: 32px; padding: 0 14px;
+  border: 1px solid var(--iwb-border); border-radius: var(--iwb-radius-sm);
+  color: var(--iwb-muted); background: var(--iwb-panel-2);
+  font-size: var(--iwb-text-body);
   white-space: nowrap;
-  transition: color var(--iwb-dur-fast) var(--iwb-ease), background var(--iwb-dur-fast) var(--iwb-ease);
+  transition: color var(--iwb-dur-fast) var(--iwb-ease), background var(--iwb-dur-fast) var(--iwb-ease), border-color var(--iwb-dur-fast) var(--iwb-ease);
 }
 .iwb-settings-tab:hover { color: var(--iwb-fg); background: var(--iwb-surface-hover); }
-.iwb-settings-tab:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 1px; }
+.iwb-settings-tab:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 2px; }
 .iwb-settings-tab[aria-selected="true"] {
-  color: var(--iwb-fg); background: var(--iwb-surface-selected); border-color: var(--iwb-border-strong);
+  color: var(--iwb-fg); background: var(--iwb-surface-selected); border-color: var(--iwb-accent);
+  font-weight: 600;
 }
-.iwb-settings-tab-count { color: var(--iwb-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.iwb-settings-tab-count { color: var(--iwb-muted); font-size: var(--iwb-text-label); font-variant-numeric: tabular-nums; }
 .iwb-settings-tab[aria-selected="true"] .iwb-settings-tab-count { color: var(--iwb-fg); }
-.iwb-settings-panel { padding-bottom: var(--iwb-space-4); scroll-margin-top: var(--iwb-settings-header-height); }
+/* The panel has a HEIGHT, not a minimum: the categories hold a different
+   number of rows, and a panel that follows its content makes the whole
+   window jump every time another category is picked. The rows scroll
+   inside the panel instead. */
+.iwb-settings-panel {
+  height: var(--iwb-settings-panel-height);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: var(--iwb-space-4); scroll-margin-top: var(--iwb-settings-header-height);
+}
 .iwb-settings-panel:focus-visible { outline: 2px solid var(--iwb-accent); outline-offset: 2px; }
 
 /* The honest states of a row. The colour is the only thing that changes, and

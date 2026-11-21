@@ -53,10 +53,8 @@ const SHORTCUT_FALLBACK = {
   duplicate: 'F5',
   move: 'F6',
   synchronize: 'Ctrl+Alt+Y',
-  compare: 'Ctrl+D',
   findInFiles: 'Ctrl+Shift+R',
   quickOpen: 'Ctrl+Shift+N',
-  openEntry: 'Enter',
 }
 
 /** Parent directory of a path (both separators). */

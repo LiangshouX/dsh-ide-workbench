@@ -249,7 +249,10 @@ export const SettingsForm = React.memo(function SettingsForm({
   // The side is read from the live store state, not from the local draft:
   // this row writes straight through, so the workbench flips while the page
   // is still open and a draft copy would only lag behind it.
-  const entrySide = state.settings?.layout?.entrySide === 'left' ? 'left' : DEFAULT_ENTRY_SIDE
+  // The live value is the slice the page was given, or the state of the
+  // store - the native settings page hands over the slice and no state at
+  // all, so the state may not be there.
+  const entrySide = settings.layout?.entrySide === 'left' ? 'left' : DEFAULT_ENTRY_SIDE
   const [draft, setDraft] = useState(settings)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -490,10 +493,15 @@ export const SettingsForm = React.memo(function SettingsForm({
   /** Move the selection of the category bar. */
   const selectTab = useCallback((id, focus = false) => {
     setCategory(id)
-    if (focus) {
-      const node = tabRefs.current.get(id)
-      if (node !== undefined && node !== null) node.focus()
+    const node = tabRefs.current.get(id)
+    if (node === undefined || node === null) return
+    // The bar scrolls sideways instead of wrapping, so a category that is
+    // out of sight has to be brought into it - otherwise the user picks a
+    // category and sees nothing happen.
+    if (typeof node.scrollIntoView === 'function') {
+      node.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     }
+    if (focus) node.focus()
   }, [])
 
   /**

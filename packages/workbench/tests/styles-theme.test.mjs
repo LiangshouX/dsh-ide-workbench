@@ -442,3 +442,26 @@ test('the blocking confirmation sits above the dialog it answers', () => {
   assert.match(ui, /'iwb-modal-backdrop iwb-confirm-backdrop'/)
   assert.match(ui, /'iwb-modal-backdrop iwb-editor-scoped-backdrop'/)
 })
+
+test('the panel of the settings keeps its height when the category changes', () => {
+  // The categories hold a different number of rows. A panel that follows its
+  // content makes the whole window jump every time another category is
+  // picked - so the panel has a HEIGHT and the rows scroll inside it.
+  assert.match(styles, /\.iwb-settings-panel \{[^}]*height: var\(--iwb-settings-panel-height\);/)
+  assert.match(styles, /\.iwb-settings-panel \{[^}]*overflow-y: auto;/)
+  assert.match(styles, /--iwb-settings-panel-height: min\(50vh, 520px\);/)
+  // The height is a height, not a minimum: a minimum would still let the
+  // window grow with the longest category.
+  assert.doesNotMatch(styles, /\.iwb-settings-panel \{[^}]*min-height:/)
+})
+
+test('the category bar scrolls instead of piling the chips up', () => {
+  // Ten chips wrapped into a narrow sidebar read as noise, and a chip that
+  // is cropped away is a category the user cannot find - so the bar is one
+  // row that is dragged sideways.
+  assert.match(styles, /\.iwb-settings-tabs \{[^}]*flex-wrap: nowrap;/)
+  assert.match(styles, /\.iwb-settings-tabs \{[^}]*overflow-x: auto;/)
+  assert.doesNotMatch(styles, /\.iwb-settings-tabs \{[^}]*flex-wrap: wrap;/)
+  // The bar is scrollable, so the scrollbar is visible.
+  assert.match(styles, /\.iwb-settings-tabs::\-webkit-scrollbar \{/)
+})

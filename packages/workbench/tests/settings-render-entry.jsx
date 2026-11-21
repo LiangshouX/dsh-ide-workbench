@@ -7,7 +7,7 @@
  */
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { SettingsForm } from '../src/client/SettingsPanel.jsx'
+import { SettingsForm, SettingsSection } from '../src/client/SettingsPanel.jsx'
 
 /** The document the tests render. */
 export function settingsDocument(overrides = {}) {
@@ -55,4 +55,32 @@ export function renderSettingsPage(options = {}) {
     terminal: { shells: [{ id: 'pwsh', label: 'PowerShell' }] },
   }
   return renderToStaticMarkup(React.createElement(SettingsForm, { store, state, ...props }))
+}
+
+/**
+ * Render the native settings page: the `settings.section` slot of DSH.
+ *
+ * The native page hands the form the SLICES it reads and no state at all -
+ * a form that reads the state of the store crashes, and the page of DSH
+ * shows a white screen instead of the settings.
+ *
+ * @param {object} [options] the overrides of the document and of the props
+ * @returns {string} the markup
+ */
+export function renderNativeSettingsPage(options = {}) {
+  const { document = {}, props = {}, ...rest } = options
+  const published = settingsDocument(document)
+  const state = {
+    settings: published,
+    terminal: { shells: [{ id: 'pwsh', label: 'PowerShell' }] },
+  }
+  const store = {
+    t: key => key,
+    updateSettings: async () => {},
+    subscribe: () => () => {},
+    getSnapshot: () => state,
+    toast: () => {},
+    ...rest,
+  }
+  return renderToStaticMarkup(React.createElement(SettingsSection, { store, ...props }))
 }
