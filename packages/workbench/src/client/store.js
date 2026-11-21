@@ -469,6 +469,18 @@ export class WorkbenchStore {
     /** Timer of the background listing of the restored folders (PERF-07). */
     this.restoredTimer = null
     this.polling = false
+    /**
+     * The revision of the git snapshot the client holds.
+     *
+     * The host gives every snapshot a revision and answers "nothing changed"
+     * when the client names the one it already has. The revision is a token
+     * of the protocol and not a part of the state: keeping it out of the
+     * state is what lets an unchanged poll write NOTHING at all - a poll that
+     * writes wakes every subscriber of the workbench and re-renders the whole
+     * panel every two seconds.
+     * @type {number}
+     */
+    this.statusRevision = 0
     this.persist = debounce(() => { void this.#persist() }, 700)
     this.toastTimer = null
     /** Per-folder request generation, so a stale listing cannot win. */
@@ -532,8 +544,11 @@ export class WorkbenchStore {
    */
   #onVisibilityChange = () => {
     if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
-    // The work a poll tick would have done: the git status.
-    void this.pollStatus()
+    // The work a poll tick would have done: the git status. It is a FRESH
+    // one: the page was hidden, and a hidden page does not keep the cadence
+    // of the host - the watch of the host may also have missed a change that
+    // happened while the page was in the background.
+    void this.pollStatus({ fresh: true })
   }
 
   getSnapshot = () => this.state
@@ -1476,10 +1491,10 @@ export class WorkbenchStore {
     this.deactivate()
   }
 
-  async pollStatus() {
+  async pollStatus(options = {}) {
     if (!this.state.active || this.state.root === '' || this.polling) return
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
-    await this.refreshStatus({ silent: true })
+    await this.refreshStatus({ silent: true, ...options })
     await this.#checkActiveFileOnDisk()
   }
 
@@ -1537,9 +1552,28 @@ export class WorkbenchStore {
     this.polling = true
     // The status belongs to the repository the Git window reads (GIT-01).
     const root = this.gitRoot
+    // The BACKGROUND poll may take the snapshot the host already has: the
+    // host watches the work tree and answers "nothing changed" without
+    // running git and without shipping the snapshot again. Every explicit
+    // refresh (a stage, a commit, a window that opens) asks for a new one,
+    // because it wants the state of THIS moment and not the state of the
+    // last tick.
+    const background = options.silent === true && options.force !== true && options.fresh !== true
     try {
-      const status = await call('git.status', { root, numstat: this.#wantsNumstat() })
+      const status = await call('git.status', {
+        root,
+        numstat: this.#wantsNumstat(),
+        ...(background ? { since: this.statusRevision } : {}),
+      })
       if (this.gitRoot !== root) return
+      if (status !== null && typeof status === 'object' && status.unchanged === true) {
+        // The work tree did not change: the snapshot on the screen is still
+        // the truth. Nothing is written, so nothing is re-rendered - a poll
+        // that writes wakes every subscriber of the workbench, and the whole
+        // panel is rebuilt every two seconds for nothing.
+        if (typeof status.revision === 'number') this.statusRevision = status.revision
+        return
+      }
       const previous = this.state.status
       // The panels read the whole status object (`ProjectPanel`) or its entry
       // list (`CommitPanel`), so a brand new object on every poll woke them
@@ -1548,6 +1582,7 @@ export class WorkbenchStore {
       // the snapshot says the same thing: its identity is what the panel
       // slices compare.
       const changed = !sameGitStatus(previous, status)
+      if (typeof status.revision === 'number') this.statusRevision = status.revision
       this.set({
         status: changed ? status : previous,
         statusError: null,

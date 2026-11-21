@@ -31,6 +31,7 @@ import {
   appendIgnore, createEntry, deleteEntries, duplicateEntry, moveEntries, renameEntry,
 } from './host/fileops.js'
 import { listFiles, searchFiles } from './host/search.js'
+import { StatusCache } from './host/status-cache.js'
 import { guardEmitter } from './host/guard.js'
 import {
   ApiError, optionalBoolean, optionalInteger, readJsonBody, requireString, stringArray,
@@ -146,6 +147,17 @@ export function apply(ctx) {
   const settings = new SettingsStore(ctx)
   /** Live terminal handles by session id, for the activity endpoint and unload. */
   const terminals = new Map()
+
+  /**
+   * The cached status of the repositories, and the watch on their work trees.
+   *
+   * The client polls the git status every two seconds. The poll runs in the
+   * HOST process - the process of DSH itself - so every tick that runs a git
+   * subprocess is a tick the host pays for. The cache lets the host answer
+   * "nothing changed" without running git at all, and the watch tells it when
+   * the answer changed.
+   */
+  const statusCache = new StatusCache()
 
   /**
    * The root of the project the user is working in.
@@ -475,20 +487,47 @@ export function apply(ctx) {
 
     // ── git ──────────────────────────────────────────────────────────────
     'git.status': async (payload) => {
-      const env = await repoEnv(payload)
       const current = await settings.get()
-      // The ignored entries are always asked for - the client setting only
-      // decides whether they are shown - and the per-file line counts are
-      // only computed for the Commit window. The levels above an ignored
-      // directory are only needed when the ignored entries are shown, and
-      // they cost one `git ls-files` call.
-      const snapshot = await gitStatus(env, {
-        ignored: current.project.showIgnored === true,
-        levels: current.project.showIgnored === true,
-        numstat: payload?.numstat === true,
-      })
+      const ignored = current.project.showIgnored === true
+      const numstat = payload?.numstat === true
+      // The options are part of the identity of a snapshot: a client that
+      // asks for the line counts needs a snapshot that carries them.
+      const options = `${numstat ? 'n' : '-'}${ignored ? 'i' : '-'}`
+      const entry = statusCache.entry(typeof payload?.root === 'string' ? payload.root : '')
+      // The cheap path: the client holds the snapshot of the host and the
+      // work tree did not change since. The snapshot does not travel again -
+      // in a repository with a large untracked tree it is megabytes of JSON
+      // that the browser parses on its main thread.
+      if (statusCache.isCurrent(entry, payload?.since, options)) {
+        return { unchanged: true, revision: entry.revision }
+      }
+      const env = await repoEnv(payload)
+      // The watch is on the work tree of the repository: it is what tells the
+      // host that the snapshot has to be taken again. It is established
+      // BEFORE the snapshot is taken, so a change that happens while git
+      // reads the tree is seen by the next request.
+      statusCache.watchTree(entry, env.root, env.isRepo === true)
+      // The number of changes the snapshot starts from: a change that arrives
+      // while git reads the work tree keeps the entry stale instead of being
+      // swallowed by the snapshot that did not see it.
+      const seen = statusCache.changesOf(entry)
+      let snapshot
+      try {
+        snapshot = await gitStatus(env, {
+          ignored,
+          levels: ignored,
+          numstat,
+        })
+      } catch (error) {
+        // A failed call leaves no snapshot: the next request has to try
+        // again, or the client would keep the error for ever.
+        statusCache.invalidate(entry)
+        throw error
+      }
+      const revision = statusCache.publish(entry, options, seen)
       return {
         ...snapshot,
+        revision,
         root: env.workspaceRoot,
         workspaceRoot: env.workspaceRoot,
         repoRoot: snapshot.root ?? null,
@@ -1078,6 +1117,9 @@ export function apply(ctx) {
       terminals.delete(id)
       void handle.terminate().catch(() => {})
     }
+    // The watch on the work trees belongs to the plugin: it closes with it,
+    // and no handle of the host process outlives the plugin.
+    statusCache.clear()
   }, 'dsh-ide-workbench: teardown')
 
   ctx.effect(() => {
