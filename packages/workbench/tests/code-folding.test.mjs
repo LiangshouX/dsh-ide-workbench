@@ -167,12 +167,17 @@ const JS_DOC = [
  * be cut short - and an incomplete tree has no fold ranges. So the test
  * asks for the whole tree first, with a budget that a short document never
  * needs.
+ *
+ * The budget is `Infinity`: the test wants the WHOLE tree, not a fast one,
+ * and a wall-clock budget makes the test fail on a busy machine - a false
+ * red that has nothing to do with the folding. The document is a few lines,
+ * so the parse cannot run away.
  * @param {any} state the editor state
  * @param {Function} ensureSyntaxTree the `ensureSyntaxTree` of CodeMirror
  * @returns {any} the tree of the document
  */
 function parsed(state, ensureSyntaxTree) {
-  const tree = ensureSyntaxTree(state, state.doc.length, 5000)
+  const tree = ensureSyntaxTree(state, state.doc.length, Infinity)
   assert.notEqual(tree, null, 'the document is parsed')
   return tree
 }
