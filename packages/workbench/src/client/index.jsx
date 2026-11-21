@@ -40,6 +40,10 @@ const PANEL_ID = 'ide-workbench'
  * every frame of every Session that draws the workbench (PRD-v5 PERF-04).
  * The stylesheet of the workbench itself is a module constant already
  * (`styles.js`), and this one follows the same pattern.
+ *
+ * The rules that name a class of CodeMirror are bound to the workbench in the
+ * stylesheet itself (`styles.js`): the host draws a CodeMirror of its own, and
+ * an unscoped rule of the plugin would restyle it.
  */
 export const WORKBENCH_CSS = `${xtermCss}\n${CSS}`
 

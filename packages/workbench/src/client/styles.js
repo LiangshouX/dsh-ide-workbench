@@ -1983,11 +1983,17 @@ export const CSS = `/*__DSH_FONT_CSS__*/
    CodeMirror draws the fold markers and the placeholder of a collapsed range;
    the workbench only gives them the theme's colours, so they follow the host
    theme like every other part of the editor. The class names are CodeMirror's
-   own - foldGutter() installs the gutter as .cm-foldGutter. */
-.cm-foldGutter { color: var(--iwb-muted); }
-.cm-foldGutter .cm-gutterElement { padding: 0 2px; cursor: pointer; }
-.cm-foldGutter .cm-gutterElement:hover { color: var(--iwb-fg); }
-.cm-foldPlaceholder {
+   own - foldGutter() installs the gutter as .cm-foldGutter.
+
+   The rules are bound to the workbench with :where(.iwb-root): the host draws
+   a CodeMirror of its own (its chat input is one), and an unscoped rule of
+   the plugin would restyle it. The pseudo-class weighs nothing, so the
+   specificity of the rule is the one it had - the workbench looks exactly the
+   way it looked. */
+:where(.iwb-root) .cm-foldGutter { color: var(--iwb-muted); }
+:where(.iwb-root) .cm-foldGutter .cm-gutterElement { padding: 0 2px; cursor: pointer; }
+:where(.iwb-root) .cm-foldGutter .cm-gutterElement:hover { color: var(--iwb-fg); }
+:where(.iwb-root) .cm-foldPlaceholder {
   color: var(--iwb-muted);
   background: color-mix(in srgb, var(--iwb-accent) 14%, transparent);
   border: none; border-radius: 3px; padding: 0 4px; margin: 0 2px; font-size: .92em;
